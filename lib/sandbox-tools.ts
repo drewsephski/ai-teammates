@@ -1,8 +1,14 @@
-import type { Sandbox } from "@daytona/sdk"
+import type { Sandbox } from "@e2b/desktop"
 import { tool, type InferUITools, type UIDataTypes, type UIMessage } from "ai"
 import { z } from "zod"
 
-import { getBotSandbox, MEMORY_FILE, readBotMemory } from "@/lib/daytona"
+import {
+  withBotSandbox,
+  MEMORY_FILE,
+  readBotMemory,
+  runSandboxCommand,
+} from "@/lib/e2b"
+import { sandboxPath } from "@/lib/sandbox-policy"
 import type { HandoffTools } from "@/lib/handoff-tool"
 
 // Enough for a model to work with, without one noisy command filling its context
@@ -19,22 +25,16 @@ const point = {
 }
 
 async function takeScreenshot(sandbox: Sandbox) {
-  const [shot, display] = await Promise.all([
-    sandbox.computerUse.screenshot.takeCompressed({
-      format: "jpeg",
-      quality: 70,
-      showCursor: true,
-    }),
-    sandbox.computerUse.display.getInfo(),
+  const [shot, screen] = await Promise.all([
+    sandbox.screenshot(),
+    sandbox.getScreenSize(),
   ])
-  if (!shot.screenshot) throw new Error("The screenshot came back empty")
-
-  const screen = display.displays?.[0]
+  if (!shot.byteLength) throw new Error("The screenshot came back empty")
   return {
-    base64: shot.screenshot,
-    mediaType: "image/jpeg",
-    width: screen?.width,
-    height: screen?.height,
+    base64: Buffer.from(shot).toString("base64"),
+    mediaType: "image/png",
+    width: screen.width,
+    height: screen.height,
   }
 }
 
@@ -59,48 +59,16 @@ function screenshotToModelOutput({ output }: { output: Screenshot }) {
 }
 
 // A bot's sandbox as a tool set. The sandbox is only looked up, woken and
-// given a desktop when a tool first needs it. The ID is asked for on every call
-// and each sandbox is kept, since a handoff changes whose sandbox this is.
+// renewed when a tool needs it. Ask for the ID on every call so handoffs use
+// the receiving bot's computer, and paused sessions never leave stale clients.
 export function createSandboxTools(
   getSandboxId: () => string | Promise<string>
 ) {
-  const sandboxes = new Map<string, Promise<Sandbox>>()
-  const desktops = new Map<string, Promise<Sandbox>>()
-
-  async function getSandbox() {
-    const id = await getSandboxId()
-
-    let sandbox = sandboxes.get(id)
-    if (!sandbox) {
-      sandbox = getBotSandbox(id).catch((error) => {
-        // Let the next tool call try again
-        sandboxes.delete(id)
-        throw error
-      })
-      sandboxes.set(id, sandbox)
-    }
-    return sandbox
-  }
-
-  async function getDesktop() {
-    const id = await getSandboxId()
-
-    let desktop = desktops.get(id)
-    if (!desktop) {
-      desktop = getSandbox()
-        .then(async (sandbox) => {
-          // Starting is slow even when everything is up, so ask first
-          const { status } = await sandbox.computerUse.getStatus()
-          if (status !== "active") await sandbox.computerUse.start()
-          return sandbox
-        })
-        .catch((error) => {
-          desktops.delete(id)
-          throw error
-        })
-      desktops.set(id, desktop)
-    }
-    return desktop
+  async function runInSandbox<T>(
+    operation: (sandbox: Sandbox) => Promise<T>,
+    leaseMs?: number
+  ) {
+    return withBotSandbox(await getSandboxId(), operation, leaseMs)
   }
 
   return {
@@ -118,20 +86,22 @@ export function createSandboxTools(
           .optional()
           .describe("Seconds to wait before giving up. Defaults to 60."),
       }),
-      execute: async ({ command, cwd, timeout = 60 }) => {
-        const sandbox = await getSandbox()
-        const response = await sandbox.process.executeCommand(
-          command,
-          // No shell expands this one, and a bad directory fails confusingly
-          cwd?.replace(/^~(\/|$)/, "") || undefined,
-          undefined,
-          timeout
-        )
-        return {
-          exitCode: response.exitCode,
-          output: truncate(response.result),
-        }
-      },
+      execute: async ({ command, cwd, timeout = 60 }) =>
+        runInSandbox(
+          async (sandbox) => {
+            const response = await runSandboxCommand(
+              sandbox,
+              command,
+              cwd ? sandboxPath(cwd) : undefined,
+              timeout * 1000
+            )
+            return {
+              exitCode: response.exitCode,
+              output: truncate(response.stdout + response.stderr),
+            }
+          },
+          Math.max(5 * 60_000, (timeout + 30) * 1000)
+        ),
     }),
 
     readFile: tool({
@@ -141,11 +111,11 @@ export function createSandboxTools(
           .string()
           .describe("File path, absolute or relative to your home directory"),
       }),
-      execute: async ({ path }) => {
-        const sandbox = await getSandbox()
-        const file = await sandbox.fs.downloadFile(path)
-        return { content: truncate(file.toString("utf8")) }
-      },
+      execute: async ({ path }) =>
+        runInSandbox(async (sandbox) => {
+          const file = await sandbox.files.read(sandboxPath(path))
+          return { content: truncate(file) }
+        }),
     }),
 
     writeFile: tool({
@@ -157,12 +127,12 @@ export function createSandboxTools(
           .describe("File path, absolute or relative to your home directory"),
         content: z.string().describe("The full new content of the file"),
       }),
-      execute: async ({ path, content }) => {
-        const sandbox = await getSandbox()
-        const file = Buffer.from(content, "utf8")
-        await sandbox.fs.uploadFile(file, path)
-        return { path, bytes: file.byteLength }
-      },
+      execute: async ({ path, content }) =>
+        runInSandbox(async (sandbox) => {
+          const file = Buffer.from(content, "utf8")
+          await sandbox.files.write(sandboxPath(path), content)
+          return { path, bytes: file.byteLength }
+        }),
     }),
 
     listFiles: tool({
@@ -175,27 +145,27 @@ export function createSandboxTools(
             "Directory path, absolute or relative to your home directory"
           ),
       }),
-      execute: async ({ path }) => {
-        const sandbox = await getSandbox()
-        const files = await sandbox.fs.listFiles(path)
-        return {
-          files: files.map((file) => ({
-            name: file.name,
-            isDir: file.isDir,
-            size: file.size,
-          })),
-        }
-      },
+      execute: async ({ path }) =>
+        runInSandbox(async (sandbox) => {
+          const files = await sandbox.files.list(sandboxPath(path))
+          return {
+            files: files.map((file) => ({
+              name: file.name,
+              isDir: file.type === "dir",
+              size: file.size,
+            })),
+          }
+        }),
     }),
 
     recall: tool({
       description:
         "Read your memory: the notes you have saved across all your conversations with the person, including ones you cannot see from here. Call this before answering any question about the person, their preferences, their projects or anything said or decided earlier, and always before saying you do not know something or asking them to tell you again.",
       inputSchema: z.object({}),
-      execute: async () => {
-        const sandbox = await getSandbox()
-        return { memory: truncate(await readBotMemory(sandbox)) }
-      },
+      execute: async () =>
+        runInSandbox(async (sandbox) => {
+          return { memory: truncate(await readBotMemory(sandbox)) }
+        }),
     }),
 
     remember: tool({
@@ -208,17 +178,18 @@ export function createSandboxTools(
             "What to remember, as one self-contained sentence that makes sense without this conversation"
           ),
       }),
-      execute: async ({ note }) => {
-        const sandbox = await getSandbox()
-        const line = Buffer.from(`- ${note.trim()}\n`, "utf8")
-        // Encoded so no note can break out of the command, and appended so
-        // notes saved from two chats at once both survive
-        const response = await sandbox.process.executeCommand(
-          `echo ${line.toString("base64")} | base64 -d >> ${MEMORY_FILE}`
-        )
-        if (response.exitCode !== 0) throw new Error(response.result)
-        return { remembered: note.trim() }
-      },
+      execute: async ({ note }) =>
+        runInSandbox(async (sandbox) => {
+          const line = Buffer.from(`- ${note.trim()}\n`, "utf8")
+          // Encoded so no note can break out of the command, and appended so
+          // notes saved from two chats at once both survive
+          const response = await runSandboxCommand(
+            sandbox,
+            `echo ${line.toString("base64")} | base64 -d >> ${MEMORY_FILE}`
+          )
+          if (response.exitCode !== 0) throw new Error(response.stderr)
+          return { remembered: note.trim() }
+        }),
     }),
 
     mouseClick: tool({
@@ -229,22 +200,32 @@ export function createSandboxTools(
         button: z.enum(["left", "right", "middle"]).default("left"),
         double: z.boolean().default(false).describe("Double-click"),
       }),
-      execute: async ({ x, y, button, double }) => {
-        const sandbox = await getDesktop()
-        await sandbox.computerUse.mouse.click(x, y, button, double)
-        return { x, y }
-      },
+      execute: async ({ x, y, button, double }) =>
+        runInSandbox(async (sandbox) => {
+          const click =
+            button === "right"
+              ? sandbox.rightClick.bind(sandbox)
+              : button === "middle"
+                ? sandbox.middleClick.bind(sandbox)
+                : sandbox.leftClick.bind(sandbox)
+          if (double && button === "left") await sandbox.doubleClick(x, y)
+          else {
+            await click(x, y)
+            if (double) await click(x, y)
+          }
+          return { x, y }
+        }),
     }),
 
     mouseMove: tool({
       description:
         "Move the mouse cursor to a point on your sandbox's desktop without clicking.",
       inputSchema: z.object(point),
-      execute: async ({ x, y }) => {
-        const sandbox = await getDesktop()
-        await sandbox.computerUse.mouse.move(x, y)
-        return { x, y }
-      },
+      execute: async ({ x, y }) =>
+        runInSandbox(async (sandbox) => {
+          await sandbox.moveMouse(x, y)
+          return { x, y }
+        }),
     }),
 
     mouseDrag: tool({
@@ -256,11 +237,11 @@ export function createSandboxTools(
         endX: point.x,
         endY: point.y,
       }),
-      execute: async ({ startX, startY, endX, endY }) => {
-        const sandbox = await getDesktop()
-        await sandbox.computerUse.mouse.drag(startX, startY, endX, endY)
-        return { x: endX, y: endY }
-      },
+      execute: async ({ startX, startY, endX, endY }) =>
+        runInSandbox(async (sandbox) => {
+          await sandbox.drag([startX, startY], [endX, endY])
+          return { x: endX, y: endY }
+        }),
     }),
 
     mouseScroll: tool({
@@ -277,11 +258,12 @@ export function createSandboxTools(
           .default(3)
           .describe("Wheel notches; each moves a few lines"),
       }),
-      execute: async ({ x, y, direction, amount }) => {
-        const sandbox = await getDesktop()
-        await sandbox.computerUse.mouse.scroll(x, y, direction, amount)
-        return { x, y, direction, amount }
-      },
+      execute: async ({ x, y, direction, amount }) =>
+        runInSandbox(async (sandbox) => {
+          await sandbox.moveMouse(x, y)
+          await sandbox.scroll(direction, amount)
+          return { x, y, direction, amount }
+        }),
     }),
 
     keyboardType: tool({
@@ -290,11 +272,11 @@ export function createSandboxTools(
       inputSchema: z.object({
         text: z.string().describe("The text to type"),
       }),
-      execute: async ({ text }) => {
-        const sandbox = await getDesktop()
-        await sandbox.computerUse.keyboard.type(text)
-        return { typed: text.length }
-      },
+      execute: async ({ text }) =>
+        runInSandbox(async (sandbox) => {
+          await sandbox.write(text)
+          return { typed: text.length }
+        }),
     }),
 
     keyboardPress: tool({
@@ -308,18 +290,23 @@ export function createSandboxTools(
           ),
         modifiers: z.array(z.enum(["ctrl", "alt", "shift", "cmd"])).default([]),
       }),
-      execute: async ({ key, modifiers }) => {
-        const sandbox = await getDesktop()
-        await sandbox.computerUse.keyboard.press(key, modifiers)
-        return { key, modifiers }
-      },
+      execute: async ({ key, modifiers }) =>
+        runInSandbox(async (sandbox) => {
+          await sandbox.press([
+            ...modifiers.map((modifier) =>
+              modifier === "cmd" ? "super" : modifier
+            ),
+            key,
+          ])
+          return { key, modifiers }
+        }),
     }),
 
     viewScreen: tool({
       description:
         "Look at your sandbox's desktop yourself. Use this whenever you need to see the screen to do your work, such as before clicking and after an action to check what happened. The person you are talking to does not see this screenshot.",
       inputSchema: z.object({}),
-      execute: async () => takeScreenshot(await getDesktop()),
+      execute: async () => runInSandbox(takeScreenshot),
       toModelOutput: screenshotToModelOutput,
     }),
 
@@ -327,7 +314,7 @@ export function createSandboxTools(
       description:
         "Show your sandbox's desktop to the person you are talking to: the screenshot appears in the chat, and you see it too. Use this only when they ask to see the screen or what is on it.",
       inputSchema: z.object({}),
-      execute: async () => takeScreenshot(await getDesktop()),
+      execute: async () => runInSandbox(takeScreenshot),
       toModelOutput: screenshotToModelOutput,
     }),
   }

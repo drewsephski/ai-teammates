@@ -20,7 +20,7 @@ import {
   type GroupChatInsert,
 } from "@/db/schema"
 import type { Feature } from "@/lib/billing"
-import { getBotDesktopUrl } from "@/lib/daytona"
+import { pauseBotSandbox } from "@/lib/e2b"
 import type { ChatUIMessage } from "@/lib/sandbox-tools"
 import { getUsage } from "@/lib/usage"
 import { getChat } from "@/queries/chats"
@@ -81,6 +81,8 @@ export async function loadTranscript(params: { chatId: string }) {
 }
 
 export async function getDesktopUrl(chatId: string) {
+  const { isAuthenticated } = await clerkAuth()
+  if (!isAuthenticated) throw new Error("Unauthorized")
   await assertFeature("sandboxes")
 
   const chat = await getChat(chatId)
@@ -98,19 +100,16 @@ export async function getDesktopUrl(chatId: string) {
     throw new Error("Usage limit reached")
   }
 
-  const startedAt = Date.now()
-  const url = await getBotDesktopUrl(chat.bots[0].sandboxId)
+  // The gateway authenticates again and keeps provider tokens server-side.
+  return `/api/chats/${encodeURIComponent(chatId)}/desktop`
+}
 
-  // Waking a stopped sandbox and its desktop is the slow part of opening one
-  Sentry.logger.info("Desktop opened", {
-    "user.id": chat.userId,
-    "chat.id": chatId,
-    "bot.id": chat.bots[0].id,
-    "sandbox.id": chat.bots[0].sandboxId,
-    "sandbox.start_ms": Date.now() - startedAt,
-  })
-
-  return url
+export async function pauseDesktop(chatId: string) {
+  const { isAuthenticated } = await clerkAuth()
+  if (!isAuthenticated) throw new Error("Unauthorized")
+  const chat = await getChat(chatId)
+  if (!chat || chat.kind !== "direct") throw new Error("Chat not found")
+  await pauseBotSandbox(chat.bots[0].sandboxId)
 }
 
 export async function createGroupChat(values: GroupChatInsert) {

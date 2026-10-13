@@ -28,7 +28,7 @@ This template deploys one service: the Next.js app, built from the [public repos
 | --------------- | -------------------------------------------------------------- | -------- |
 | **Clerk**       | Sign-in, plus Billing for plans and feature gates              | Yes      |
 | **Neon**        | Postgres, and the AI Gateway the chat model is called through  | Yes      |
-| **Daytona**     | One cloud sandbox per bot: shell, files and a desktop          | Yes      |
+| **E2B Hobby**     | One cloud sandbox per bot: shell, files and a desktop          | Yes      |
 | **Trigger.dev** | Runs the chat agent and the task that meters running sandboxes | Yes      |
 | **Sentry**      | Errors, traces, session replays and logs                       | Optional |
 
@@ -42,7 +42,7 @@ Railway asks for these when you deploy.
 | `DATABASE_URL`                                          | Neon, the pooled connection string                    |
 | `DATABASE_URL_UNPOOLED`                                 | Neon, the direct connection string                    |
 | `NEON_AI_GATEWAY_BASE_URL`, `NEON_AI_GATEWAY_TOKEN`     | Neon, your AI Gateway                                 |
-| `DAYTONA_API_KEY`                                       | Daytona dashboard                                     |
+| `E2B_API_KEY`                                       | E2B console (Hobby plan)                                     |
 | `TRIGGER_SECRET_KEY`                                    | Trigger.dev, your project's **production** secret key |
 | The four `SENTRY` variables                             | Optional. Leave them empty and nothing is reported    |
 | The four `NEXT_PUBLIC_CLERK_SIGN_*` variables           | Already filled in. Leave them as they are             |
@@ -54,7 +54,7 @@ Do these once, from a clone of the repository:
 ```bash
 git clone https://github.com/code-with-antonio/ai-teammates.git
 cd ai-teammates
-npm install
+pnpm install
 ```
 
 **1. Create the database tables**
@@ -70,10 +70,10 @@ npm run db:push
 Add your project's ref to `.env.local` as `TRIGGER_PROJECT_REF`, then:
 
 ```bash
-npx trigger.dev@4.7.3 deploy
+pnpm dlx trigger.dev@4.7.3 deploy --env prod --env-file .env.local
 ```
 
-In Trigger.dev, add these to the project's production environment: `DATABASE_URL`, `CLERK_SECRET_KEY`, `DAYTONA_API_KEY`, `NEON_AI_GATEWAY_BASE_URL` and `NEON_AI_GATEWAY_TOKEN`. Add `NEXT_PUBLIC_SENTRY_DSN` too if you use Sentry.
+In Trigger.dev, add these to the project's production environment: `DATABASE_URL`, `CLERK_SECRET_KEY`, `E2B_API_KEY`, `NEON_AI_GATEWAY_BASE_URL` and `NEON_AI_GATEWAY_TOKEN`. Add `NEXT_PUBLIC_SENTRY_DSN` too if you use Sentry.
 
 **3. Set up billing in Clerk**
 
@@ -91,7 +91,7 @@ Then open your Railway domain, sign up, pick a plan and create your first teamma
 
 - A [Clerk](https://clerk.com) application with Billing enabled
 - A [Neon](https://neon.com) project with Postgres and an AI Gateway
-- A [Daytona](https://www.daytona.io) API key
+- An [E2B Hobby](https://e2b.dev/pricing) API key
 - A [Trigger.dev](https://trigger.dev) project
 - Optionally, a [Sentry](https://sentry.io) project
 
@@ -109,3 +109,9 @@ Railway runs the one part of AI Teammates that needs a server. It builds the app
 ---
 
 Built by [Code With Antonio](https://github.com/code-with-antonio). An independent project, not affiliated with or endorsed by xAI, OpenAI or Meta.
+
+### Hobby computer lifecycle and private access
+
+Set `E2B_API_KEY` privately in ignored `.env.local`, Railway production and Trigger.dev production. Do not enable a paid E2B plan. Hobby includes one-time credits and a one-hour running-session ceiling; it is not unlimited free compute. The same sandbox pauses when idle and resumes with its files and `MEMORY.md` intact. See [the setup and verification guide](README.md#e2b-computers-on-hobby).
+
+Keep the Railway start command as `pnpm start`. It launches Next.js plus the authenticated desktop WebSocket gateway in `server.ts`. Public sandbox traffic is disabled, and provider keys and ingress tokens stay server-side. `next start` alone does not support this gateway.

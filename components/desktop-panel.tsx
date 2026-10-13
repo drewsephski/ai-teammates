@@ -3,9 +3,9 @@
 import * as React from "react"
 import type RFB from "@novnc/novnc"
 import * as Sentry from "@sentry/nextjs"
-import { RefreshCwIcon } from "lucide-react"
+import { PauseIcon, RefreshCwIcon } from "lucide-react"
 
-import { getDesktopUrl } from "@/actions/chat"
+import { getDesktopUrl, pauseDesktop } from "@/actions/chat"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { Button } from "@/components/ui/button"
 import {
@@ -17,15 +17,18 @@ import {
 } from "@/components/ui/dialog"
 import { ResizableHandle, ResizablePanel } from "@/components/ui/resizable"
 import { Spinner } from "@/components/ui/spinner"
+import { toast } from "@/components/ui/toast"
 import { usePaywall } from "@/hooks/use-paywall"
 
-type DesktopStatus = "idle" | "connecting" | "connected" | "disconnected"
+type DesktopStatus =
+  "idle" | "connecting" | "connected" | "disconnected" | "paused" | "pausing"
 
 type DesktopPanelContextValue = {
   open: boolean
   toggle: () => void
   status: DesktopStatus
   connect: () => void
+  pause: () => void
   // Moves the one live screen into the given element
   attachScreen: (slot: HTMLElement) => void
   // Whether the screen takes mouse and keyboard input or is only watched
@@ -86,7 +89,9 @@ function DesktopPanelProvider({
       ])
       if (attempt !== attemptRef.current) return
 
-      const rfb = new RFB(getScreen(), url)
+      const address = new URL(url, window.location.origin)
+      address.protocol = address.protocol === "https:" ? "wss:" : "ws:"
+      const rfb = new RFB(getScreen(), address.toString())
       rfb.scaleViewport = true
       rfb.background = "transparent"
       rfb.viewOnly = !interactiveRef.current
@@ -123,11 +128,30 @@ function DesktopPanelProvider({
     if (!open) {
       // Showing the desktop starts the sandbox
       if (!checkPlan("sandboxes") || !(await checkUsage("sandbox"))) return
-      // Connect the first time the panel opens and keep it for later opens
-      if (status === "idle") connect()
+      if (status !== "connected" && status !== "connecting") connect()
+    } else {
+      // A hidden screen must not renew the computer's idle lease.
+      attemptRef.current++
+      rfbRef.current?.disconnect()
+      rfbRef.current = null
+      setStatus("idle")
     }
     setOpen(!open)
   }, [open, status, connect, checkPlan, checkUsage])
+
+  const pause = React.useCallback(async () => {
+    setStatus("pausing")
+    try {
+      await pauseDesktop(chatId)
+      attemptRef.current++
+      rfbRef.current?.disconnect()
+      rfbRef.current = null
+      setStatus("paused")
+    } catch {
+      setStatus(rfbRef.current ? "connected" : "disconnected")
+      toast.add({ title: "Could not pause the computer", type: "error" })
+    }
+  }, [chatId])
 
   const attachScreen = React.useCallback(
     (slot: HTMLElement) => {
@@ -153,15 +177,23 @@ function DesktopPanelProvider({
   }, [])
 
   const value = React.useMemo(
-    () => ({ open, toggle, status, connect, attachScreen, setInteractive }),
-    [open, toggle, status, connect, attachScreen, setInteractive]
+    () => ({
+      open,
+      toggle,
+      status,
+      connect,
+      pause,
+      attachScreen,
+      setInteractive,
+    }),
+    [open, toggle, status, connect, pause, attachScreen, setInteractive]
   )
 
   return <DesktopPanelContext value={value}>{children}</DesktopPanelContext>
 }
 
 function DesktopPanel({ name }: { name: string }) {
-  const { open, status, connect, attachScreen, setInteractive } =
+  const { open, status, connect, pause, attachScreen, setInteractive } =
     useDesktopPanel()
   const [fullscreen, setFullscreen] = React.useState(false)
   const [panelSlot, setPanelSlot] = React.useState<HTMLDivElement | null>(null)
@@ -198,9 +230,19 @@ function DesktopPanel({ name }: { name: string }) {
             <div className="flex h-12 shrink-0 items-center justify-end px-4">
               <Button
                 variant="ghost"
+                size="sm"
+                disabled={status !== "connected"}
+                onClick={pause}
+              >
+                <PauseIcon /> Pause
+              </Button>
+              <Button
+                variant="ghost"
                 size="icon-sm"
-                aria-label="Reconnect"
-                disabled={status === "connecting"}
+                aria-label={
+                  status === "paused" ? "Resume computer" : "Reconnect"
+                }
+                disabled={status === "connecting" || status === "pausing"}
                 onClick={connect}
               >
                 <RefreshCwIcon />
@@ -219,8 +261,10 @@ function DesktopPanel({ name }: { name: string }) {
                   />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                    {status === "disconnected" ? (
-                      "Screen disconnected"
+                    {status === "disconnected" || status === "paused" ? (
+                      <Button variant="outline" onClick={connect}>
+                        Resume computer
+                      </Button>
                     ) : (
                       <Spinner />
                     )}

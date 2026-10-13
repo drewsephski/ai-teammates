@@ -11,7 +11,7 @@ AI teammates with a job, a memory and a cloud computer of their own.
 [![Watch the full tutorial on YouTube](https://img.shields.io/badge/Watch_the_full_tutorial-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=mQBuZ6Dp0u0)
 
 [![Trigger.dev](https://img.shields.io/badge/Trigger.dev-121317?style=for-the-badge&labelColor=121317&color=41FF54)](https://cwa.run/trigger-1)
-[![Daytona](https://img.shields.io/badge/Daytona-0A0A0A?style=for-the-badge)](https://cwa.run/daytona)
+[![E2B](https://img.shields.io/badge/E2B-0A0A0A?style=for-the-badge)](https://e2b.dev)
 [![Firecrawl](https://img.shields.io/badge/Firecrawl-FF4C00?style=for-the-badge)](https://cwa.run/firecrawl)
 [![Clerk](https://img.shields.io/badge/Clerk-6C47FF?style=for-the-badge&logo=clerk&logoColor=white)](https://cwa.run/clerk)
 [![Sentry](https://img.shields.io/badge/Sentry-362D59?style=for-the-badge&logo=sentry&logoColor=white)](https://cwa.run/sentry)
@@ -45,7 +45,7 @@ AI Teammates is an open exploration of that idea. Every prompt, tool and limit i
 | Product                                      | What it does here                                                                             |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | [**Trigger.dev**](https://cwa.run/trigger-1) | Runs the durable chat agent and the cron task that meters running sandboxes.                  |
-| [**Daytona**](https://cwa.run/daytona)       | One cloud sandbox per bot: shell, files and a desktop it controls.                            |
+| [**E2B Hobby**](https://e2b.dev/pricing)       | One cloud sandbox per bot: shell, files and a desktop it controls.                            |
 | [**Clerk**](https://cwa.run/clerk)           | Authentication, plus Billing for plans, checkout and feature gates.                           |
 | [**Neon**](https://cwa.run/neon)             | Serverless Postgres, and the AI Gateway the chat model is called through.                     |
 | [**Sentry**](https://cwa.run/sentry)         | Errors, traces, session replays and logs from the app and every task run.                     |
@@ -73,7 +73,7 @@ flowchart LR
     end
 
     AGENT -- GLM-5.3 Flash / Luna vision --> GATEWAY[Neon AI Gateway]
-    AGENT -- shell, files, mouse, keyboard --> SANDBOX[Daytona sandboxes]
+    AGENT -- shell, files, mouse, keyboard --> SANDBOX[E2B desktop sandboxes]
     APP -- live desktop over noVNC --> SANDBOX
     METER -- list running / stop --> SANDBOX
 
@@ -93,7 +93,7 @@ flowchart LR
 
 ## 🚀 Getting started
 
-You need Node.js 20.12+ and an account with [Clerk](https://cwa.run/clerk), [Neon](https://cwa.run/neon), [Trigger.dev](https://cwa.run/trigger-1) and [Daytona](https://cwa.run/daytona). [Sentry](https://cwa.run/sentry) is optional.
+You need Node.js 24+ and an account with [Clerk](https://cwa.run/clerk), [Neon](https://cwa.run/neon), [Trigger.dev](https://cwa.run/trigger-1) and [E2B](https://e2b.dev). [Sentry](https://cwa.run/sentry) is optional.
 
 **1. Clone and install**
 
@@ -126,8 +126,8 @@ NEON_AI_GATEWAY_TOKEN=
 TRIGGER_SECRET_KEY=
 TRIGGER_PROJECT_REF=
 
-# Daytona
-DAYTONA_API_KEY=
+# E2B Hobby (server-side only; no paid plan required)
+E2B_API_KEY=
 
 # Sentry: optional. Without the DSN nothing is reported; the other three
 # upload source maps on build
@@ -174,7 +174,7 @@ Add these to the project's production environment in Trigger.dev:
 ```bash
 DATABASE_URL=
 CLERK_SECRET_KEY=
-DAYTONA_API_KEY=
+E2B_API_KEY=
 NEON_AI_GATEWAY_BASE_URL=
 NEON_AI_GATEWAY_TOKEN=
 
@@ -195,3 +195,17 @@ Built by [Code With Antonio](https://github.com/code-with-antonio)
 <sub>An independent project, not affiliated with or endorsed by xAI, OpenAI or Meta.</sub>
 
 </div>
+
+### E2B computers on Hobby
+
+Use `@e2b/desktop` with E2B's **Hobby** plan. Hobby has a one-hour session limit and $100 of one-time usage credits, not unlimited free compute. Do not upgrade or enable automatic paid usage. Check the remaining credits in the E2B console; exhausted credits must surface as a provider error.
+
+Put `E2B_API_KEY` privately in ignored `.env.local`. Never use a `NEXT_PUBLIC_` variable for it. Set the same key on Railway's `ai-teammates` service, `production`, and the Trigger.dev project's `prod` environment. Keep Railway's production `TRIGGER_SECRET_KEY`; the local development key intentionally differs.
+
+Each bot has one desktop sandbox. New computers are paused immediately after `MEMORY.md` is initialized. Tools resume the same ID and renew a five-minute idle timeout. Commands can lease longer to finish (at most 630 seconds), then return to the five-minute idle policy. E2B automatically **pauses**, rather than kills, on expiry, with automatic traffic-based resume disabled. Before 55 continuous minutes, tools pause/resume into a new session; a connected viewer pauses and asks for Resume. Files, memory and applications survive. Delete bot permanently kills its sandbox.
+
+`pnpm dev` runs `server.ts`; `pnpm build` compiles it to `.server/server.mjs`, and `pnpm start` runs the compiled Next.js server with a same-origin WebSocket gateway and a bounded 384 MiB V8 heap. Keep these start commands on Railway: `next start` alone cannot serve the gateway. Public sandbox traffic is disabled. The gateway verifies Clerk authentication, same origin, direct-chat ownership, feature access and remaining usage, then forwards noVNC with the E2B private ingress token **only on the server**. Closing the screen disconnects the stream and stops renewing its lease. Viewing an open screen counts as active use.
+
+`meter-sandboxes` runs every minute on Trigger.dev. It meters real E2B running sessions in seconds, including a short session already paused between polls. Transaction locks and cumulative session counters make retries idempotent; paused time is excluded. Both deployment environments share the same database and E2B account. Schema changes use only `npm run db:push`; development rows are reset when switching providers, with no migrations or backfills.
+
+Verification: `pnpm lint`, `pnpm typecheck`, `pnpm exec tsx --test tests/sandbox-policy.test.ts`, `pnpm build`. `pnpm exec tsx --env-file=.env.local scripts/verify-e2b.ts` creates a real temporary bot, exercises its tools and private stream, verifies explicit and idle pause/resume, and deletes it. It consumes Hobby credits. Screenshots and the JSON report are saved under ignored `.artifacts/e2b/`.

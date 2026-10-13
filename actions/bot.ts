@@ -14,7 +14,7 @@ import {
   chats,
   type BotInsert,
 } from "@/db/schema"
-import { createBotSandbox, deleteBotSandbox } from "@/lib/daytona"
+import { createBotSandbox, deleteBotSandbox } from "@/lib/e2b"
 import { getUsage } from "@/lib/usage"
 
 export async function createBot(values: BotInsert) {
@@ -27,7 +27,7 @@ export async function createBot(values: BotInsert) {
     })
     throw new Error("Upgrade required")
   }
-  // The new sandbox starts running right away
+  // Provisioning uses compute briefly; the new computer is then paused.
   const usage = await getUsage(userId)
   if (!usage || usage.remaining.sandbox <= 0) {
     Sentry.logger.warn("Bot creation blocked: usage limit reached", {
