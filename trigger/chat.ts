@@ -5,7 +5,13 @@ import { asc, eq } from "drizzle-orm"
 import { z } from "zod"
 
 import { db } from "@/db"
-import { chatMembers, chats, type Bot, type Chat } from "@/db/schema"
+import {
+  bots as botTable,
+  chatMembers,
+  chats,
+  type Bot,
+  type Chat,
+} from "@/db/schema"
 import { USAGE_LIMIT_ERROR } from "@/lib/billing"
 import { MEMORY_FILE } from "@/lib/e2b"
 import { createHandoffTool, type Handoff } from "@/lib/handoff-tool"
@@ -130,7 +136,13 @@ export const chatAgent = chat
           checkedAt = Date.now()
         }
 
-        return current.sandboxId
+        // A reset changes the ID while this durable turn/session may survive.
+        const [computer] = await db
+          .select({ sandboxId: botTable.sandboxId })
+          .from(botTable)
+          .where(eq(botTable.id, current.id))
+        if (!computer) throw new Error("This teammate was deleted")
+        return computer.sandboxId
       })
 
       if (kind !== "group") return sandboxTools

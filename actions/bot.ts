@@ -15,6 +15,7 @@ import {
   type BotInsert,
 } from "@/db/schema"
 import { createBotSandbox, deleteBotSandbox } from "@/lib/e2b"
+import { withSandboxLock } from "@/lib/sandbox-lock"
 import { getUsage } from "@/lib/usage"
 
 export async function createBot(values: BotInsert) {
@@ -121,38 +122,42 @@ export async function deleteBot(botId: string) {
   const { isAuthenticated, userId } = await auth()
   if (!isAuthenticated) throw new Error("Unauthorized")
 
-  const [owned] = await db
-    .select({ sandboxId: bots.sandboxId })
-    .from(bots)
-    .where(and(eq(bots.id, botId), eq(bots.userId, userId)))
-  if (!owned) throw new Error("Bot not found")
+  const sandboxId = await withSandboxLock(`bot:${botId}`, async () => {
+    const [owned] = await db
+      .select({ sandboxId: bots.sandboxId })
+      .from(bots)
+      .where(and(eq(bots.id, botId), eq(bots.userId, userId)))
+    if (!owned) throw new Error("Bot not found")
 
-  // Sandbox first: if this fails the bot stays and the delete can be retried
-  await deleteBotSandbox(owned.sandboxId)
+    // Sandbox first: if this fails the bot stays and the delete can be retried
+    await deleteBotSandbox(owned.sandboxId)
 
-  await db.transaction(async (tx) => {
-    // A direct chat is nothing without its bot; memberships go with the bot
-    await tx
-      .delete(chats)
-      .where(
-        and(
-          eq(chats.userId, userId),
-          eq(chats.kind, "direct"),
-          inArray(
-            chats.id,
-            tx
-              .select({ id: chatMembers.chatId })
-              .from(chatMembers)
-              .where(eq(chatMembers.botId, botId))
+    await db.transaction(async (tx) => {
+      // A direct chat is nothing without its bot; memberships go with the bot
+      await tx
+        .delete(chats)
+        .where(
+          and(
+            eq(chats.userId, userId),
+            eq(chats.kind, "direct"),
+            inArray(
+              chats.id,
+              tx
+                .select({ id: chatMembers.chatId })
+                .from(chatMembers)
+                .where(eq(chatMembers.botId, botId))
+            )
           )
         )
-      )
 
-    const [bot] = await tx
-      .delete(bots)
-      .where(and(eq(bots.id, botId), eq(bots.userId, userId)))
-      .returning({ id: bots.id })
-    if (!bot) throw new Error("Bot not found")
+      const [bot] = await tx
+        .delete(bots)
+        .where(and(eq(bots.id, botId), eq(bots.userId, userId)))
+        .returning({ id: bots.id })
+      if (!bot) throw new Error("Bot not found")
+    })
+
+    return owned.sandboxId
   })
 
   revalidatePath("/", "layout")
@@ -160,6 +165,6 @@ export async function deleteBot(botId: string) {
   Sentry.logger.info("Bot deleted", {
     "user.id": userId,
     "bot.id": botId,
-    "sandbox.id": owned.sandboxId,
+    "sandbox.id": sandboxId,
   })
 }

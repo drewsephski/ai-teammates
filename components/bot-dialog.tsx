@@ -3,9 +3,18 @@
 import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
-import { ShuffleIcon, Trash2Icon } from "lucide-react"
+import {
+  BookOpenIcon,
+  CalendarCheckIcon,
+  ChartNoAxesCombinedIcon,
+  FilePenLineIcon,
+  GraduationCapIcon,
+  ShuffleIcon,
+  SquareCodeIcon,
+  Trash2Icon,
+} from "lucide-react"
 import { nanoid } from "nanoid"
-import { Controller, useForm } from "react-hook-form"
+import { Controller, useForm, useWatch } from "react-hook-form"
 
 import { createBot, updateBot } from "@/actions/bot"
 import { BotDeleteDialog } from "@/components/bot-delete-dialog"
@@ -29,6 +38,8 @@ import {
   FieldGroup,
   FieldLabel,
   FieldTitle,
+  FieldSet,
+  FieldLegend,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
@@ -40,23 +51,45 @@ import { usePaywall } from "@/hooks/use-paywall"
 const presets = [
   {
     job: "Research assistant",
+    label: "Research",
+    icon: BookOpenIcon,
     instructions:
       "Find reliable sources, summarize what they say, and cite every claim. Say so when the evidence is thin.",
   },
   {
     job: "Code reviewer",
+    label: "Code review",
+    icon: SquareCodeIcon,
     instructions:
       "Review changes for bugs, security issues, and unclear code. Point to the exact lines and suggest a fix.",
   },
   {
     job: "Writing editor",
+    label: "Writing",
+    icon: FilePenLineIcon,
     instructions:
       "Tighten prose without changing its voice. Explain each edit briefly and flag anything ambiguous.",
   },
   {
     job: "Tutor",
+    label: "Learning",
+    icon: GraduationCapIcon,
     instructions:
       "Teach step by step, check understanding with questions, and give hints before giving answers.",
+  },
+  {
+    job: "Project planner",
+    label: "Planning",
+    icon: CalendarCheckIcon,
+    instructions:
+      "Turn goals into practical plans with clear steps, priorities, and dependencies. Ask about constraints before proposing dates, and flag assumptions.",
+  },
+  {
+    job: "Data analyst",
+    label: "Data analysis",
+    icon: ChartNoAxesCombinedIcon,
+    instructions:
+      "Analyze the data provided, check its quality, and explain findings with clear comparisons. Show calculations and distinguish evidence from assumptions. Never invent missing data.",
   },
 ]
 
@@ -98,6 +131,7 @@ function BotForm({ bot, onSaved }: { bot?: Bot; onSaved: () => void }) {
     },
   })
   const { isSubmitting } = form.formState
+  const selectedJob = useWatch({ control: form.control, name: "job" })
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
@@ -120,29 +154,39 @@ function BotForm({ bot, onSaved }: { bot?: Bot; onSaved: () => void }) {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-2">
-        {presets.map((preset) => (
-          <Button
-            key={preset.job}
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-full"
-            onClick={() => {
-              form.setValue("job", preset.job, {
-                shouldDirty: true,
-                shouldValidate: true,
-              })
-              form.setValue("instructions", preset.instructions, {
-                shouldDirty: true,
-                shouldValidate: true,
-              })
-            }}
-          >
-            {preset.job}
-          </Button>
-        ))}
-      </div>
+      <FieldSet>
+        <FieldLegend variant="label">Start with a role</FieldLegend>
+        <FieldDescription>
+          Pick a starting point, then make it yours.
+        </FieldDescription>
+        <div className="grid grid-cols-3 gap-2">
+          {presets.map((preset) => (
+            <Button
+              key={preset.job}
+              type="button"
+              variant={selectedJob === preset.job ? "secondary" : "outline"}
+              size="sm"
+              className="h-14 min-w-0 flex-col gap-1 px-1"
+              aria-label={`Use ${preset.job} preset`}
+              aria-pressed={selectedJob === preset.job}
+              disabled={isSubmitting}
+              onClick={() => {
+                form.setValue("job", preset.job, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+                form.setValue("instructions", preset.instructions, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }}
+            >
+              <preset.icon data-icon="inline-start" />
+              {preset.label}
+            </Button>
+          ))}
+        </div>
+      </FieldSet>
       <FieldGroup>
         <Controller
           name="avatar"

@@ -6,7 +6,7 @@ import { WebSocket, WebSocketServer, createWebSocketStream } from "ws"
 
 import { db } from "@/db"
 import { bots, chatMembers, chats } from "@/db/schema"
-import { getBotDesktopConnection, withBotSandbox } from "@/lib/e2b"
+import { getBotDesktopConnection, renewBotDesktop } from "@/lib/e2b"
 import { getUsage } from "@/lib/usage"
 
 const clerk = createClerkClient({
@@ -99,12 +99,7 @@ export async function upgradeDesktop(
             // disconnects the viewer and requires an explicit Resume.
             const remaining = await getUsage(auth.userId!)
             if (!remaining || remaining.remaining.sandbox <= 0) return cleanup()
-            await withBotSandbox(
-              bot.sandboxId,
-              async () => {},
-              undefined,
-              false
-            )
+            await renewBotDesktop(bot.sandboxId, connection.startedAt)
           } catch {
             cleanup()
           } finally {

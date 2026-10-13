@@ -1,8 +1,9 @@
 import assert from "node:assert/strict"
 import { mkdir, writeFile } from "node:fs/promises"
 import { randomUUID } from "node:crypto"
-import { Sandbox } from "@e2b/desktop"
-import { eq } from "drizzle-orm"
+import { mock } from "node:test"
+import { Sandbox, type SandboxOpts } from "@e2b/desktop"
+import { eq, sql } from "drizzle-orm"
 import { WebSocket } from "ws"
 
 import { db } from "@/db"
@@ -14,8 +15,12 @@ import {
   meterBotSandbox,
   pauseBotSandbox,
   withBotSandbox,
+  renewBotDesktop,
+  resetBotSandbox,
 } from "@/lib/e2b"
 import { createSandboxTools } from "@/lib/sandbox-tools"
+import { SandboxMissingError } from "@/lib/sandbox-lifecycle"
+import { withSandboxLock, tryWithSandboxLock } from "@/lib/sandbox-lock"
 
 function isStream<T>(value: T | AsyncIterable<T>): value is AsyncIterable<T> {
   return (
@@ -32,11 +37,25 @@ async function result<T>(
   return output
 }
 
-const directory = ".artifacts/e2b"
+const directory = process.argv[2] ?? ".artifacts/e2b"
+// Production's scheduled meter must never pause a temporary verification VM
+// before the fixture row exists. All provider operations still execute for real.
+const originalCreate: (
+  this: typeof Sandbox,
+  options: SandboxOpts
+) => Promise<Sandbox> = Sandbox.create
+const createSandbox = originalCreate.bind(Sandbox)
+mock.method(Sandbox, "create", (options: SandboxOpts) =>
+  createSandbox({
+    ...options,
+    metadata: { ...options.metadata, app: "ai-teammates-verification" },
+  })
+)
 await mkdir(directory, { recursive: true })
 const botId = `verify-${randomUUID()}`
 const userId = `verify-${randomUUID()}`
-const sandboxId = await createBotSandbox(botId)
+let sandboxId = await createBotSandbox(botId)
+const createdIds = new Set([sandboxId])
 const tools = createSandboxTools(() => sandboxId)
 const options = { toolCallId: "verification", messages: [], context: {} }
 const report: Record<string, unknown> = {
@@ -46,16 +65,34 @@ const report: Record<string, unknown> = {
 const note = "E2B verification: retain this memory after pause and resume."
 const content = `files survive ${botId}`
 try {
-  await db
-    .insert(bots)
-    .values({
-      id: botId,
-      userId,
-      name: "Verification",
-      job: "Verify E2B",
-      sandboxId,
-    })
+  await db.insert(bots).values({
+    id: botId,
+    userId,
+    name: "Verification",
+    job: "Verify E2B",
+    sandboxId,
+  })
   assert.equal((await Sandbox.getInfo(sandboxId)).state, "paused")
+  const lockFailure = new Error("intentional lock failure")
+  await assert.rejects(
+    withSandboxLock(sandboxId, async () => {
+      assert.deepEqual(await tryWithSandboxLock(sandboxId, async () => {}), {
+        acquired: false,
+      })
+      const activity = await db.execute(
+        sql`select count(*)::int as count from pg_stat_activity where application_name = 'ai-teammates-sandbox-lock' and state = 'idle in transaction'`
+      )
+      assert.equal(activity.rows[0].count, 0)
+      throw lockFailure
+    }),
+    (error) => error === lockFailure
+  )
+  assert.equal(
+    (await tryWithSandboxLock(sandboxId, async () => true)).acquired,
+    true
+  )
+  report.locksReleaseOnError = true
+  report.noLongDatabaseTransactions = true
   await result(
     tools.writeFile.execute!(
       { path: "verification/note.txt", content },
@@ -112,6 +149,30 @@ try {
     Buffer.from(after.base64, "base64")
   )
   const connection = await getBotDesktopConnection(sandboxId)
+  const started = Promise.withResolvers<void>()
+  const finish = Promise.withResolvers<void>()
+  const activeTool = withBotSandbox(
+    sandboxId,
+    async () => {
+      started.resolve()
+      await finish.promise
+    },
+    630_000
+  )
+  await Promise.race([started.promise, activeTool])
+  try {
+    const beforeRenew = await Sandbox.getInfo(sandboxId)
+    await renewBotDesktop(sandboxId, connection.startedAt)
+    await Promise.all([meterBotSandbox(sandboxId), meterBotSandbox(sandboxId)])
+    assert.equal(
+      (await Sandbox.getInfo(sandboxId)).endAt.getTime(),
+      beforeRenew.endAt.getTime()
+    )
+    report.desktopDoesNotShortenActiveLease = true
+  } finally {
+    finish.resolve()
+    await activeTool
+  }
   const direct = await fetch(
     connection.url.replace("wss:", "https:").replace("/websockify", "/vnc.html")
   )
@@ -195,11 +256,44 @@ try {
   report.filesAndMemoryIntact = true
   report.meteringRetriesIdempotent = true
   report.nonzeroCommandsPreserved = true
+  console.log("Lifecycle checks passed; checking explicit reset")
+  await assert.rejects(
+    resetBotSandbox(botId, "wrong-owner", sandboxId),
+    /Bot not found/
+  )
+  await assert.rejects(
+    resetBotSandbox(botId, userId, sandboxId),
+    /still exists/
+  )
+  const previousId = sandboxId
+  await Sandbox.kill(previousId)
+  await assert.rejects(
+    withBotSandbox(previousId, async () => {}),
+    SandboxMissingError
+  )
+  assert.equal(await meterBotSandbox(previousId), false)
+  const replacements = await Promise.all([
+    resetBotSandbox(botId, userId, previousId),
+    resetBotSandbox(botId, userId, previousId),
+  ])
+  sandboxId = replacements[0]
+  createdIds.add(sandboxId)
+  assert.equal(replacements[0], replacements[1])
+  assert.notEqual(sandboxId, previousId)
+  assert.equal((await Sandbox.getInfo(sandboxId)).state, "paused")
+  assert.equal((await result(tools.recall.execute!({}, options))).memory, "")
+  report.explicitMissingComputerReset = true
+  report.concurrentResetsCreateOneComputer = true
 } finally {
-  await deleteBotSandbox(sandboxId)
-  await deleteBotSandbox(sandboxId)
-  await db.delete(bots).where(eq(bots.id, botId))
-  await db.delete(usageEntries).where(eq(usageEntries.userId, userId))
+  try {
+    for (const id of createdIds) {
+      await deleteBotSandbox(id)
+      await deleteBotSandbox(id)
+    }
+  } finally {
+    await db.delete(bots).where(eq(bots.id, botId))
+    await db.delete(usageEntries).where(eq(usageEntries.userId, userId))
+  }
 }
 report.deleted = true
 await writeFile(`${directory}/report.json`, JSON.stringify(report, null, 2))

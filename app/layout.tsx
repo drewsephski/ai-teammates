@@ -1,6 +1,7 @@
 import { ClerkProvider } from "@clerk/nextjs"
 import { shadcn } from "@clerk/ui/themes"
 import { Geist, Geist_Mono } from "next/font/google"
+import type { Metadata } from "next"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -14,6 +15,12 @@ const fontMono = Geist_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
 })
+
+export const metadata: Metadata = {
+  title: { default: "Krafty", template: "%s · Krafty" },
+  applicationName: "Krafty",
+  description: "AI teammates with their own personality, memory, and computer.",
+}
 
 export default function RootLayout({
   children,
@@ -34,9 +41,7 @@ export default function RootLayout({
       <body>
         <ClerkProvider appearance={{ theme: shadcn }}>
           <ThemeProvider>
-            <TooltipProvider>
-              {children}
-            </TooltipProvider>
+            <TooltipProvider>{children}</TooltipProvider>
             <Toaster />
           </ThemeProvider>
         </ClerkProvider>

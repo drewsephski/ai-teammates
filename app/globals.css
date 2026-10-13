@@ -127,4 +127,69 @@
   html {
     @apply font-sans;
     }
+
+  /* Firefox uses the standard API; WebKit/Chromium use our slim track below. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 35%, transparent) transparent;
+  }
+
+  @supports selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: auto;
+      scrollbar-color: auto;
+    }
+    *::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    *::-webkit-scrollbar-track,
+    *::-webkit-scrollbar-corner {
+      background: transparent;
+    }
+    *::-webkit-scrollbar-thumb {
+      border: 2px solid transparent;
+      border-radius: 999px;
+      background: color-mix(in oklch, var(--muted-foreground) 35%, transparent);
+      background-clip: padding-box;
+    }
+    *::-webkit-scrollbar-thumb:hover {
+      background-color: color-mix(in oklch, var(--muted-foreground) 55%, transparent);
+    }
+    *::-webkit-scrollbar-button {
+      display: none;
+    }
+  }
+}
+
+/* Keep padding inside the measured panel so closing reaches exactly zero. */
+.tool-details {
+  height: var(--collapsible-panel-height);
+  opacity: 1;
+  transition: height 220ms cubic-bezier(0.16, 1, 0.3, 1), opacity 160ms ease-out;
+}
+
+.tool-details[data-starting-style],
+.tool-details[data-ending-style] {
+  height: 0;
+  opacity: 0;
+}
+
+.tool-details[data-ending-style] {
+  transition-duration: 160ms;
+}
+
+.tool-details [data-language] {
+  content-visibility: visible !important;
+  contain-intrinsic-size: none !important;
+}
+
+.tool-details [data-language] [data-slot="scroll-area-viewport"] {
+  max-height: 14rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-details {
+    transition: none;
+  }
 }

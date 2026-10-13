@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 export default async function DashboardLayout({
   children,
@@ -19,7 +20,9 @@ export default async function DashboardLayout({
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
       <AppSidebar />
-      <SidebarInset>{children}</SidebarInset>
+      <SidebarInset className="h-svh overflow-hidden">
+        <ScrollArea className="h-full">{children}</ScrollArea>
+      </SidebarInset>
     </SidebarProvider>
   )
 }

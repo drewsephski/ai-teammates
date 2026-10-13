@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="public/logo.svg" alt="AI Teammates logo" width="128" height="128" />
+<img src="public/krafty-wordmark.png" alt="Krafty logo" width="240" />
 
-# AI Teammates
+# Krafty
 
 ### The open-source alternative to Grok Bot, OpenAI Dots and Meta Muse
 
@@ -24,7 +24,7 @@ AI teammates with a job, a memory and a cloud computer of their own.
 
 2026 is the year AI stopped being a chat box and became a coworker. Grok Bot, OpenAI Dots and Meta Muse all landed on the same idea: an always-on agent with a computer of its own that does the work instead of describing it. They are also closed.
 
-AI Teammates is an open exploration of that idea. Every prompt, tool and limit is a file in this repository, with auth, billing, usage metering and observability already in place, so you start from a working product and change whatever you like.
+Krafty is an open exploration of that idea. Every prompt, tool and limit is a file in this repository, with auth, billing, usage metering and observability already in place, so you start from a working product and change whatever you like.
 
 ## 🎬 Watch it being built
 
@@ -45,7 +45,7 @@ AI Teammates is an open exploration of that idea. Every prompt, tool and limit i
 | Product                                      | What it does here                                                                             |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | [**Trigger.dev**](https://cwa.run/trigger-1) | Runs the durable chat agent and the cron task that meters running sandboxes.                  |
-| [**E2B Hobby**](https://e2b.dev/pricing)       | One cloud sandbox per bot: shell, files and a desktop it controls.                            |
+| [**E2B Hobby**](https://e2b.dev/pricing)     | One cloud sandbox per bot: shell, files and a desktop it controls.                            |
 | [**Clerk**](https://cwa.run/clerk)           | Authentication, plus Billing for plans, checkout and feature gates.                           |
 | [**Neon**](https://cwa.run/neon)             | Serverless Postgres, and the AI Gateway the chat model is called through.                     |
 | [**Sentry**](https://cwa.run/sentry)         | Errors, traces, session replays and logs from the app and every task run.                     |
@@ -69,7 +69,7 @@ flowchart LR
 
     subgraph Trigger.dev
         AGENT[chat agent]
-        METER[meter-sandboxes<br/>every 5 min]
+        METER[meter-sandboxes<br/>every minute]
     end
 
     AGENT -- GLM-5.3 Flash / Luna vision --> GATEWAY[Neon AI Gateway]
@@ -89,7 +89,7 @@ flowchart LR
 - **A chat turn** (`trigger/chat.ts`) builds the bot's instructions from its job and streams a reply with the sandbox tools attached (`lib/sandbox-tools.ts`). It stops after 50 steps or when the allowance is spent.
 - **The models** (`lib/model.ts`) use GLM-5.3 Flash for text and tools, and GPT-5.6 Luna for steps containing images, through Neon AI Gateway. Both use low reasoning effort. Standard rates per million tokens are $0.15 input / $0.50 output for GLM and $0.20 input / $1.20 output for Luna. Usage is metered per step, including cached input and Luna's long-context tier; current rates are published in [Neon's model catalog](https://neon.com/models.json).
 - **In a group chat** the bot also gets a `handoff` tool, which gives the rest of the turn to a teammate. A request cannot bounce back to a bot that already held it.
-- **Usage** is an append-only ledger. Model spend is written when a turn completes; sandbox time by a task that charges every running sandbox each five minutes and stops those of owners who have run out. Limits live in `lib/usage.ts`.
+- **Usage** is an append-only ledger. Model spend is written when a turn completes; sandbox time by a task that charges every running sandbox each minute and stops those of owners who have run out. Limits live in `lib/usage.ts`.
 
 ## 🚀 Getting started
 
@@ -206,6 +206,10 @@ Each bot has one desktop sandbox. New computers are paused immediately after `ME
 
 `pnpm dev` runs `server.ts`; `pnpm build` compiles it to `.server/server.mjs`, and `pnpm start` runs the compiled Next.js server with a same-origin WebSocket gateway and a bounded 384 MiB V8 heap. Keep these start commands on Railway: `next start` alone cannot serve the gateway. Public sandbox traffic is disabled. The gateway verifies Clerk authentication, same origin, direct-chat ownership, feature access and remaining usage, then forwards noVNC with the E2B private ingress token **only on the server**. Closing the screen disconnects the stream and stops renewing its lease. Viewing an open screen counts as active use.
 
-`meter-sandboxes` runs every minute on Trigger.dev. It meters real E2B running sessions in seconds, including a short session already paused between polls. Transaction locks and cumulative session counters make retries idempotent; paused time is excluded. Both deployment environments share the same database and E2B account. Schema changes use only `npm run db:push`; development rows are reset when switching providers, with no migrations or backfills.
+`meter-sandboxes` runs every minute on Trigger.dev. It meters real E2B running sessions in seconds, including a short session already paused between polls. Short row-locked billing transactions and cumulative session counters make retries idempotent; paused time is excluded. Both deployment environments share the same database and E2B account. Schema changes use only `npm run db:push`; development rows are reset when switching providers, with no migrations or backfills.
 
-Verification: `pnpm lint`, `pnpm typecheck`, `pnpm exec tsx --test tests/sandbox-policy.test.ts`, `pnpm build`. `pnpm exec tsx --env-file=.env.local scripts/verify-e2b.ts` creates a real temporary bot, exercises its tools and private stream, verifies explicit and idle pause/resume, and deletes it. It consumes Hobby credits. Screenshots and the JSON report are saved under ignored `.artifacts/e2b/`.
+Cross-worker commands, pause, reset and deletion serialize with session advisory locks on a separate, bounded **direct** Postgres pool. `DATABASE_URL_UNPOOLED` must be present on Railway and Trigger.dev production; `DATABASE_URL` continues serving ordinary application queries. No database transaction stays open during a remote command. Busy operations wait at most ten seconds for a lock; desktop heartbeats skip busy tools and do not shorten their lease or resume a paused/replaced session. Provider control-plane requests have a 15-second deadline. Post-operation maintenance failures are reported without masking a completed command or its original error.
+
+A missing provider computer is reported explicitly. The screen panel offers **Reset computer**, with confirmation that the new computer has no previous files, saved memory, or open applications. Temporary provider errors never trigger a reset. Resets recheck provider absence and bot ownership, serialize with deletion, and update the bot's sandbox ID; durable chat tools look up that ID on every call. Metering processes up to four computers concurrently, isolates individual failures, and completes healthy accounts' quota enforcement before requesting a retry. Newly provisioning computers have a five-minute grace period before orphan cleanup.
+
+Verification: `pnpm lint`, `pnpm typecheck`, `pnpm exec tsx --test tests/sandbox-*.test.ts`, `pnpm build`. `pnpm exec tsx --env-file=.env.local scripts/verify-e2b.ts` creates a real temporary bot, exercises its tools and private stream, verifies explicit and idle pause/resume, and deletes it. It consumes Hobby credits. Screenshots and the JSON report are saved under ignored `.artifacts/e2b/`. Pass an output directory to preserve previous evidence, e.g. `pnpm exec tsx --env-file=.env.local scripts/verify-e2b.ts .artifacts/e2b-hardening`. The live verification also checks independent metering while a tool holds a lease, lock release on failure, absence of long billing transactions, and concurrent explicit resets of a missing computer.

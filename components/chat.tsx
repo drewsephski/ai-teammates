@@ -17,13 +17,11 @@ import {
 } from "@/actions/chat"
 
 import { ChatAvatar } from "@/components/chat-avatar"
-import { CodeBlock } from "@/components/ai-elements/code-block"
 import {
   Conversation,
   ConversationContent,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation"
-import { Image } from "@/components/ai-elements/image"
 import {
   Message,
   MessageContent,
@@ -42,13 +40,7 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input"
-import {
-  Tool,
-  ToolContent,
-  ToolHeader,
-  ToolInput,
-  ToolOutput,
-} from "@/components/ai-elements/tool"
+import { ToolCall } from "@/components/chat-tool-call"
 import { Badge } from "@/components/ui/badge"
 import type { Bot } from "@/db/schema"
 import { USAGE_LIMIT_ERROR } from "@/lib/billing"
@@ -57,116 +49,6 @@ import type { ChatUIMessage } from "@/lib/sandbox-tools"
 import type { chatAgent } from "@/trigger/chat"
 
 type ChatBot = Pick<Bot, "id" | "name" | "avatar">
-
-type ToolPart = Extract<
-  ChatUIMessage["parts"][number],
-  { type: `tool-${string}` }
->
-
-const toolTitles: Record<ToolPart["type"], string> = {
-  "tool-bash": "Run command",
-  "tool-readFile": "Read file",
-  "tool-writeFile": "Write file",
-  "tool-listFiles": "List files",
-  "tool-recall": "Recall",
-  "tool-remember": "Remember",
-  "tool-mouseClick": "Click",
-  "tool-mouseMove": "Move mouse",
-  "tool-mouseDrag": "Drag",
-  "tool-mouseScroll": "Scroll",
-  "tool-keyboardType": "Type",
-  "tool-keyboardPress": "Press key",
-  "tool-viewScreen": "Look at screen",
-  "tool-showScreen": "Show screen",
-  "tool-handoff": "Hand off",
-}
-
-function ToolCall({ part }: { part: ToolPart }) {
-  // The one tool whose result is for the reader: show it, not the call
-  if (part.type === "tool-showScreen" && part.state === "output-available") {
-    return (
-      <Image
-        alt="The sandbox's screen"
-        base64={part.output.base64}
-        className="border"
-        mediaType={part.output.mediaType}
-      />
-    )
-  }
-
-  // The teammate's reply follows right below, so one line is enough
-  if (part.type === "tool-handoff" && part.state === "output-available") {
-    return (
-      <p className="text-muted-foreground">Handed off to {part.output.name}</p>
-    )
-  }
-
-  return (
-    <Tool>
-      <ToolHeader
-        state={part.state}
-        title={toolTitles[part.type]}
-        type={part.type}
-      />
-      <ToolContent>
-        <ToolCallDetails part={part} />
-      </ToolContent>
-    </Tool>
-  )
-}
-
-function ToolCallDetails({ part }: { part: ToolPart }) {
-  const error = part.state === "output-error" ? part.errorText : undefined
-
-  // Screenshots are for the bot's eyes and stay out of the chat
-  if (part.type === "tool-viewScreen" || part.type === "tool-showScreen") {
-    return (
-      <ToolOutput
-        errorText={error}
-        output={
-          part.state === "output-available" ? (
-            <p className="p-3 text-muted-foreground">
-              {part.type === "tool-viewScreen"
-                ? "Took a screenshot for its own use."
-                : "Took a screenshot."}
-            </p>
-          ) : undefined
-        }
-      />
-    )
-  }
-
-  if (part.type === "tool-bash") {
-    return (
-      <>
-        {part.input?.command ? (
-          <CodeBlock code={part.input.command} language="bash" />
-        ) : null}
-        <ToolOutput
-          errorText={error}
-          output={
-            part.state === "output-available" ? (
-              <CodeBlock
-                code={part.output.output || `Exit code ${part.output.exitCode}`}
-                language="log"
-              />
-            ) : undefined
-          }
-        />
-      </>
-    )
-  }
-
-  return (
-    <>
-      {part.input === undefined ? null : <ToolInput input={part.input} />}
-      <ToolOutput
-        errorText={error}
-        output={part.state === "output-available" ? part.output : undefined}
-      />
-    </>
-  )
-}
 
 // A reply is one message even when a handoff changes who is writing it, so it
 // is cut at each handoff and every stretch gets its own author. Only a group
@@ -285,7 +167,9 @@ function ChatMessages({
                       className={
                         addressee && j === 0
                           ? "inline [&>p:first-child]:inline"
-                          : undefined
+                          : message.role === "assistant" && j > 0
+                            ? "mt-2"
+                            : undefined
                       }
                     >
                       {part.text}
@@ -307,7 +191,11 @@ function ChatMessages({
                   {author && (
                     <ChatAvatar seed={author.avatar} className="size-6" />
                   )}
-                  <MessageContent>
+                  <MessageContent
+                    className={
+                      message.role === "assistant" ? "w-full gap-1" : undefined
+                    }
+                  >
                     {addressee ? (
                       // One block, so the tag and the text share a line and the text wraps under it
                       <div>

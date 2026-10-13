@@ -5,7 +5,8 @@ import type RFB from "@novnc/novnc"
 import * as Sentry from "@sentry/nextjs"
 import { PauseIcon, RefreshCwIcon } from "lucide-react"
 
-import { getDesktopUrl, pauseDesktop } from "@/actions/chat"
+import { getDesktopUrl, pauseDesktop, resetDesktop } from "@/actions/chat"
+import { DesktopResetDialog } from "@/components/desktop-reset-dialog"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,7 +22,13 @@ import { toast } from "@/components/ui/toast"
 import { usePaywall } from "@/hooks/use-paywall"
 
 type DesktopStatus =
-  "idle" | "connecting" | "connected" | "disconnected" | "paused" | "pausing"
+  | "idle"
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "paused"
+  | "pausing"
+  | "missing"
 
 type DesktopPanelContextValue = {
   open: boolean
@@ -29,6 +36,7 @@ type DesktopPanelContextValue = {
   status: DesktopStatus
   connect: () => void
   pause: () => void
+  reset: () => Promise<void>
   // Moves the one live screen into the given element
   attachScreen: (slot: HTMLElement) => void
   // Whether the screen takes mouse and keyboard input or is only watched
@@ -83,13 +91,17 @@ function DesktopPanelProvider({
     const startedAt = Date.now()
 
     try {
-      const [url, { default: RFB }] = await Promise.all([
+      const [connection, { default: RFB }] = await Promise.all([
         getDesktopUrl(chatId),
         import("@novnc/novnc"),
       ])
       if (attempt !== attemptRef.current) return
+      if (connection.missing) {
+        setStatus("missing")
+        return
+      }
 
-      const address = new URL(url, window.location.origin)
+      const address = new URL(connection.url, window.location.origin)
       address.protocol = address.protocol === "https:" ? "wss:" : "ws:"
       const rfb = new RFB(getScreen(), address.toString())
       rfb.scaleViewport = true
@@ -153,6 +165,12 @@ function DesktopPanelProvider({
     }
   }, [chatId])
 
+  const reset = React.useCallback(async () => {
+    const attempt = ++attemptRef.current
+    await resetDesktop(chatId)
+    if (attempt === attemptRef.current) await connect()
+  }, [chatId, connect])
+
   const attachScreen = React.useCallback(
     (slot: HTMLElement) => {
       slot.appendChild(getScreen())
@@ -183,17 +201,18 @@ function DesktopPanelProvider({
       status,
       connect,
       pause,
+      reset,
       attachScreen,
       setInteractive,
     }),
-    [open, toggle, status, connect, pause, attachScreen, setInteractive]
+    [open, toggle, status, connect, pause, reset, attachScreen, setInteractive]
   )
 
   return <DesktopPanelContext value={value}>{children}</DesktopPanelContext>
 }
 
 function DesktopPanel({ name }: { name: string }) {
-  const { open, status, connect, pause, attachScreen, setInteractive } =
+  const { open, status, connect, pause, reset, attachScreen, setInteractive } =
     useDesktopPanel()
   const [fullscreen, setFullscreen] = React.useState(false)
   const [panelSlot, setPanelSlot] = React.useState<HTMLDivElement | null>(null)
@@ -242,7 +261,11 @@ function DesktopPanel({ name }: { name: string }) {
                 aria-label={
                   status === "paused" ? "Resume computer" : "Reconnect"
                 }
-                disabled={status === "connecting" || status === "pausing"}
+                disabled={
+                  status === "connecting" ||
+                  status === "pausing" ||
+                  status === "missing"
+                }
                 onClick={connect}
               >
                 <RefreshCwIcon />
@@ -261,7 +284,12 @@ function DesktopPanel({ name }: { name: string }) {
                   />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                    {status === "disconnected" || status === "paused" ? (
+                    {status === "missing" ? (
+                      <div className="flex flex-col items-center gap-3 px-4 text-center">
+                        <p>This computer no longer exists.</p>
+                        <DesktopResetDialog reset={reset} />
+                      </div>
+                    ) : status === "disconnected" || status === "paused" ? (
                       <Button variant="outline" onClick={connect}>
                         Resume computer
                       </Button>

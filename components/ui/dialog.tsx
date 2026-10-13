@@ -5,6 +5,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 import { cn } from "cn"
 
 import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { XIcon } from "lucide-react"
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
@@ -58,7 +59,12 @@ function DialogContent({
         )}
         {...props}
       >
-        {children}
+        <ScrollArea
+          className="-m-4"
+          viewportProps={{ className: "max-h-[calc(100svh-4rem)]" }}
+        >
+          <div className="grid gap-4 p-4">{children}</div>
+        </ScrollArea>
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
@@ -70,8 +76,7 @@ function DialogContent({
               />
             }
           >
-            <XIcon
-            />
+            <XIcon />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
         )}

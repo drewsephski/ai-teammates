@@ -4,21 +4,25 @@ import {
   SandboxNotFoundError,
   type SandboxInfo,
 } from "@e2b/desktop"
-import { eq, sql } from "drizzle-orm"
+import * as Sentry from "@sentry/node"
+import { randomUUID } from "node:crypto"
+import { and, eq } from "drizzle-orm"
 
 import { db } from "@/db"
 import { bots, sandboxSessions, usageEntries } from "@/db/schema"
-import {
-  IDLE_TIMEOUT_MS,
-  runningSeconds,
-  sandboxTimeout,
-} from "@/lib/sandbox-policy"
+import { IDLE_TIMEOUT_MS, runningSeconds } from "@/lib/sandbox-policy"
+import { createSandboxLifecycle } from "@/lib/sandbox-lifecycle"
+import { withSandboxLock, tryWithSandboxLock } from "@/lib/sandbox-lock"
 
 export const MEMORY_FILE = "/home/user/MEMORY.md"
 const APP = "ai-teammates"
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
-async function meterSession(tx: Transaction, info: SandboxInfo) {
+async function meterSession(
+  tx: Transaction,
+  info: SandboxInfo,
+  sampledAt: number
+) {
   const [owner] = await tx
     .select({ userId: bots.userId })
     .from(bots)
@@ -40,7 +44,7 @@ async function meterSession(tx: Transaction, info: SandboxInfo) {
     .from(sandboxSessions)
     .where(eq(sandboxSessions.id, id))
     .for("update")
-  const seconds = runningSeconds(info.startedAt, info.endAt)
+  const seconds = runningSeconds(info.startedAt, info.endAt, sampledAt)
   const delta = seconds - session.meteredSeconds
   if (delta > 0) {
     await tx
@@ -62,80 +66,73 @@ async function meterSession(tx: Transaction, info: SandboxInfo) {
     .where(eq(sandboxSessions.id, id))
 }
 
-// A transaction-scoped lock serializes tools, desktop leases and pause/delete
-// across Railway and Trigger workers, including separate chats for the same bot.
-async function withSandboxLock<T>(
-  id: string,
-  operation: (tx: Transaction) => Promise<T>
-) {
-  return db.transaction(async (tx) => {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${id}, 0))`
-    )
-    return operation(tx)
+const REQUEST_TIMEOUT_MS = 15_000
+const providerOptions = { requestTimeoutMs: REQUEST_TIMEOUT_MS }
+
+function reportMaintenance(error: unknown, id: string) {
+  Sentry.captureException(error, {
+    tags: { "sandbox.operation": "maintenance" },
+    extra: { sandboxId: id },
   })
 }
 
+function meterInfo(info: SandboxInfo) {
+  const sampledAt = Date.now()
+  return db.transaction((tx) => meterSession(tx, info, sampledAt))
+}
+
+const lifecycle = createSandboxLifecycle({
+  getInfo: (id) => Sandbox.getInfo(id, providerOptions),
+  connect: (id, timeoutMs) =>
+    Sandbox.connect(id, { ...providerOptions, timeoutMs }),
+  pause: (id) => Sandbox.pause(id, providerOptions),
+  meter: meterInfo,
+  lock: withSandboxLock,
+  tryLock: tryWithSandboxLock,
+  report: reportMaintenance,
+})
+
+export const withBotSandbox = lifecycle.run
+export const getBotSandboxInfo = lifecycle.getInfo
+export const renewBotDesktop = lifecycle.renewDesktop
+export const pauseBotSandbox = lifecycle.pause
+
 export async function createBotSandbox(botId: string) {
-  const sandbox = await Sandbox.create({
-    resolution: [1024, 768],
-    metadata: { app: APP, botId },
-    timeoutMs: IDLE_TIMEOUT_MS,
-    lifecycle: { onTimeout: "pause", autoResume: false },
-    network: { allowPublicTraffic: false },
-  })
+  const creationId = randomUUID()
+  let sandbox: Sandbox | undefined
   try {
+    sandbox = await Sandbox.create({
+      resolution: [1024, 768],
+      ...providerOptions,
+      metadata: { app: APP, botId, creationId },
+      timeoutMs: IDLE_TIMEOUT_MS,
+      lifecycle: { onTimeout: "pause", autoResume: false },
+      network: { allowPublicTraffic: false },
+    })
     await sandbox.files.write(MEMORY_FILE, "")
     // Creating a teammate should not keep an unused computer running.
     await sandbox.pause()
     return sandbox.sandboxId
   } catch (error) {
-    await sandbox.kill().catch(() => {})
+    try {
+      if (sandbox) await sandbox.kill()
+      else {
+        // Desktop startup may throw after the VM was allocated. Find only this
+        // exact create attempt; never delete a concurrent bot's computer.
+        const pending = Sandbox.list({
+          ...providerOptions,
+          query: { metadata: { creationId }, state: ["running", "paused"] },
+        })
+        while (pending.hasNext) {
+          for (const info of await pending.nextItems())
+            await Sandbox.kill(info.sandboxId, providerOptions)
+        }
+      }
+    } catch (cleanupError) {
+      reportMaintenance(cleanupError, sandbox?.sandboxId ?? creationId)
+    }
     throw error
   }
-}
-
-export async function withBotSandbox<T>(
-  id: string,
-  operation: (sandbox: Sandbox) => Promise<T>,
-  leaseMs = IDLE_TIMEOUT_MS,
-  resume = true
-) {
-  const outcome = await withSandboxLock(id, async (tx) => {
-    let info = await Sandbox.getInfo(id)
-    await meterSession(tx, info)
-    if (info.state === "paused" && !resume)
-      return { ok: false as const, error: new Error("Computer paused") }
-    // An operation must fit wholly within this session. Rotate via pause,
-    // never kill/recreate, so files and running applications survive.
-    if (info.state === "running" && sandboxTimeout(info.startedAt) < leaseMs) {
-      await Sandbox.pause(id)
-      info = await Sandbox.getInfo(id)
-      await meterSession(tx, info)
-      if (!resume)
-        return {
-          ok: false as const,
-          error: new Error("Computer paused at session limit"),
-        }
-    }
-    const sandbox = await Sandbox.connect(id, { timeoutMs: leaseMs })
-    info = await sandbox.getInfo()
-    const timeout = sandboxTimeout(info.startedAt, Date.now(), leaseMs)
-    await sandbox.setTimeout(timeout)
-    await meterSession(tx, await sandbox.getInfo())
-    try {
-      return { ok: true as const, value: await operation(sandbox) }
-    } catch (error) {
-      // Commit lifecycle/metering even if the tool itself fails.
-      return { ok: false as const, error }
-    } finally {
-      await sandbox.setTimeout(sandboxTimeout(info.startedAt))
-      // Update the lease/meter even when a command exits unsuccessfully.
-      await meterSession(tx, await Sandbox.getInfo(id))
-    }
-  })
-  if (!outcome.ok) throw outcome.error
-  return outcome.value
 }
 
 export async function readBotMemory(sandbox: Sandbox) {
@@ -152,38 +149,101 @@ export async function getBotDesktopConnection(id: string) {
     return {
       url: `wss://${sandbox.getHost(6080)}/websockify`,
       token: sandbox.trafficAccessToken,
+      startedAt: (await sandbox.getInfo()).startedAt,
     }
-  })
-}
-
-export async function pauseBotSandbox(id: string) {
-  return withSandboxLock(id, async (tx) => {
-    await Sandbox.pause(id)
-    await meterSession(tx, await Sandbox.getInfo(id))
   })
 }
 
 export async function deleteBotSandbox(id: string) {
-  await withSandboxLock(id, async (tx) => {
+  await withSandboxLock(id, async () => {
     try {
-      await Sandbox.pause(id)
-      await meterSession(tx, await Sandbox.getInfo(id))
+      await Sandbox.pause(id, providerOptions)
+      await meterInfo(await Sandbox.getInfo(id, providerOptions))
     } catch (error) {
       if (!(error instanceof SandboxNotFoundError)) throw error
     }
-    await Sandbox.kill(id)
-    await tx.delete(sandboxSessions).where(eq(sandboxSessions.sandboxId, id))
+    await Sandbox.kill(id, providerOptions)
+    await db.delete(sandboxSessions).where(eq(sandboxSessions.sandboxId, id))
   })
 }
 
+// Metering has its own short row-locked transaction and never waits on a tool.
 export async function meterBotSandbox(id: string) {
-  return withSandboxLock(id, async (tx) =>
-    meterSession(tx, await Sandbox.getInfo(id))
+  try {
+    await meterInfo(await Sandbox.getInfo(id, providerOptions))
+  } catch (error) {
+    if (!(error instanceof SandboxNotFoundError)) throw error
+    return false
+  }
+  return true
+}
+
+// Reset is explicit and only available for a definitively missing computer.
+// Recheck under the old ID's lock; concurrent resets adopt the same replacement.
+export async function resetBotSandbox(
+  botId: string,
+  userId: string,
+  oldId: string
+) {
+  return withSandboxLock(`bot:${botId}`, () =>
+    withSandboxLock(oldId, async () => {
+      const [bot] = await db
+        .select()
+        .from(bots)
+        .where(and(eq(bots.id, botId), eq(bots.userId, userId)))
+      if (!bot) throw new Error("Bot not found")
+      if (bot.sandboxId !== oldId) return bot.sandboxId
+      try {
+        await Sandbox.getInfo(oldId, providerOptions)
+        throw new Error(
+          "The computer still exists. Reconnect instead of resetting it."
+        )
+      } catch (error) {
+        if (!(error instanceof SandboxNotFoundError)) throw error
+      }
+      const id = await createBotSandbox(botId)
+      try {
+        const [updated] = await db
+          .update(bots)
+          .set({ sandboxId: id })
+          .where(
+            and(
+              eq(bots.id, botId),
+              eq(bots.userId, userId),
+              eq(bots.sandboxId, oldId)
+            )
+          )
+          .returning({ id: bots.id })
+        if (!updated)
+          throw new Error("Bot changed while resetting the computer")
+        return id
+      } catch (error) {
+        // An UPDATE response can be lost after Postgres committed. Never kill a
+        // replacement which has already become this bot's registered computer.
+        let current
+        try {
+          current = await db.query.bots.findFirst({ where: eq(bots.id, botId) })
+        } catch (lookupError) {
+          reportMaintenance(lookupError, id)
+          // Provisioning already paused it; leave uncertain ownership for review.
+          reportMaintenance(error, id)
+          throw error
+        }
+        if (current?.sandboxId === id) return id
+        await Sandbox.kill(id, providerOptions).catch((cleanupError: unknown) =>
+          reportMaintenance(cleanupError, id)
+        )
+        throw error
+      }
+    })
   )
 }
 
 export async function listBotSandboxes() {
-  const paginator = Sandbox.list({ query: { metadata: { app: APP } } })
+  const paginator = Sandbox.list({
+    ...providerOptions,
+    query: { metadata: { app: APP }, state: ["running", "paused"] },
+  })
   const sandboxes: SandboxInfo[] = []
   while (paginator.hasNext) sandboxes.push(...(await paginator.nextItems()))
   return sandboxes

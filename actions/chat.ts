@@ -20,7 +20,8 @@ import {
   type GroupChatInsert,
 } from "@/db/schema"
 import type { Feature } from "@/lib/billing"
-import { pauseBotSandbox } from "@/lib/e2b"
+import { getBotSandboxInfo, pauseBotSandbox, resetBotSandbox } from "@/lib/e2b"
+import { SandboxMissingError } from "@/lib/sandbox-lifecycle"
 import type { ChatUIMessage } from "@/lib/sandbox-tools"
 import { getUsage } from "@/lib/usage"
 import { getChat } from "@/queries/chats"
@@ -101,7 +102,30 @@ export async function getDesktopUrl(chatId: string) {
   }
 
   // The gateway authenticates again and keeps provider tokens server-side.
-  return `/api/chats/${encodeURIComponent(chatId)}/desktop`
+  try {
+    await getBotSandboxInfo(chat.bots[0].sandboxId)
+  } catch (error) {
+    if (error instanceof SandboxMissingError) return { missing: true as const }
+    throw error
+  }
+  return {
+    missing: false as const,
+    url: `/api/chats/${encodeURIComponent(chatId)}/desktop`,
+  }
+}
+
+export async function resetDesktop(chatId: string) {
+  const { isAuthenticated, userId } = await clerkAuth()
+  if (!isAuthenticated) throw new Error("Unauthorized")
+  await assertFeature("sandboxes")
+  const chat = await getChat(chatId)
+  if (!chat || chat.kind !== "direct") throw new Error("Chat not found")
+  const usage = await getUsage(userId)
+  if (!usage || usage.remaining.sandbox <= 0)
+    throw new Error("Usage limit reached")
+  const bot = chat.bots[0]
+  await resetBotSandbox(bot.id, userId, bot.sandboxId)
+  revalidatePath("/", "layout")
 }
 
 export async function pauseDesktop(chatId: string) {

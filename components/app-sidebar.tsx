@@ -17,6 +17,8 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 import { UserMenu } from "@/components/user-menu"
+import { KraftyWordmark } from "@/components/krafty-wordmark"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { getBots, getChats, type ChatWithBots } from "@/queries/bots"
 
 // A group shows its bots together, a direct chat shows its one bot
@@ -34,7 +36,8 @@ export async function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-2 group-data-[collapsible=icon]:flex-col">
+          <KraftyWordmark compact />
           <CreateMenu
             bots={bots.map(({ id, name, avatar }) => ({ id, name, avatar }))}
           />
@@ -53,42 +56,44 @@ export async function AppSidebar() {
           ))}
         </SearchCommand>
       </SidebarHeader>
-      <SidebarContent className="group-data-[collapsible=icon]:overflow-auto">
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {chats.map((chat) => (
-                <SidebarMenuItem key={chat.id}>
-                  <ChatMenuButton
-                    chatId={chat.id}
-                    tooltip={chat.name ?? chat.bots[0].name}
-                    bot={chat.kind === "direct" ? chat.bots[0] : undefined}
-                  >
-                    <SidebarChatAvatar chat={chat} />
-                    <div className="grid flex-1 text-left leading-tight">
-                      <div className="flex items-baseline gap-2">
-                        <span className="truncate font-medium">
-                          {chat.name ?? chat.bots[0].name}
-                        </span>
-                        <time
-                          dateTime={chat.lastMessageAt.toISOString()}
-                          className="ml-auto shrink-0 text-xs text-muted-foreground"
-                        >
-                          {formatDistanceToNowStrict(chat.lastMessageAt)}
-                        </time>
+      <SidebarContent className="overflow-hidden">
+        <ScrollArea className="min-h-0 flex-1">
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {chats.map((chat) => (
+                  <SidebarMenuItem key={chat.id}>
+                    <ChatMenuButton
+                      chatId={chat.id}
+                      tooltip={chat.name ?? chat.bots[0].name}
+                      bot={chat.kind === "direct" ? chat.bots[0] : undefined}
+                    >
+                      <SidebarChatAvatar chat={chat} />
+                      <div className="grid flex-1 text-left leading-tight">
+                        <div className="flex items-baseline gap-2">
+                          <span className="truncate font-medium">
+                            {chat.name ?? chat.bots[0].name}
+                          </span>
+                          <time
+                            dateTime={chat.lastMessageAt.toISOString()}
+                            className="ml-auto shrink-0 text-xs text-muted-foreground"
+                          >
+                            {formatDistanceToNowStrict(chat.lastMessageAt)}
+                          </time>
+                        </div>
+                        {chat.lastMessagePreview && (
+                          <span className="truncate text-xs text-muted-foreground">
+                            {chat.lastMessagePreview}
+                          </span>
+                        )}
                       </div>
-                      {chat.lastMessagePreview && (
-                        <span className="truncate text-xs text-muted-foreground">
-                          {chat.lastMessagePreview}
-                        </span>
-                      )}
-                    </div>
-                  </ChatMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                    </ChatMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </ScrollArea>
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
