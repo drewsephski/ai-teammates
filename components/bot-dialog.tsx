@@ -7,19 +7,9 @@ import { ShuffleIcon, Trash2Icon } from "lucide-react"
 import { nanoid } from "nanoid"
 import { Controller, useForm } from "react-hook-form"
 
-import { createBot, deleteBot, updateBot } from "@/actions/bot"
+import { createBot, updateBot } from "@/actions/bot"
+import { BotDeleteDialog } from "@/components/bot-delete-dialog"
 import { ChatAvatar } from "@/components/chat-avatar"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -79,61 +69,19 @@ function BotDeleteButton({
   onDeleted: () => void
 }) {
   const router = useRouter()
-  const [open, setOpen] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-
-  const onDelete = async () => {
-    setIsDeleting(true)
-    try {
-      await deleteBot(bot.id)
-      toast.add({ type: "success", title: `${bot.name} is deleted` })
-      onDeleted()
-      router.push("/")
-    } catch {
-      toast.add({
-        type: "error",
-        title: "Couldn't delete the bot",
-        description: "Something went wrong. Try again.",
-      })
-      setIsDeleting(false)
-    }
-  }
-
   return (
-    // Stays open while the delete is running
-    <AlertDialog
-      open={open}
-      onOpenChange={(open) => !isDeleting && setOpen(open)}
+    <BotDeleteDialog
+      bot={bot}
+      onDeleted={() => {
+        onDeleted()
+        router.push("/")
+      }}
     >
-      <AlertDialogTrigger
-        render={
-          <Button type="button" variant="destructive" className="sm:mr-auto" />
-        }
-      >
+      <Button type="button" variant="destructive" className="sm:mr-auto">
         <Trash2Icon data-icon="inline-start" />
         Delete
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete {bot.name}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This deletes the bot and your chat with it. It can&apos;t be undone.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            type="button"
-            variant="destructive"
-            disabled={isDeleting}
-            onClick={onDelete}
-          >
-            {isDeleting && <Spinner data-icon="inline-start" />}
-            Delete bot
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      </Button>
+    </BotDeleteDialog>
   )
 }
 

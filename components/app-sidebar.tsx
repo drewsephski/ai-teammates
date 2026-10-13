@@ -62,6 +62,7 @@ export async function AppSidebar() {
                   <ChatMenuButton
                     chatId={chat.id}
                     tooltip={chat.name ?? chat.bots[0].name}
+                    bot={chat.kind === "direct" ? chat.bots[0] : undefined}
                   >
                     <SidebarChatAvatar chat={chat} />
                     <div className="grid flex-1 text-left leading-tight">
