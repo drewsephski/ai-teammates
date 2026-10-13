@@ -1,0 +1,143 @@
+import type { Metadata } from "next"
+import Link from "next/link"
+
+export const metadata: Metadata = {
+  title: "Privacy policy",
+  description: "How Krafty collects, uses, and handles your information.",
+  alternates: { canonical: "https://kraftybot.app/privacy" },
+}
+
+export default function PrivacyPage() {
+  return (
+    <article>
+      <h1>Privacy policy</h1>
+      <p>Last updated: October 13, 2026</p>
+      <p>
+        Krafty provides AI teammates, connected tools, and cloud computers. This
+        policy describes how information is handled when you use kraftybot.app.
+        Krafty is operated by Drew Sepeczi. For privacy questions or requests,
+        contact <a href="mailto:drewsepeczi@gmail.com">drewsepeczi@gmail.com</a>
+        .
+      </p>
+
+      <h2>Information we collect</h2>
+      <ul>
+        <li>
+          Account information, including your email address, account identifier,
+          and profile information provided when you sign up. Google sign-in
+          provides basic identity information such as your name, email address,
+          and profile picture.
+        </li>
+        <li>
+          Content you provide or create, including messages, bot names and
+          instructions, saved memories, files, and results generated while using
+          your teammates.
+        </li>
+        <li>
+          Connected-service information and permissions you authorize, including
+          connection identifiers and the data your teammates retrieve or act on
+          when you request work.
+        </li>
+        <li>
+          Subscription and usage information, including your plan, subscription
+          status, model usage, and cloud computer usage. Payment details are
+          handled by our payment providers; Krafty does not receive your full
+          payment card number.
+        </li>
+        <li>
+          Technical and diagnostic information, including request details,
+          device or browser information, account and task identifiers, and
+          errors needed to operate and troubleshoot the service.
+        </li>
+      </ul>
+
+      <h2>How we use information</h2>
+      <p>
+        We use information to authenticate you, provide your workspace, generate
+        AI responses, perform the tasks you request, operate connected tools and
+        cloud computers, retain conversation context and saved memories, meter
+        usage, process subscriptions, provide support, and investigate errors or
+        misuse.
+      </p>
+      <p>
+        Google sign-in is used for authentication. Access to other services is a
+        separate connection that you authorize. Connecting a service may allow a
+        teammate to retrieve information or make changes within the permissions
+        you grant.
+      </p>
+
+      <h2>Service providers and AI processing</h2>
+      <p>
+        Operating Krafty requires sharing relevant information with service
+        providers. These include Clerk for authentication and subscription
+        management, Stripe for payments, Railway for app hosting, Neon for
+        database and AI gateway services, Trigger.dev for background tasks and
+        conversations, E2B for cloud computers, Composio for connected tools,
+        and Sentry for diagnostics.
+      </p>
+      <p>
+        Messages, instructions, relevant conversation context, tool results, and
+        files or screenshots needed for your request may be processed by AI
+        model providers through our AI gateway. Providers process this
+        information under their own applicable terms and privacy policies. Avoid
+        submitting information you are not authorized to share.
+      </p>
+      <p>
+        We do not sell your personal information. We may disclose information
+        when required by law, to protect users or the service, or as part of a
+        transfer of the business, subject to applicable requirements.
+      </p>
+
+      <h2>Cookies and storage</h2>
+      <p>
+        We and our authentication provider use cookies and browser storage for
+        sign-in, session security, and preferences. Blocking essential cookies
+        may prevent sign-in or other features from working.
+      </p>
+
+      <h2>Retention and deletion</h2>
+      <p>
+        Workspace content, saved memories, and cloud computer files may persist
+        between sessions to support ongoing work. Logging out or disconnecting
+        an integration does not by itself delete existing conversations, files,
+        or memories. You can use available bot and conversation deletion
+        controls and request account or data deletion by contacting us.
+      </p>
+      <p>
+        We retain information as needed to provide the service and meet
+        accounting, security, dispute-resolution, and legal requirements.
+        Deletion may take time to complete across providers and backups. Data
+        already sent to a connected service is also subject to that service’s
+        controls and retention policies.
+      </p>
+
+      <h2>Your choices and rights</h2>
+      <p>
+        You can update available account settings, disconnect integrations, and
+        revoke access in the connected provider’s settings. Depending on your
+        location, you may have rights to access, correct, delete, or obtain a
+        copy of your information, or to object to certain processing. Send
+        requests to{" "}
+        <a href="mailto:drewsepeczi@gmail.com">drewsepeczi@gmail.com</a>; we may
+        need to verify your identity.
+      </p>
+
+      <h2>Security, international processing, and children</h2>
+      <p>
+        We use account authentication and access controls to protect
+        information. No online service can guarantee absolute security. Our
+        providers may process information in countries outside your country of
+        residence. Krafty is not intended for children under 13; contact us if
+        you believe a child has provided personal information.
+      </p>
+
+      <h2>Changes to this policy</h2>
+      <p>
+        We may update this policy as the service changes and will update the
+        date above. Where required, we will provide additional notice of
+        material changes. Use of Krafty is also governed by our{" "}
+        <Link href="/terms">terms of service</Link>.
+      </p>
+    </article>
+  )
+}
