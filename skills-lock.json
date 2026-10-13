@@ -195,6 +195,12 @@
       "sourceType": "git",
       "skillPath": "skills/shadcn/SKILL.md",
       "computedHash": "f615de216e085a84e31593ad0fa9062232adc40cd87b7c7ab2b8e49abf6500be"
+    },
+    "use-railway": {
+      "source": "railwayapp/railway-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/railway/skills/use-railway/SKILL.md",
+      "computedHash": "9e8bf61b5389f3f93ebe30ab75321c045f2f75686a129898ef15dd4e3e04fc46"
     }
   }
 }
