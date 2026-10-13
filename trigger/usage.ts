@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/node"
 import { schedules } from "@trigger.dev/sdk"
 
+import { isNotNull, sql } from "drizzle-orm"
 import { db } from "@/db"
 import { bots } from "@/db/schema"
 import { listBotSandboxes, meterBotSandbox, pauseBotSandbox } from "@/lib/e2b"
@@ -18,8 +19,12 @@ export const meterSandboxes = schedules.task({
       list: listBotSandboxes,
       owners: () =>
         db
-          .select({ sandboxId: bots.sandboxId, userId: bots.userId })
-          .from(bots),
+          .select({
+            sandboxId: sql<string>`${bots.sandboxId}`,
+            userId: bots.userId,
+          })
+          .from(bots)
+          .where(isNotNull(bots.sandboxId)),
       meter: meterBotSandbox,
       hasUsage: async (userId) => {
         const usage = await getUsage(userId)

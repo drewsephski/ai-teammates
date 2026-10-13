@@ -192,6 +192,8 @@ export async function resetBotSandbox(
         .from(bots)
         .where(and(eq(bots.id, botId), eq(bots.userId, userId)))
       if (!bot) throw new Error("Bot not found")
+      if (!bot.sandboxId)
+        throw new Error("This bot's computer has not been provisioned yet.")
       if (bot.sandboxId !== oldId) return bot.sandboxId
       try {
         await Sandbox.getInfo(oldId, providerOptions)

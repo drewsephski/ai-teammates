@@ -37,6 +37,7 @@ export function createBotAvatar() {
 }
 
 export function parseBotAvatar(value: string) {
+  if (value.split(":").length !== 3) return null
   const [prefix, shape, color] = value.split(":")
   if (
     prefix !== "blob" ||

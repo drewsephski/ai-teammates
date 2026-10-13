@@ -13,7 +13,7 @@ import type { BotPresetId } from "@/lib/bot-presets"
 
 export function useCreateBot(presetId?: BotPresetId) {
   const router = useRouter()
-  const { checkPlan, checkUsage } = usePaywall()
+  const { checkPlan, showUsageLimit } = usePaywall()
   const [pending, setPending] = useState(false)
   const inFlight = useRef(false)
   const requestId = useRef<string | null>(null)
@@ -23,15 +23,14 @@ export function useCreateBot(presetId?: BotPresetId) {
     inFlight.current = true
     setPending(true)
     try {
-      if (
-        !checkPlan("bots") ||
-        !checkPlan("sandboxes") ||
-        !(await checkUsage("sandbox")) ||
-        !(await checkUsage("ai"))
-      )
-        return
+      if (!checkPlan("bots") || !checkPlan("sandboxes")) return
       requestId.current ??= nanoid()
       const result = await createBot({ requestId: requestId.current, presetId })
+      if (!result.ok) {
+        showUsageLimit(result.usageLimit)
+        return
+      }
+      requestId.current = null
       router.push(`/chats/${encodeURIComponent(result.chatId)}`)
       router.refresh()
     } catch {

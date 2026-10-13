@@ -34,7 +34,7 @@ export const bots = pgTable(
     setupComplete: boolean().notNull().default(true),
     pinnedAt: timestamp({ withTimezone: true }),
     // E2B desktop sandbox ID, preserved across pause/resume
-    sandboxId: text().notNull(),
+    sandboxId: text(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("bots_user_id_idx").on(table.userId)]

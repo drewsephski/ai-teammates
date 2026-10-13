@@ -15,10 +15,6 @@ export const botQuestionSchema = z.object({
       "Offer distinct choices."
     ),
 })
-export const botAnswerSchema = z.object({
-  answer: z.string().trim().min(1).max(2000),
-})
-
 export function createBotSetupTools(
   save: (profile: BotProfile) => Promise<BotProfile>
 ) {
@@ -27,7 +23,12 @@ export function createBotSetupTools(
       description:
         "Ask one focused question with two to five short choices. The person can select a choice or type their own answer. Wait for the answer before continuing; never answer for them.",
       inputSchema: botQuestionSchema,
-      outputSchema: botAnswerSchema,
+      outputSchema: botQuestionSchema,
+      execute: async (input) => botQuestionSchema.parse(input),
+      toModelOutput: ({ output }) => ({
+        type: "text" as const,
+        value: `Question displayed: ${output.question}\nChoices: ${output.options.join("; ")}\nWait for the person's next chat message. No answer has been supplied by this tool.`,
+      }),
     }),
     configureBot: tool({
       description:

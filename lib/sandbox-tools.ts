@@ -323,7 +323,7 @@ export function createSandboxTools(
 export type SandboxTools = ReturnType<typeof createSandboxTools>
 // A reply carries the bot that started it and a group chat's message the bot it
 // was sent to, so the chat can show who answered whom
-export type ChatMessageMetadata = { botId?: string }
+export type ChatMessageMetadata = { botId?: string; questionId?: string }
 export type ChatUIMessage = UIMessage<
   ChatMessageMetadata,
   UIDataTypes,

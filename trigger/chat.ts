@@ -5,13 +5,7 @@ import { asc, eq } from "drizzle-orm"
 import { z } from "zod"
 
 import { db } from "@/db"
-import {
-  bots as botTable,
-  chatMembers,
-  chats,
-  type Bot,
-  type Chat,
-} from "@/db/schema"
+import { chatMembers, chats, type Bot, type Chat } from "@/db/schema"
 import { USAGE_LIMIT_ERROR } from "@/lib/billing"
 import { MEMORY_FILE } from "@/lib/e2b"
 import { createHandoffTool, type Handoff } from "@/lib/handoff-tool"
@@ -26,6 +20,7 @@ import {
   buildBotSetupInstructions,
 } from "@/lib/bot-setup-tools"
 import { configureBotProfile } from "@/lib/bot-profile"
+import { ensureBotComputer } from "@/lib/bot-computer"
 
 // Sent with each message. Missing in direct chats, and when the session starts.
 const clientDataSchema = z
@@ -158,12 +153,7 @@ export const chatAgent = chat
         }
 
         // A reset changes the ID while this durable turn/session may survive.
-        const [computer] = await db
-          .select({ sandboxId: botTable.sandboxId })
-          .from(botTable)
-          .where(eq(botTable.id, current.id))
-        if (!computer) throw new Error("This teammate was deleted")
-        return computer.sandboxId
+        return ensureBotComputer(current.id, userId)
       })
 
       const teamTools = createDelegationTools({
@@ -247,8 +237,8 @@ export const chatAgent = chat
         .flatMap((part) =>
           part.type === "text"
             ? [part.text]
-            : part.type === "tool-askUser" && part.state === "input-available"
-              ? [part.input.question]
+            : part.type === "tool-askUser" && part.state === "output-available"
+              ? [part.output.question]
               : []
         )
         .join(" ")
@@ -366,6 +356,10 @@ export const chatAgent = chat
           turnModelUsage.cost += chatModelCost(usage, model.modelId)
         },
         stopWhen: [
+          ({ steps }) =>
+            steps.some((step) =>
+              step.toolResults.some((result) => result.toolName === "askUser")
+            ),
           ({ steps }) =>
             steps.some((step) =>
               step.toolResults.some((result) =>

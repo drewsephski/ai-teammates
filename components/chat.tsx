@@ -7,7 +7,7 @@ import {
   useLoadTranscript,
   useTriggerChatTransport,
 } from "@trigger.dev/sdk/chat/react"
-import { isToolUIPart, lastAssistantMessageIsCompleteWithToolCalls } from "ai"
+import { isToolUIPart } from "ai"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowUpIcon } from "lucide-react"
@@ -115,6 +115,14 @@ function Chat({
     transport
       .preload(chatId)
       .then(() => {
+        // The SDK assumes a preloaded session is idle. Our server starts its
+        // opening turn immediately, so let the server decide when it is settled.
+        const session = transport.getSession(chatId)
+        if (session) {
+          const resumable = { ...session }
+          delete resumable.isStreaming
+          transport.setSession(chatId, resumable)
+        }
         if (current) setStartup({ chatId })
       })
       .catch(() => {
@@ -204,15 +212,13 @@ function ChatMessages({
   const {
     messages,
     sendMessage,
+    resumeStream,
     status,
     stop: stopLocal,
-    addToolOutput,
   } = useChat<ChatUIMessage>({
     id: chatId,
     messages: initialMessages,
     transport,
-    resume: setup,
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     onFinish: ({ message, isAbort, isError }) => {
       if (isAbort || isError) return
       if (
@@ -258,6 +264,26 @@ function ChatMessages({
       })
     },
   })
+  useEffect(() => {
+    if (!setup) return
+    // Automatic resume races the subscription aborted by Strict Mode cleanup.
+    // Defer one task: the simulated mount is cancelled before opening a stream.
+    const timer = setTimeout(() => {
+      const session = transport.getSession(chatId)
+      if (
+        session &&
+        !initialMessages.some((message) => message.role === "assistant")
+      )
+        transport.setSession(chatId, {
+          ...session,
+          isStreaming: true,
+          // The server submits the opening turn before any client input.
+          activeInputSeq: 0,
+        })
+      void resumeStream()
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [chatId, initialMessages, resumeStream, setup, transport])
   // The bot the next message goes to, in a group chat
   const [botId, setBotId] = useState(bots[0]?.id)
   // Falls back to the first one when the picked bot is removed from the group
@@ -265,27 +291,38 @@ function ChatMessages({
   const visibleMessages = messages.filter(
     (message) => !directBotId || message.id !== botSetupMessageId(directBotId)
   )
+  const answeredQuestions = new Set(
+    visibleMessages
+      .filter((message) => message.role === "user")
+      .map((message) => message.metadata?.questionId)
+  )
   const pendingQuestion = visibleMessages
     .flatMap((message) => message.parts)
     .findLast(
-      (part) => part.type === "tool-askUser" && part.state === "input-available"
+      (part) =>
+        part.type === "tool-askUser" &&
+        part.state === "output-available" &&
+        !answeredQuestions.has(part.toolCallId)
     )
   const busy = status === "submitted" || status === "streaming"
 
-  function answerQuestion(toolCallId: string, answer: string) {
-    addToolOutput({ tool: "askUser", toolCallId, output: { answer } })
+  function answerQuestion(questionId: string, answer: string) {
+    if (!checkPlan("bots")) return
+    const metadata = {
+      questionId,
+      ...(selectedBot && { botId: selectedBot.id }),
+    }
+    sendMessage({ text: answer, metadata }, { metadata })
   }
   function stop() {
     stopLocal()
-    transport
-      .stopGeneration(chatId)
-      .catch(() =>
-        toast.add({
-          type: "error",
-          title: "Couldn't stop the reply",
-          description: "Try stopping again.",
-        })
-      )
+    transport.stopGeneration(chatId).catch(() =>
+      toast.add({
+        type: "error",
+        title: "Couldn't stop the reply",
+        description: "Try stopping again.",
+      })
+    )
   }
 
   function handleSubmit(message: PromptInputMessage) {
@@ -365,19 +402,19 @@ function ChatMessages({
                     <ChatQuestion
                       key={part.toolCallId}
                       part={part}
-                      active={pendingQuestion?.toolCallId === part.toolCallId}
+                      active={
+                        pendingQuestion?.type === "tool-askUser" &&
+                        pendingQuestion.toolCallId === part.toolCallId
+                      }
                       busy={busy}
                       onAnswer={(answer) =>
                         answerQuestion(part.toolCallId, answer)
                       }
                       onDismiss={() =>
-                        addToolOutput({
-                          tool: "askUser",
-                          toolCallId: part.toolCallId,
-                          state: "output-error",
-                          errorText:
-                            "The person dismissed this question and prefers to continue in the chat.",
-                        })
+                        answerQuestion(
+                          part.toolCallId,
+                          "I'd prefer to explain in the chat instead of choosing an option."
+                        )
                       }
                     />
                   )

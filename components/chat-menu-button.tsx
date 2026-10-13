@@ -98,10 +98,12 @@ function ChatMenuButton({
               {bot.pinnedAt ? <PinOffIcon /> : <PinIcon />}
               {bot.pinnedAt ? "Unpin" : "Pin"}
             </ContextMenuItem>
-            <ContextMenuItem onClick={() => {
-              if (!bot.setupComplete) router.push(`/chats/${chatId}`)
-              else setEditOpen(true)
-            }}>
+            <ContextMenuItem
+              onClick={() => {
+                if (!bot.setupComplete) router.push(`/chats/${chatId}`)
+                else setEditOpen(true)
+              }}
+            >
               <PencilIcon />
               {bot.setupComplete ? "Edit bot" : "Configure in chat"}
             </ContextMenuItem>

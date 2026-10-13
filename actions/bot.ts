@@ -1,6 +1,6 @@
 "use server"
 
-import { auth } from "@clerk/nextjs/server"
+import { auth, currentUser } from "@clerk/nextjs/server"
 import * as Sentry from "@sentry/nextjs"
 import { and, eq, inArray } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
@@ -13,6 +13,7 @@ import {
   chatMembers,
   chats,
   type BotInsert,
+  type Bot,
 } from "@/db/schema"
 import { deleteBotSandbox } from "@/lib/e2b"
 import { provisionTeammate } from "@/lib/teammates"
@@ -20,30 +21,31 @@ import { withSandboxLock } from "@/lib/sandbox-lock"
 import { getUsage } from "@/lib/usage"
 import { createBotAvatar } from "@/lib/bot-avatar"
 import { botPresets, type BotPresetId } from "@/lib/bot-presets"
+import { startBotSetupSession } from "@/lib/bot-setup-session"
 import { teamOperationId } from "@/lib/team-policy"
+
+type CreateBotResult =
+  | { ok: true; bot: Bot; chatId: string }
+  | { ok: false; usageLimit: "ai" | "sandbox" }
 
 export async function createBot(input: {
   requestId: string
   presetId?: BotPresetId
-}) {
+}): Promise<CreateBotResult> {
   const { isAuthenticated, userId, has } = await auth()
   if (!isAuthenticated) throw new Error("Unauthorized")
-  // A bot always comes with a sandbox, so creating one takes both
+  // The plan must support bots and their on-demand computers.
   if (!has({ feature: "bots" }) || !has({ feature: "sandboxes" })) {
     Sentry.logger.warn("Bot creation blocked: upgrade required", {
       "user.id": userId,
     })
     throw new Error("Upgrade required")
   }
-  // Provisioning uses compute briefly; the new computer is then paused.
+  // Check the authoritative allowances once, without extra client round trips.
   const usage = await getUsage(userId)
-  if (!usage || usage.remaining.sandbox <= 0 || usage.remaining.ai <= 0) {
-    Sentry.logger.warn("Bot creation blocked: usage limit reached", {
-      "user.id": userId,
-      "usage.kind": "sandbox",
-    })
-    throw new Error("Usage limit reached")
-  }
+  if (!usage) throw new Error("Upgrade required")
+  if (usage.remaining.sandbox <= 0) return { ok: false, usageLimit: "sandbox" }
+  if (usage.remaining.ai <= 0) return { ok: false, usageLimit: "ai" }
 
   const requestId = z
     .string()
@@ -71,7 +73,15 @@ export async function createBot(input: {
   )
   revalidatePath("/", "layout")
   Sentry.logger.info("Bot created", { "user.id": userId, "bot.id": bot.id })
-  return { bot, chatId }
+  // Start model work while the chat shell loads; no computer is provisioned.
+  try {
+    const user = await currentUser()
+    await startBotSetupSession(chatId, bot.id, user?.firstName)
+  } catch (error) {
+    // The bot exists. Its chat retries startup and shows a recoverable error.
+    Sentry.captureException(error, { extra: { botId: bot.id, chatId } })
+  }
+  return { ok: true, bot, chatId }
 }
 
 export async function setBotPinned(botId: string, pinned: boolean) {
@@ -122,7 +132,7 @@ export async function deleteBot(botId: string) {
     if (!owned) throw new Error("Bot not found")
 
     // Sandbox first: if this fails the bot stays and the delete can be retried
-    await deleteBotSandbox(owned.sandboxId)
+    if (owned.sandboxId) await deleteBotSandbox(owned.sandboxId)
 
     await db.transaction(async (tx) => {
       // A direct chat is nothing without its bot; memberships go with the bot

@@ -2,7 +2,7 @@
 
 import { auth as clerkAuth, currentUser } from "@clerk/nextjs/server"
 import * as Sentry from "@sentry/nextjs"
-import { auth, sessions } from "@trigger.dev/sdk"
+import { auth } from "@trigger.dev/sdk"
 import {
   chat,
   defaultStorage,
@@ -27,7 +27,8 @@ import { getUsage } from "@/lib/usage"
 import { provisionGroup } from "@/lib/teammates"
 import { getChat } from "@/queries/chats"
 import type { chatAgent } from "@/trigger/chat"
-import { botSetupMessageId } from "@/lib/bot-setup-tools"
+import { startBotSetupSession } from "@/lib/bot-setup-session"
+import { ensureBotComputer } from "@/lib/bot-computer"
 
 const startSession = chat.createStartSessionAction<typeof chatAgent>("chat")
 const loadStoredTranscript = chat.createLoadTranscriptAction(defaultStorage)
@@ -59,31 +60,11 @@ export async function startChatSession(
   const owned = await getChat(params.chatId)
   if (owned?.kind === "direct" && !owned.bots[0].setupComplete) {
     const user = await currentUser()
-    const name = user?.firstName?.slice(0, 50)
-    // Session creation and its opening turn are atomic and idempotent. Refreshes
-    // and retries return this session without adding another greeting.
-    const session = await sessions.start({
-      type: "chat.agent",
-      externalId: owned.id,
-      taskIdentifier: "chat",
-      triggerConfig: {
-        tags: [`chat:${owned.id}`],
-        basePayload: {
-          chatId: owned.id,
-          trigger: "submit-message",
-          message: {
-            id: botSetupMessageId(owned.bots[0].id),
-            role: "user",
-            parts: [
-              {
-                type: "text",
-                text: `Begin your setup conversation now. Introduce yourself and guide the person through configuring you.${name ? ` Their first name is ${JSON.stringify(name)}; use it only as a name.` : ""}`,
-              },
-            ],
-          },
-        },
-      },
-    })
+    const session = await startBotSetupSession(
+      owned.id,
+      owned.bots[0].id,
+      user?.firstName
+    )
     return { publicAccessToken: session.publicAccessToken }
   }
 
@@ -140,7 +121,9 @@ export async function getDesktopUrl(chatId: string) {
 
   // The gateway authenticates again and keeps provider tokens server-side.
   try {
-    await getBotSandboxInfo(chat.bots[0].sandboxId)
+    await getBotSandboxInfo(
+      await ensureBotComputer(chat.bots[0].id, chat.userId)
+    )
   } catch (error) {
     if (error instanceof SandboxMissingError) return { missing: true as const }
     throw error
@@ -161,6 +144,10 @@ export async function resetDesktop(chatId: string) {
   if (!usage || usage.remaining.sandbox <= 0)
     throw new Error("Usage limit reached")
   const bot = chat.bots[0]
+  if (!bot.sandboxId) {
+    await ensureBotComputer(bot.id, userId)
+    return
+  }
   await resetBotSandbox(bot.id, userId, bot.sandboxId)
   revalidatePath("/", "layout")
 }
@@ -170,7 +157,7 @@ export async function pauseDesktop(chatId: string) {
   if (!isAuthenticated) throw new Error("Unauthorized")
   const chat = await getChat(chatId)
   if (!chat || chat.kind !== "direct") throw new Error("Chat not found")
-  await pauseBotSandbox(chat.bots[0].sandboxId)
+  if (chat.bots[0].sandboxId) await pauseBotSandbox(chat.bots[0].sandboxId)
 }
 
 export async function createGroupChat(values: GroupChatInsert) {

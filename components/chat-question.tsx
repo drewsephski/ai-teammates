@@ -32,13 +32,7 @@ export function ChatQuestion({
   onDismiss: () => void
 }) {
   const answered = useRef(false)
-  if (part.state === "output-available")
-    return (
-      <p className="text-xs text-muted-foreground">
-        Your answer: {part.output.answer}
-      </p>
-    )
-  if (part.state !== "input-available" || !part.input) return null
+  if (!active || part.state !== "output-available") return null
   const disabled = !active || busy
   function answer(value: string) {
     if (answered.current || disabled || !value.trim()) return
@@ -73,9 +67,11 @@ export function ChatQuestion({
         }}
       >
         <QuestionnaireItem name="answer" required disabled={disabled}>
-          <QuestionnaireTitle><span className="block pr-6">{part.input.question}</span></QuestionnaireTitle>
+          <QuestionnaireTitle>
+            <span className="block pr-6">{part.output.question}</span>
+          </QuestionnaireTitle>
           <QuestionnaireChoices>
-            {part.input.options.map((option) => (
+            {part.output.options.map((option) => (
               <QuestionnaireChoice
                 key={option}
                 value={option}

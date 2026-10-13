@@ -60,7 +60,9 @@ export async function provisionTeammate(
       .where(eq(bots.userId, userId))
     if (size.value >= MAX_TEAMMATES)
       throw new Error(`Your team can have up to ${MAX_TEAMMATES} bots.`)
-    const sandboxId = await createBotSandbox(ids.botId)
+    // Conversational setup needs no computer. Provision it on the first real
+    // desktop/tool request instead of delaying navigation with provider startup.
+    const sandboxId = options.setup ? null : await createBotSandbox(ids.botId)
     try {
       const bot = await db.transaction(async (tx) => {
         const [bot] = await tx
@@ -84,11 +86,12 @@ export async function provisionTeammate(
       })
       return { bot, chatId: ids.chatId }
     } catch (error) {
-      await deleteBotSandbox(sandboxId).catch((cleanupError: unknown) => {
-        Sentry.captureException(cleanupError, {
-          extra: { botId: ids.botId, sandboxId },
+      if (sandboxId)
+        await deleteBotSandbox(sandboxId).catch((cleanupError: unknown) => {
+          Sentry.captureException(cleanupError, {
+            extra: { botId: ids.botId, sandboxId },
+          })
         })
-      })
       throw error
     }
   })

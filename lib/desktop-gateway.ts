@@ -4,6 +4,7 @@ import { createClerkClient } from "@clerk/backend"
 import { and, eq } from "drizzle-orm"
 import { WebSocket, WebSocketServer, createWebSocketStream } from "ws"
 
+import { ensureBotComputer } from "@/lib/bot-computer"
 import { db } from "@/db"
 import { bots, chatMembers, chats } from "@/db/schema"
 import { getBotDesktopConnection, renewBotDesktop } from "@/lib/e2b"
@@ -46,7 +47,7 @@ export async function upgradeDesktop(
     if (!auth?.userId) return reject(401)
     if (!auth.has({ feature: "sandboxes" })) return reject(403)
     const [bot] = await db
-      .select({ sandboxId: bots.sandboxId })
+      .select({ id: bots.id, sandboxId: bots.sandboxId })
       .from(chats)
       .innerJoin(chatMembers, eq(chatMembers.chatId, chats.id))
       .innerJoin(bots, eq(bots.id, chatMembers.botId))
@@ -61,7 +62,8 @@ export async function upgradeDesktop(
     if (!bot) return reject(404)
     const usage = await getUsage(auth.userId)
     if (!usage || usage.remaining.sandbox <= 0) return reject(403)
-    const connection = await getBotDesktopConnection(bot.sandboxId)
+    const sandboxId = await ensureBotComputer(bot.id, auth.userId)
+    const connection = await getBotDesktopConnection(sandboxId)
     if (socket.destroyed) return
     // Neither the provider API key nor the private ingress token crosses to UI.
     const upstream = new WebSocket(connection.url, {
@@ -99,7 +101,7 @@ export async function upgradeDesktop(
             // disconnects the viewer and requires an explicit Resume.
             const remaining = await getUsage(auth.userId!)
             if (!remaining || remaining.remaining.sandbox <= 0) return cleanup()
-            await renewBotDesktop(bot.sandboxId, connection.startedAt)
+            await renewBotDesktop(sandboxId, connection.startedAt)
           } catch {
             cleanup()
           } finally {

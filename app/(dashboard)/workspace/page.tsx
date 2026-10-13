@@ -4,7 +4,6 @@ import {
   ArrowUpRightIcon,
   BrainIcon,
   MonitorIcon,
-  PlusIcon,
   UsersIcon,
 } from "lucide-react"
 
