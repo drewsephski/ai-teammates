@@ -16,6 +16,7 @@ import { BotFeatures } from "@/components/landing/bot/features"
 import { RoleShowcase } from "@/components/landing/bot/role-showcase"
 import { BotFaq } from "@/components/landing/bot/faq"
 import { LandingPricing } from "@/components/landing/pricing"
+import { HalftoneWordmark } from "@/components/landing/halftone-wordmark-footer"
 import styles from "@/components/landing/bot/bot-landing.module.css"
 
 const botFont = localFont({
@@ -242,6 +243,7 @@ export default async function LandingPage() {
           <span>AI teammates with a memory and a computer of their own.</span>
           <a href="#top">Back to top ↑</a>
         </div>
+        <HalftoneWordmark appearance="dark" className={styles.footerWordmark} />
       </footer>
     </div>
   )

@@ -10,7 +10,7 @@ import {
 import { isToolUIPart } from "ai"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowUpIcon } from "lucide-react"
+import { ArrowUpIcon, SquareIcon } from "lucide-react"
 import { toast } from "@/components/ui/toast"
 
 import {
@@ -50,7 +50,9 @@ import { Button } from "@/components/ui/button"
 import { botSetupMessageId } from "@/lib/bot-setup-tools"
 import { cn } from "@/lib/utils"
 import { BotMark } from "@/components/landing/bot/bot-mark"
-import { Spinner } from "@/components/ui/spinner"
+import { TextShimmer } from "@/components/ai-elements/shimmer"
+import { isChatThinking } from "@/lib/chat-thinking"
+import { seenMessageIds } from "@/lib/chat-receipts"
 import { Badge } from "@/components/ui/badge"
 import type { Bot } from "@/db/schema"
 import { USAGE_LIMIT_ERROR } from "@/lib/billing"
@@ -59,6 +61,19 @@ import type { ChatUIMessage } from "@/lib/sandbox-tools"
 import type { chatAgent } from "@/trigger/chat"
 
 type ChatBot = Pick<Bot, "id" | "name" | "avatar">
+
+function ChatThinking() {
+  return (
+    <div role="status" className="text-sm text-muted-foreground">
+      <TextShimmer
+        baseColor="var(--muted-foreground)"
+        shimmerColor="var(--foreground)"
+      >
+        Thinking…
+      </TextShimmer>
+    </div>
+  )
+}
 
 // A reply is one message even when a handoff changes who is writing it, so it
 // is cut at each handoff and every stretch gets its own author. Only a group
@@ -168,12 +183,11 @@ function Chat({
   // useChat only reads its initial messages on mount, so wait for the transcript
   if (isLoading || (setup && startup?.chatId !== chatId))
     return (
-      <div
-        className="flex flex-1 items-center justify-center gap-3 text-sm text-muted-foreground"
-        role="status"
-      >
-        <Spinner /> Loading conversation…
-      </div>
+      <Conversation>
+        <ConversationContent className="mx-auto w-full max-w-xl px-5 py-8 sm:px-8">
+          <ChatThinking />
+        </ConversationContent>
+      </Conversation>
     )
 
   return (
@@ -286,11 +300,13 @@ function ChatMessages({
   }, [chatId, initialMessages, resumeStream, setup, transport])
   // The bot the next message goes to, in a group chat
   const [botId, setBotId] = useState(bots[0]?.id)
+  const [setupStopped, setSetupStopped] = useState(false)
   // Falls back to the first one when the picked bot is removed from the group
   const selectedBot = bots.find((bot) => bot.id === botId) ?? bots[0]
   const visibleMessages = messages.filter(
     (message) => !directBotId || message.id !== botSetupMessageId(directBotId)
   )
+  const seen = seenMessageIds(messages)
   const answeredQuestions = new Set(
     visibleMessages
       .filter((message) => message.role === "user")
@@ -305,6 +321,11 @@ function ChatMessages({
         !answeredQuestions.has(part.toolCallId)
     )
   const busy = status === "submitted" || status === "streaming"
+  const thinking = isChatThinking(
+    visibleMessages,
+    status,
+    setup && !setupStopped
+  )
 
   function answerQuestion(questionId: string, answer: string) {
     if (!checkPlan("bots")) return
@@ -315,6 +336,7 @@ function ChatMessages({
     sendMessage({ text: answer, metadata }, { metadata })
   }
   function stop() {
+    setSetupStopped(true)
     stopLocal()
     transport.stopGeneration(chatId).catch(() =>
       toast.add({
@@ -361,14 +383,6 @@ function ChatMessages({
               </div>
             </ConversationEmptyState>
           )}
-          {visibleMessages.length === 0 && setup && (
-            <div
-              className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground"
-              role="status"
-            >
-              <Spinner /> Starting your setup conversation…
-            </div>
-          )}
           {visibleMessages.flatMap((message) => {
             // The bot a group chat's message was sent to
             const addressee =
@@ -379,6 +393,7 @@ function ChatMessages({
             return splitByAuthor(message, bots).map(({ author, parts }, i) => {
               const renderedParts = parts.map((part, j) => {
                 if (part.type === "text") {
+                  if (!part.text.trim()) return null
                   return (
                     <MessageResponse
                       key={`${message.id}-${i}-${j}`}
@@ -397,7 +412,13 @@ function ChatMessages({
                     </MessageResponse>
                   )
                 }
-                if (part.type === "tool-askUser")
+                if (part.type === "tool-askUser") {
+                  if (
+                    part.state !== "output-available" ||
+                    pendingQuestion?.type !== "tool-askUser" ||
+                    pendingQuestion.toolCallId !== part.toolCallId
+                  )
+                    return null
                   return (
                     <ChatQuestion
                       key={part.toolCallId}
@@ -418,11 +439,14 @@ function ChatMessages({
                       }
                     />
                   )
+                }
                 if (part.type !== "dynamic-tool" && isToolUIPart(part)) {
                   return <ToolCall key={part.toolCallId} part={part} />
                 }
                 return null
               })
+
+              if (!renderedParts.some(Boolean)) return null
 
               return (
                 <Message
@@ -457,18 +481,16 @@ function ChatMessages({
                       renderedParts
                     )}
                   </MessageContent>
+                  {message.role === "user" && seen.has(message.id) && (
+                    <span className="pr-1 text-right text-[11px] leading-none text-muted-foreground" aria-live="polite">
+                      Seen
+                    </span>
+                  )}
                 </Message>
               )
             })
           })}
-          {status === "submitted" && (
-            <div
-              role="status"
-              className="flex items-center gap-2 text-sm text-muted-foreground"
-            >
-              <Spinner className="size-4" /> Working…
-            </div>
-          )}
+          {thinking && <ChatThinking />}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
@@ -489,7 +511,7 @@ function ChatMessages({
             className={
               selectedBot
                 ? undefined
-                : "absolute right-2 bottom-2 w-auto justify-end p-0"
+                : "absolute top-1/2 right-2 w-auto -translate-y-1/2 justify-end p-0"
             }
           >
             {selectedBot && (
@@ -519,9 +541,11 @@ function ChatMessages({
               </PromptInputTools>
             )}
             <PromptInputSubmit status={status} onStop={stop}>
-              {status === "ready" ? (
+              {busy ? (
+                <SquareIcon className="size-4" />
+              ) : (
                 <ArrowUpIcon className="size-4" />
-              ) : undefined}
+              )}
             </PromptInputSubmit>
           </PromptInputFooter>
         </PromptInput>

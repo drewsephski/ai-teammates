@@ -18,6 +18,7 @@ import { connectedAppInstructions } from "@/lib/agent-tool-instructions"
 import {
   createBotSetupTools,
   buildBotSetupInstructions,
+  botSetupMessageId,
 } from "@/lib/bot-setup-tools"
 import { configureBotProfile } from "@/lib/bot-profile"
 import { chatPreview } from "@/lib/chat-preview"
@@ -318,6 +319,15 @@ export const chatAgent = chat
       chat.setUIMessageStreamOptions({
         messageMetadata: () => ({ botId: bot.id }),
       })
+
+      // The agent has loaded this turn and passed ownership/allowance checks.
+      // Persist the acknowledgement with its response so refreshes retain it.
+      if (turnModelUsage.messageId !== botSetupMessageId(bot.id))
+        chat.response.write({
+          type: "data-messageSeen",
+          id: turnModelUsage.messageId,
+          data: { messageId: turnModelUsage.messageId, seenAt: new Date().toISOString() },
+        })
 
       return streamText({
         model: chatModel(messages),

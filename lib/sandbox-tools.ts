@@ -1,5 +1,5 @@
 import type { Sandbox } from "@e2b/desktop"
-import { tool, type InferUITools, type UIDataTypes, type UIMessage } from "ai"
+import { tool, type InferUITools, type UIMessage } from "ai"
 import { z } from "zod"
 
 import {
@@ -324,9 +324,12 @@ export type SandboxTools = ReturnType<typeof createSandboxTools>
 // A reply carries the bot that started it and a group chat's message the bot it
 // was sent to, so the chat can show who answered whom
 export type ChatMessageMetadata = { botId?: string; questionId?: string }
+export type ChatDataParts = {
+  messageSeen: { messageId: string; seenAt: string }
+}
 export type ChatUIMessage = UIMessage<
   ChatMessageMetadata,
-  UIDataTypes,
+  ChatDataParts,
   InferUITools<
     SandboxTools &
       HandoffTools &

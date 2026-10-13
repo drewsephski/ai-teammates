@@ -11,7 +11,13 @@ const POINTER_RADIUS = 80
 const STRIDE = 7 // x, y, vx, vy, home x, home y, radius
 
 /** The supplied halftone treatment, tuned to Krafty's neutral palette. */
-export function HalftoneWordmarkFooter({ children }: { children: ReactNode }) {
+export function HalftoneWordmark({
+  appearance = "light",
+  className = "",
+}: {
+  appearance?: "light" | "dark"
+  className?: string
+}) {
   const wordRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -21,6 +27,9 @@ export function HalftoneWordmarkFooter({ children }: { children: ReactNode }) {
     const ctx = canvas?.getContext("2d")
     if (!root || !canvas || !ctx) return
 
+    const ink = appearance === "dark" ? 255 : INK
+    const warm = appearance === "dark" ? 160 : WARM
+    const background = appearance === "dark" ? "#0a0a0a" : "#f8f8f8"
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)")
     let reduced = motion.matches
     let width = 0
@@ -115,7 +124,7 @@ export function HalftoneWordmarkFooter({ children }: { children: ReactNode }) {
     function draw(now: number) {
       if (!ctx || !canvas) return false
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      ctx.fillStyle = "#f8f8f8"
+      ctx.fillStyle = background
       ctx.fillRect(0, 0, width, height)
       const ringAge = now - ring.started
       let moving = false
@@ -171,9 +180,8 @@ export function HalftoneWordmarkFooter({ children }: { children: ReactNode }) {
         dots[i + 2] = vx
         dots[i + 3] = vy
         const warmth = Math.min(1, Math.hypot(x - homeX, y - homeY) / 28)
-        const channel = Math.round(INK + (WARM - INK) * warmth)
-        ctx.fillStyle =
-          warmth > 0.02 ? `rgb(${channel},${channel},${channel})` : "#252525"
+        const channel = Math.round(ink + (warm - ink) * warmth)
+        ctx.fillStyle = `rgb(${channel},${channel},${channel})`
         ctx.beginPath()
         ctx.arc(x, y, dots[i + 6], 0, Math.PI * 2)
         ctx.fill()
@@ -293,8 +301,22 @@ export function HalftoneWordmarkFooter({ children }: { children: ReactNode }) {
       motion.removeEventListener("change", onMotionChange)
       document.removeEventListener("visibilitychange", onVisibilityChange)
     }
-  }, [])
+  }, [appearance])
 
+  return (
+    <div
+      ref={wordRef}
+      className={`${styles.wordmark} ${className}`}
+      style={{ color: appearance === "dark" ? "#fff" : "#252525" }}
+      aria-hidden="true"
+    >
+      <canvas ref={canvasRef} />
+      <span className={styles.fallback}>krafty</span>
+    </div>
+  )
+}
+
+export function HalftoneWordmarkFooter({ children }: { children: ReactNode }) {
   return (
     <footer className={styles.footer}>
       <div className={styles.content}>
@@ -318,10 +340,7 @@ export function HalftoneWordmarkFooter({ children }: { children: ReactNode }) {
           </button>
         </div>
       </div>
-      <div ref={wordRef} className={styles.wordmark} aria-hidden="true">
-        <canvas ref={canvasRef} />
-        <span className={styles.fallback}>krafty</span>
-      </div>
+      <HalftoneWordmark />
     </footer>
   )
 }
