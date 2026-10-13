@@ -1,6 +1,6 @@
 import { createClerkClient } from "@clerk/backend"
 import * as Sentry from "@sentry/node"
-import { and, count, eq, inArray } from "drizzle-orm"
+import { and, asc, count, eq, inArray } from "drizzle-orm"
 import { nanoid } from "nanoid"
 
 import { db } from "@/db"
@@ -15,15 +15,21 @@ import {
 } from "@/db/schema"
 import { createBotSandbox, deleteBotSandbox } from "@/lib/e2b"
 import { withSandboxLock } from "@/lib/sandbox-lock"
-import { MAX_TEAMMATES } from "@/lib/team-policy"
-import { getUsage } from "@/lib/usage"
+import { assertBotCapacity, FREE_BOT_LIMIT_ERROR } from "@/lib/billing-policy"
+import { getAccountPlan, getUsage } from "@/lib/usage"
 
 export async function assertTeamAccess(userId: string, computer = false) {
   const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
   const subscription = await clerk.billing.getUserBillingSubscription(userId)
   const features = new Set(
     subscription.subscriptionItems
-      .filter((item) => item.status === "active")
+      .filter(
+        (item) =>
+          item.status === "active" ||
+          (item.status === "canceled" &&
+            item.periodEnd !== null &&
+            item.periodEnd > Date.now())
+      )
       .flatMap(
         (item) => item.plan?.features.map((feature) => feature.slug) ?? []
       )
@@ -39,6 +45,16 @@ export async function assertTeamAccess(userId: string, computer = false) {
   ) {
     throw new Error("Usage limit reached")
   }
+}
+
+export async function assertBotAccess(userId: string, botId: string) {
+  const plan = await getAccountPlan(userId)
+  if (plan.tier === "paid") return
+  const bot = await db.query.bots.findFirst({
+    where: eq(bots.userId, userId),
+    orderBy: [asc(bots.createdAt), asc(bots.id)],
+  })
+  if (!bot || bot.id !== botId) throw new Error(FREE_BOT_LIMIT_ERROR)
 }
 
 // Used by authenticated actions and durable agent tools; never imports Next.js.
@@ -58,8 +74,9 @@ export async function provisionTeammate(
       .select({ value: count() })
       .from(bots)
       .where(eq(bots.userId, userId))
-    if (size.value >= MAX_TEAMMATES)
-      throw new Error(`Your team can have up to ${MAX_TEAMMATES} bots.`)
+    const plan = await getAccountPlan(userId)
+    assertBotCapacity(plan.tier, size.value)
+    await assertTeamAccess(userId, !options.setup)
     // Conversational setup needs no computer. Provision it on the first real
     // desktop/tool request instead of delaying navigation with provider startup.
     const sandboxId = options.setup ? null : await createBotSandbox(ids.botId)
@@ -103,6 +120,8 @@ export async function provisionGroup(
   id = nanoid()
 ) {
   const data = groupChatInsertSchema.parse(values)
+  if ((await getAccountPlan(userId)).tier === "free")
+    throw new Error("Group chats require a paid plan.")
   const botIds = [...new Set(data.botIds)]
   if (botIds.length < 2 || botIds.length > 8)
     throw new Error("Pick between two and eight different bots.")

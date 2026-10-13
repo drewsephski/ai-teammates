@@ -10,16 +10,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@/components/ui/empty"
 import { Progress } from "@/components/ui/progress"
 import { AppPageHeader } from "@/components/app-page-header"
-import { getUsage, usageLimits } from "@/lib/usage"
+import { getUsage } from "@/lib/usage"
 
 const dollars = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -65,31 +58,7 @@ export default async function Page() {
 
   const usage = await getUsage(userId)
 
-  if (!usage) {
-    return (
-      <section>
-        <AppPageHeader title="Usage" />
-        <div className="flex min-h-[calc(100svh-4rem)] p-6">
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>No usage to show</EmptyTitle>
-              <EmptyDescription>
-                Usage is counted on the paid plan, which is what bots and their
-                sandboxes are part of.
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Link href="/pricing" className={buttonVariants()}>
-                See plans
-              </Link>
-            </EmptyContent>
-          </Empty>
-        </div>
-      </section>
-    )
-  }
-
-  const { period, used } = usage
+  const { period, used, limits } = usage
 
   return (
     <section>
@@ -100,11 +69,17 @@ export default async function Page() {
             Usage
           </h1>
           <p className="text-sm text-muted-foreground sm:text-base">
-            Resets in {formatDistanceToNowStrict(period.end)}, on{" "}
-            <time dateTime={period.end.toISOString()}>
-              {format(period.end, "MMMM d")}
-            </time>
-            .
+            {period.end ? (
+              <>
+                Resets in {formatDistanceToNowStrict(period.end)}, on{" "}
+                <time dateTime={period.end.toISOString()}>
+                  {format(period.end, "MMMM d")}
+                </time>
+                .
+              </>
+            ) : (
+              "Your free plan includes a one-time $1 AI allowance, one bot, and one connected app. Upgrade for a renewing allowance and cloud computers."
+            )}
           </p>
         </div>
         <div className="flex flex-col gap-5">
@@ -112,17 +87,27 @@ export default async function Page() {
             title="AI usage"
             description="What your bots' replies cost in model tokens."
             used={used.ai}
-            limit={usageLimits.ai}
-            detail={`${dollars.format(used.ai / 1_000_000)} of ${dollars.format(usageLimits.ai / 1_000_000)}`}
+            limit={limits.ai}
+            detail={`${dollars.format(used.ai / 1_000_000)} of ${dollars.format(limits.ai / 1_000_000)}`}
           />
-          <UsageMeter
-            title="Sandbox hours"
-            description="The time your bots' sandboxes were running."
-            used={used.sandbox}
-            limit={usageLimits.sandbox}
-            detail={`${hours.format(used.sandbox / 3600)} of ${hours.format(usageLimits.sandbox / 3600)} hours`}
-          />
+          {limits.sandbox > 0 && (
+            <UsageMeter
+              title="Sandbox hours"
+              description="The time your bots' sandboxes were running."
+              used={used.sandbox}
+              limit={limits.sandbox}
+              detail={`${hours.format(used.sandbox / 3600)} of ${hours.format(limits.sandbox / 3600)} hours`}
+            />
+          )}
         </div>
+        {usage.tier === "free" && (
+          <Link
+            href="/pricing"
+            className={buttonVariants({ className: "self-start" })}
+          >
+            See paid plans
+          </Link>
+        )}
       </div>
     </section>
   )

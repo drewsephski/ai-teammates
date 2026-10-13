@@ -27,7 +27,7 @@ const questions = [
   {
     question: "Do I need a paid plan?",
     answer:
-      "You can create an account and explore the workspace. Creating teammates and using their computers requires a paid plan. The plans page shows the available subscriptions, and the usage page tracks AI usage and active computer time for your billing period.",
+      "Start free with one bot, one connected app, and a one-time $1 AI allowance. More teammates and cloud computers require a paid plan. The usage page tracks your remaining allowance.",
   },
   {
     question: "Can I leave while a teammate is working?",

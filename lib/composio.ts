@@ -2,6 +2,9 @@ import { Composio } from "@composio/core"
 import { z } from "zod"
 import { createAppTools, type AppAccount } from "@/lib/connector-tools"
 import { executeConnectedAppTool } from "@/lib/connector-execution"
+import { allowedAppAccounts, assertAppCapacity } from "@/lib/billing-policy"
+import { getAccountPlan } from "@/lib/usage"
+import { withSandboxLock } from "@/lib/sandbox-lock"
 export type { ConnectorTools } from "@/lib/connector-tools"
 
 export const toolkitSlugSchema = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,99}$/)
@@ -86,7 +89,42 @@ async function activeAccounts(userId: string): Promise<AppAccount[]> {
     )
     cursor = page.nextCursor ?? undefined
   } while (cursor)
-  return accounts
+  const plan = await getAccountPlan(userId)
+  return allowedAppAccounts(
+    plan.tier,
+    accounts.sort((a, b) => a.id.localeCompare(b.id))
+  )
+}
+
+export async function authorizeConnector(userId: string, toolkit: string) {
+  return withSandboxLock(`connections:${userId}`, async () => {
+    const plan = await getAccountPlan(userId)
+    if (plan.tier === "free") {
+      const accounts: AppAccount[] = []
+      let cursor: string | undefined
+      do {
+        // Pending OAuth flows occupy the slot too; parallel tabs cannot reserve
+        // different apps before either connection becomes active.
+        const page = await getComposio().connectedAccounts.list({
+          userIds: [userId],
+          statuses: ["ACTIVE", "INITIATED", "INITIALIZING"],
+          accountType: "PRIVATE",
+          limit: 100,
+          cursor,
+        })
+        accounts.push(
+          ...page.items.map((account) => ({
+            id: account.id,
+            toolkit: account.toolkit.slug,
+          }))
+        )
+        cursor = page.nextCursor ?? undefined
+      } while (cursor)
+      assertAppCapacity(plan.tier, accounts, toolkit)
+    }
+    const session = await createConnectorSession(userId)
+    return session.authorize(toolkit)
+  })
 }
 
 export function createConnectorTools(userId: string) {

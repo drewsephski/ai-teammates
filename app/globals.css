@@ -300,3 +300,8 @@
 .chat-composer[data-compact="true"] [data-slot="input-group-addon"] {
   padding: 0;
 }
+
+[data-slot="sidebar-wrapper"][data-resizing="true"] [data-slot="sidebar-gap"],
+[data-slot="sidebar-wrapper"][data-resizing="true"] [data-slot="sidebar-container"] {
+  transition: none;
+}

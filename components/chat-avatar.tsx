@@ -21,7 +21,13 @@ function ChatAvatar({
     return (
       <span
         data-slot="chat-avatar"
-        className={cn("block size-8 shrink-0 [--bg:var(--sidebar)]", className)}
+        className={cn(
+          "block size-8 shrink-0",
+          blob.color === "#111111"
+            ? "[--bg:#fafafa] [&>svg]:drop-shadow-[0_0_0.5px_#a5a5a5]"
+            : "[--bg:var(--sidebar)]",
+          className
+        )}
       >
         <BotMark
           shape={blob.shape}

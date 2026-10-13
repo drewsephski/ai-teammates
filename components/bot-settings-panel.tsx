@@ -1,13 +1,6 @@
 "use client"
 
-import {
-  createContext,
-  useContext,
-  useRef,
-  useState,
-  type ReactNode,
-  type RefObject,
-} from "react"
+import { createContext, useContext, useState, type ReactNode } from "react"
 import { XIcon } from "lucide-react"
 import type { Bot } from "@/db/schema"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -27,7 +20,6 @@ type SettingsContext = {
   open: boolean
   show: () => void
   close: (restoreFocus?: boolean) => void
-  triggerRef: RefObject<HTMLButtonElement | null>
 }
 const Settings = createContext<SettingsContext | null>(null)
 export function useBotSettings() {
@@ -37,20 +29,19 @@ export function useBotSettings() {
 }
 export function BotSettingsProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement>(null)
   const desktop = useDesktopPanel()
   return (
     <Settings
       value={{
         open,
-        triggerRef,
         show: () => {
           desktop.close()
           setOpen(true)
         },
         close: (restoreFocus = true) => {
           setOpen(false)
-          if (restoreFocus) triggerRef.current?.focus()
+          if (restoreFocus)
+            document.getElementById("bot-settings-trigger")?.focus()
         },
       }}
     >
@@ -59,7 +50,7 @@ export function BotSettingsProvider({ children }: { children: ReactNode }) {
   )
 }
 export function BotSettingsPanel({ bot }: { bot: Bot }) {
-  const { open, close, triggerRef } = useBotSettings()
+  const { open, close } = useBotSettings()
   const mobile = useIsMobile()
   if (!open) return null
   const form = (
@@ -76,7 +67,7 @@ export function BotSettingsPanel({ bot }: { bot: Bot }) {
         <SheetContent
           id="bot-config-panel"
           className="gap-0 data-[side=right]:w-full"
-          finalFocus={triggerRef}
+          finalFocus={() => document.getElementById("bot-settings-trigger")}
         >
           <SheetHeader className="shrink-0 border-b border-border/60 pr-12">
             <SheetTitle>Bot settings</SheetTitle>

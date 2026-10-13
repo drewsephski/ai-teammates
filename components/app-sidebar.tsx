@@ -28,9 +28,15 @@ import { chatPreview } from "@/lib/chat-preview"
 // A group shows its bots together, a direct chat shows its one bot
 function SidebarChatAvatar({ chat }: { chat: ChatWithBots }) {
   return chat.kind === "group" ? (
-    <GroupChatAvatar seeds={chat.bots.map((bot) => bot.avatar)} />
+    <GroupChatAvatar
+      seeds={chat.bots.map((bot) => bot.avatar)}
+      className="group-data-[collapsible=icon]:size-4"
+    />
   ) : (
-    <ChatAvatar seed={chat.bots[0].avatar} />
+    <ChatAvatar
+      seed={chat.bots[0].avatar}
+      className="group-data-[collapsible=icon]:size-4"
+    />
   )
 }
 
@@ -95,8 +101,8 @@ export async function AppSidebar() {
         <ScrollArea className="min-h-0 flex-1">
           {pinned.length > 0 && (
             <SidebarGroup aria-label="Pinned bots" className="px-3">
-              <SidebarGroupContent>
-                <SidebarMenu className="grid grid-cols-3 gap-1 group-data-[collapsible=icon]:grid-cols-1">
+              <SidebarGroupContent className="@container">
+                <SidebarMenu className="grid grid-cols-2 gap-1 @[220px]:grid-cols-3 group-data-[collapsible=icon]:grid-cols-1">
                   {pinned.map(({ bot, chat, chatIds }) => (
                     <SidebarMenuItem key={bot.id}>
                       <ChatMenuButton
@@ -108,7 +114,7 @@ export async function AppSidebar() {
                       >
                         <ChatAvatar
                           seed={bot.avatar}
-                          className="size-12 group-data-[collapsible=icon]:size-6"
+                          className="size-12 group-data-[collapsible=icon]:size-4"
                         />
                         <span className="w-full truncate text-center text-xs font-medium group-data-[collapsible=icon]:hidden">
                           {bot.name}

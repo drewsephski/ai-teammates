@@ -23,10 +23,23 @@ export function useCreateBot(presetId?: BotPresetId) {
     inFlight.current = true
     setPending(true)
     try {
-      if (!checkPlan("bots") || !checkPlan("sandboxes")) return
+      if (!checkPlan("bots")) return
       requestId.current ??= nanoid()
       const result = await createBot({ requestId: requestId.current, presetId })
       if (!result.ok) {
+        if ("planLimit" in result) {
+          toast.add({
+            type: "error",
+            title: "Your free bot is already created",
+            description:
+              "The free plan includes one bot. Upgrade to add more teammates.",
+            actionProps: {
+              children: "See plans",
+              onClick: () => router.push("/pricing"),
+            },
+          })
+          return
+        }
         showUsageLimit(result.usageLimit)
         return
       }

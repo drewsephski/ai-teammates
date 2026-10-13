@@ -27,13 +27,6 @@ import {
   FieldSet,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
@@ -47,6 +40,8 @@ const colorNames = [
   "Lavender",
   "White",
   "Gray",
+  "Green",
+  "Black",
 ]
 
 export function BotSettingsForm({
@@ -120,6 +115,89 @@ export function BotSettingsForm({
       >
         <FieldGroup className="gap-7">
           <FieldSet disabled={isSubmitting}>
+            <FieldLegend variant="label">Appearance</FieldLegend>
+            <Controller
+              name="avatar"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <div className="flex items-center justify-between gap-4">
+                    <ChatAvatar seed={avatarValue} className="size-16" />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={isSubmitting}
+                      onClick={() => field.onChange(createBotAvatar())}
+                    >
+                      <ShuffleIcon /> Shuffle
+                    </Button>
+                  </div>
+                  <FieldLabel id={`${id}-shape-label`}>Shape</FieldLabel>
+                  <div
+                    role="group"
+                    aria-labelledby={`${id}-shape-label`}
+                    className="grid grid-cols-6 gap-1"
+                  >
+                    {botShapes.map((shape) => (
+                      <Button
+                        key={shape}
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Use ${shape} shape`}
+                        title={shape.replace(/^./, (letter) =>
+                          letter.toUpperCase()
+                        )}
+                        aria-pressed={avatar?.shape === shape}
+                        disabled={isSubmitting}
+                        className="h-10 w-full rounded-lg aria-pressed:bg-muted aria-pressed:ring-1 aria-pressed:ring-ring"
+                        onClick={() =>
+                          field.onChange(`blob:${shape}:${colorIndex}`)
+                        }
+                      >
+                        <ChatAvatar
+                          seed={`blob:${shape}:${colorIndex}`}
+                          className="size-7"
+                        />
+                      </Button>
+                    ))}
+                  </div>
+                  <FieldLabel>Color</FieldLabel>
+                  <div
+                    role="group"
+                    aria-label="Avatar color"
+                    className="grid grid-cols-5 gap-2"
+                  >
+                    {botColors.map((color, index) => (
+                      <Button
+                        key={color}
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`${colorNames[index]} avatar`}
+                        aria-pressed={avatar?.color === color}
+                        disabled={isSubmitting}
+                        className="w-full rounded-full aria-pressed:ring-2 aria-pressed:ring-ring aria-pressed:ring-offset-2 aria-pressed:ring-offset-card"
+                        onClick={() =>
+                          field.onChange(
+                            `blob:${avatar?.shape ?? "blob"}:${index}`
+                          )
+                        }
+                      >
+                        <span
+                          className="size-5 rounded-full border border-foreground/15"
+                          style={{ backgroundColor: color }}
+                        />
+                      </Button>
+                    ))}
+                  </div>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
+              )}
+            />
+          </FieldSet>
+          <FieldSet disabled={isSubmitting}>
             <FieldLegend variant="label">Identity</FieldLegend>
             <Controller
               name="name"
@@ -186,89 +264,7 @@ export function BotSettingsForm({
               />
             </FieldGroup>
           </FieldSet>
-          <FieldSet disabled={isSubmitting}>
-            <FieldLegend variant="label">Appearance</FieldLegend>
-            <Controller
-              name="avatar"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <div className="flex items-center justify-between gap-4">
-                    <ChatAvatar seed={avatarValue} className="size-16" />
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={isSubmitting}
-                      onClick={() => field.onChange(createBotAvatar())}
-                    >
-                      <ShuffleIcon /> Shuffle
-                    </Button>
-                  </div>
-                  <FieldLabel htmlFor={`${id}-shape`}>Shape</FieldLabel>
-                  <Select
-                    value={avatar?.shape ?? "blob"}
-                    disabled={isSubmitting}
-                    onValueChange={(shape) => {
-                      if (shape && botShapes.some((value) => value === shape))
-                        field.onChange(`blob:${shape}:${colorIndex}`)
-                    }}
-                  >
-                    <SelectTrigger
-                      id={`${id}-shape`}
-                      className="w-full"
-                      aria-invalid={fieldState.invalid}
-                    >
-                      <SelectValue>
-                        {(avatar?.shape ?? "blob").replace(/^./, (letter) =>
-                          letter.toUpperCase()
-                        )}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {botShapes.map((shape) => (
-                        <SelectItem key={shape} value={shape}>
-                          {shape.replace(/^./, (letter) =>
-                            letter.toUpperCase()
-                          )}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FieldLabel>Color</FieldLabel>
-                  <div
-                    role="group"
-                    aria-label="Avatar color"
-                    className="flex flex-wrap gap-2"
-                  >
-                    {botColors.map((color, index) => (
-                      <Button
-                        key={color}
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`${colorNames[index]} avatar`}
-                        aria-pressed={avatar?.color === color}
-                        disabled={isSubmitting}
-                        className="rounded-full aria-pressed:ring-2 aria-pressed:ring-ring aria-pressed:ring-offset-2 aria-pressed:ring-offset-card"
-                        onClick={() =>
-                          field.onChange(
-                            `blob:${avatar?.shape ?? "blob"}:${index}`
-                          )
-                        }
-                      >
-                        <span
-                          className="size-5 rounded-full"
-                          style={{ backgroundColor: color }}
-                        />
-                      </Button>
-                    ))}
-                  </div>
-                  <FieldError errors={[fieldState.error]} />
-                </Field>
-              )}
-            />
-          </FieldSet>
+
           <BotDeleteDialog
             bot={bot}
             onDeleted={() => {

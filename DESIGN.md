@@ -40,6 +40,8 @@ colors:
   character-lilac: "#b5a7fc"
   character-white: "#fafafa"
   character-gray: "#a5a5a5"
+  character-green: "#35c76f"
+  character-black: "#111111"
 typography:
   headline:
     fontFamily: "var(--font-sans), ui-sans-serif, system-ui, sans-serif"
@@ -71,6 +73,13 @@ typography:
     fontWeight: 500
     lineHeight: "1rem"
     letterSpacing: "-0.01em"
+  pinned-role-label:
+    fontFamily: "var(--font-sans), ui-sans-serif, system-ui, sans-serif"
+    fontSize: "9px"
+  receipt-label:
+    fontFamily: "var(--font-sans), ui-sans-serif, system-ui, sans-serif"
+    fontSize: "11px"
+    lineHeight: 1
 rounded:
   sm: "0.525rem"
   md: "0.7rem"
@@ -80,6 +89,8 @@ rounded:
   3xl: "1.925rem"
   full: "9999px"
   composer: "24px"
+  bubble: "20px"
+  bubble-tail: "6px"
 spacing:
   1: "4px"
   2: "8px"
@@ -143,6 +154,14 @@ components:
     typography: "{typography.body}"
     rounded: "20px 20px 6px 20px"
     padding: "12px 16px"
+  pinned-role-label:
+    backgroundColor: "transparent"
+    textColor: "{colors.muted-foreground}"
+    typography: "{typography.pinned-role-label}"
+    padding: "0 4px"
+  seen-receipt:
+    textColor: "{colors.muted-foreground}"
+    typography: "{typography.receipt-label}"
   composer:
     backgroundColor: "{colors.muted}"
     textColor: "{colors.foreground}"
@@ -177,7 +196,7 @@ The palette is neutral and layered; character identity provides selective color.
 
 ### Secondary
 
-- **Character colors:** the eight `character-*` choices belong to native teammate avatars. They are identity assets, not additional primary-action themes. Existing DiceBear avatars are rendered through the same identity component.
+- **Character colors:** the ten `character-*` choices belong to native teammate avatars. They are identity assets, not additional primary-action themes. Existing DiceBear avatars are rendered through the same identity component.
 - **Error rose:** `destructive` and its light counterpart identify invalid fields, destructive actions, and errors.
 
 ### Neutral
@@ -213,13 +232,13 @@ The application uses a compact hierarchy with regular body text and medium headi
 
 ## Layout
 
-The application uses full viewport-height shells with separately scrolling content. The desktop sidebar is (17rem) wide, collapses to a (3rem) icon rail, and becomes an (18rem) mobile sheet below the medium breakpoint (768px). Header and footer controls remain separate from the scrollable conversation list. The chat header is (48px) tall, with the identity pill centered between navigation and computer controls.
+The application uses full viewport-height shells with separately scrolling content. The desktop sidebar defaults to (256px), adjusts between (208px) and (360px), and is clamped to preserve (480px) for content where viewport width permits. Its draggable rail persists width in the `sidebar_width` cookie and supports keyboard resizing. It collapses to a (48px) icon rail and becomes an (18rem) mobile sheet below the medium breakpoint (768px). Header and footer controls remain separate from the scrollable conversation list. The chat header is (48px) tall, with the identity pill centered between navigation and computer controls.
 
 The message container is capped at (36rem/576px), with (20px) horizontal padding on phones and (32px) from the small breakpoint (640px). That yields the implemented (512px) desktop inner message measure. Message groups cap their width at (95%) of the inner column. The composer is capped at (56rem/896px), with (16px) phone and (24px) small-breakpoint gutters. Keep its lower breathing room and independent measure.
 
 Workspace and pricing content use a centered (64rem/1024px) container, phone gutters (20px), and small-breakpoint gutters (32px). Cards become two columns at the small breakpoint where the content warrants it. Spacing follows the recurring four-pixel rhythm in the frontmatter, with compact control gaps and larger section gaps.
 
-The live computer is a resizable side panel on desktop, initially (50%) with a minimum (20%). Below (768px) it occupies a full-screen dialog using the same live viewer. Do not compress it into a phone split pane. Forms and long content scroll within the available viewport.
+The live computer is a resizable side panel on desktop, initially (50%) with a minimum (20%). Below (768px) it occupies a full-screen dialog using the same live viewer. Do not compress it into a phone split pane. Direct-chat settings occupy a separate right panel, initially (360px) with an allowed range of (280–480px); below (768px) they use a full-width sheet. Settings and the computer viewer close each other when opened. Forms and long content scroll within the available viewport.
 
 ## Elevation & Depth
 
@@ -237,11 +256,11 @@ Transitions primarily communicate state: button color (150ms), application navig
 
 ## Shapes
 
-Actions use full pills; icon actions use circular silhouettes. Shared inputs, navigation rows, assistant bubbles, and cards use the extra-large radius derived from the base radius (0.875rem). Larger workspace cards use the next radius step and dialogs the following step. The composer has its own rounded envelope. User bubbles use a softer asymmetric tail through `user-message` rather than introducing a separate speech-arrow asset.
+Actions use full pills; icon actions use circular silhouettes. Shared inputs, navigation rows, assistant bubbles, and cards use the extra-large radius derived from the base radius (0.875rem). Larger workspace cards use the next radius step and dialogs the following step. The composer has its own rounded envelope. User bubbles use the established asymmetric radius (20px 20px 6px 20px): the `bubble` primitive defines the soft body corners and `bubble-tail` defines the tighter trailing corner. This geometry is the source-pinned bubble silhouette, rather than a separate speech-arrow asset.
 
 Source-native teammate characters are shape assets drawn by the existing `BotMark` and character geometry. They are not generic rounded-square application icons. Keep the existing shape/color identity and its subtle pointer-responsive eyes where animation is enabled. Retained DiceBear identities use their existing renderer. The compact identity pill uses a small avatar; the sidebar’s pinned tiles use larger avatars than regular conversation rows.
 
-The source-pinned gallery retains its compact (9px) role micro-label as a local exception. It is not part of the reusable type ramp; do not propagate it to new surfaces.
+The source-pinned gallery retains its compact (9px) role micro-label as the `pinned-role-label` token. It is a component-specific exception to the main type ramp; keep it confined to this gallery. The (11px) `receipt-label` is similarly confined to message receipts.
 
 ## Components
 
@@ -267,19 +286,27 @@ Shared cards have extra-large corners, card fill, a thin foreground ring, and (1
 
 Shared fields are (40px) tall with quiet input borders, extra-large corners, and (12px) horizontal padding. Dark fields use input color at (30%) as fill. Placeholder copy uses muted foreground. Phone input text stays at (16px); shared fields use (14px) from the medium breakpoint. Focus has the shared ring/border treatment; invalid fields use destructive styling and disabled fields are visibly muted.
 
-The completed-bot and group editors retain the existing labeled field and error patterns in scrolling dialogs. Teammate creation itself starts a conversation immediately; it has no creation form.
+Bot settings use the existing labeled field and validation patterns in the right panel or mobile sheet; the context-menu editor retains a dialog using the same form. Group editing retains its scrolling dialog. Teammate creation starts a conversation immediately; it has no creation form.
 
 ### Navigation
 
-Sidebar destinations use rounded rows with compact icons and medium active text. Hover/active states use the sidebar accent; keyboard focus has its own visible ring. Regular conversation rows are (48px) tall with (32px) avatars, truncated names/previews, and muted timestamps. Pinned teammates appear in a three-column gallery above conversations with (48px) avatars; the collapsed rail uses (24px) avatars and hides tile labels. Selecting a destination closes the mobile sheet.
+Sidebar destinations use rounded rows with compact icons and medium active text. Hover/active states use the sidebar accent; keyboard focus has its own visible ring. Regular conversation rows are (48px) tall with (32px) avatars, truncated names/previews, and muted timestamps. Pinned teammates appear above conversations with (48px) avatars. The gallery uses two columns and becomes three when its own content container reaches (220px); the collapsed rail uses (16px) avatars and hides tile labels. Selecting a destination closes the mobile sheet.
 
 Pin/Unpin lives in the existing context menu and persists server-side. Pending and failure states belong to the real mutation; the gallery is not a client-only visual toggle. Account, integrations, usage, and billing remain in the footer.
 
 ### Conversation and identity pill
 
-The header’s centered identity pill is (32px) tall, label-size medium text, muted fill at (40%), (12px) horizontal padding, and a (24px) avatar. Incomplete setup shows identity without opening the editor; completed teammates open the existing edit dialog. Group identity uses the existing member-avatar composition.
+The header’s centered identity pill is (32px) tall, label-size medium text, muted fill at (40%), (12px) horizontal padding, and a (24px) avatar. Direct-chat identity opens the right settings panel or full-width mobile sheet, with an explicit expanded state and focus restored to the header control on close. Group identity uses the existing member-avatar composition.
 
-User messages align right with secondary fill and the asymmetric radius. Assistant text sits left in softly rounded muted panels at (30%) fill with (12px/8px) horizontal/vertical padding. Group replies retain the real author’s avatar and addressee identity. Streaming, loading, tool results, and errors remain visible and truthful. Waiting uses one muted, body-size `Thinking…` status through the shared TextShimmer until the first visible assistant text, questionnaire, or tool response appears; it does not continue alongside the reply. The shimmer uses a linear two-second cycle, theme foreground highlights over a muted-foreground base, and a still readable label under reduced motion.
+User messages align right with secondary fill and the asymmetric radius. Assistant text sits left in softly rounded muted panels at (30%) fill with (12px/8px) horizontal/vertical padding. Group replies retain the real author’s avatar and addressee identity. A quiet right-aligned `Seen` receipt appears below a user bubble only when the assistant transcript carries a persisted receipt referencing that message; sending or merely starting a reply never implies Seen. Streaming, loading, tool results, and errors remain visible and truthful. Waiting uses one muted, body-size `Thinking…` status through the shared TextShimmer until the first visible assistant text, questionnaire, or tool response appears; it does not continue alongside the reply. The shimmer uses a linear two-second cycle, theme foreground highlights over a muted-foreground base, and a still readable label under reduced motion.
+
+### Bot settings and appearance
+
+Appearance comes first, followed by Identity and Role. The native preview is (64px) beside Shuffle. Shape choices show all eighteen source shapes in a six-column grid, using (28px) native avatar previews inside (40px) controls. The selected shape has muted fill and a thin ring; every choice has an accessible shape name and pressed state.
+
+The ten colors form a five-column grid with two even rows: Red, Blue, Violet, Orange, Lime, Lavender, White, Gray, Green, and Black. Circular color swatches are (20px), inside (32px) controls, with a quiet border and a selected ring/offset. Preserve the actual palette order and stored avatar identity. Black characters use white eye details and a subtle gray visibility edge (`drop-shadow(0 0 0.5px #a5a5a5)`) through the shared avatar renderer, including their settings previews and sidebar identities.
+
+Identity contains Name; Role contains Job and working instructions. Fields scroll independently of the panel footer. Save is disabled until dirty and while submitting; failures retain entered changes. The desktop close control and mobile sheet preserve the existing focus behavior. The appearance preview is application identity, not a replacement creation flow.
 
 ### Composer and setup choices
 
@@ -296,7 +323,7 @@ Setup begins with an actual assistant greeting. Choices use the existing Questio
 - **Do** keep avatar identity intact across pinned tiles, rows, headers, and group messages.
 - **Do** keep mobile navigation reachable and the live computer in a full-screen phone view.
 - **Do** preserve visible focus, real loading and failure states, readable form controls, and reduced-motion behavior.
-- **Do** reuse the existing Questionnaire for setup choices and the existing completed-bot editor.
+- **Do** reuse the existing Questionnaire for setup choices and the shared bot settings form for subsequent edits.
 
 ### Don't:
 

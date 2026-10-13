@@ -6,10 +6,11 @@ import { z } from "zod"
 import {
   connectorCatalog,
   connectorQuerySchema,
-  createConnectorSession,
+  authorizeConnector,
   getComposio,
   toolkitSlugSchema,
 } from "@/lib/composio"
+import { FREE_APP_LIMIT_ERROR } from "@/lib/billing-policy"
 
 export async function listConnectorApps(
   values: z.infer<typeof connectorQuerySchema>
@@ -35,16 +36,21 @@ export async function connectApp(slug: string) {
   if (!isAuthenticated) throw new Error("Unauthorized")
   const toolkit = toolkitSlugSchema.parse(slug)
   try {
-    const session = await createConnectorSession(userId)
-    const request = await session.authorize(toolkit)
+    const request = await authorizeConnector(userId, toolkit)
     if (
       !request.redirectUrl ||
       new URL(request.redirectUrl).protocol !== "https:"
     ) {
       throw new Error("This app requires a custom authentication setup.")
     }
-    return { url: request.redirectUrl }
+    return {
+      ok: true as const,
+      url: request.redirectUrl,
+      accountId: request.id,
+    }
   } catch (error) {
+    if (error instanceof Error && error.message === FREE_APP_LIMIT_ERROR)
+      return { ok: false as const, limitReached: true as const }
     Sentry.captureException(error)
     throw new Error(
       "Couldn't start the connection. This app may require custom authentication. Try another app or contact your workspace administrator."

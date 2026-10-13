@@ -39,7 +39,7 @@ function BotSettingsButton({ bot }: { bot: Bot }) {
   const settings = useBotSettings()
   return (
     <Button
-      ref={settings.triggerRef}
+      id="bot-settings-trigger"
       variant="ghost"
       size="sm"
       className="h-8 min-w-0 shrink gap-2 bg-muted/40 px-3 text-xs"

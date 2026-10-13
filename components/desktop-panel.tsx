@@ -140,14 +140,17 @@ function DesktopPanelProvider({
     }
   }, [chatId, getScreen])
 
-  const close = React.useCallback(() => {
+  const disconnect = React.useCallback(() => {
     toggleRequestRef.current++
     attemptRef.current++
     rfbRef.current?.disconnect()
     rfbRef.current = null
+  }, [])
+  const close = React.useCallback(() => {
+    disconnect()
     setStatus("idle")
     setOpen(false)
-  }, [])
+  }, [disconnect])
 
   const toggle = React.useCallback(async () => {
     if (open) return close()
@@ -195,13 +198,8 @@ function DesktopPanelProvider({
   }, [])
 
   React.useEffect(() => {
-    return () => {
-      toggleRequestRef.current++
-      attemptRef.current++
-      rfbRef.current?.disconnect()
-      rfbRef.current = null
-    }
-  }, [])
+    return disconnect
+  }, [disconnect])
 
   const value = React.useMemo(
     () => ({

@@ -109,7 +109,8 @@ export default async function LandingPage() {
             <LandingPricing />
           </div>
           <p className={styles.pricingNote}>
-            Teammates and cloud computers require a paid plan.{" "}
+            Start free with one bot, one connected app, and a one-time $1 AI
+            allowance. Cloud computers require a paid plan.{" "}
             <Link href={appHref("/usage")} prefetch={false}>
               View your usage <ArrowUpRightIcon size={13} className="inline" />
             </Link>

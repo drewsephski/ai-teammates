@@ -14,7 +14,8 @@ export default async function Page() {
             Pricing
           </h1>
           <p className="text-sm text-muted-foreground sm:text-base">
-            Bots and their sandboxes are part of the paid plan.
+            Start free with one bot, one connected app, and a one-time $1 AI
+            allowance. Upgrade for more teammates and cloud computers.
           </p>
         </div>
         {/* Checkout happens in Clerk's drawer, then lands back in the app */}

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { CheckIcon, Grid2X2Icon, RefreshCwIcon, SearchIcon } from "lucide-react"
 import {
   connectApp,
@@ -45,6 +46,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/toast"
+import { FREE_APP_LIMIT_ERROR } from "@/lib/billing-policy"
 
 export function ConnectorMarketplace() {
   const [open, setOpen] = useState(false)
@@ -72,6 +74,7 @@ export function ConnectorMarketplace() {
 }
 
 function MarketplaceContent() {
+  const router = useRouter()
   const generation = useRef(0)
   const [search, setSearch] = useState("")
   const [tab, setTab] = useState("all")
@@ -85,6 +88,7 @@ function MarketplaceContent() {
   const [authorization, setAuthorization] = useState<{
     slug: string
     url: string
+    accountId: string
   }>()
 
   useEffect(() => {
@@ -134,7 +138,24 @@ function MarketplaceContent() {
     setBusy(app.slug)
     try {
       const result = await connectApp(app.slug)
-      setAuthorization({ slug: app.slug, url: result.url })
+      if (!result.ok) {
+        popup?.close()
+        toast.add({
+          type: "error",
+          title: "Connected app limit reached",
+          description: FREE_APP_LIMIT_ERROR,
+          actionProps: {
+            children: "See plans",
+            onClick: () => router.push("/pricing"),
+          },
+        })
+        return
+      }
+      setAuthorization({
+        slug: app.slug,
+        url: result.url,
+        accountId: result.accountId,
+      })
       if (popup) popup.location.replace(result.url)
     } catch (error) {
       popup?.close()
@@ -154,6 +175,7 @@ function MarketplaceContent() {
     setBusy(app.slug)
     try {
       await disconnectApp(app.accountId)
+      setAuthorization(undefined)
       setRevision((value) => value + 1)
       toast.add({ type: "success", title: `${app.name} disconnected` })
     } catch (error) {
@@ -231,6 +253,22 @@ function MarketplaceContent() {
           <Alert>
             <AlertDescription>
               Finish connecting in the authorization tab, then refresh.
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={!!busy}
+                onClick={() =>
+                  disconnect({
+                    slug: authorization.slug,
+                    name: authorization.slug,
+                    accountId: authorization.accountId,
+                    connected: false,
+                    noAuth: false,
+                  })
+                }
+              >
+                Cancel connection
+              </Button>
               <Button
                 className="ml-2"
                 size="sm"
@@ -336,13 +374,26 @@ function MarketplaceContent() {
                     size="sm"
                     variant="outline"
                     disabled={!!busy || loading}
-                    aria-label={`${app.connected ? "Disconnect" : "Connect"} ${app.name}`}
+                    aria-label={`${app.connected ? "Disconnect" : app.accountId && ["INITIATED", "INITIALIZING"].includes(app.status ?? "") ? "Cancel connection to" : "Connect"} ${app.name}`}
                     onClick={() =>
-                      app.connected ? disconnect(app) : connect(app)
+                      app.connected ||
+                      (app.accountId &&
+                        ["INITIATED", "INITIALIZING"].includes(
+                          app.status ?? ""
+                        ))
+                        ? disconnect(app)
+                        : connect(app)
                     }
                   >
                     {busy === app.slug && <Spinner data-icon="inline-start" />}
-                    {app.connected ? "Disconnect" : "Connect"}
+                    {app.connected
+                      ? "Disconnect"
+                      : app.accountId &&
+                          ["INITIATED", "INITIALIZING"].includes(
+                            app.status ?? ""
+                          )
+                        ? "Cancel connection"
+                        : "Connect"}
                   </Button>
                 )}
               </ItemActions>

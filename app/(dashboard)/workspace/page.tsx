@@ -86,8 +86,9 @@ export default async function WorkspacePage({
             <CreateBotButton>Create a teammate</CreateBotButton>
           </div>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            Each teammate has a name, a role, saved memory, and a computer.
-            Teammates and computers require a paid plan.
+            Start free with one teammate, one connected app, and a one-time $1
+            AI allowance. Paid plans add more teammates, saved memory, and cloud
+            computers.
           </p>
           {directChats.length > 0 ? (
             <div className="mt-5 grid gap-3 sm:grid-cols-2">

@@ -24,7 +24,7 @@ import { getBotSandboxInfo, pauseBotSandbox, resetBotSandbox } from "@/lib/e2b"
 import { SandboxMissingError } from "@/lib/sandbox-lifecycle"
 import type { ChatUIMessage } from "@/lib/sandbox-tools"
 import { getUsage } from "@/lib/usage"
-import { provisionGroup } from "@/lib/teammates"
+import { assertBotAccess, provisionGroup } from "@/lib/teammates"
 import { getChat } from "@/queries/chats"
 import type { chatAgent } from "@/trigger/chat"
 import { startBotSetupSession } from "@/lib/bot-setup-session"
@@ -58,6 +58,8 @@ export async function startChatSession(
   await assertChatOwner(params.chatId)
 
   const owned = await getChat(params.chatId)
+  if (owned)
+    for (const bot of owned.bots) await assertBotAccess(owned.userId, bot.id)
   if (owned?.kind === "direct" && !owned.bots[0].setupComplete) {
     const user = await currentUser()
     const session = await startBotSetupSession(
@@ -83,6 +85,10 @@ export async function mintChatAccessToken(chatId: string) {
   // Sending needs a token, so a session started on a paid plan ends with it
   await assertFeature("bots")
   await assertChatOwner(chatId)
+
+  const owned = await getChat(chatId)
+  if (owned)
+    for (const bot of owned.bots) await assertBotAccess(owned.userId, bot.id)
 
   return auth.createPublicToken({
     scopes: { read: { sessions: chatId }, write: { sessions: chatId } },

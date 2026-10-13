@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { allowedAppAccounts } from "../lib/billing-policy"
 import {
   createAppTools,
   type AppAccount,
@@ -157,4 +158,34 @@ test("another user's tools and a new turn cannot reuse a prior discovery", async
       /Search for this tool/
     )
   }
+})
+
+test("a downgrade between discovery and execution blocks a second connected app", async () => {
+  let paid = true
+  let executed = false
+  const accounts = [
+    { id: "alice-gmail", toolkit: "gmail" },
+    { id: "alice-github", toolkit: "github" },
+  ]
+  const tools = createAppTools(
+    "alice",
+    runtime({
+      accounts: async () =>
+        allowedAppAccounts(paid ? "paid" : "free", accounts),
+      execute: async () => {
+        executed = true
+      },
+    })
+  )
+  await tools.searchAppTools.execute!({ query: "Read issue" }, options)
+  paid = false
+  await assert.rejects(
+    async () =>
+      tools.executeAppTool.execute!(
+        { slug: "GITHUB_GET_ISSUE", arguments: {} },
+        options
+      ),
+    /no longer connected/
+  )
+  assert.equal(executed, false)
 })

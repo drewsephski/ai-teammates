@@ -3,36 +3,34 @@ import { and, eq, gte, sql } from "drizzle-orm"
 
 import { db } from "@/db"
 import { usageEntries, type NewUsageEntry, type UsageKind } from "@/db/schema"
+import { accountPlan } from "@/lib/billing-policy"
 
 // Not @clerk/nextjs: the Trigger.dev tasks meter usage too, outside Next.js
 const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
 
-// What one billing period of the paid plan includes
-export const usageLimits: Record<UsageKind, number> = {
-  // $10 of model spend, in millionths of a dollar
-  ai: 10_000_000,
-  // 50 hours of running sandboxes, in seconds
-  sandbox: 50 * 60 * 60,
+export async function getAccountPlan(userId: string) {
+  try {
+    const subscription = await clerk.billing.getUserBillingSubscription(userId)
+    return accountPlan(subscription.subscriptionItems)
+  } catch (error) {
+    // Clerk may not have created the default free subscription yet. Other
+    // provider failures must not silently downgrade a paid user's allowance.
+    if (
+      error &&
+      typeof error === "object" &&
+      "status" in error &&
+      error.status === 404
+    )
+      return accountPlan([])
+    throw error
+  }
 }
 
-// The billing period the user's paid plan is in, or null without a paid plan
-async function getBillingPeriod(userId: string) {
-  const subscription = await clerk.billing.getUserBillingSubscription(userId)
-
-  // The free plan is a subscription item too, but one that never ends
-  const item = subscription.subscriptionItems.find(
-    (item) => item.status === "active" && item.periodEnd
-  )
-  if (!item?.periodEnd) return null
-
-  return { start: new Date(item.periodStart), end: new Date(item.periodEnd) }
-}
-
-// What the user has used and has left in their current billing period, or null
-// without a paid plan. Takes the user ID so tasks can ask without a session.
+// Free credit is lifetime usage, so deleting bots, reconnecting apps, or
+// switching plans cannot reset the starter allowance.
 export async function getUsage(userId: string) {
-  const period = await getBillingPeriod(userId)
-  if (!period) return null
+  const plan = await getAccountPlan(userId)
+  const { period, limits } = plan
 
   const rows = await db
     .select({
@@ -43,7 +41,7 @@ export async function getUsage(userId: string) {
     .where(
       and(
         eq(usageEntries.userId, userId),
-        gte(usageEntries.createdAt, period.start)
+        period.start ? gte(usageEntries.createdAt, period.start) : undefined
       )
     )
     .groupBy(usageEntries.kind)
@@ -52,11 +50,11 @@ export async function getUsage(userId: string) {
   for (const row of rows) used[row.kind] = row.amount
 
   return {
-    period,
+    ...plan,
     used,
     remaining: {
-      ai: Math.max(0, usageLimits.ai - used.ai),
-      sandbox: Math.max(0, usageLimits.sandbox - used.sandbox),
+      ai: Math.max(0, limits.ai - used.ai),
+      sandbox: Math.max(0, limits.sandbox - used.sandbox),
     },
   }
 }

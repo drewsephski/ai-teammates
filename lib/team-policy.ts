@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 
 export const MAX_DELEGATION_DEPTH = 3
-export const MAX_TEAMMATES = 50
+export { MAX_TEAMMATES } from "./billing-policy"
 
 // Stable across tool retries and worker restarts, scoped to one user's turn.
 export function teamOperationId(

@@ -23,10 +23,12 @@ import { createBotAvatar } from "@/lib/bot-avatar"
 import { botPresets, type BotPresetId } from "@/lib/bot-presets"
 import { startBotSetupSession } from "@/lib/bot-setup-session"
 import { teamOperationId } from "@/lib/team-policy"
+import { FREE_BOT_LIMIT_ERROR } from "@/lib/billing-policy"
 
 type CreateBotResult =
   | { ok: true; bot: Bot; chatId: string }
   | { ok: false; usageLimit: "ai" | "sandbox" }
+  | { ok: false; planLimit: "bots" }
 
 export async function createBot(input: {
   requestId: string
@@ -34,8 +36,7 @@ export async function createBot(input: {
 }): Promise<CreateBotResult> {
   const { isAuthenticated, userId, has } = await auth()
   if (!isAuthenticated) throw new Error("Unauthorized")
-  // The plan must support bots and their on-demand computers.
-  if (!has({ feature: "bots" }) || !has({ feature: "sandboxes" })) {
+  if (!has({ feature: "bots" })) {
     Sentry.logger.warn("Bot creation blocked: upgrade required", {
       "user.id": userId,
     })
@@ -44,7 +45,6 @@ export async function createBot(input: {
   // Check the authoritative allowances once, without extra client round trips.
   const usage = await getUsage(userId)
   if (!usage) throw new Error("Upgrade required")
-  if (usage.remaining.sandbox <= 0) return { ok: false, usageLimit: "sandbox" }
   if (usage.remaining.ai <= 0) return { ok: false, usageLimit: "ai" }
 
   const requestId = z
@@ -60,7 +60,7 @@ export async function createBot(input: {
   if (input.presetId !== undefined && !preset)
     throw new Error("Unknown starting role")
   const operationId = teamOperationId(userId, "bot-setup", requestId)
-  const { bot, chatId } = await provisionTeammate(
+  const provisioned = await provisionTeammate(
     userId,
     {
       name: "New Bot",
@@ -70,7 +70,13 @@ export async function createBot(input: {
     },
     { botId: `bot_${operationId}`, chatId: `chat_${operationId}` },
     { setup: true }
-  )
+  ).catch((error: unknown) => {
+    if (error instanceof Error && error.message === FREE_BOT_LIMIT_ERROR)
+      return null
+    throw error
+  })
+  if (!provisioned) return { ok: false, planLimit: "bots" }
+  const { bot, chatId } = provisioned
   revalidatePath("/", "layout")
   Sentry.logger.info("Bot created", { "user.id": userId, "bot.id": bot.id })
   // Start model work while the chat shell loads; no computer is provisioned.

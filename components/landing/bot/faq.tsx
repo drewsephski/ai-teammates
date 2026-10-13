@@ -15,7 +15,7 @@ const questions = [
   ],
   [
     "Who is Krafty Bot available for today?",
-    "Anyone can create an account and explore Krafty. Creating teammates and using their computers requires a paid plan. See the available plans in your workspace.",
+    "Anyone can start free with one bot, one connected app, and a one-time $1 AI allowance. More teammates and cloud computers require a paid plan. See the available plans in your workspace.",
   ],
   [
     "Where do I talk to Krafty Bot?",

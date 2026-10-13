@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-13T20:42:37.661151+00:00",
+  "generatedAt": "2026-10-13T21:26:18.595618+00:00",
   "title": "Design System: Krafty application",
   "extensions": {
     "colorMeta": {
@@ -535,6 +535,34 @@
           "oklch(0.836 0.0000 0.00)",
           "oklch(0.950 0.0000 0.00)"
         ]
+      },
+      "character-green": {
+        "role": "secondary",
+        "displayName": "Character green",
+        "tonalRamp": [
+          "oklch(0.150 0.1748 151.98)",
+          "oklch(0.264 0.1748 151.98)",
+          "oklch(0.379 0.1748 151.98)",
+          "oklch(0.493 0.1748 151.98)",
+          "oklch(0.607 0.1748 151.98)",
+          "oklch(0.721 0.1748 151.98)",
+          "oklch(0.836 0.1748 151.98)",
+          "oklch(0.950 0.1748 151.98)"
+        ]
+      },
+      "character-black": {
+        "role": "secondary",
+        "displayName": "Character black",
+        "tonalRamp": [
+          "oklch(0.150 0.0000 0.00)",
+          "oklch(0.264 0.0000 0.00)",
+          "oklch(0.379 0.0000 0.00)",
+          "oklch(0.493 0.0000 0.00)",
+          "oklch(0.607 0.0000 0.00)",
+          "oklch(0.721 0.0000 0.00)",
+          "oklch(0.836 0.0000 0.00)",
+          "oklch(0.950 0.0000 0.00)"
+        ]
       }
     },
     "typographyMeta": {
@@ -557,6 +585,14 @@
       "label": {
         "displayName": "Label",
         "purpose": "Identity pills, timestamps, and badge text."
+      },
+      "pinned-role-label": {
+        "displayName": "Pinned role label",
+        "purpose": "Source-pinned gallery role micro-label only; not a general text size."
+      },
+      "receipt-label": {
+        "displayName": "Seen receipt",
+        "purpose": "Quiet right-aligned persisted message receipt only."
       }
     },
     "shadows": [
@@ -574,6 +610,11 @@
         "name": "control-focus",
         "value": "0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent)",
         "purpose": "Visible keyboard focus on shared buttons and inputs."
+      },
+      {
+        "name": "black-avatar-edge",
+        "value": "drop-shadow(0 0 0.5px #a5a5a5)",
+        "purpose": "Visibility edge for black source-native characters; paired with white eye details."
       }
     ],
     "motion": [
@@ -621,6 +662,10 @@
       {
         "name": "md",
         "value": "768px"
+      },
+      {
+        "name": "pinned-gallery-container",
+        "value": "220px"
       }
     ]
   },
@@ -693,9 +738,9 @@
       "name": "Conversation bubbles",
       "kind": "custom",
       "refersTo": "user-message",
-      "description": "Narrow assistant and user treatments; preview copy is illustrative only.",
-      "html": "<div class=\"ds-messages\"><p class=\"ds-assistant\">What would you like your teammate to help with?</p><p class=\"ds-user\">I’ll describe the role.</p></div>",
-      "css": ".ds-messages{font-family:var(--font-sans,Arial,sans-serif);font-size:14px;line-height:20px;letter-spacing:-.01em;display:flex;flex-direction:column;gap:12px;max-width:512px;color:var(--foreground,#f2f2f2);} .ds-assistant{align-self:flex-start;max-width:95%;margin:0;border-radius:var(--radius-xl,1.225rem);background:color-mix(in oklch,var(--muted,#2b2b2b) 30%,transparent);padding:8px 12px;} .ds-user{align-self:flex-end;max-width:95%;margin:0;background:var(--secondary,#333333);padding:12px 16px;border-radius:20px 20px 6px 20px;}"
+      "description": "Narrow assistant and user treatments plus persisted Seen receipt; preview copy is illustrative only.",
+      "html": "<div class=\"ds-messages\"><p class=\"ds-assistant\">What would you like your teammate to help with?</p><p class=\"ds-user\">I’ll describe the role.</p><span class=\"ds-seen\">Seen</span></div>",
+      "css": ".ds-messages{font-family:var(--font-sans,Arial,sans-serif);font-size:14px;line-height:20px;letter-spacing:-.01em;display:flex;flex-direction:column;gap:12px;max-width:512px;color:var(--foreground,#f2f2f2);} .ds-assistant{align-self:flex-start;max-width:95%;margin:0;border-radius:var(--radius-xl,1.225rem);background:color-mix(in oklch,var(--muted,#2b2b2b) 30%,transparent);padding:8px 12px;} .ds-user{align-self:flex-end;max-width:95%;margin:0;background:var(--secondary,#333333);padding:12px 16px;border-radius:20px 20px 6px 20px;} .ds-seen{align-self:flex-end;padding-right:4px;font-size:11px;line-height:1;color:var(--muted-foreground,#a6a6a6);}"
     },
     {
       "name": "Direct-chat composer",
@@ -739,7 +784,7 @@
       "Do keep avatar identity intact across pinned tiles, rows, headers, and group messages.",
       "Do keep mobile navigation reachable and the live computer in a full-screen phone view.",
       "Do preserve visible focus, real loading and failure states, readable form controls, and reduced-motion behavior.",
-      "Do reuse the existing Questionnaire for setup choices and the existing completed-bot editor."
+      "Do reuse the existing Questionnaire for setup choices and the shared bot settings form for subsequent edits."
     ],
     "donts": [
       "Don’t replace the local display face with a system display font or introduce a competing accent palette.",

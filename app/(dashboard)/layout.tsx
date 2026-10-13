@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { readSidebarWidth } from "@/lib/sidebar-width"
 
 export default async function DashboardLayout({
   children,
@@ -16,9 +17,14 @@ export default async function DashboardLayout({
   // SidebarProvider writes this cookie on every toggle
   const cookieStore = await cookies()
   const defaultOpen = cookieStore.get("sidebar_state")?.value !== "false"
+  const defaultWidth = readSidebarWidth(cookieStore.get("sidebar_width")?.value)
 
   return (
-    <SidebarProvider defaultOpen={defaultOpen} className="app-shell">
+    <SidebarProvider
+      defaultOpen={defaultOpen}
+      defaultWidth={defaultWidth}
+      className="app-shell"
+    >
       <AppSidebar />
       <SidebarInset className="h-svh min-w-0 overflow-hidden bg-card">
         <ScrollArea className="h-full">{children}</ScrollArea>

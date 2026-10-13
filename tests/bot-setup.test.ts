@@ -120,7 +120,7 @@ test("generated blob avatars use supported shapes and colors; malformed values a
     "legacy",
     "blob:unknown:0",
     "blob:egg:-1",
-    "blob:egg:8",
+    `blob:egg:${botColors.length}`,
     "blob:egg:NaN",
     "blob:egg:1:extra",
   ])

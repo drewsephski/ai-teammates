@@ -11,7 +11,7 @@ import { MEMORY_FILE } from "@/lib/e2b"
 import { createHandoffTool, type Handoff } from "@/lib/handoff-tool"
 import { chatModel, chatModelCost } from "@/lib/model"
 import { createSandboxTools, type ChatUIMessage } from "@/lib/sandbox-tools"
-import { getUsage, recordUsage } from "@/lib/usage"
+import { getUsage, recordUsage, type Usage } from "@/lib/usage"
 import { createDelegationTools } from "@/lib/team-delegation"
 import { createConnectorTools } from "@/lib/composio"
 import { connectedAppInstructions } from "@/lib/agent-tool-instructions"
@@ -23,6 +23,8 @@ import {
 import { configureBotProfile } from "@/lib/bot-profile"
 import { chatPreview } from "@/lib/chat-preview"
 import { ensureBotComputer } from "@/lib/bot-computer"
+import { assertBotAccess } from "@/lib/teammates"
+import { withSandboxLock } from "@/lib/sandbox-lock"
 
 // Sent with each message. Missing in direct chats, and when the session starts.
 const clientDataSchema = z
@@ -80,23 +82,34 @@ const memoryInstructions = [
 function buildInstructions(
   bot: Bot,
   group: { chat: Chat; bots: Bot[] } | undefined,
-  appToolsAvailable: boolean
+  appToolsAvailable: boolean,
+  computerAvailable = true
 ) {
   if (!bot.setupComplete && !group)
-    return buildBotSetupInstructions(bot.job, bot.instructions)
+    return buildBotSetupInstructions(bot.job, bot.instructions, bot.name)
   return [
     `You are ${bot.name}, an AI teammate. Your job: ${bot.job}`,
     "You work alongside the person you are talking to as a member of their team. They gave you your name and your job, and they come to you for that job. Stay in that role, and when asked who you are, answer as yourself.",
     bot.instructions &&
       `They also told you how to go about your job:\n\n${bot.instructions}`,
-    "You have a sandbox of your own: an isolated Linux machine in the cloud with its own filesystem, network, CPU, memory and disk. It belongs to you alone, is not shared with other teammates, and stays yours for as long as you exist. Files you leave there are still there next time.",
-    "Your sandbox tools let you run shell commands and read, write and list files on your computer. It also has a graphical desktop, 1024x768 pixels, that you operate with the mouse and keyboard tools. Use these tools for local files, coding, and desktop tasks.",
-    "On the desktop you work blind until you look: call viewScreen to see it before you click or type, and again afterwards to check what happened. viewScreen is for your own eyes. Call showScreen instead only when the person asks to see the screen or asks what is on it, because that one puts the screenshot in the chat.",
-    ...memoryInstructions,
+    ...(computerAvailable
+      ? [
+          "You have a sandbox of your own: an isolated Linux machine in the cloud with its own filesystem, network, CPU, memory and disk. It belongs to you alone, is not shared with other teammates, and stays yours for as long as you exist. Files you leave there are still there next time.",
+          "Your sandbox tools let you run shell commands and read, write and list files on your computer. It also has a graphical desktop, 1024x768 pixels, that you operate with the mouse and keyboard tools. Use these tools for local files, coding, and desktop tasks.",
+          "On the desktop you work blind until you look: call viewScreen to see it before you click or type, and again afterwards to check what happened. viewScreen is for your own eyes. Call showScreen instead only when the person asks to see the screen or asks what is on it, because that one puts the screenshot in the chat.",
+          ...memoryInstructions,
+        ]
+      : [
+          "The person is on the free plan: one bot, one connected app, and a one-time $1 AI allowance. You can chat and use their connected app tools. Cloud computers, shell, files, screenshots, persistent memory, and additional teammates require a paid plan. Do not claim to have those capabilities or try to work around these limits. You can use the current conversation as context.",
+        ]),
     ...(group ? buildGroupInstructions(bot, group.chat, group.bots) : []),
-    "You can build the person's team. When a task clearly falls outside your job, call listTeammates first. Reuse a suitable existing teammate with delegateToTeammate; if none fits, createTeammate with a focused name, role and instructions. Before creating, tell the person you are creating a bot for that use case. Include the original task, relevant context, constraints and expected output in the prompt: the destination cannot see this chat. A successful tool starts the new chat and automatically takes the person there. Do not call more tools or continue answering after a successful destination tool. Do not delegate merely because a request is difficult. If creation fails, explain the failure and do not claim you created a bot.",
-    "When the person wants several specialists to collaborate, listTeammates and createGroupChat using two to eight teammates and a complete shared brief. Reuse existing bots and create missing specialists within the group tool. The first member starts, and can hand off within the group. Creating teammates provisions real computers and is subject to the person's plan and usage allowance.",
-    connectedAppInstructions(appToolsAvailable),
+    ...(computerAvailable
+      ? [
+          "You can build the person's team. When a task clearly falls outside your job, call listTeammates first. Reuse a suitable existing teammate with delegateToTeammate; if none fits, createTeammate with a focused name, role and instructions. Before creating, tell the person you are creating a bot for that use case. Include the original task, relevant context, constraints and expected output in the prompt: the destination cannot see this chat. A successful tool starts the new chat and automatically takes the person there. Do not call more tools or continue answering after a successful destination tool. Do not delegate merely because a request is difficult. If creation fails, explain the failure and do not claim you created a bot.",
+          "When the person wants several specialists to collaborate, listTeammates and createGroupChat using two to eight teammates and a complete shared brief. Reuse existing bots and create missing specialists within the group tool. The first member starts, and can hand off within the group. Creating teammates provisions real computers and is subject to the person's plan and usage allowance.",
+        ]
+      : []),
+    connectedAppInstructions(appToolsAvailable, computerAvailable),
     "Do the work rather than describing how it could be done, and say plainly when something failed.",
     "Use askUser when a concise set of choices will help the person clarify a request. Wait for their answer. In a private chat, use configureBot to change your own name, job or instructions only after the person confirms the proposed changes.",
   ]
@@ -104,7 +117,11 @@ function buildInstructions(
     .join("\n\n")
 }
 
-const turnModelUsage = chat.local<{ cost: number; messageId: string }>({
+const turnModelUsage = chat.local<{
+  cost: number
+  messageId: string
+  usageKey: string
+}>({
   id: "chat-turn-model-cost",
 })
 
@@ -115,9 +132,10 @@ export const chatAgent = chat
   .agent({
     id: "chat",
     onBoot: () => {
-      turnModelUsage.init({ cost: 0, messageId: "" })
+      turnModelUsage.init({ cost: 0, messageId: "", usageKey: "" })
     },
-    onTurnStart: ({ uiMessages }) => {
+    onTurnStart: ({ uiMessages, runId, turn }) => {
+      turnModelUsage.usageKey = `ai:${runId}:${turn}`
       turnModelUsage.cost = 0
       const latest = uiMessages.findLast((message) => message.role === "user")
       if (!latest) throw new Error("No task to delegate")
@@ -130,6 +148,8 @@ export const chatAgent = chat
         bots,
         bot,
       } = await getChatBots(chatId, clientData?.botId)
+
+      const plan = await getUsage(userId)
 
       // Whoever holds the turn; a handoff moves it, and the sandbox tools with it
       let current = bot
@@ -177,6 +197,7 @@ export const chatAgent = chat
         ...setupTools,
       }
       if (!bot.setupComplete && kind === "direct") return setupTools
+      if (plan.tier === "free") return { ...connectorTools, ...setupTools }
       if (kind !== "group") return sharedTools
 
       return {
@@ -305,96 +326,129 @@ export const chatAgent = chat
 
       // Every turn, as a session outlives the plan it was started on
       const usage = await getUsage(row.userId)
+      await assertBotAccess(row.userId, bot.id)
+      if (usage.tier === "free" && group)
+        throw new Error("Group chats require a paid plan.")
       if (!usage || usage.remaining.ai <= 0) throw new Error(USAGE_LIMIT_ERROR)
 
-      // Keep the conversation/session, but release this worker after the turn.
-      // The next message boots the current deployment instead of waking an
-      // older suspended worker with stale tools or environment variables.
-      chat.endRun()
+      function respond(usage: Usage) {
+        // Keep the conversation/session, but release this worker after the turn.
+        // The next message boots the current deployment instead of waking an
+        // older suspended worker with stale tools or environment variables.
+        chat.endRun()
 
-      const appToolsAvailable =
-        "searchAppTools" in tools && "executeAppTool" in tools
+        const appToolsAvailable =
+          "searchAppTools" in tools && "executeAppTool" in tools
 
-      // Stamped on the reply and kept in the transcript with it
-      chat.setUIMessageStreamOptions({
-        messageMetadata: () => ({ botId: bot.id }),
-      })
-
-      // The agent has loaded this turn and passed ownership/allowance checks.
-      // Persist the acknowledgement with its response so refreshes retain it.
-      if (turnModelUsage.messageId !== botSetupMessageId(bot.id))
-        chat.response.write({
-          type: "data-messageSeen",
-          id: turnModelUsage.messageId,
-          data: {
-            messageId: turnModelUsage.messageId,
-            seenAt: new Date().toISOString(),
-          },
+        // Stamped on the reply and kept in the transcript with it
+        chat.setUIMessageStreamOptions({
+          messageMetadata: () => ({ botId: bot.id }),
         })
 
-      return streamText({
-        model: chatModel(messages),
-        // The managed streamText takes the prompt as `system` on every AI SDK version
-        system: buildInstructions(bot, group, appToolsAvailable),
-        messages,
-        tools,
-        // After a handoff the rest of the turn is the other bot's to answer
-        prepareStep: async ({ steps, messages }) => {
-          const handoff = steps
-            .flatMap((step) => step.toolResults)
-            .findLast((result) => result.toolName === "handoff")
-          const current =
-            handoff &&
-            bots.find((bot) => bot.id === (handoff.output as Handoff).botId)
-          const configured = steps.some((step) =>
-            step.toolResults.some(
-              (result) => result.toolName === "configureBot"
-            )
-          )
-          const updated = configured
-            ? (await getChatBots(chatId, current?.id ?? clientData?.botId)).bot
-            : current
+        // The agent has loaded this turn and passed ownership/allowance checks.
+        // Persist the acknowledgement with its response so refreshes retain it.
+        if (turnModelUsage.messageId !== botSetupMessageId(bot.id))
+          chat.response.write({
+            type: "data-messageSeen",
+            id: turnModelUsage.messageId,
+            data: {
+              messageId: turnModelUsage.messageId,
+              seenAt: new Date().toISOString(),
+            },
+          })
 
-          return {
-            model: chatModel(messages),
-            ...(updated && {
-              instructions: buildInstructions(
-                updated,
-                group,
-                appToolsAvailable
-              ),
-            }),
-          }
-        },
-        onStepEnd: ({ usage, model }) => {
-          turnModelUsage.cost += chatModelCost(usage, model.modelId)
-        },
-        stopWhen: [
-          ({ steps }) =>
-            steps.some((step) =>
-              step.toolResults.some((result) => result.toolName === "askUser")
-            ),
-          ({ steps }) =>
-            steps.some((step) =>
-              step.toolResults.some((result) =>
-                [
-                  "createTeammate",
-                  "createGroupChat",
-                  "delegateToTeammate",
-                ].includes(result.toolName)
+        return streamText({
+          model: chatModel(messages),
+          // The managed streamText takes the prompt as `system` on every AI SDK version
+          system: buildInstructions(
+            bot,
+            group,
+            appToolsAvailable,
+            usage.tier === "paid"
+          ),
+          messages,
+          tools,
+          // After a handoff the rest of the turn is the other bot's to answer
+          prepareStep: async ({ steps, messages }) => {
+            const handoff = steps
+              .flatMap((step) => step.toolResults)
+              .findLast((result) => result.toolName === "handoff")
+            const current =
+              handoff &&
+              bots.find((bot) => bot.id === (handoff.output as Handoff).botId)
+            const configured = steps.some((step) =>
+              step.toolResults.some(
+                (result) => result.toolName === "configureBot"
               )
-            ),
-          // Desktop work is one small action per step
-          isStepCount(50),
-          // A long turn ends once it has spent what was left
-          ({ steps }) =>
-            steps.reduce(
-              (cost, step) =>
-                cost + chatModelCost(step.usage, step.model.modelId),
-              0
-            ) >= usage.remaining.ai,
-        ],
-        abortSignal: signal,
+            )
+            const updated = configured
+              ? (await getChatBots(chatId, current?.id ?? clientData?.botId))
+                  .bot
+              : current
+
+            return {
+              model: chatModel(messages),
+              ...(updated && {
+                instructions: buildInstructions(
+                  updated,
+                  group,
+                  appToolsAvailable,
+                  usage.tier === "paid"
+                ),
+              }),
+            }
+          },
+          onStepEnd: ({ usage, model }) => {
+            turnModelUsage.cost += chatModelCost(usage, model.modelId)
+          },
+          stopWhen: [
+            ({ steps }) =>
+              steps.some((step) =>
+                step.toolResults.some((result) => result.toolName === "askUser")
+              ),
+            ({ steps }) =>
+              steps.some((step) =>
+                step.toolResults.some((result) =>
+                  [
+                    "createTeammate",
+                    "createGroupChat",
+                    "delegateToTeammate",
+                  ].includes(result.toolName)
+                )
+              ),
+            // Desktop work is one small action per step
+            isStepCount(50),
+            // A long turn ends once it has spent what was left
+            ({ steps }) =>
+              steps.reduce(
+                (cost, step) =>
+                  cost + chatModelCost(step.usage, step.model.modelId),
+                0
+              ) >= usage.remaining.ai,
+          ],
+          abortSignal: signal,
+        })
+      }
+      if (usage.tier === "paid") return respond(usage)
+      // One free account cannot spend the same remaining starter credit from
+      // parallel conversations. Persist cost before releasing the account lock.
+      return withSandboxLock(`free-ai:${row.userId}`, async () => {
+        signal.throwIfAborted()
+        const currentUsage = await getUsage(row.userId)
+        if (currentUsage.remaining.ai <= 0) throw new Error(USAGE_LIMIT_ERROR)
+        try {
+          await chat.pipe(respond(currentUsage))
+        } finally {
+          if (turnModelUsage.cost > 0)
+            await recordUsage([
+              {
+                userId: row.userId,
+                kind: "ai",
+                amount: turnModelUsage.cost,
+                idempotencyKey: turnModelUsage.usageKey,
+              },
+            ])
+        }
       })
     },
   })

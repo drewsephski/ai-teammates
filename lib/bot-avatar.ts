@@ -29,6 +29,8 @@ export const botColors = [
   "#b5a7fc",
   "#fafafa",
   "#a5a5a5",
+  "#35c76f",
+  "#111111",
 ] as const
 
 // Generated only by server actions or explicit shuffle events, never during render.

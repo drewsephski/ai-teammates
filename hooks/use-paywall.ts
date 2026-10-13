@@ -11,12 +11,12 @@ import type { UsageKind } from "@/db/schema"
 import type { Feature } from "@/lib/billing"
 
 const planMessages: Record<Feature, string> = {
-  bots: "Bots are part of the paid plan.",
+  bots: "Choose a plan to start using your bot.",
   sandboxes: "Sandboxes are part of the paid plan.",
 }
 
 const usageMessages: Record<UsageKind, string> = {
-  ai: "Your bots have used up their AI usage for this billing period.",
+  ai: "Your AI allowance is used up. View your usage or upgrade to continue.",
   sandbox: "Your sandbox hours for this billing period are used up.",
 }
 
