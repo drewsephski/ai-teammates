@@ -39,7 +39,27 @@ export default function RootLayout({
       )}
     >
       <body>
-        <ClerkProvider appearance={{ theme: shadcn }}>
+        <ClerkProvider
+          appearance={{ theme: shadcn }}
+          localization={{
+            signIn: {
+              start: {
+                title: "Sign in to Krafty",
+                titleCombined: "Sign in to Krafty",
+                subtitle: "Welcome back. Sign in to continue.",
+                subtitleCombined: "Welcome back. Sign in to continue.",
+              },
+            },
+            signUp: {
+              start: {
+                title: "Create your Krafty account",
+                titleCombined: "Create your Krafty account",
+                subtitle: "Get started with Krafty.",
+                subtitleCombined: "Get started with Krafty.",
+              },
+            },
+          }}
+        >
           <ThemeProvider>
             <TooltipProvider>{children}</TooltipProvider>
             <Toaster />
