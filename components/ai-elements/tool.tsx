@@ -10,7 +10,6 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import type { DynamicToolUIPart, ToolUIPart } from "ai"
 import {
   CheckCircleIcon,
-  ChevronDownIcon,
   CircleIcon,
   ClockIcon,
   LoaderCircleIcon,
@@ -19,6 +18,8 @@ import {
 } from "lucide-react"
 import type { ComponentProps, ReactNode } from "react"
 import { isValidElement } from "react"
+
+import { AnimatedArrow } from "@/components/ui/animated-arrow"
 
 import { CodeBlock } from "./code-block"
 
@@ -130,10 +131,12 @@ export const ToolHeader = ({
         {summary}
       </span>
       {getStatusBadge(state)}
-      <ChevronDownIcon
+      <span
         aria-hidden="true"
-        className="size-3 shrink-0 text-muted-foreground/60 in-data-panel-open:rotate-180 motion-safe:transition-[rotate] motion-safe:duration-200 motion-safe:ease-out"
-      />
+        className="inline-flex size-3 shrink-0 text-muted-foreground/60 in-data-panel-open:rotate-180 motion-safe:transition-[rotate] motion-safe:duration-200 motion-safe:ease-out"
+      >
+        <AnimatedArrow direction="disclosure" size={12} />
+      </span>
     </CollapsibleTrigger>
   )
 }

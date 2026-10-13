@@ -36,6 +36,8 @@ Krafty is an open exploration of that idea. Every prompt, tool and limit is a fi
 - 🖥️ **A computer per teammate**: a persistent Linux sandbox with a shell, a filesystem and a graphical desktop.
 - 👀 **Live desktop view**: watch a bot move the mouse and type, streamed into the chat.
 - 👥 **Group chats with handoffs**: a bot passes a request to the teammate whose job it is.
+- **Bots that build the team**: a teammate can create a specialist, give it a complete task brief, and open its chat. It can also assemble groups with existing and new teammates.
+- **Connected apps**: browse Composio's live catalog in the Apps dialog, connect accounts, and let teammates discover and use their tools.
 - 🧠 **Memory across chats**: notes a bot saves in one conversation are there in all the others.
 - ♾️ **Durable turns**: a long desktop task survives refreshes, redeploys and closed tabs.
 - 💳 **Plans and usage limits**: subscriptions, with model spend and sandbox hours metered per billing period.
@@ -89,6 +91,7 @@ flowchart LR
 - **A chat turn** (`trigger/chat.ts`) builds the bot's instructions from its job and streams a reply with the sandbox tools attached (`lib/sandbox-tools.ts`). It stops after 50 steps or when the allowance is spent.
 - **The models** (`lib/model.ts`) use GLM-5.3 Flash for text and tools, and GPT-5.6 Luna for steps containing images, through Neon AI Gateway. Both use low reasoning effort. Standard rates per million tokens are $0.15 input / $0.50 output for GLM and $0.20 input / $1.20 output for Luna. Usage is metered per step, including cached input and Luna's long-context tier; current rates are published in [Neon's model catalog](https://neon.com/models.json).
 - **In a group chat** the bot also gets a `handoff` tool, which gives the rest of the turn to a teammate. A request cannot bounce back to a bot that already held it.
+- **Across chats**, `listTeammates`, `createTeammate`, `delegateToTeammate`, and `createGroupChat` let bots route work to the right role. The destination receives a complete brief and starts on the server before navigation. Destination IDs are stable per user message, and Trigger.dev atomically starts the destination session with its first message. Replaying that operation does not send a second task. Automatic delegation is limited to three hops; a new human message starts a new chain. Groups support two to eight members, and teams are capped at 50 bots. Creating a specialist uses the existing paid-plan and sandbox allowance.
 - **Usage** is an append-only ledger. Model spend is written when a turn completes; sandbox time by a task that charges every running sandbox each minute and stops those of owners who have run out. Limits live in `lib/usage.ts`.
 
 ## 🚀 Getting started
@@ -121,6 +124,9 @@ DATABASE_URL_UNPOOLED=
 # Neon AI Gateway
 NEON_AI_GATEWAY_BASE_URL=
 NEON_AI_GATEWAY_TOKEN=
+
+# Optional: Composio project API key for the Apps marketplace and agent tools
+COMPOSIO_API_KEY=
 
 # Trigger.dev: the development key and the project ref
 TRIGGER_SECRET_KEY=
@@ -177,6 +183,7 @@ CLERK_SECRET_KEY=
 E2B_API_KEY=
 NEON_AI_GATEWAY_BASE_URL=
 NEON_AI_GATEWAY_TOKEN=
+COMPOSIO_API_KEY=
 
 # Optional: only if you use Sentry
 NEXT_PUBLIC_SENTRY_DSN=
@@ -213,3 +220,13 @@ Cross-worker commands, pause, reset and deletion serialize with session advisory
 A missing provider computer is reported explicitly. The screen panel offers **Reset computer**, with confirmation that the new computer has no previous files, saved memory, or open applications. Temporary provider errors never trigger a reset. Resets recheck provider absence and bot ownership, serialize with deletion, and update the bot's sandbox ID; durable chat tools look up that ID on every call. Metering processes up to four computers concurrently, isolates individual failures, and completes healthy accounts' quota enforcement before requesting a retry. Newly provisioning computers have a five-minute grace period before orphan cleanup.
 
 Verification: `pnpm lint`, `pnpm typecheck`, `pnpm exec tsx --test tests/sandbox-*.test.ts`, `pnpm build`. `pnpm exec tsx --env-file=.env.local scripts/verify-e2b.ts` creates a real temporary bot, exercises its tools and private stream, verifies explicit and idle pause/resume, and deletes it. It consumes Hobby credits. Screenshots and the JSON report are saved under ignored `.artifacts/e2b/`. Pass an output directory to preserve previous evidence, e.g. `pnpm exec tsx --env-file=.env.local scripts/verify-e2b.ts .artifacts/e2b-hardening`. The live verification also checks independent metering while a tool holds a lease, lock release on failure, absence of long billing transactions, and concurrent explicit resets of a missing computer.
+
+### Connected apps and team delegation
+
+Create a dedicated Composio project and put its `COMPOSIO_API_KEY` in ignored `.env.local`, Railway production, and Trigger.dev production. Use the same project in both services. An absent key leaves normal chat and computer tools available; the Apps dialog explains that connections are not configured. The CLI is useful for developer setup and inspection; app users authorize through Composio's browser flow, not a machine-wide CLI login.
+
+Open **Apps** in the sidebar to search the live catalog, connect accounts, refresh connection status after authorization, and disconnect them. Some apps require custom authentication configured in Composio. Each connection is keyed to the authenticated Clerk user and shared by that user's bots. Agent discovery and execution are restricted to active private connections. Tools must be discovered again in each turn, and execution rechecks ownership and pins the selected connected account; Composio's extra remote sandbox and in-chat connection management are disabled. Tool results stay bounded, and the agent is instructed to treat external content as data and perform writes only when requested.
+
+Role matching is model-driven. The bot is instructed to reuse a fitting teammate first, announce specialist creation before acting, and explain failures without claiming success. Successful destination tools end the source turn; the browser opens the destination once that turn completes. Stored handoffs remain clickable and do not redirect when old transcripts load. A group creation failure can leave successfully provisioned specialists available in their direct chats; retrying the same operation reuses their IDs.
+
+Run `pnpm exec tsx --test tests/team-tools.test.ts tests/connector-tools.test.ts` alongside the sandbox tests. Live checks should cover an unrelated task creating a specialist, destination work continuing without the browser, group creation with new roles, and a connected service under two different Clerk users. OAuth authorization requires the account owner to complete the provider flow. Deploy the app and Trigger.dev worker together when releasing these changes.

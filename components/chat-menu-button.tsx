@@ -83,7 +83,7 @@ function ChatMenuButton({
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         onDeleted={() => {
-          if (isActive) router.push("/")
+          if (isActive) router.push("/workspace")
         }}
       />
     </>

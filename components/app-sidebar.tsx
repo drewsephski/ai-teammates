@@ -3,6 +3,7 @@ import { formatDistanceToNowStrict } from "date-fns"
 import { ChatAvatar } from "@/components/chat-avatar"
 import { ChatMenuButton } from "@/components/chat-menu-button"
 import { CreateMenu } from "@/components/create-menu"
+import { ConnectorMarketplace } from "@/components/connector-marketplace"
 import { GroupChatAvatar } from "@/components/group-chat-avatar"
 import { SearchCommand, SearchCommandItem } from "@/components/search-command"
 import {
@@ -37,7 +38,7 @@ export async function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <div className="flex items-center justify-between gap-2 group-data-[collapsible=icon]:flex-col">
-          <KraftyWordmark compact />
+          <KraftyWordmark compact href="/workspace" />
           <CreateMenu
             bots={bots.map(({ id, name, avatar }) => ({ id, name, avatar }))}
           />
@@ -97,6 +98,9 @@ export async function AppSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <ConnectorMarketplace />
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <UserMenu />
           </SidebarMenuItem>

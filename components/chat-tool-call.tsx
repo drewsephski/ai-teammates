@@ -1,6 +1,8 @@
 "use client"
 
 import { CodeBlock } from "@/components/ai-elements/code-block"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
 import { Image } from "@/components/ai-elements/image"
 import {
   Tool,
@@ -52,6 +54,36 @@ const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
   "tool-viewScreen": ["Check screen", "Checking screen", "Checked screen"],
   "tool-showScreen": ["Share screen", "Sharing screen", "Shared screen"],
   "tool-handoff": ["Ask teammate", "Asking teammate", "Asked teammate"],
+  "tool-listTeammates": [
+    "Find teammate",
+    "Finding teammates",
+    "Found teammates",
+  ],
+  "tool-createTeammate": [
+    "Create specialist",
+    "Creating specialist",
+    "Created specialist",
+  ],
+  "tool-createGroupChat": [
+    "Create group chat",
+    "Creating group chat",
+    "Created group chat",
+  ],
+  "tool-delegateToTeammate": [
+    "Hand over task",
+    "Handing over task",
+    "Handed over task",
+  ],
+  "tool-searchAppTools": [
+    "Find app tools",
+    "Finding app tools",
+    "Found app tools",
+  ],
+  "tool-executeAppTool": [
+    "Use connected app",
+    "Using connected app",
+    "App tool finished",
+  ],
 }
 
 const toolIcons: Record<ToolPart["type"], LucideIcon> = {
@@ -70,6 +102,12 @@ const toolIcons: Record<ToolPart["type"], LucideIcon> = {
   "tool-viewScreen": ScanEyeIcon,
   "tool-showScreen": MonitorUpIcon,
   "tool-handoff": UsersRoundIcon,
+  "tool-listTeammates": UsersRoundIcon,
+  "tool-createTeammate": UsersRoundIcon,
+  "tool-createGroupChat": UsersRoundIcon,
+  "tool-delegateToTeammate": UsersRoundIcon,
+  "tool-searchAppTools": FolderSearchIcon,
+  "tool-executeAppTool": ArrowDownUpIcon,
 }
 
 // Keep previews short even for pasted text. The complete value stays in details.
@@ -130,10 +168,42 @@ function toolSummary(part: ToolPart): string | undefined {
         : undefined
     case "tool-handoff":
       return preview(part.input?.note)
+    case "tool-createTeammate":
+    case "tool-createGroupChat":
+      return preview(part.input?.name)
+    case "tool-delegateToTeammate":
+      return preview(part.input?.prompt)
+    case "tool-searchAppTools":
+      return preview(part.input?.query)
+    case "tool-executeAppTool":
+      return preview(part.input?.slug)
   }
 }
 
 export function ToolCall({ part }: { part: ToolPart }) {
+  if (
+    (part.type === "tool-createTeammate" ||
+      part.type === "tool-createGroupChat" ||
+      part.type === "tool-delegateToTeammate") &&
+    part.state === "output-available"
+  ) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 py-2">
+        <span className="text-sm text-muted-foreground">
+          Task handed over to {part.output.name}.
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          render={
+            <Link href={`/chats/${encodeURIComponent(part.output.chatId)}`} />
+          }
+        >
+          Open chat
+        </Button>
+      </div>
+    )
+  }
   // The one tool whose result is for the reader: show it, not the call
   if (part.type === "tool-showScreen" && part.state === "output-available") {
     return (

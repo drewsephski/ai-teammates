@@ -327,5 +327,10 @@ export type ChatMessageMetadata = { botId?: string }
 export type ChatUIMessage = UIMessage<
   ChatMessageMetadata,
   UIDataTypes,
-  InferUITools<SandboxTools & HandoffTools>
+  InferUITools<
+    SandboxTools &
+      HandoffTools &
+      import("@/lib/team-tools").TeamTools &
+      import("@/lib/composio").ConnectorTools
+  >
 >

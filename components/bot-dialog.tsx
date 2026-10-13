@@ -3,16 +3,7 @@
 import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
-import {
-  BookOpenIcon,
-  CalendarCheckIcon,
-  ChartNoAxesCombinedIcon,
-  FilePenLineIcon,
-  GraduationCapIcon,
-  ShuffleIcon,
-  SquareCodeIcon,
-  Trash2Icon,
-} from "lucide-react"
+import { ShuffleIcon, Trash2Icon } from "lucide-react"
 import { nanoid } from "nanoid"
 import { Controller, useForm, useWatch } from "react-hook-form"
 
@@ -48,50 +39,7 @@ import { toast } from "@/components/ui/toast"
 import { botInsertSchema, type Bot } from "@/db/schema"
 import { usePaywall } from "@/hooks/use-paywall"
 
-const presets = [
-  {
-    job: "Research assistant",
-    label: "Research",
-    icon: BookOpenIcon,
-    instructions:
-      "Find reliable sources, summarize what they say, and cite every claim. Say so when the evidence is thin.",
-  },
-  {
-    job: "Code reviewer",
-    label: "Code review",
-    icon: SquareCodeIcon,
-    instructions:
-      "Review changes for bugs, security issues, and unclear code. Point to the exact lines and suggest a fix.",
-  },
-  {
-    job: "Writing editor",
-    label: "Writing",
-    icon: FilePenLineIcon,
-    instructions:
-      "Tighten prose without changing its voice. Explain each edit briefly and flag anything ambiguous.",
-  },
-  {
-    job: "Tutor",
-    label: "Learning",
-    icon: GraduationCapIcon,
-    instructions:
-      "Teach step by step, check understanding with questions, and give hints before giving answers.",
-  },
-  {
-    job: "Project planner",
-    label: "Planning",
-    icon: CalendarCheckIcon,
-    instructions:
-      "Turn goals into practical plans with clear steps, priorities, and dependencies. Ask about constraints before proposing dates, and flag assumptions.",
-  },
-  {
-    job: "Data analyst",
-    label: "Data analysis",
-    icon: ChartNoAxesCombinedIcon,
-    instructions:
-      "Analyze the data provided, check its quality, and explain findings with clear comparisons. Show calculations and distinguish evidence from assumptions. Never invent missing data.",
-  },
-]
+import { botPresets, type BotPresetId } from "@/lib/bot-presets"
 
 // Asks for confirmation, then deletes the bot and leaves its chat
 function BotDeleteButton({
@@ -107,7 +55,7 @@ function BotDeleteButton({
       bot={bot}
       onDeleted={() => {
         onDeleted()
-        router.push("/")
+        router.push("/workspace")
       }}
     >
       <Button type="button" variant="destructive" className="sm:mr-auto">
@@ -119,15 +67,24 @@ function BotDeleteButton({
 }
 
 // With a `bot` it edits that bot, without one it creates a new bot
-function BotForm({ bot, onSaved }: { bot?: Bot; onSaved: () => void }) {
+function BotForm({
+  bot,
+  presetId,
+  onSaved,
+}: {
+  bot?: Bot
+  presetId?: BotPresetId
+  onSaved: () => void
+}) {
+  const preset = botPresets.find((preset) => preset.id === presetId)
   const [initialSeed] = useState(() => bot?.avatar ?? nanoid())
   const form = useForm({
     resolver: zodResolver(botInsertSchema),
     defaultValues: {
       name: bot?.name ?? "",
       avatar: initialSeed,
-      job: bot?.job ?? "",
-      instructions: bot?.instructions ?? "",
+      job: bot?.job ?? preset?.job ?? "",
+      instructions: bot?.instructions ?? preset?.instructions ?? "",
     },
   })
   const { isSubmitting } = form.formState
@@ -160,7 +117,7 @@ function BotForm({ bot, onSaved }: { bot?: Bot; onSaved: () => void }) {
           Pick a starting point, then make it yours.
         </FieldDescription>
         <div className="grid grid-cols-3 gap-2">
-          {presets.map((preset) => (
+          {botPresets.map((preset) => (
             <Button
               key={preset.job}
               type="button"
@@ -288,12 +245,14 @@ function BotForm({ bot, onSaved }: { bot?: Bot; onSaved: () => void }) {
 // `onOpenChange`. Pass `bot` to edit that bot instead of creating one.
 function BotDialog({
   bot,
+  presetId,
   trigger = <Button variant="secondary" />,
   children,
   open: controlledOpen,
   onOpenChange,
 }: {
   bot?: Bot
+  presetId?: BotPresetId
   trigger?: React.ReactElement
   children?: React.ReactNode
   open?: boolean
@@ -324,7 +283,7 @@ function BotDialog({
               : "Give it a face, a name, and a job to do."}
           </DialogDescription>
         </DialogHeader>
-        <BotForm bot={bot} onSaved={() => setOpen(false)} />
+        <BotForm bot={bot} presetId={presetId} onSaved={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
   )

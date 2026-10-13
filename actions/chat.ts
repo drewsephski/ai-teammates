@@ -24,6 +24,7 @@ import { getBotSandboxInfo, pauseBotSandbox, resetBotSandbox } from "@/lib/e2b"
 import { SandboxMissingError } from "@/lib/sandbox-lifecycle"
 import type { ChatUIMessage } from "@/lib/sandbox-tools"
 import { getUsage } from "@/lib/usage"
+import { provisionGroup } from "@/lib/teammates"
 import { getChat } from "@/queries/chats"
 import type { chatAgent } from "@/trigger/chat"
 
@@ -54,7 +55,11 @@ export async function startChatSession(
   await assertFeature("bots")
   await assertChatOwner(params.chatId)
 
-  const session = await startSession(params)
+  // The browser may choose an addressee, never task config or session metadata.
+  const session = await startSession({
+    chatId: params.chatId,
+    clientData: params.clientData,
+  })
 
   Sentry.logger.info("Chat session started", { "chat.id": params.chatId })
 
@@ -140,37 +145,14 @@ export async function createGroupChat(values: GroupChatInsert) {
   const { isAuthenticated, userId } = await clerkAuth()
   if (!isAuthenticated) throw new Error("Unauthorized")
 
-  const data = groupChatInsertSchema.parse(values)
-  const botIds = [...new Set(data.botIds)]
-
-  // The IDs come from the browser; every one must be a bot of this user
-  const owned = await db
-    .select({ id: bots.id })
-    .from(bots)
-    .where(and(eq(bots.userId, userId), inArray(bots.id, botIds)))
-  if (botIds.length < 2 || owned.length !== botIds.length) {
-    throw new Error("Bot not found")
-  }
-
-  const chat = await db.transaction(async (tx) => {
-    const [chat] = await tx
-      .insert(chats)
-      .values({ userId, kind: "group", name: data.name })
-      .returning()
-
-    await tx
-      .insert(chatMembers)
-      .values(botIds.map((botId) => ({ chatId: chat.id, botId })))
-
-    return chat
-  })
+  const chat = await provisionGroup(userId, values)
 
   revalidatePath("/", "layout")
 
   Sentry.logger.info("Group chat created", {
     "user.id": userId,
     "chat.id": chat.id,
-    "chat.bot_count": botIds.length,
+    "chat.bot_count": values.botIds.length,
   })
 
   return chat

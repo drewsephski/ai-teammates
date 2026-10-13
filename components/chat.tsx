@@ -9,6 +9,8 @@ import {
 } from "@trigger.dev/sdk/chat/react"
 import { isToolUIPart } from "ai"
 import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { toast } from "@/components/ui/toast"
 
 import {
   loadTranscript,
@@ -114,11 +116,32 @@ function ChatMessages({
   initialMessages: ChatUIMessage[]
   transport: TriggerChatTransport
 }) {
+  const router = useRouter()
   const { checkPlan, showUsageLimit } = usePaywall()
   const { messages, sendMessage, status, stop } = useChat<ChatUIMessage>({
     id: chatId,
     messages: initialMessages,
     transport,
+    onFinish: ({ message, isAbort, isError }) => {
+      if (isAbort || isError) return
+      const destination = message.parts.findLast(
+        (part) =>
+          (part.type === "tool-createTeammate" ||
+            part.type === "tool-createGroupChat" ||
+            part.type === "tool-delegateToTeammate") &&
+          part.state === "output-available"
+      )
+      if (
+        destination &&
+        (destination.type === "tool-createTeammate" ||
+          destination.type === "tool-createGroupChat" ||
+          destination.type === "tool-delegateToTeammate") &&
+        destination.state === "output-available"
+      ) {
+        router.push(`/chats/${encodeURIComponent(destination.output.chatId)}`)
+        router.refresh()
+      }
+    },
     // The agent refuses a turn once the period's allowance is spent
     onError: (error) => {
       if (error.message === USAGE_LIMIT_ERROR) return showUsageLimit("ai")
@@ -128,6 +151,11 @@ function ChatMessages({
         "chat.id": chatId,
         "error.type": error.name,
         "error.message": error.message,
+      })
+      toast.add({
+        type: "error",
+        title: "Couldn't complete the reply",
+        description: "Please try again.",
       })
     },
   })

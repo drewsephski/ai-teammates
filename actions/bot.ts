@@ -3,7 +3,6 @@
 import { auth } from "@clerk/nextjs/server"
 import * as Sentry from "@sentry/nextjs"
 import { and, eq, inArray } from "drizzle-orm"
-import { nanoid } from "nanoid"
 import { revalidatePath } from "next/cache"
 
 import { db } from "@/db"
@@ -14,7 +13,8 @@ import {
   chats,
   type BotInsert,
 } from "@/db/schema"
-import { createBotSandbox, deleteBotSandbox } from "@/lib/e2b"
+import { deleteBotSandbox } from "@/lib/e2b"
+import { provisionTeammate } from "@/lib/teammates"
 import { withSandboxLock } from "@/lib/sandbox-lock"
 import { getUsage } from "@/lib/usage"
 
@@ -40,61 +40,10 @@ export async function createBot(values: BotInsert) {
 
   const data = botInsertSchema.parse(values)
 
-  // Generated here so the sandbox can be labelled before the row exists
-  const id = nanoid()
-  const startedAt = Date.now()
-  const sandboxId = await createBotSandbox(id)
-  const sandboxMs = Date.now() - startedAt
-
-  try {
-    // A new bot always comes with its direct chat; all three rows or none
-    const bot = await db.transaction(async (tx) => {
-      const [bot] = await tx
-        .insert(bots)
-        .values({
-          ...data,
-          id,
-          instructions: data.instructions || null,
-          userId,
-          sandboxId,
-        })
-        .returning()
-
-      const [chat] = await tx
-        .insert(chats)
-        .values({ userId, kind: "direct" })
-        .returning({ id: chats.id })
-
-      await tx.insert(chatMembers).values({ chatId: chat.id, botId: bot.id })
-
-      return bot
-    })
-
-    revalidatePath("/")
-
-    Sentry.logger.info("Bot created", {
-      "user.id": userId,
-      "bot.id": bot.id,
-      "sandbox.id": sandboxId,
-      "sandbox.create_ms": sandboxMs,
-    })
-
-    return bot
-  } catch (error) {
-    // No bot, no sandbox; the original error is the one worth reporting
-    const cleaned = await deleteBotSandbox(sandboxId).then(
-      () => true,
-      () => false
-    )
-    // A sandbox left behind runs, and bills, with no bot to find it by
-    Sentry.logger[cleaned ? "warn" : "error"](
-      cleaned
-        ? "Bot creation failed: sandbox removed"
-        : "Bot creation failed: sandbox left behind",
-      { "user.id": userId, "bot.id": id, "sandbox.id": sandboxId }
-    )
-    throw error
-  }
+  const { bot } = await provisionTeammate(userId, data)
+  revalidatePath("/", "layout")
+  Sentry.logger.info("Bot created", { "user.id": userId, "bot.id": bot.id })
+  return bot
 }
 
 export async function updateBot(botId: string, values: BotInsert) {

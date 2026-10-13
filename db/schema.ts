@@ -163,7 +163,14 @@ export const groupChatInsertSchema = createInsertSchema(chats, {
     createdAt: true,
   })
   .extend({
-    botIds: z.array(z.string()).min(2, "Pick at least two bots."),
+    botIds: z
+      .array(z.string().min(1))
+      .min(2, "Pick at least two bots.")
+      .max(8, "Pick up to eight bots.")
+      .refine(
+        (ids) => new Set(ids).size === ids.length,
+        "Pick different bots."
+      ),
   })
 
 export type Bot = typeof bots.$inferSelect

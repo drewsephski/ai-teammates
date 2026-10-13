@@ -13,7 +13,7 @@ export default async function Page() {
         </p>
       </div>
       {/* Checkout happens in Clerk's drawer, then lands back in the app */}
-      <PricingTable newSubscriptionRedirectUrl="/" />
+      <PricingTable newSubscriptionRedirectUrl="/workspace" />
     </div>
   )
 }

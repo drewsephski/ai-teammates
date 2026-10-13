@@ -40,6 +40,10 @@ export default function RootLayout({
     >
       <body>
         <ClerkProvider
+          signInUrl="/sign-in"
+          signUpUrl="/sign-up"
+          signInFallbackRedirectUrl="/workspace"
+          signUpFallbackRedirectUrl="/workspace"
           appearance={{ theme: shadcn }}
           localization={{
             signIn: {

@@ -155,6 +155,12 @@
       "skillPath": "skills/features/clerk-webhooks/SKILL.md",
       "computedHash": "e3c348bdc6dee1f28bc56577cd4aac605d3dfc3c63fcb10fc51e6c04c1fe3fb0"
     },
+    "composio": {
+      "source": "ComposioHQ/composio",
+      "sourceType": "github",
+      "skillPath": "skills/composio/SKILL.md",
+      "computedHash": "d07ae5ed27344ba95eec6916f4ef54ea46b3dfd648ca8a3ecc40e6dca44425a8"
+    },
     "daytona": {
       "source": "daytona/skills",
       "sourceType": "github",

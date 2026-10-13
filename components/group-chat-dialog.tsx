@@ -70,7 +70,7 @@ function GroupChatDeleteButton({
       await deleteGroupChat(chat.id)
       toast.add({ type: "success", title: `${chat.name} is deleted` })
       onDeleted()
-      router.push("/")
+      router.push("/workspace")
     } catch {
       toast.add({
         type: "error",
