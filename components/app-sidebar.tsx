@@ -23,6 +23,7 @@ import { KraftyWordmark } from "@/components/krafty-wordmark"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { SidebarNavLink } from "@/components/sidebar-nav-link"
 import { getBots, getChats, type ChatWithBots } from "@/queries/bots"
+import { chatPreview } from "@/lib/chat-preview"
 
 // A group shows its bots together, a direct chat shows its one bot
 function SidebarChatAvatar({ chat }: { chat: ChatWithBots }) {
@@ -149,7 +150,7 @@ export async function AppSidebar() {
                         </div>
                         {chat.lastMessagePreview && (
                           <span className="truncate text-xs text-muted-foreground">
-                            {chat.lastMessagePreview}
+                            {chatPreview(chat.lastMessagePreview)}
                           </span>
                         )}
                       </div>

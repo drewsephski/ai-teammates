@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { chatPreview } from "../lib/chat-preview"
 import {
   botColors,
   botShapes,
@@ -124,4 +125,17 @@ test("generated blob avatars use supported shapes and colors; malformed values a
     "blob:egg:1:extra",
   ])
     assert.equal(parseBotAvatar(value), null)
+})
+test("sidebar previews show readable copy without changing literal filenames or arithmetic", () => {
+  assert.equal(
+    chatPreview(
+      "I'm now **Copy Editor**, focused on _product writing_. See [brief](https://example.com)."
+    ),
+    "I'm now Copy Editor, focused on product writing. See brief."
+  )
+  assert.equal(
+    chatPreview("Open `file_name.ts` and calculate 2 * 3."),
+    "Open file_name.ts and calculate 2 * 3."
+  )
+  assert.equal(chatPreview("I'm now **Copy..."), "I'm now Copy...")
 })

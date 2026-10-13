@@ -20,6 +20,7 @@ import {
   buildBotSetupInstructions,
 } from "@/lib/bot-setup-tools"
 import { configureBotProfile } from "@/lib/bot-profile"
+import { chatPreview } from "@/lib/chat-preview"
 import { ensureBotComputer } from "@/lib/bot-computer"
 
 // Sent with each message. Missing in direct chats, and when the session starts.
@@ -233,18 +234,18 @@ export const chatAgent = chat
         .select({ userId: chats.userId })
         .from(chats)
         .where(eq(chats.id, chatId))
-      const preview = responseMessage?.parts
-        .flatMap((part) =>
-          part.type === "text"
-            ? [part.text]
-            : part.type === "tool-askUser" && part.state === "output-available"
-              ? [part.output.question]
-              : []
-        )
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 160)
+      const preview = chatPreview(
+        responseMessage?.parts
+          .flatMap((part) =>
+            part.type === "text"
+              ? [part.text]
+              : part.type === "tool-askUser" &&
+                  part.state === "output-available"
+                ? [part.output.question]
+                : []
+          )
+          .join(" ") ?? ""
+      ).slice(0, 160)
       if (row && preview)
         await db
           .update(chats)
