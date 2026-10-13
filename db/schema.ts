@@ -29,7 +29,7 @@ export const bots = pgTable(
     job: text().notNull(),
     // How it should go about the job
     instructions: text(),
-    // Daytona sandbox ID, created with the bot and deleted with it
+    // E2B desktop sandbox ID, preserved across pause/resume
     sandboxId: text().notNull(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
@@ -100,6 +100,16 @@ export const usageEntries = pgTable(
     ),
   ]
 )
+
+// One row per E2B running session. Paused time never contributes to usage.
+export const sandboxSessions = pgTable("sandbox_sessions", {
+  id: text().primaryKey(),
+  sandboxId: text().notNull(),
+  userId: text().notNull(),
+  startedAt: timestamp({ withTimezone: true }).notNull(),
+  endAt: timestamp({ withTimezone: true }).notNull(),
+  meteredSeconds: integer().notNull().default(0),
+})
 
 export const botsRelations = relations(bots, ({ many }) => ({
   memberships: many(chatMembers),
