@@ -22,7 +22,7 @@ export function KraftyWordmark({ compact = false }: { compact?: boolean }) {
           width={1983}
           height={793}
           className="h-auto w-28 max-w-none dark:invert"
-          priority
+          loading="eager"
         />
       </span>
     </Link>
