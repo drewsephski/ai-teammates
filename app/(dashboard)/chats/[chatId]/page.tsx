@@ -31,6 +31,7 @@ export default async function Page({
         />
         <Chat
           chatId={chat.id}
+          name={chat.name ?? "your teammates"}
           bots={chat.bots.map(({ id, name, avatar }) => ({ id, name, avatar }))}
         />
       </div>
@@ -45,7 +46,7 @@ export default async function Page({
           <ResizablePanel id="chat" minSize="30%">
             <div className="flex h-full flex-col">
               <ChatHeader chat={chat} />
-              <Chat chatId={chat.id} />
+              <Chat chatId={chat.id} name={chat.name ?? chat.bots[0].name} />
             </div>
           </ResizablePanel>
           <DesktopPanel name={chat.bots[0].name} />

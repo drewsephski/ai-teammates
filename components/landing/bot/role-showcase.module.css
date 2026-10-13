@@ -74,7 +74,8 @@
 .pill:hover {
   color: var(--role-pill);
   background: color-mix(in srgb, var(--role-pill-background) 32%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--role-pill) 28%, transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--role-pill) 28%, transparent);
 }
 .pill[aria-pressed="true"] {
   padding-left: 5px;
@@ -118,12 +119,38 @@
   animation: appear 300ms ease-out;
   text-wrap: pretty;
 }
-.desktopDescription, .desktopExplore, .tabletDescription { display: none; }
-.carousel { margin: 0 -16px; overflow: hidden; }
-.carouselTrack { display: flex; touch-action: pan-y pinch-zoom; align-items: flex-start; gap: 20px; }
-.carouselSlide { flex: 0 0 300px; min-width: 0; }
-.carouselDescription { width: 270px; margin: 24px auto 0; min-height: 0; text-align: left; font-size: 14px; line-height: 19.25px; }
-.mobileExplore { display: flex; justify-content: center; margin-top: 40px; }
+.desktopDescription,
+.desktopExplore,
+.tabletDescription {
+  display: none;
+}
+.carousel {
+  margin: 0 -16px;
+  overflow: hidden;
+}
+.carouselTrack {
+  display: flex;
+  touch-action: pan-y pinch-zoom;
+  align-items: flex-start;
+  gap: 20px;
+}
+.carouselSlide {
+  flex: 0 0 300px;
+  min-width: 0;
+}
+.carouselDescription {
+  width: 270px;
+  margin: 24px auto 0;
+  min-height: 0;
+  text-align: left;
+  font-size: 14px;
+  line-height: 19.25px;
+}
+.mobileExplore {
+  display: flex;
+  justify-content: center;
+  margin-top: 40px;
+}
 .description strong {
   font-weight: 500;
   color: #f4f4f4;
@@ -735,6 +762,242 @@
   height: 32px;
   cursor: pointer;
 }
+.chatList {
+  position: relative;
+  height: 100%;
+  animation: phoneBack 0.26s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.listHeader {
+  position: absolute;
+  z-index: 3;
+  left: 12px;
+  right: 12px;
+  top: 0;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.listHeader > span {
+  position: absolute;
+  left: 48px;
+  right: 48px;
+  pointer-events: none;
+  text-align: center;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+}
+.listHeader > a:first-child {
+  font-size: 11px;
+  font-weight: 500;
+}
+.chatListScroll {
+  height: 100%;
+  overflow-y: auto;
+  padding: 48px 8px 16px;
+  scrollbar-width: thin;
+  scrollbar-color: #f2f2f22e transparent;
+}
+.pinnedRoles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px 4px;
+  padding: 8px 4px 20px;
+}
+.pinnedRoles > button {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.pinnedRoles svg {
+  width: 56px;
+  height: 56px;
+}
+.pinnedRoles > button > span {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 11px;
+  line-height: 16px;
+  color: #ffffff94;
+}
+.chatListRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px;
+  width: 100%;
+  border: 0;
+  border-radius: 16px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+.chatListRow:hover,
+.chatListRow:active {
+  background: #ffffff0f;
+}
+.listAvatar {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+.listRowBody {
+  min-width: 0;
+  flex: 1;
+}
+.listRowHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.listRowHeading > span {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: -0.15px;
+}
+.listRowHeading time {
+  color: #ffffff5c;
+  font-size: 11px;
+  line-height: 16px;
+  flex-shrink: 0;
+}
+.listRowPreview {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 2px;
+}
+.listRowPreview > span:first-child {
+  min-width: 0;
+  flex: 1;
+  color: #ffffff94;
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.unreadCount {
+  background: #64b5ff;
+  color: #141414;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 500;
+}
+.unreadDot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #64b5ff;
+}
+.screenOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+}
+.screenScrim {
+  position: absolute;
+  inset: 0;
+  background: #00000059;
+  border: 0;
+  padding: 0;
+  cursor: default;
+  animation: appear 0.26s ease;
+}
+.screenSheet {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  background: #262626;
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow:
+    0 -10px 40px #00000052,
+    0 0 0 0.5px #ffffff1f;
+  animation: sheetIn 0.26s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.sheetHandle {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 4px;
+}
+.sheetHandle > span {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: #ffffff1f;
+}
+.sheetHeader {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  height: 36px;
+  padding: 0 8px 0 16px;
+}
+.sheetHeader > span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.sheetDesktop {
+  padding: 6px 10px 10px;
+}
+.sheetDesktop .computerPreview {
+  margin: 0;
+}
+@keyframes phoneBack {
+  from {
+    opacity: 0;
+    transform: translateX(-26%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes sheetIn {
+  from {
+    transform: translateY(110%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
 .pill:focus-visible,
 .explore:focus-visible,
 .conversation a:focus-visible,
@@ -772,11 +1035,27 @@
     line-height: 40px;
     letter-spacing: -0.36px;
   }
-  .phoneStage { height: 730px; }
-  .phone { width: 300px; height: 650px; }
-  .phoneFrame { border-radius: 44px; clip-path: inset(0 round 44px); }
-  .phoneScreen { border-radius: 40px; clip-path: inset(0 round 40px); }
-  .tabletDescription { display: block; max-width: 448px; margin: 0 auto; text-align: center; }
+  .phoneStage {
+    height: 730px;
+  }
+  .phone {
+    width: 300px;
+    height: 650px;
+  }
+  .phoneFrame {
+    border-radius: 44px;
+    clip-path: inset(0 round 44px);
+  }
+  .phoneScreen {
+    border-radius: 40px;
+    clip-path: inset(0 round 40px);
+  }
+  .tabletDescription {
+    display: block;
+    max-width: 448px;
+    margin: 0 auto;
+    text-align: center;
+  }
 }
 @media (min-width: 1024px) {
   .layout {
@@ -795,10 +1074,21 @@
   .explore {
     align-self: flex-start;
   }
-  .desktopDescription { display: block; margin-top: 8px; min-height: 104px; }
-  .desktopDescription .description { margin-top: 0; }
-  .desktopExplore { display: block; }
-  .mobileExplore, .tabletDescription { display: none; }
+  .desktopDescription {
+    display: block;
+    margin-top: 8px;
+    min-height: 104px;
+  }
+  .desktopDescription .description {
+    margin-top: 0;
+  }
+  .desktopExplore {
+    display: block;
+  }
+  .mobileExplore,
+  .tabletDescription {
+    display: none;
+  }
   .phoneStage {
     height: 730px;
   }
@@ -825,6 +1115,11 @@
   .messages,
   .description,
   .entry {
+    animation: none;
+  }
+  .chatList,
+  .screenScrim,
+  .screenSheet {
     animation: none;
   }
 }

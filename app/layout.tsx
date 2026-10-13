@@ -1,6 +1,7 @@
 import { ClerkProvider } from "@clerk/nextjs"
 import { shadcn } from "@clerk/ui/themes"
-import { Geist, Geist_Mono } from "next/font/google"
+import { Geist_Mono } from "next/font/google"
+import localFont from "next/font/local"
 import type { Metadata } from "next"
 
 import "./globals.css"
@@ -9,7 +10,12 @@ import { Toaster } from "@/components/ui/toast"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
+const kraftyFont = localFont({
+  src: "../public/landing/bot/display.woff2",
+  variable: "--font-sans",
+  weight: "200 800",
+  display: "swap",
+})
 
 const fontMono = Geist_Mono({
   subsets: ["latin"],
@@ -35,7 +41,7 @@ export default function RootLayout({
         "antialiased",
         fontMono.variable,
         "font-sans",
-        geist.variable
+        kraftyFont.variable
       )}
     >
       <body>
@@ -44,7 +50,23 @@ export default function RootLayout({
           signUpUrl="/sign-up"
           signInFallbackRedirectUrl="/workspace"
           signUpFallbackRedirectUrl="/workspace"
-          appearance={{ theme: shadcn }}
+          appearance={{
+            theme: shadcn,
+            variables: { borderRadius: "0.875rem" },
+            elements: {
+              cardBox: "rounded-3xl! shadow-none! ring-1! ring-border!",
+              card: "bg-card! p-6! sm:p-8!",
+              formButtonPrimary: "rounded-full! min-h-10! shadow-none!",
+              socialButtonsBlockButton: "rounded-xl! min-h-11!",
+              formFieldInput: "rounded-xl! min-h-10!",
+              footer: "bg-card!",
+              pricingTable: "gap-5!",
+              pricingTableCard:
+                "rounded-2xl! shadow-none! ring-1! ring-border!",
+              pricingTableCardFooterButton:
+                "min-h-10! rounded-full! shadow-none!",
+            },
+          }}
           localization={{
             signIn: {
               start: {

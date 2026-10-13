@@ -22,3 +22,9 @@ Idle body: rotation `1.5 sin(.5t) + .6 sin(.17t)`, x `sin(.27t)`, y `1.2 sin(.85
 ## FAQ
 
 Uses this repository's shadcn/Base UI Accordion primitives. Height and opacity transition for 300ms; height easing `cubic-bezier(.22,1,.36,1)`. Reduced motion disables the transition.
+
+## Completed refinement
+
+Source character controller now includes all 25 authored eye expressions, rich eye placement, original hero and 43.8-second footer sequences, waking particles, eligible page reactions and gradient orbit trails. Feature scenes use exact event schedules and only update at source timeline boundaries. Role showcase includes the original mobile Embla carousel and native list/computer controls. FAQ uses smooth shadcn primitives. Identity is Drew Sepeczi with DS initials.
+
+Verification: production build and type checking pass; 11 motion tests pass; focused ESLint passes with explicit React19.2.8 setting. The unchanged default full lint command crashes in React version detection under ESLint10. Desktop/tablet/mobile checked at1440/768/390 without overflow. Original-versus-local screenshots are in docs/design-references/x-ai-bot; animation recording is under ignored .artifacts/landing-bot.

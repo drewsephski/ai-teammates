@@ -4,249 +4,16 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 import { BotMark } from "./bot-mark"
-import { demoAgents, type DemoAgent, type DemoEntry } from "./chat-demo-data"
+import { demoAgents } from "./chat-demo-data"
 import { DemoDesktop } from "./chat-demo-screen"
-import { useHeroDemo, type DemoScreen } from "./chat-demo-timeline"
+import { useHeroDemo } from "./chat-demo-timeline"
+import { DemoComputerPane } from "./chat-demo-computer-pane"
+import {
+  DemoAvatar as Avatar,
+  DemoEntryView as Entry,
+  DemoIcon as Icon,
+} from "./chat-demo-ui"
 import styles from "./chat-demo.module.css"
-
-const icons = {
-  plus: "EA60",
-  search: "EA6D",
-  monitor: "EA7A",
-  mic: "EC12",
-  arrow: "EAA1",
-  clock: "EDC0",
-  close: "ED82",
-  gear: "EAF8",
-  back: "EAB5",
-  loading: "EDCA",
-} as const
-function Icon({
-  name,
-  size = 14,
-}: {
-  name: keyof typeof icons
-  size?: number
-}) {
-  return (
-    <span
-      className={styles.icon}
-      aria-hidden="true"
-      style={{ width: size, height: size, fontSize: size }}
-    >
-      {String.fromCodePoint(parseInt(icons[name], 16))}
-    </span>
-  )
-}
-function Avatar({
-  agent,
-  size = 32,
-  working = false,
-}: {
-  agent: DemoAgent
-  size?: number
-  working?: boolean
-}) {
-  if (agent.group) {
-    const memberSize = Math.round(size * 0.56)
-    return (
-      <span
-        className={styles.groupAvatar}
-        style={{ width: size, height: size }}
-      >
-        {[demoAgents[0], demoAgents[2], demoAgents[3]].map((member, index) => (
-          <span
-            key={member.id}
-            style={{
-              width: memberSize,
-              height: memberSize,
-              left:
-                index === 0
-                  ? (size - memberSize) / 2
-                  : index === 1
-                    ? 0
-                    : size - memberSize,
-              top: index === 0 ? 0 : size - memberSize,
-              zIndex: index + 1,
-            }}
-          >
-            <BotMark color={member.color} />
-          </span>
-        ))}
-      </span>
-    )
-  }
-  return (
-    <span className={styles.avatar} style={{ width: size, height: size }}>
-      <BotMark
-        color={agent.color}
-        shape={agent.shape}
-        state={working ? "working" : "idle"}
-      />
-      {agent.unread && <span className={styles.unread} />}
-    </span>
-  )
-}
-function RichText({
-  text,
-  onAgent,
-}: {
-  text: string
-  onAgent: (name: string) => void
-}) {
-  return text
-    .split(/(\*\*[^*]+\*\*|`[^`]+`|@\[[^\]]+\])/g)
-    .map((part, index) =>
-      part.startsWith("**") ? (
-        <strong key={index}>{part.slice(2, -2)}</strong>
-      ) : part.startsWith("`") ? (
-        <code key={index}>{part.slice(1, -1)}</code>
-      ) : part.startsWith("@[") ? (
-        <button
-          type="button"
-          key={index}
-          className={styles.mention}
-          onClick={() => onAgent(part.slice(2, -1))}
-        >
-          <Avatar
-            agent={
-              demoAgents.find((agent) => agent.name === part.slice(2, -1)) ??
-              demoAgents[0]
-            }
-            size={14}
-          />
-          {part.slice(2, -1)}
-        </button>
-      ) : (
-        <span key={index}>{part}</span>
-      )
-    )
-}
-
-function Entry({
-  entry,
-  screen,
-  status,
-  onScreen,
-  onAgent,
-}: {
-  entry: DemoEntry
-  screen: DemoScreen
-  status: "action-needed" | "handed-over" | "working" | "done"
-  onScreen: () => void
-  onAgent: (name: string) => void
-}) {
-  if (entry.kind === "system")
-    return (
-      <div className={styles.system}>
-        {entry.text}
-        {entry.targets ? (
-          entry.targets.map((name, index) => (
-            <span key={name}>
-              {index > 0 && <span className={styles.and}>and</span>}
-              <button type="button" onClick={() => onAgent(name)}>
-                <Avatar
-                  agent={
-                    demoAgents.find((agent) => agent.name === name) ??
-                    demoAgents[0]
-                  }
-                  size={12}
-                />
-                {name}
-              </button>
-            </span>
-          ))
-        ) : entry.text.startsWith("Created routine") ? (
-          <Icon name="clock" size={15} />
-        ) : null}
-      </div>
-    )
-  if (entry.kind === "computer")
-    return (
-      <div className={styles.card}>
-        <div className={styles.cardTop}>
-          <button className={styles.cardTitle} type="button" onClick={onScreen}>
-            Computer
-          </button>
-          <span className={styles.badge} data-status={status}>
-            <span
-              className={
-                status === "action-needed" || status === "working"
-                  ? styles.spinner
-                  : styles.badgeDot
-              }
-            >
-              {status === "action-needed" || status === "working" ? (
-                <Icon name="loading" size={12} />
-              ) : null}
-            </span>
-            {
-              {
-                "action-needed": "Action needed",
-                "handed-over": "You're in control",
-                working: "Working",
-                done: "Done",
-              }[status]
-            }
-          </span>
-        </div>
-        <p>{entry.text}</p>
-        <div className={styles.cardScreen}>
-          <DemoDesktop screen={screen} onExpand={onScreen} />
-        </div>
-        {status !== "done" && status !== "working" && (
-          <div className={styles.cardActions}>
-            <button
-              type="button"
-              className={styles.primaryAction}
-              data-demo-target="computer-take-over"
-              onClick={onScreen}
-            >
-              Take over
-            </button>
-            <button
-              type="button"
-              className={styles.secondaryAction}
-              onClick={onScreen}
-            >
-              I’m done
-            </button>
-          </div>
-        )}
-      </div>
-    )
-  const user = entry.kind === "user"
-  return (
-    <div className={`${styles.messageRow} ${user ? styles.userRow : ""}`}>
-      <div
-        className={`${styles.messageWrapper} ${user ? styles.userWrapper : ""} ${entry.reactions ? styles.withReaction : ""}`}
-      >
-        {entry.author && <p className={styles.author}>{entry.author}</p>}
-        <div
-          className={`${styles.message} ${user ? styles.userMessage : styles.agentMessage}`}
-          style={
-            entry.reactions
-              ? {
-                  maskImage: `radial-gradient(circle at ${user ? "calc(100% - 20px)" : "20px"} calc(100% + 4px), transparent 11.5px, #000 12px)`,
-                }
-              : undefined
-          }
-        >
-          <RichText text={entry.text} onAgent={onAgent} />
-        </div>
-        {entry.reactions && (
-          <span
-            className={`${styles.reactions} ${user ? styles.userReactions : ""}`}
-          >
-            {entry.reactions.map((reaction) => (
-              <span key={reaction}>{reaction}</span>
-            ))}
-          </span>
-        )}
-      </div>
-    </div>
-  )
-}
 
 export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
   const router = useRouter()
@@ -258,8 +25,6 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
   const [query, setQuery] = useState("")
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [computerOpen, setComputerOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [notifications, setNotifications] = useState(true)
   const [overlayOpen, setOverlayOpen] = useState(false)
   const [composer, setComposer] = useState("")
   const selected =
@@ -364,7 +129,7 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
         <div className={styles.chatList}>
           {demoAgents
             .filter((agent) =>
-              `${agent.name} ${agent.preview}`
+              `${agent.id === "sales-outbound" ? hero.name : agent.name} ${agent.preview}`
                 .toLowerCase()
                 .includes(query.toLowerCase())
             )
@@ -386,7 +151,6 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
                     finish()
                     setSelectedId(agent.id)
                     setSidebarOpen(false)
-                    setSettingsOpen(false)
                     atBottom.current = true
                   }}
                 >
@@ -413,7 +177,7 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
               )
             })}
           {!demoAgents.some((agent) =>
-            `${agent.name} ${agent.preview}`
+            `${agent.id === "sales-outbound" ? hero.name : agent.name} ${agent.preview}`
               .toLowerCase()
               .includes(query.toLowerCase())
           ) && <p className={styles.empty}>No chats found.</p>}
@@ -546,104 +310,15 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
         </form>
       </div>
       {computerOpen && !selected.group && (
-        <aside
-          className={styles.computerPane}
-          aria-label={`${selectedName}'s computer`}
-        >
-          <header className={styles.paneHeader}>
-            {settingsOpen && (
-              <button
-                type="button"
-                className={styles.iconButton}
-                aria-label="Back to computer"
-                onClick={() => setSettingsOpen(false)}
-              >
-                <Icon name="back" size={15} />
-              </button>
-            )}
-            <span>{settingsOpen ? "Settings" : ""}</span>
-            {!settingsOpen && (
-              <button
-                type="button"
-                className={styles.iconButton}
-                aria-label="Agent settings"
-                onClick={() => setSettingsOpen(true)}
-              >
-                <Icon name="gear" size={15} />
-              </button>
-            )}
-            <button
-              type="button"
-              className={styles.iconButton}
-              aria-label="Close computer"
-              onClick={() => setComputerOpen(false)}
-            >
-              <Icon name="close" />
-            </button>
-          </header>
-          <div className={styles.paneContent}>
-            {settingsOpen ? (
-              <>
-                <div className={styles.settingsAvatar}>
-                  <Avatar agent={{ ...selected, unread: false }} size={64} />
-                </div>
-                {[
-                  { label: "Name", value: selectedName },
-                  { label: "Title (optional)", value: selected.title },
-                  { label: "Description", value: selected.description },
-                ].map((field) => (
-                  <div key={field.label} className={styles.settingsField}>
-                    <span>{field.label}</span>
-                    <div>{field.value || "Add a title"}</div>
-                  </div>
-                ))}
-                <div className={styles.notificationSetting}>
-                  <div>
-                    Notifications
-                    <p>Get notified when this agent finishes or needs input</p>
-                  </div>
-                  <button
-                    className={styles.toggle}
-                    role="switch"
-                    aria-checked={notifications}
-                    aria-label="Notifications"
-                    type="button"
-                    onClick={() => setNotifications((on) => !on)}
-                  >
-                    <span />
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <DemoDesktop
-                  screen={screen}
-                  onExpand={() => setOverlayOpen(true)}
-                />
-                <p className={styles.screenCaption}>{selectedName}’s screen</p>
-                <div className={styles.routines}>
-                  <span>Routines</span>
-                  {routines.length ? (
-                    routines.map((routine) => (
-                      <div key={routine.name}>
-                        <Icon name="clock" size={15} />
-                        <p>
-                          {routine.name}
-                          <span>{routine.trigger}</span>
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <p>
-                      Nothing scheduled yet. Ask {selectedName} to do something
-                      every morning and it shows up here.
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </aside>
+        <DemoComputerPane
+          key={selectedId}
+          selected={selected}
+          selectedName={selectedName}
+          screen={screen}
+          routines={routines}
+          onScreen={() => setOverlayOpen(true)}
+          onClose={() => setComputerOpen(false)}
+        />
       )}
       {showOverlay && (
         <div className={styles.screenLayer}>
@@ -675,6 +350,7 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
             <div
               className={styles.screenFrame}
               role="dialog"
+              aria-modal="true"
               aria-label={`${selectedName}'s example screen`}
             >
               <DemoDesktop screen={screen} expanded onSignIn={finish} />

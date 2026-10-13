@@ -167,7 +167,7 @@ export const demoAgents: DemoAgent[] = [
       },
       {
         kind: "system",
-        text: "Updated memory",
+        text: "Memory updated",
       },
       {
         kind: "agent",
@@ -339,7 +339,7 @@ export const heroEntries: DemoEntry[] = [
   },
   {
     kind: "system",
-    text: "Received context from",
+    text: "Messages from",
     targets: ["Account Manager", "Chief"],
   },
   {

@@ -50,7 +50,11 @@ export function ConnectorMarketplace() {
   const [open, setOpen] = useState(false)
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<SidebarMenuButton tooltip="Apps" />}>
+      <DialogTrigger
+        render={
+          <SidebarMenuButton tooltip="Apps" className="h-10 rounded-xl" />
+        }
+      >
         <Grid2X2Icon />
         <span>Apps</span>
       </DialogTrigger>
@@ -300,7 +304,7 @@ function MarketplaceContent() {
             <Item
               key={app.slug}
               variant="outline"
-              className="min-w-0"
+              className="min-w-0 rounded-2xl bg-muted/30"
               role="listitem"
             >
               <ItemMedia>

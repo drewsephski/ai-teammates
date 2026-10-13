@@ -5,6 +5,7 @@ import { heroEntries, type DemoEntry } from "./chat-demo-data"
 
 export type DemoScreen = {
   view: "login" | "portal" | "settled"
+  isWorking?: boolean
   emailChars: number
   passwordChars: number
   focus: "email" | "password" | null
@@ -218,7 +219,13 @@ export function useHeroDemo(frame: RefObject<HTMLDivElement | null>) {
         )
         await delay(850)
         await move("screen-done")
-        await click(() => update({ overlay: false, computerStatus: "working" }))
+        await click(() =>
+          update({
+            overlay: false,
+            computerStatus: "working",
+            screen: { ...current.current.screen, isWorking: true },
+          })
+        )
         await delay(400)
         update({ cursor: hiddenCursor })
         await delay(1500)
@@ -226,7 +233,11 @@ export function useHeroDemo(frame: RefObject<HTMLDivElement | null>) {
         await delay(800)
         update({
           computerStatus: "done",
-          screen: { ...current.current.screen, view: "settled" },
+          screen: {
+            ...current.current.screen,
+            view: "settled",
+            isWorking: false,
+          },
         })
         await delay(700)
         await delay(900)
@@ -258,6 +269,7 @@ export function useHeroDemo(frame: RefObject<HTMLDivElement | null>) {
     const observer = new IntersectionObserver(
       ([entry]) => {
         visible = entry.isIntersecting && entry.intersectionRatio >= 0.35
+        element.toggleAttribute("data-demo-offscreen", !visible)
         if (visible) visibleWaiters.forEach((resolve) => resolve())
         if (visible && !started.current && !current.current.complete) {
           started.current = true

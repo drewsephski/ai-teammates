@@ -29,7 +29,10 @@ function SearchCommand({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key?.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
+      if (
+        event.key?.toLowerCase() === "k" &&
+        (event.metaKey || event.ctrlKey)
+      ) {
         event.preventDefault()
         setOpen((open) => !open)
       }
@@ -46,7 +49,7 @@ function SearchCommand({ children }: { children: React.ReactNode }) {
           <SidebarMenuButton
             variant="outline"
             tooltip="Search"
-            className="text-muted-foreground group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:text-sidebar-foreground group-data-[collapsible=icon]:shadow-none group-data-[collapsible=icon]:hover:bg-sidebar-accent"
+            className="h-10 rounded-xl bg-sidebar-accent/50 text-muted-foreground shadow-none group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:text-sidebar-foreground group-data-[collapsible=icon]:hover:bg-sidebar-accent"
             onClick={() => setOpen(true)}
           >
             <SearchIcon />

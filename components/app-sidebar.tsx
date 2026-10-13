@@ -1,4 +1,5 @@
 import { formatDistanceToNowStrict } from "date-fns"
+import { GaugeIcon, LayoutGridIcon, CreditCardIcon } from "lucide-react"
 
 import { ChatAvatar } from "@/components/chat-avatar"
 import { ChatMenuButton } from "@/components/chat-menu-button"
@@ -20,6 +21,7 @@ import {
 import { UserMenu } from "@/components/user-menu"
 import { KraftyWordmark } from "@/components/krafty-wordmark"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { SidebarNavLink } from "@/components/sidebar-nav-link"
 import { getBots, getChats, type ChatWithBots } from "@/queries/bots"
 
 // A group shows its bots together, a direct chat shows its one bot
@@ -36,7 +38,7 @@ export async function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader>
+      <SidebarHeader className="gap-4 px-4 py-5">
         <div className="flex items-center justify-between gap-2 group-data-[collapsible=icon]:flex-col">
           <KraftyWordmark compact href="/workspace" />
           <CreateMenu
@@ -56,12 +58,19 @@ export async function AppSidebar() {
             </SearchCommandItem>
           ))}
         </SearchCommand>
+        <SidebarMenu className="gap-1">
+          <SidebarMenuItem>
+            <SidebarNavLink href="/workspace" label="Workspace">
+              <LayoutGridIcon />
+            </SidebarNavLink>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
       <SidebarContent className="overflow-hidden">
         <ScrollArea className="min-h-0 flex-1">
-          <SidebarGroup>
+          <SidebarGroup aria-label="Conversations" className="px-3">
             <SidebarGroupContent>
-              <SidebarMenu>
+              <SidebarMenu className="gap-1">
                 {chats.map((chat) => (
                   <SidebarMenuItem key={chat.id}>
                     <ChatMenuButton
@@ -96,10 +105,20 @@ export async function AppSidebar() {
           </SidebarGroup>
         </ScrollArea>
       </SidebarContent>
-      <SidebarFooter>
-        <SidebarMenu>
+      <SidebarFooter className="border-t border-sidebar-border p-3">
+        <SidebarMenu className="gap-1">
           <SidebarMenuItem>
             <ConnectorMarketplace />
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarNavLink href="/usage" label="Usage">
+              <GaugeIcon />
+            </SidebarNavLink>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarNavLink href="/pricing" label="Plans & billing">
+              <CreditCardIcon />
+            </SidebarNavLink>
           </SidebarMenuItem>
           <SidebarMenuItem>
             <UserMenu />

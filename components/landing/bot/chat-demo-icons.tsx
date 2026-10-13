@@ -1,3 +1,4 @@
+import { BotMark } from "./bot-mark"
 // Original x.ai/bot desktop app glyphs from module 04mn00kadm57p.
 export function DemoBrowserIcon() {
   return (
@@ -48,5 +49,53 @@ export function DemoMailIcon() {
         ></path>
       </g>
     </svg>
+  )
+}
+
+export function DemoAgentCursor() {
+  return (
+    <span
+      style={{ position: "relative", display: "block", width: 18, height: 18 }}
+    >
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 16 16"
+        fill="none"
+        style={{
+          transform: "scaleX(-1)",
+          filter: "drop-shadow(0 .5px 1px rgba(0,0,0,.3))",
+        }}
+      >
+        <path
+          fillRule="evenodd"
+          clipRule="evenodd"
+          d="M14.4775 2.375C15.1508 2.37522 15.5719 3.10428 15.2353 3.6875L8.63861 15.1143C8.19099 15.8892 7.00618 15.5716 7.00579 14.6768V7.56348L0.845638 4.00781C0.0708241 3.56015 0.388339 2.37535 1.28314 2.375H14.4775ZM7.69329 6.51758C8.04109 6.7186 8.25579 7.09044 8.25579 7.49219V13.2764L13.8271 3.625H2.68353L7.69329 6.51758Z"
+          fill="white"
+        />
+        <path
+          d="M7.69329 6.51758C8.04109 6.7186 8.25579 7.09044 8.25579 7.49219V13.2764L13.8271 3.625H2.68353L7.69329 6.51758Z"
+          fill="var(--agent-color,#f7a32f)"
+        />
+      </svg>
+      <span
+        style={{
+          position: "absolute",
+          top: 12,
+          left: 11,
+          display: "flex",
+          width: 16,
+          height: 16,
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+          border: "1.5px solid white",
+          borderRadius: "50%",
+          background: "white",
+        }}
+      >
+        <BotMark color="var(--agent-color,#f7a32f)" active={false} />
+      </span>
+    </span>
   )
 }

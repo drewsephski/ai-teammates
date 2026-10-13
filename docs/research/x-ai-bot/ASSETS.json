@@ -1,0 +1,42 @@
+{
+  "source": "https://x.ai/bot",
+  "date": "2026-10-13",
+  "assets": [
+    {
+      "file": "public/landing/bot/cloud-agents-1.webp",
+      "type": "image",
+      "source": "cloud-agents-1-f6d00cf8"
+    },
+    {
+      "file": "public/landing/bot/cloud-agents-2.webp",
+      "type": "image",
+      "source": "cloud-agents-2-a4798c0f"
+    },
+    {
+      "file": "public/landing/bot/cloud-agents-3.webp",
+      "type": "image",
+      "source": "cloud-agents-3-5a23ca2f"
+    },
+    {
+      "file": "public/landing/bot/cloud-agents-4.webp",
+      "type": "image",
+      "source": "cloud-agents-4-d2fe557a"
+    },
+    {
+      "file": "public/landing/bot/display.woff2",
+      "type": "font",
+      "source": "XVF_Variable-s.p.2_a5y-slrzff6.woff2"
+    },
+    {
+      "file": "public/landing/bot/cursor-gothic.woff2",
+      "type": "font",
+      "source": "CursorGothic_Regular.0jb6823hufonw.woff2"
+    },
+    {
+      "file": "public/landing/bot/cursor-icons.woff2",
+      "type": "font",
+      "source": "grok-bot-static/fonts/cursor-icons-16.woff2"
+    }
+  ],
+  "notes": "Fonts and grainy wallpapers extracted from source; browser illustration DOM, SVG silhouettes, authored eye topology, and animation choreography ported to typed local components. Source Grok labels are Krafty; demo identity is Drew Sepeczi. Real application destinations remain local/auth aware."
+}

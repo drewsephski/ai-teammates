@@ -123,7 +123,7 @@ function BotForm({
               type="button"
               variant={selectedJob === preset.job ? "secondary" : "outline"}
               size="sm"
-              className="h-14 min-w-0 flex-col gap-1 px-1"
+              className="h-16 min-w-0 flex-col gap-1 rounded-xl px-1 text-xs"
               aria-label={`Use ${preset.job} preset`}
               aria-pressed={selectedJob === preset.job}
               disabled={isSubmitting}

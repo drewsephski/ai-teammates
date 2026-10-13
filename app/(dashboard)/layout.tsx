@@ -18,9 +18,9 @@ export default async function DashboardLayout({
   const defaultOpen = cookieStore.get("sidebar_state")?.value !== "false"
 
   return (
-    <SidebarProvider defaultOpen={defaultOpen}>
+    <SidebarProvider defaultOpen={defaultOpen} className="app-shell">
       <AppSidebar />
-      <SidebarInset className="h-svh overflow-hidden">
+      <SidebarInset className="h-svh min-w-0 overflow-hidden bg-card">
         <ScrollArea className="h-full">{children}</ScrollArea>
       </SidebarInset>
     </SidebarProvider>

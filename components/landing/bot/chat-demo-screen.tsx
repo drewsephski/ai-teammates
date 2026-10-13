@@ -8,7 +8,11 @@ import {
   type ReactNode,
 } from "react"
 import type { DemoScreen } from "./chat-demo-timeline"
-import { DemoBrowserIcon, DemoMailIcon } from "./chat-demo-icons"
+import {
+  DemoAgentCursor,
+  DemoBrowserIcon,
+  DemoMailIcon,
+} from "./chat-demo-icons"
 import styles from "./chat-demo.module.css"
 
 const rows = [
@@ -187,6 +191,11 @@ export function DemoDesktop({
             </div>
           ) : (
             <div className={styles.portal}>
+              {screen.isWorking && (
+                <span className={styles.agentCursor} aria-hidden="true">
+                  <DemoAgentCursor />
+                </span>
+              )}
               <div className={styles.portalSidebar}>
                 {[
                   [62, 48, 70],
@@ -219,9 +228,37 @@ export function DemoDesktop({
                   {rows.map((row, index) => (
                     <div key={index} className={styles.tableRow}>
                       <span
-                        className={`${styles.receipt} ${settled ? styles.checked : ""}`}
+                        className={`${styles.receipt} ${settled || screen.isWorking ? styles.checked : ""}`}
                       >
-                        {settled ? "✓" : ""}
+                        {settled || screen.isWorking ? (
+                          <svg
+                            viewBox="0 0 12 12"
+                            width="6"
+                            height="6"
+                            fill="none"
+                            style={
+                              screen.isWorking
+                                ? { animationDelay: `${200 + 260 * index}ms` }
+                                : undefined
+                            }
+                          >
+                            <circle
+                              cx="6"
+                              cy="6"
+                              r="5.25"
+                              stroke="currentColor"
+                              strokeWidth=".75"
+                              opacity=".4"
+                            />
+                            <path
+                              d="M3.75 6.25l1.6 1.6 2.9-3.4"
+                              stroke="currentColor"
+                              strokeWidth="1.25"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        ) : null}
                       </span>
                       <i />
                       <div>

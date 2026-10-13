@@ -10,8 +10,9 @@ function ThemeProvider({
   return (
     <NextThemesProvider
       attribute="class"
-      defaultTheme="system"
-      enableSystem
+      defaultTheme="dark"
+      storageKey="krafty-theme"
+      enableSystem={false}
       disableTransitionOnChange
       {...props}
     >

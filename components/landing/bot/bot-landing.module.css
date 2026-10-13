@@ -339,7 +339,7 @@
     padding-bottom: 80px;
   }
   .hero h1 {
-    font-size: 34px;
+    font-size: 36px;
     line-height: 44px;
     gap: 6px;
     flex-wrap: wrap;
@@ -386,4 +386,22 @@
     font-size: 16px;
     line-height: 26px;
   }
+}
+
+/* Keep the reference page’s native dark scrollbar isolated to the landing route. */
+:global(html):has(.landing) {
+  color-scheme: dark;
+  scrollbar-width: auto;
+}
+:global(html):has(.landing)::-webkit-scrollbar {
+  width: 15px;
+  height: 15px;
+}
+:global(html):has(.landing)::-webkit-scrollbar-track {
+  background: #111;
+}
+:global(html):has(.landing)::-webkit-scrollbar-thumb {
+  background: #555;
+  border: 3px solid #111;
+  border-radius: 8px;
 }

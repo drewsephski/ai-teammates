@@ -10,6 +10,7 @@ import {
 import { isToolUIPart } from "ai"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { ArrowUpIcon } from "lucide-react"
 import { toast } from "@/components/ui/toast"
 
 import {
@@ -22,6 +23,7 @@ import { ChatAvatar } from "@/components/chat-avatar"
 import {
   Conversation,
   ConversationContent,
+  ConversationEmptyState,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation"
 import {
@@ -43,6 +45,8 @@ import {
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input"
 import { ToolCall } from "@/components/chat-tool-call"
+import { BotMark } from "@/components/landing/bot/bot-mark"
+import { Spinner } from "@/components/ui/spinner"
 import { Badge } from "@/components/ui/badge"
 import type { Bot } from "@/db/schema"
 import { USAGE_LIMIT_ERROR } from "@/lib/billing"
@@ -80,7 +84,15 @@ function splitByAuthor(message: ChatUIMessage, bots: ChatBot[]) {
 }
 
 // `bots` are a group chat's members to pick from; a direct chat passes none
-function Chat({ chatId, bots }: { chatId: string; bots?: ChatBot[] }) {
+function Chat({
+  chatId,
+  name,
+  bots,
+}: {
+  chatId: string
+  name: string
+  bots?: ChatBot[]
+}) {
   const transport = useTriggerChatTransport<typeof chatAgent>({
     task: "chat",
     accessToken: ({ chatId }) => mintChatAccessToken(chatId),
@@ -92,12 +104,21 @@ function Chat({ chatId, bots }: { chatId: string; bots?: ChatBot[] }) {
   })
 
   // useChat only reads its initial messages on mount, so wait for the transcript
-  if (isLoading) return null
+  if (isLoading)
+    return (
+      <div
+        className="flex flex-1 items-center justify-center gap-3 text-sm text-muted-foreground"
+        role="status"
+      >
+        <Spinner /> Loading conversation…
+      </div>
+    )
 
   return (
     <ChatMessages
       key={chatId}
       chatId={chatId}
+      name={name}
       bots={bots}
       initialMessages={messages}
       transport={transport}
@@ -107,11 +128,13 @@ function Chat({ chatId, bots }: { chatId: string; bots?: ChatBot[] }) {
 
 function ChatMessages({
   chatId,
+  name,
   bots = [],
   initialMessages,
   transport,
 }: {
   chatId: string
+  name: string
   bots?: ChatBot[]
   initialMessages: ChatUIMessage[]
   transport: TriggerChatTransport
@@ -177,7 +200,25 @@ function ChatMessages({
   return (
     <div data-slot="chat" className="flex min-h-0 flex-1 flex-col">
       <Conversation>
-        <ConversationContent className="mx-auto w-full max-w-3xl">
+        <ConversationContent className="mx-auto w-full max-w-3xl px-5 py-8 sm:px-8">
+          {messages.length === 0 && (
+            <ConversationEmptyState className="min-h-[45svh] gap-6">
+              <BotMark
+                shape="blob"
+                state="curious"
+                color="var(--foreground)"
+                className="size-24 [--bg:var(--card)]"
+              />
+              <div className="max-w-sm space-y-3">
+                <h2 className="text-2xl font-medium tracking-tight">
+                  Start a conversation
+                </h2>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Give {name} a task, share an idea, or ask a question.
+                </p>
+              </div>
+            </ConversationEmptyState>
+          )}
           {messages.flatMap((message) => {
             // The bot a group chat's message was sent to
             const addressee =
@@ -247,12 +288,23 @@ function ChatMessages({
               )
             })
           })}
+          {status === "submitted" && (
+            <div
+              role="status"
+              className="flex items-center gap-2 text-sm text-muted-foreground"
+            >
+              <Spinner className="size-4" /> Working…
+            </div>
+          )}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
-      <div className="mx-auto w-full max-w-3xl p-4 pt-0">
+      <div className="chat-composer mx-auto w-full max-w-3xl px-4 pt-2 pb-5 sm:px-6">
         <PromptInput onSubmit={handleSubmit}>
-          <PromptInputTextarea placeholder="Send a message..." />
+          <PromptInputTextarea
+            placeholder={`Message ${name}…`}
+            className="min-h-14 px-3 text-base sm:text-sm"
+          />
           <PromptInputFooter
             className={selectedBot ? undefined : "justify-end"}
           >
@@ -282,7 +334,11 @@ function ChatMessages({
                 </PromptInputSelect>
               </PromptInputTools>
             )}
-            <PromptInputSubmit status={status} onStop={stop} />
+            <PromptInputSubmit status={status} onStop={stop}>
+              {status === "ready" ? (
+                <ArrowUpIcon className="size-4" />
+              ) : undefined}
+            </PromptInputSubmit>
           </PromptInputFooter>
         </PromptInput>
       </div>

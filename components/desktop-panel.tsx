@@ -3,7 +3,7 @@
 import * as React from "react"
 import type RFB from "@novnc/novnc"
 import * as Sentry from "@sentry/nextjs"
-import { PauseIcon, RefreshCwIcon } from "lucide-react"
+import { MonitorIcon, PauseIcon, RefreshCwIcon } from "lucide-react"
 
 import { getDesktopUrl, pauseDesktop, resetDesktop } from "@/actions/chat"
 import { DesktopResetDialog } from "@/components/desktop-reset-dialog"
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -20,6 +21,7 @@ import { ResizableHandle, ResizablePanel } from "@/components/ui/resizable"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
 import { usePaywall } from "@/hooks/use-paywall"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 type DesktopStatus =
   | "idle"
@@ -211,9 +213,66 @@ function DesktopPanelProvider({
   return <DesktopPanelContext value={value}>{children}</DesktopPanelContext>
 }
 
+function DesktopControls() {
+  const { status, connect, pause } = useDesktopPanel()
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={status !== "connected"}
+        onClick={pause}
+      >
+        <PauseIcon /> <span className="hidden sm:inline">Pause</span>
+        <span className="sr-only sm:hidden">Pause computer</span>
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={status === "paused" ? "Resume computer" : "Reconnect"}
+        disabled={
+          status === "connecting" ||
+          status === "pausing" ||
+          status === "missing"
+        }
+        onClick={connect}
+      >
+        <RefreshCwIcon />
+      </Button>
+    </div>
+  )
+}
+
+function DesktopPlaceholder() {
+  const { status, connect, reset } = useDesktopPanel()
+  if (status === "connected") return null
+  return (
+    <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+      {status === "missing" ? (
+        <div className="flex flex-col items-center gap-3 px-4 text-center">
+          <p>This computer no longer exists.</p>
+          <DesktopResetDialog reset={reset} />
+        </div>
+      ) : status === "disconnected" || status === "paused" ? (
+        <Button variant="outline" onClick={connect}>
+          Resume computer
+        </Button>
+      ) : (
+        <div className="flex items-center gap-3" role="status">
+          <Spinner />{" "}
+          {status === "pausing"
+            ? "Pausing computer…"
+            : "Connecting to computer…"}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DesktopPanel({ name }: { name: string }) {
-  const { open, status, connect, pause, reset, attachScreen, setInteractive } =
+  const { open, toggle, status, attachScreen, setInteractive } =
     useDesktopPanel()
+  const isMobile = useIsMobile()
   const [fullscreen, setFullscreen] = React.useState(false)
   const [panelSlot, setPanelSlot] = React.useState<HTMLDivElement | null>(null)
   const [dialogSlot, setDialogSlot] = React.useState<HTMLDivElement | null>(
@@ -232,6 +291,40 @@ function DesktopPanel({ name }: { name: string }) {
 
   const title = `${name}'s screen`
 
+  if (isMobile) {
+    return (
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen, details) => {
+          // Escape belongs to the remote desktop; the explicit close control exits.
+          if (!nextOpen && details.reason === "close-press") toggle()
+        }}
+        disablePointerDismissal
+      >
+        <DialogContent
+          scrollable={false}
+          initialFocus={false}
+          className="flex h-svh max-w-none flex-col gap-0 rounded-none p-0 ring-0 sm:max-w-none"
+        >
+          <DialogHeader className="h-16 shrink-0 flex-row items-center gap-3 border-b px-4 pr-14">
+            <DialogTitle className="min-w-0 flex-1 truncate p-0 text-sm">
+              {title}
+            </DialogTitle>
+            <DesktopControls />
+          </DialogHeader>
+          <DialogDescription className="sr-only">
+            Your teammate’s live computer. Close this view to return to the
+            conversation.
+          </DialogDescription>
+          <div className="relative min-h-0 flex-1 bg-background">
+            <div ref={setDialogSlot} className="absolute inset-0" />
+            <DesktopPlaceholder />
+          </div>
+        </DialogContent>
+      </Dialog>
+    )
+  }
+
   return (
     <>
       <ResizableHandle withHandle />
@@ -245,71 +338,47 @@ function DesktopPanel({ name }: { name: string }) {
           }}
           disablePointerDismissal
         >
-          <div className="flex h-full flex-col">
-            <div className="flex h-12 shrink-0 items-center justify-end px-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={status !== "connected"}
-                onClick={pause}
-              >
-                <PauseIcon /> Pause
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={
-                  status === "paused" ? "Resume computer" : "Reconnect"
-                }
-                disabled={
-                  status === "connecting" ||
-                  status === "pausing" ||
-                  status === "missing"
-                }
-                onClick={connect}
-              >
-                <RefreshCwIcon />
-              </Button>
+          <div className="flex h-full flex-col bg-sidebar/50">
+            <div className="flex h-16 shrink-0 items-center gap-3 border-b border-border/60 px-4">
+              <MonitorIcon className="size-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                {title}
+              </span>
+              <DesktopControls />
             </div>
-            <div className="flex min-h-0 flex-1 flex-col items-center gap-4 p-4 pt-0">
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 p-6">
               <AspectRatio
                 ratio={4 / 3}
-                className="w-full max-w-2xl overflow-hidden rounded-xl bg-muted ring-1 ring-foreground/10"
+                className="w-full max-w-2xl overflow-hidden rounded-2xl bg-background ring-1 ring-foreground/10"
               >
                 <div ref={setPanelSlot} className="absolute inset-0" />
                 {status === "connected" ? (
                   <DialogTrigger
                     aria-label={`Open ${title} in fullscreen`}
-                    className="absolute inset-0 cursor-zoom-in rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                    className="absolute inset-0 cursor-zoom-in rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                   />
                 ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                    {status === "missing" ? (
-                      <div className="flex flex-col items-center gap-3 px-4 text-center">
-                        <p>This computer no longer exists.</p>
-                        <DesktopResetDialog reset={reset} />
-                      </div>
-                    ) : status === "disconnected" || status === "paused" ? (
-                      <Button variant="outline" onClick={connect}>
-                        Resume computer
-                      </Button>
-                    ) : (
-                      <Spinner />
-                    )}
-                  </div>
+                  <DesktopPlaceholder />
                 )}
               </AspectRatio>
-              <p className="text-sm text-muted-foreground">{title}</p>
+              <p className="text-xs text-muted-foreground">
+                Open the screen to control the computer.
+              </p>
             </div>
           </div>
           <DialogContent
+            scrollable={false}
             initialFocus={false}
             className="flex h-svh max-w-none flex-col gap-0 rounded-none p-0 ring-0 sm:max-w-none"
           >
-            <DialogHeader className="h-12 shrink-0 justify-center border-b px-4">
-              <DialogTitle>{title}</DialogTitle>
+            <DialogHeader className="h-16 shrink-0 justify-center border-b px-6">
+              <DialogTitle className="text-sm">{title}</DialogTitle>
             </DialogHeader>
-            <div ref={setDialogSlot} className="min-h-0 flex-1 bg-muted" />
+            <DialogDescription className="sr-only">
+              Your teammate’s live computer. Close this view to return to the
+              conversation.
+            </DialogDescription>
+            <div ref={setDialogSlot} className="min-h-0 flex-1 bg-background" />
           </DialogContent>
         </Dialog>
       </ResizablePanel>

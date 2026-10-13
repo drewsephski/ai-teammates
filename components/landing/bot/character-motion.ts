@@ -1,5 +1,55 @@
 export type CharacterState =
-  "idle" | "thinking" | "working" | "listening" | "spawning" | "celebrate"
+  | "idle"
+  | "thinking"
+  | "working"
+  | "listening"
+  | "spawning"
+  | "celebrate"
+  | "waking"
+  | "curious"
+  | "bored"
+  | "happy"
+  | "playful"
+
+export type CharacterSequence = "hero" | "footer"
+export const CHARACTER_SEQUENCES: Record<
+  CharacterSequence,
+  readonly { state: CharacterState; ms: number }[]
+> = {
+  hero: [
+    { state: "waking", ms: 2200 },
+    { state: "idle", ms: 6800 },
+    { state: "happy", ms: 3200 },
+    { state: "idle", ms: 7400 },
+    { state: "curious", ms: 3600 },
+  ],
+  footer: [
+    { state: "idle", ms: 7000 },
+    { state: "curious", ms: 4200 },
+    { state: "idle", ms: 6200 },
+    { state: "bored", ms: 4600 },
+    { state: "idle", ms: 6800 },
+    { state: "happy", ms: 4200 },
+    { state: "idle", ms: 6400 },
+    { state: "playful", ms: 4400 },
+  ],
+}
+
+export function sequenceState(sequence: CharacterSequence, elapsed: number) {
+  const all = CHARACTER_SEQUENCES[sequence]
+  const initial = all.reduce((total, phase) => total + phase.ms, 0)
+  let time = elapsed
+  let phases = all
+  if (sequence === "hero" && elapsed >= initial) {
+    phases = all.slice(1)
+    time = (elapsed - initial) % (initial - all[0].ms)
+  } else time %= initial
+  for (const phase of phases) {
+    if (time < phase.ms) return { state: phase.state, stateTime: time }
+    time -= phase.ms
+  }
+  return { state: phases[0].state, stateTime: 0 }
+}
 
 export const HEAD_CENTER = 114.2705
 export const BLINK_CADENCE: Record<
@@ -12,6 +62,11 @@ export const BLINK_CADENCE: Record<
   listening: [3000, 7000],
   spawning: null,
   celebrate: [2200, 4500],
+  waking: null,
+  curious: [2500, 5500],
+  bored: [4000, 8000],
+  happy: [2500, 5000],
+  playful: [2000, 4500],
 }
 
 export function clamp(value: number, min: number, max: number) {
@@ -72,7 +127,58 @@ export function stepSpring(
   }
 }
 
-export function bodyTargets(state: CharacterState, seconds: number) {
+export function bodyTargets(
+  state: CharacterState,
+  seconds: number,
+  stateSeconds = seconds
+) {
+  if (state === "waking") {
+    if (stateSeconds < 0.75)
+      return {
+        rotation: 0,
+        x: 0,
+        y: 4 - 10 * clamp(stateSeconds / 0.75, 0, 1),
+        scaleY: 1.02,
+      }
+    if (stateSeconds < 1.45) return { rotation: 0, x: 0, y: 0, scaleY: 1 }
+    const progress = Math.min((stateSeconds - 1.45) / 0.65, 1)
+    return {
+      rotation: 6 * Math.sin(progress * Math.PI * 3) * (1 - progress),
+      x: 0,
+      y: 2 * Math.sin(0.9 * seconds),
+      scaleY: 1,
+    }
+  }
+  if (state === "happy") {
+    const beat = Math.sin(2.4 * seconds)
+    return {
+      rotation: 3 * Math.sin(1.2 * seconds),
+      x: 2.5 * Math.sin(1.1 * seconds),
+      y: -3 * Math.abs(beat),
+      scaleY: 1 + 0.02 * beat,
+    }
+  }
+  if (state === "curious")
+    return {
+      rotation: 10 + 6 * Math.sin(0.7 * seconds),
+      x: 5 * Math.sin(0.6 * seconds),
+      y: -2 + 1.5 * Math.sin(0.9 * seconds),
+      scaleY: 1.01,
+    }
+  if (state === "bored")
+    return {
+      rotation: -3 + 4 * Math.sin(0.25 * seconds),
+      x: 4 * Math.sin(0.2 * seconds),
+      y: 5 + 1.5 * Math.sin(0.35 * seconds),
+      scaleY: 0.99,
+    }
+  if (state === "playful")
+    return {
+      rotation: 8 * Math.sin(1.4 * seconds),
+      x: 4 * Math.sin(1.1 * seconds),
+      y: -3 * Math.abs(Math.sin(2.2 * seconds)),
+      scaleY: 1 + 0.015 * Math.sin(2.2 * seconds),
+    }
   if (state === "thinking")
     return {
       rotation: -9 + 5 * Math.sin(0.35 * seconds),
@@ -119,6 +225,59 @@ export function seededRandom(seed: number) {
     result = Math.imul(result ^ (result >>> 15), 1 | result)
     result ^= result + Math.imul(result ^ (result >>> 7), 61 | result)
     return ((result ^ (result >>> 14)) >>> 0) / 0x100000000
+  }
+}
+
+export function wanderGaze(state: CharacterState, random: () => number) {
+  const range = (min: number, max: number) => min + random() * (max - min)
+  const sign = () => (random() < 0.5 ? -1 : 1)
+  if (state === "idle") return { x: 0, y: 0, ms: range(2500, 5500) }
+  if (state === "curious")
+    return {
+      x: sign() * range(0.6, 1) * 15,
+      y: 9 * range(-1, 1),
+      ms: range(950, 1900),
+    }
+  if (state === "bored")
+    return {
+      x: sign() * range(0.7, 1) * 15,
+      y: 9 * range(0.4, 0.9),
+      ms: range(3000, 6000),
+    }
+  if (state === "happy")
+    return {
+      x: 15 * range(-0.7, 0.7),
+      y: -9 * range(0, 0.6),
+      ms: range(1800, 3400),
+    }
+  if (state === "playful")
+    return {
+      x: sign() * range(0.5, 1) * 15,
+      y: -9 * range(0, 0.6),
+      ms: range(900, 1800),
+    }
+  if (state === "working")
+    return {
+      x: 15 * range(-0.4, 0.4),
+      y: 9 * range(0.4, 1),
+      ms: range(1200, 2400),
+    }
+  if (state === "listening")
+    return {
+      x: 15 * range(-0.3, 0.3),
+      y: 9 * range(-0.25, 0.25),
+      ms: range(2200, 4200),
+    }
+  if (state === "thinking")
+    return {
+      x: sign() * range(0.5, 1) * 15,
+      y: -9 * range(0.4, 1),
+      ms: range(1500, 2800),
+    }
+  return {
+    x: 15 * range(-0.4, 0.4),
+    y: 9 * range(-0.3, 0.3),
+    ms: range(2500, 5000),
   }
 }
 

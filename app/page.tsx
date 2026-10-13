@@ -71,7 +71,8 @@ export default async function LandingPage() {
             <ArrowUpRightIcon />
           </Link>
           <h1 id="hero-title">
-            Meet <BotMark className={styles.heroMark} /> Krafty Bot
+            Meet <BotMark className={styles.heroMark} sequence="hero" /> Krafty
+            Bot
           </h1>
           <p className={styles.heroCopy}>
             AI teammates you can give real work to. Bots can sign in to your
@@ -191,7 +192,7 @@ export default async function LandingPage() {
               View plans
             </Link>
           </div>
-          <BotMark className={styles.giantMark} />
+          <BotMark className={styles.giantMark} sequence="footer" />
         </section>
       </main>
       <footer className={styles.footer}>

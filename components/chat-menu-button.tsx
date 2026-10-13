@@ -15,7 +15,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
-import { SidebarMenuButton } from "@/components/ui/sidebar"
+import { SidebarMenuButton, useSidebar } from "@/components/ui/sidebar"
 import type { Bot } from "@/db/schema"
 
 // Children are rendered by the server so the avatars stay out of the client bundle
@@ -35,12 +35,17 @@ function ChatMenuButton({
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const isActive = params.chatId === chatId
+  const { isMobile, setOpenMobile } = useSidebar()
 
   const button = (
     <SidebarMenuButton
       size="lg"
       tooltip={tooltip}
       isActive={isActive}
+      className="h-16 gap-3 rounded-xl px-3"
+      onClick={() => {
+        if (isMobile) setOpenMobile(false)
+      }}
       render={
         <Link
           href={`/chats/${chatId}`}

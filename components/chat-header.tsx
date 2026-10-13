@@ -8,6 +8,7 @@ import { useDesktopPanel } from "@/components/desktop-panel"
 import { GroupChatAvatar } from "@/components/group-chat-avatar"
 import { GroupChatDialog } from "@/components/group-chat-dialog"
 import { Button } from "@/components/ui/button"
+import { SidebarTrigger } from "@/components/ui/sidebar"
 import type { Bot } from "@/db/schema"
 import type { ChatWithBots } from "@/queries/bots"
 
@@ -18,13 +19,14 @@ function DesktopButton() {
   return (
     <Button
       variant="ghost"
-      size="icon-sm"
-      className="ml-auto"
+      size="sm"
+      className="ml-auto rounded-full text-muted-foreground aria-pressed:bg-muted aria-pressed:text-foreground"
       aria-label="Desktop"
       aria-pressed={desktopPanel.open}
       onClick={desktopPanel.toggle}
     >
       <MonitorIcon />
+      <span className="hidden sm:inline">Desktop</span>
     </Button>
   )
 }
@@ -40,8 +42,9 @@ function ChatHeader({
   return (
     <header
       data-slot="chat-header"
-      className="flex h-12 shrink-0 items-center gap-2 border-b px-4"
+      className="flex h-16 shrink-0 items-center gap-3 border-b border-border/60 px-4 sm:px-6"
     >
+      <SidebarTrigger className="text-muted-foreground" />
       {chat.kind === "group" ? (
         <h1 className="-ml-2 flex min-w-0">
           <GroupChatDialog
