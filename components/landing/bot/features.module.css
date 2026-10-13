@@ -1,0 +1,405 @@
+.statementSection,
+.features {
+  max-width: 1280px;
+  margin-inline: auto;
+  padding-inline: 24px;
+}
+
+.statementSection {
+  padding-block: 64px;
+}
+.statement {
+  position: relative;
+  min-height: 352px;
+  border-radius: 24px;
+  background: #1a1a1a;
+  overflow: hidden;
+}
+.statementCopy {
+  position: relative;
+  z-index: 1;
+  padding: 40px 42% 40px 48px;
+}
+.statementCopy p {
+  max-width: 448px;
+  margin-top: 16px !important;
+  color: #7d8187;
+  font-size: 18px;
+  line-height: 29.25px;
+  text-wrap: pretty;
+}
+.statementCharacter {
+  position: absolute;
+  width: 43%;
+  right: -3%;
+  bottom: -23%;
+  transform: rotate(-7deg);
+}
+.features {
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+  padding-block: 112px;
+  scroll-margin-top: 80px;
+}
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: center;
+  max-width: 672px;
+  margin-inline: auto;
+}
+.heading p {
+  font-size: 18px;
+  line-height: 29.25px;
+  text-wrap: pretty;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 404px;
+  padding: 32px;
+  border-radius: 24px;
+  overflow: hidden;
+  background: #1a1a1a;
+}
+.card h3 {
+  font-size: 16px;
+  line-height: 26px;
+  font-weight: 500;
+  text-wrap: pretty;
+}
+.card > p {
+  font-size: 16px;
+  line-height: 26px;
+  font-weight: 400;
+  text-wrap: pretty;
+}
+.figure {
+  position: relative;
+  flex: 0 0 262px;
+  margin-top: auto;
+  padding-top: 32px;
+}
+.computer {
+  width: 100%;
+  overflow: hidden;
+  padding: 10px 12px 0;
+  border-radius: 16px;
+  background: #292929;
+  font-size: 14px;
+  line-height: 20px;
+}
+.computerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 500;
+}
+.working {
+  flex-shrink: 0;
+  padding: 0 7px;
+  border-radius: 12px;
+  background: #49371c;
+  color: #f19d38;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 400;
+}
+.computerPrompt {
+  margin-top: 2px !important;
+  font-size: 14px;
+  line-height: 20px;
+}
+.desktop {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  margin-top: 10px;
+  border-radius: 9px 9px 0 0;
+  background: url("/landing/bot/cloud-agents-4.webp") center / cover;
+}
+.browser {
+  position: absolute;
+  width: 64%;
+  height: auto;
+  left: 18%;
+  top: 7%;
+  border-radius: 5px;
+  box-shadow: 0 3px 12px #0003;
+}
+.cursor {
+  position: absolute;
+  left: 67%;
+  top: 41%;
+  width: 16px;
+  filter: drop-shadow(0 1px 1px #0006);
+}
+.cursor svg {
+  width: 100%;
+  height: 20px;
+}
+.cursor > span {
+  position: absolute;
+  top: 14px;
+  left: 12px;
+  color: white;
+  font-size: 7px;
+  line-height: 9px;
+}
+.instructions {
+  padding: 0;
+  border-radius: 14px;
+  background: #0b0b0b;
+}
+.instructions .computerHeader {
+  min-height: 28px;
+  padding: 0 12px;
+  color: #7d8187;
+  font-size: 11px;
+  font-weight: 400;
+}
+.instructions .working {
+  background: transparent;
+  color: #9b9b9e;
+  font-size: 9px;
+}
+.dashboardDesktop {
+  margin-top: 0;
+  border-radius: 0;
+  background-image: url("/landing/bot/cloud-agents-3.webp");
+}
+.dashboardDesktop .browser {
+  width: 68%;
+  left: 16%;
+  top: 12%;
+}
+.dashboardDesktop .cursor {
+  left: 78%;
+  top: 29%;
+}
+.memory {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  height: 212px;
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: -0.15px;
+}
+.bubble {
+  max-width: 92%;
+  padding: 8px 12px;
+  border-radius: 16px;
+  background: #26262a;
+  color: #eeeef0;
+  text-wrap: pretty;
+}
+.memoryReceipt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+  color: #8c8c95;
+  font-size: 13px;
+  line-height: 16px;
+  letter-spacing: normal;
+}
+.memoryReceipt > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: #352745;
+  color: #ae8af8;
+}
+.memoryReceipt svg {
+  width: 14px;
+  height: 14px;
+}
+.collaboration {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 212px;
+  gap: 6px;
+}
+.teammate {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+.avatar {
+  display: flex;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--teammate-color) 24%, #1a1a1a);
+}
+.avatar svg {
+  width: 55px;
+  flex-shrink: 0;
+}
+.activity {
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--teammate-color);
+  width: 0;
+  font-size: 12px;
+  line-height: 18px;
+  animation: teammate-activity 16s infinite;
+  animation-delay: calc(var(--teammate-order) * -4s);
+}
+@keyframes teammate-activity {
+  0%,
+  19% {
+    width: 132px;
+    padding-left: 8px;
+    opacity: 1;
+  }
+  25%,
+  94% {
+    width: 0;
+    padding-left: 0;
+    opacity: 0;
+  }
+  100% {
+    width: 132px;
+    padding-left: 8px;
+    opacity: 1;
+  }
+}
+
+@media (max-width: 1023px) {
+  .statementCopy {
+    padding-left: 40px;
+  }
+  .card {
+    padding: 24px;
+  }
+  .figure {
+    flex-basis: 222px;
+  }
+  .computerPrompt {
+    font-size: 12px;
+    line-height: 18px;
+  }
+  .memory {
+    padding-inline: 0;
+    font-size: 12px;
+    line-height: 18px;
+  }
+  .avatar {
+    width: 36px;
+    height: 36px;
+  }
+  .avatar svg {
+    width: 42px;
+  }
+  .activity {
+    font-size: 10px;
+  }
+  @keyframes teammate-activity {
+    0%,
+    19% {
+      width: 106px;
+      padding-left: 6px;
+      opacity: 1;
+    }
+    25%,
+    94% {
+      width: 0;
+      padding-left: 0;
+      opacity: 0;
+    }
+    100% {
+      width: 106px;
+      padding-left: 6px;
+      opacity: 1;
+    }
+  }
+}
+
+@media (min-width: 640px) and (max-width: 767px) {
+  .avatar {
+    width: 28px;
+    height: 28px;
+  }
+  .avatar svg {
+    width: 32px;
+  }
+}
+
+@media (max-width: 639px) {
+  .statementSection,
+  .features {
+    padding-inline: 16px;
+  }
+  .statementSection {
+    padding-block: 48px;
+  }
+  .statementCopy {
+    padding: 32px 32px 176px;
+  }
+  .statementCopy p,
+  .heading p {
+    font-size: 16px;
+    line-height: 26px;
+  }
+  .statementCharacter {
+    width: 224px;
+    bottom: -70px;
+    right: -34px;
+  }
+  .features {
+    padding-block: 80px;
+    gap: 40px;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .card {
+    height: 400px;
+  }
+  .computerPrompt {
+    font-size: 12px;
+    line-height: 18px;
+  }
+  .computerHeader {
+    font-size: 12px;
+  }
+  .working {
+    font-size: 10px;
+  }
+  .memory {
+    height: 212px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity {
+    animation: none;
+  }
+  .teammate:first-child .activity {
+    width: 106px;
+    padding-left: 6px;
+    opacity: 1;
+  }
+}

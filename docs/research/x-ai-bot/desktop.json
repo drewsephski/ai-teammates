@@ -1,0 +1,874 @@
+{
+  "root": {
+    "cls": "geistmono_157ca88a-module__-glMDW__variable xvf_14695435-module__Z7Vuyq__variable bg-background text-primary font-sans antialiased",
+    "css": {
+      "backgroundColor": "rgb(10, 10, 10)",
+      "borderRadius": "0px",
+      "color": "rgb(255, 255, 255)",
+      "fontFamily": "xVf, \"xVf Fallback\"",
+      "fontSize": "16px",
+      "fontWeight": "400",
+      "gap": "normal",
+      "height": "8879.88px",
+      "letterSpacing": "normal",
+      "lineHeight": "24px",
+      "maxWidth": "none",
+      "padding": "0px",
+      "width": "1425px"
+    },
+    "tag": "BODY",
+    "text": "<iframe src=\"https://www.googletagmanager.com/ns.html?id=GTM-MSD4MG6C\" height=\"0\" width=\"0\" style=\"display:none;visibility:hidden\"></iframe>((a,b,c,d,e,f,g,h)=>{let i=document.documentElement,j=[\"light\",\"dark\"];function k(b){var c;(Array.isArray(a)?a:[a]).forEach(a=>{let c=\"class\"===a,d=c&&f?e.map(a"
+  },
+  "sections": [
+    {
+      "container": {
+        "cls": "mx-auto flex w-full max-w-[var(--site-content-width)] flex-col items-center gap-12 px-4 pt-32 pb-20 text-center sm:gap-16 sm:px-6 sm:pt-[148px] sm:pb-28",
+        "css": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "color": "rgb(255, 255, 255)",
+          "fontFamily": "xVf, \"xVf Fallback\"",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "gap": "64px",
+          "height": "1258.5px",
+          "letterSpacing": "normal",
+          "lineHeight": "24px",
+          "maxWidth": "1024px",
+          "padding": "148px 24px 112px",
+          "width": "1024px"
+        },
+        "tag": "DIV",
+        "text": "Grok Bot is here • Read the launch postMeet   Grok BotAI teammates you can give real work to. Bots can sign in to your tools, use them just like you do, and come back with finished work.Download for macOSContact salesChiefYesterdaybooked the venue and sent the confirmation around.Sales Outbound1:0"
+      },
+      "id": "hero",
+      "nodes": [
+        {
+          "cls": "font-display text-4xl leading-[1.05] tracking-tight text-balance sm:text-5xl lg:text-6xl",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "60px",
+            "fontWeight": "500",
+            "gap": "normal",
+            "height": "68px",
+            "letterSpacing": "-0.6px",
+            "lineHeight": "60px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "449.156px"
+          },
+          "tag": "H1",
+          "text": "Meet   Grok Bot"
+        },
+        {
+          "cls": "text-theme-text-muted mt-4 max-w-xl text-base leading-relaxed text-pretty sm:mt-5 sm:max-w-2xl sm:text-lg sm:leading-relaxed",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(125, 129, 135)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "18px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "height": "58.5px",
+            "letterSpacing": "normal",
+            "lineHeight": "29.25px",
+            "maxWidth": "672px",
+            "padding": "0px",
+            "width": "672px"
+          },
+          "tag": "P",
+          "text": "AI teammates you can give real work to. Bots can sign in to your tools, use them just like you do, and come back with finished work."
+        },
+        {
+          "cls": "mt-0.5",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(242, 242, 242)",
+            "fontFamily": "system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"Helvetica Neue\", Arial, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "height": "20px",
+            "letterSpacing": "-0.15px",
+            "lineHeight": "20px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "396px"
+          },
+          "tag": "P",
+          "text": "Sign in to Salesforce so I can see the accounts you own."
+        }
+      ]
+    },
+    {
+      "container": {
+        "cls": "mx-auto w-full px-4 lg:px-6 xl:max-w-7xl py-12 sm:py-16",
+        "css": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "color": "rgb(255, 255, 255)",
+          "fontFamily": "xVf, \"xVf Fallback\"",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "gap": "normal",
+          "height": "480px",
+          "letterSpacing": "normal",
+          "lineHeight": "24px",
+          "maxWidth": "1280px",
+          "padding": "64px 24px",
+          "width": "1280px"
+        },
+        "tag": "DIV",
+        "text": "Message Bots like teammatesGive tasks to Bots like you would a teammate on desktop or iOS. Your AI teammates take projects from start to end, keep context on how you work and get smarter over time, and come back when your approval is needed."
+      },
+      "id": "statement",
+      "nodes": [
+        {
+          "cls": "font-display text-3xl tracking-tight text-balance sm:text-4xl",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "36px",
+            "fontWeight": "500",
+            "gap": "normal",
+            "height": "40px",
+            "letterSpacing": "-0.36px",
+            "lineHeight": "40px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "666.562px"
+          },
+          "tag": "H2",
+          "text": "Message Bots like teammates"
+        },
+        {
+          "cls": "text-theme-text-muted max-w-md text-base leading-relaxed text-pretty sm:text-lg sm:leading-relaxed",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(125, 129, 135)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "18px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "height": "146.25px",
+            "letterSpacing": "normal",
+            "lineHeight": "29.25px",
+            "maxWidth": "448px",
+            "padding": "0px",
+            "width": "448px"
+          },
+          "tag": "P",
+          "text": "Give tasks to Bots like you would a teammate on desktop or iOS. Your AI teammates take projects from start to end, keep context on how you work and get smarter over time, and come back when your approval is needed."
+        }
+      ]
+    },
+    {
+      "container": {
+        "cls": "mx-auto w-full px-4 lg:px-6 xl:max-w-7xl flex flex-col gap-10 py-20 sm:py-28 lg:gap-14",
+        "css": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "color": "rgb(255, 255, 255)",
+          "fontFamily": "xVf, \"xVf Fallback\"",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "gap": "56px",
+          "height": "1251.75px",
+          "letterSpacing": "normal",
+          "lineHeight": "24px",
+          "maxWidth": "1280px",
+          "padding": "112px 24px",
+          "width": "1280px"
+        },
+        "tag": "DIV",
+        "text": "Work with many Bots at onceCreate a Bot, give it a task, and add another when the work grows—one on a project, one on outbound, one on systems. AI teammates work in parallel, collaborate where it makes sense, and keep working 24/7.Grok Bot works where you workLog Grok Bot in once. It uses your apps "
+      },
+      "id": "features",
+      "nodes": [
+        {
+          "cls": "font-display text-3xl tracking-tight text-balance sm:text-4xl",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "36px",
+            "fontWeight": "500",
+            "gap": "normal",
+            "height": "40px",
+            "letterSpacing": "-0.36px",
+            "lineHeight": "40px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "672px"
+          },
+          "tag": "H2",
+          "text": "Work with many Bots at once"
+        },
+        {
+          "cls": "text-primary text-base leading-relaxed text-pretty sm:text-lg sm:leading-relaxed",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "18px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "height": "87.75px",
+            "letterSpacing": "normal",
+            "lineHeight": "29.25px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "672px"
+          },
+          "tag": "P",
+          "text": "Create a Bot, give it a task, and add another when the work grows—one on a project, one on outbound, one on systems. AI teammates work in parallel, collaborate where it makes sense, and keep working 24/7."
+        },
+        {
+          "cls": "bg-card flex flex-col overflow-hidden rounded-3xl p-6 sm:p-8",
+          "css": {
+            "backgroundColor": "rgb(26, 26, 26)",
+            "borderRadius": "24px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "height": "404px",
+            "letterSpacing": "normal",
+            "lineHeight": "24px",
+            "maxWidth": "none",
+            "padding": "32px",
+            "width": "606px"
+          },
+          "tag": "ARTICLE",
+          "text": "Grok Bot works where you workLog Grok Bot in once. It uses your apps and websites just like you would, including the tools that are harder to navigate.ComputerYou're in controlWorkingSign in to Zendesk so I can work the support queue.Work emailarmand@PasswordContinueYou"
+        },
+        {
+          "cls": "text-primary text-base leading-relaxed font-medium text-pretty",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "16px",
+            "fontWeight": "500",
+            "gap": "normal",
+            "height": "26px",
+            "letterSpacing": "normal",
+            "lineHeight": "26px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "542px"
+          },
+          "tag": "H3",
+          "text": "Grok Bot works where you work"
+        },
+        {
+          "cls": "text-primary text-base leading-relaxed text-pretty",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "height": "52px",
+            "letterSpacing": "normal",
+            "lineHeight": "26px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "542px"
+          },
+          "tag": "P",
+          "text": "Log Grok Bot in once. It uses your apps and websites just like you would, including the tools that are harder to navigate."
+        }
+      ]
+    },
+    {
+      "container": {
+        "cls": "mx-auto grid w-full max-w-[var(--site-content-width)] gap-12 px-4 py-20 sm:px-6 sm:py-28 lg:grid-cols-2 lg:gap-16",
+        "css": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "color": "rgb(255, 255, 255)",
+          "fontFamily": "xVf, \"xVf Fallback\"",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "gap": "64px",
+          "height": "954px",
+          "letterSpacing": "normal",
+          "lineHeight": "24px",
+          "maxWidth": "1024px",
+          "padding": "112px 24px",
+          "width": "1024px"
+        },
+        "tag": "DIV",
+        "text": "Give each Bot a jobSales OutboundTalent ScoutPaid MediaExpense ManagerProduct PerformanceBug ReproductionAccount HealthChief of StaffGenerate pipeline overnight. Researches accounts, scores contacts with intent, drafts email and LinkedIn in your voice, and leaves a review list for you to approve.Exp"
+      },
+      "id": "use-cases",
+      "nodes": [
+        {
+          "cls": "font-display text-3xl tracking-tight text-balance sm:text-4xl",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "36px",
+            "fontWeight": "500",
+            "gap": "normal",
+            "height": "40px",
+            "letterSpacing": "-0.36px",
+            "lineHeight": "40px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "456px"
+          },
+          "tag": "H2",
+          "text": "Give each Bot a job"
+        },
+        {
+          "cls": "max-w-md text-pretty text-base ",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "height": "72px",
+            "letterSpacing": "normal",
+            "lineHeight": "24px",
+            "maxWidth": "448px",
+            "padding": "0px",
+            "width": "448px"
+          },
+          "tag": "P",
+          "text": "Generate pipeline overnight. Researches accounts, scores contacts with intent, drafts email and LinkedIn in your voice, and leaves a review list for you to approve."
+        },
+        {
+          "cls": "max-w-md text-pretty text-base mx-auto hidden text-center sm:block lg:hidden",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "height": "auto",
+            "letterSpacing": "normal",
+            "lineHeight": "24px",
+            "maxWidth": "448px",
+            "padding": "0px",
+            "width": "auto"
+          },
+          "tag": "P",
+          "text": "Generate pipeline overnight. Researches accounts, scores contacts with intent, drafts email and LinkedIn in your voice, and leaves a review list for you to approve."
+        }
+      ]
+    },
+    {
+      "container": {
+        "cls": "mx-auto w-full px-4 lg:px-6 xl:max-w-7xl pt-28 pb-24 sm:pt-40 sm:pb-36",
+        "css": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "color": "rgb(255, 255, 255)",
+          "fontFamily": "xVf, \"xVf Fallback\"",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "gap": "normal",
+          "height": "1084px",
+          "letterSpacing": "normal",
+          "lineHeight": "24px",
+          "maxWidth": "1280px",
+          "padding": "160px 24px 144px",
+          "width": "1280px"
+        },
+        "tag": "DIV",
+        "text": "The SpaceXSI team runs on Grok BotPlay"
+      },
+      "id": "video",
+      "nodes": [
+        {
+          "cls": "font-display text-3xl tracking-tight text-balance sm:text-4xl mb-10 text-center",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "36px",
+            "fontWeight": "500",
+            "gap": "normal",
+            "height": "40px",
+            "letterSpacing": "-0.36px",
+            "lineHeight": "40px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "1232px"
+          },
+          "tag": "H2",
+          "text": "The SpaceXSI team runs on Grok Bot"
+        }
+      ]
+    },
+    {
+      "container": {
+        "cls": "mx-auto flex w-full max-w-[var(--site-content-width)] flex-col gap-10 px-4 py-20 sm:px-6 sm:py-28",
+        "css": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "color": "rgb(255, 255, 255)",
+          "fontFamily": "xVf, \"xVf Fallback\"",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "gap": "40px",
+          "height": "972px",
+          "letterSpacing": "normal",
+          "lineHeight": "24px",
+          "maxWidth": "1024px",
+          "padding": "112px 24px",
+          "width": "1024px"
+        },
+        "tag": "DIV",
+        "text": "PricingContact salesCursorProPro+Ultra$20/ monthBilled monthlyGet ProProPro+UltraIncludes:Grok Bot's own computerSigns into your toolsRoutines on a scheduleWork anywhere: desktop, mobile, and moreWeekly Grok Bot usage includedGrok Bot's own computerSigns into your toolsRoutines on a scheduleWork any"
+      },
+      "id": "pricing",
+      "nodes": [
+        {
+          "cls": "font-display text-3xl tracking-tight text-balance sm:text-4xl text-center",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "36px",
+            "fontWeight": "500",
+            "gap": "normal",
+            "height": "40px",
+            "letterSpacing": "-0.36px",
+            "lineHeight": "40px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "109.797px"
+          },
+          "tag": "H2",
+          "text": "Pricing"
+        },
+        {
+          "cls": "bg-card flex flex-col rounded-3xl p-6 sm:p-8",
+          "css": {
+            "backgroundColor": "rgb(26, 26, 26)",
+            "borderRadius": "24px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "height": "504px",
+            "letterSpacing": "normal",
+            "lineHeight": "24px",
+            "maxWidth": "none",
+            "padding": "32px",
+            "width": "314.656px"
+          },
+          "tag": "ARTICLE",
+          "text": "CursorProPro+Ultra$20/ monthBilled monthlyGet ProProPro+UltraIncludes:Grok Bot's own computerSigns into your toolsRoutines on a scheduleWork anywhere: desktop, mobile, and moreWeekly Grok Bot usage includedGrok Bot's own computerSigns into your toolsRoutines on a scheduleWork anywhere: desktop, mobi"
+        },
+        {
+          "cls": "text-secondary text-sm font-medium",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(125, 129, 135)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "14px",
+            "fontWeight": "500",
+            "gap": "normal",
+            "height": "20px",
+            "letterSpacing": "normal",
+            "lineHeight": "20px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "43.9844px"
+          },
+          "tag": "H3",
+          "text": "Cursor"
+        },
+        {
+          "cls": "mt-3 flex min-w-0 items-baseline gap-1.5",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "gap": "6px",
+            "height": "54px",
+            "letterSpacing": "normal",
+            "lineHeight": "24px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "250.656px"
+          },
+          "tag": "P",
+          "text": "$20/ month"
+        },
+        {
+          "cls": "text-secondary mt-1 text-sm",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(125, 129, 135)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "height": "20px",
+            "letterSpacing": "normal",
+            "lineHeight": "20px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "250.656px"
+          },
+          "tag": "P",
+          "text": "Billed monthly"
+        }
+      ]
+    },
+    {
+      "container": {
+        "cls": "mx-auto grid w-full max-w-[var(--site-content-width)] gap-10 px-4 py-20 sm:px-6 sm:py-28 lg:grid-cols-2 lg:gap-16",
+        "css": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "color": "rgb(255, 255, 255)",
+          "fontFamily": "xVf, \"xVf Fallback\"",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "gap": "64px",
+          "height": "396px",
+          "letterSpacing": "normal",
+          "lineHeight": "24px",
+          "maxWidth": "1024px",
+          "padding": "112px 24px",
+          "width": "1024px"
+        },
+        "tag": "DIV",
+        "text": "Download Grok BotOne team, wherever you are — on your desk and in your pocket.macOSApple siliconMore downloadsOther platforms and devices"
+      },
+      "id": "download",
+      "nodes": [
+        {
+          "cls": "font-display text-3xl tracking-tight text-balance sm:text-4xl",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "36px",
+            "fontWeight": "500",
+            "gap": "normal",
+            "height": "40px",
+            "letterSpacing": "-0.36px",
+            "lineHeight": "40px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "456px"
+          },
+          "tag": "H2",
+          "text": "Download Grok Bot"
+        },
+        {
+          "cls": "text-theme-text-muted max-w-md text-base leading-relaxed text-pretty sm:text-lg sm:leading-relaxed",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(125, 129, 135)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "18px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "height": "58.5px",
+            "letterSpacing": "normal",
+            "lineHeight": "29.25px",
+            "maxWidth": "448px",
+            "padding": "0px",
+            "width": "448px"
+          },
+          "tag": "P",
+          "text": "One team, wherever you are — on your desk and in your pocket."
+        }
+      ]
+    },
+    {
+      "container": {
+        "cls": "mx-auto w-full max-w-[var(--site-content-width)] px-4 py-20 sm:px-6 sm:py-28",
+        "css": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "color": "rgb(255, 255, 255)",
+          "fontFamily": "xVf, \"xVf Fallback\"",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "gap": "normal",
+          "height": "385.25px",
+          "letterSpacing": "normal",
+          "lineHeight": "24px",
+          "maxWidth": "1024px",
+          "padding": "112px 24px",
+          "width": "1024px"
+        },
+        "tag": "DIV",
+        "text": "Grok Bot GuidesHow PMs, designers, and GTM run Grok Bot day to day.Read the guides"
+      },
+      "id": "guides",
+      "nodes": [
+        {
+          "cls": "font-display text-3xl tracking-tight text-balance sm:text-4xl",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "36px",
+            "fontWeight": "500",
+            "gap": "normal",
+            "height": "40px",
+            "letterSpacing": "-0.36px",
+            "lineHeight": "40px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "261.703px"
+          },
+          "tag": "H2",
+          "text": "Grok Bot Guides"
+        },
+        {
+          "cls": "text-primary max-w-xl text-lg leading-relaxed text-balance",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "18px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "height": "29.25px",
+            "letterSpacing": "normal",
+            "lineHeight": "29.25px",
+            "maxWidth": "576px",
+            "padding": "0px",
+            "width": "454.953px"
+          },
+          "tag": "P",
+          "text": "How PMs, designers, and GTM run Grok Bot day to day."
+        }
+      ]
+    },
+    {
+      "container": {
+        "cls": "mx-auto grid w-full max-w-[var(--site-content-width)] gap-10 px-4 py-20 sm:px-6 sm:py-28 lg:grid-cols-2 lg:gap-16",
+        "css": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "color": "rgb(255, 255, 255)",
+          "fontFamily": "xVf, \"xVf Fallback\"",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "gap": "64px",
+          "height": "787px",
+          "letterSpacing": "normal",
+          "lineHeight": "24px",
+          "maxWidth": "1024px",
+          "padding": "112px 24px",
+          "width": "1024px"
+        },
+        "tag": "DIV",
+        "text": "FAQsHow is Grok Bot different from AI assistants?Bots have their own computer, so they can work inside your apps and tools. They also run in parallel, 24/7, even when your laptop is closed.Who is Grok Bot available for today?Grok Bot is accessible today for Cursor Pro, Pro+, and Ultra, SuperGrok, Su"
+      },
+      "id": "faqs",
+      "nodes": [
+        {
+          "cls": "lg:sticky lg:top-8 lg:self-start font-display text-3xl tracking-tight text-balance sm:text-4xl",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "36px",
+            "fontWeight": "500",
+            "gap": "normal",
+            "height": "40px",
+            "letterSpacing": "-0.36px",
+            "lineHeight": "40px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "456px"
+          },
+          "tag": "H2",
+          "text": "FAQs"
+        },
+        {
+          "cls": "m-0 text-base font-normal",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "height": "64px",
+            "letterSpacing": "normal",
+            "lineHeight": "24px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "456px"
+          },
+          "tag": "H3",
+          "text": "How is Grok Bot different from AI assistants?"
+        },
+        {
+          "cls": "",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "height": "84px",
+            "letterSpacing": "normal",
+            "lineHeight": "28px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "412px"
+          },
+          "tag": "P",
+          "text": "Bots have their own computer, so they can work inside your apps and tools. They also run in parallel, 24/7, even when your laptop is closed."
+        },
+        {
+          "cls": "m-0 text-base font-normal",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "height": "64px",
+            "letterSpacing": "normal",
+            "lineHeight": "24px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "456px"
+          },
+          "tag": "H3",
+          "text": "Who is Grok Bot available for today?"
+        },
+        {
+          "cls": "",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "height": "112px",
+            "letterSpacing": "normal",
+            "lineHeight": "28px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "412px"
+          },
+          "tag": "P",
+          "text": "Grok Bot is accessible today for Cursor Pro, Pro+, and Ultra, SuperGrok, SuperGrok Plus, and Heavy, and Cursor Standard and Premium Teams subscribers, and Enterprise."
+        }
+      ]
+    },
+    {
+      "container": {
+        "cls": "mx-auto w-full max-w-[var(--site-content-width)] px-4 pt-24 sm:px-6 sm:pt-32",
+        "css": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "borderRadius": "0px",
+          "color": "rgb(255, 255, 255)",
+          "fontFamily": "xVf, \"xVf Fallback\"",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "gap": "normal",
+          "height": "847px",
+          "letterSpacing": "normal",
+          "lineHeight": "24px",
+          "maxWidth": "1024px",
+          "padding": "128px 24px 0px",
+          "width": "1024px"
+        },
+        "tag": "DIV",
+        "text": "Meet your first BotAn AI teammate you can trust to get work doneGet started for freeContact sales"
+      },
+      "id": "get-started",
+      "nodes": [
+        {
+          "cls": "font-display text-3xl tracking-tight text-balance sm:text-4xl",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "36px",
+            "fontWeight": "500",
+            "gap": "normal",
+            "height": "40px",
+            "letterSpacing": "-0.36px",
+            "lineHeight": "40px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "297.859px"
+          },
+          "tag": "H2",
+          "text": "Meet your first Bot"
+        },
+        {
+          "cls": "text-primary text-sm leading-relaxed text-balance sm:text-base",
+          "css": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "borderRadius": "0px",
+            "color": "rgb(255, 255, 255)",
+            "fontFamily": "xVf, \"xVf Fallback\"",
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "height": "24px",
+            "letterSpacing": "normal",
+            "lineHeight": "24px",
+            "maxWidth": "none",
+            "padding": "0px",
+            "width": "348.906px"
+          },
+          "tag": "P",
+          "text": "An AI teammate you can trust to get work done"
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import { Composio } from "@composio/core"
 import { z } from "zod"
 import { createAppTools, type AppAccount } from "@/lib/connector-tools"
+import { executeConnectedAppTool } from "@/lib/connector-execution"
 export type { ConnectorTools } from "@/lib/connector-tools"
 
 export const toolkitSlugSchema = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,99}$/)
@@ -106,13 +107,14 @@ export function createConnectorTools(userId: string) {
           inputSchema: entry.inputParameters,
         }))
     },
-    execute: async (userId, slug, input, account, signal) => {
-      signal?.throwIfAborted()
-      const session = await createConnectorSession(userId, [account.toolkit], {
-        [account.toolkit]: [account.id],
-      })
-      signal?.throwIfAborted()
-      return session.execute(slug, input, { account: account.id })
-    },
+    execute: (userId, slug, input, account, signal) =>
+      executeConnectedAppTool(
+        createConnectorSession,
+        userId,
+        slug,
+        input,
+        account,
+        signal
+      ),
   })
 }

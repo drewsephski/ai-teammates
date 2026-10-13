@@ -1,0 +1,24 @@
+.grok-bot-mark { user-select: none; width: 100%; height: auto; display: block; }
+.grok-bot-mark__head { fill: var(--fg); transition: fill 0.6s; }
+.grok-bot-mark__eye { fill: var(--bg); transition: fill 0.6s; }
+.grok-bot-mark--fill { flex-shrink: 0; width: 100%; }
+.footer-character { --fg: color-mix(in oklch, var(--color-theme-text) 18%, transparent); --bg: transparent; aspect-ratio: 2 / 1; width: 100%; overflow: hidden; mask-image: linear-gradient(rgb(0, 0, 0) 0%, rgb(0, 0, 0) 70%, rgba(0, 0, 0, 0) 100%); }
+.footer-character .grok-bot-mark { margin-top: -3.52%; margin-left: -4.35%; width: 108.7% !important; height: auto !important; }
+.footer-character .grok-bot-mark__head, .footer-character .grok-bot-mark__eye { stroke: var(--fg); stroke-width: 1.75px; vector-effect: non-scaling-stroke; fill: none !important; }
+.feature-card-stage { height: 230px; position: relative; }
+.feature-card-stage { height: 190px; }
+.feature-card-stage { flex-direction: column; align-items: center; display: flex; overflow: visible; }
+.feature-card-snippet { flex: 0 0 auto; width: 100%; max-width: 540px; margin-block: auto; }
+.feature-card-stage .baby-grok-bot-card-badge, .feature-card-stage .baby-grok-bot-card-action { transition: background-color 0.26s, color 0.26s, opacity 0.26s; }
+.feature-card-stage .baby-grok-bot-entry-enter { animation-name: feature-entry-pop-in; animation-duration: 0.42s; animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1.15); }
+.feature-card-stage .baby-grok-bot-entry-enter { animation: auto ease 0s 1 normal none running none; }
+.avatar-row__chip .grok-bot-mark { width: calc(var(--avatar-row-chip) * 1.131); flex-shrink: 0; }
+.statement-card { --statement-surface: hsl(var(--card)); --statement-head: 14rem; }
+.statement-card { --statement-head: 40%; }
+.statement-pop { border-radius: inherit; pointer-events: none; position: absolute; inset: 0px; overflow: hidden; }
+.statement-pop { border-radius: 0px; top: -9rem; right: -9rem; }
+.statement-pop__frame { position: absolute; inset: 0px; }
+.statement-pop__frame { top: 9rem; right: 9rem; }
+.statement-character-panel { --fg: hsl(var(--primary)); --bg: var(--statement-surface); width: var(--statement-head); aspect-ratio: 1 / 1; pointer-events: none; position: absolute; bottom: 0px; right: 0px; translate: 20% 20%; }
+.statement-character-panel { filter: drop-shadow(rgba(0, 0, 0, 0.16) 0px 14px 28px); right: 0px; translate: 8% 15%; }
+.statement-character { width: 100%; display: block; }

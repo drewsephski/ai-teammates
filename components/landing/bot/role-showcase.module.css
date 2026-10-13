@@ -1,0 +1,387 @@
+.section {
+  color: #f4f4f4;
+}
+.layout {
+  max-width: 1024px;
+  margin: 0 auto;
+  display: grid;
+  gap: 48px;
+  padding: 80px 16px;
+}
+.copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  text-align: center;
+  min-width: 0;
+}
+.copy h2 {
+  font-size: 30px;
+  line-height: 36px;
+  letter-spacing: -0.3px;
+  font-weight: 500;
+  margin: 0;
+}
+.pills {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.pillRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px #292929;
+  color: #ababab;
+  white-space: nowrap;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    color 300ms,
+    background-color 300ms,
+    box-shadow 300ms,
+    padding 300ms;
+}
+.pill:hover {
+  color: #f4f4f4;
+  background: #1c1c1c;
+}
+.pill[aria-pressed="true"] {
+  padding-left: 5px;
+  background: color-mix(in srgb, var(--role-color) 20%, transparent);
+  color: var(--role-color);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--role-color) 28%, transparent);
+}
+.pillAvatar {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  width: 0;
+  transition: width 300ms;
+}
+.pillAvatar svg {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  opacity: 0;
+  transform: scale(0);
+  transition:
+    opacity 300ms,
+    transform 300ms;
+}
+.pill[aria-pressed="true"] .pillAvatar {
+  width: 28px;
+}
+.pill[aria-pressed="true"] .pillAvatar svg {
+  opacity: 1;
+  transform: none;
+}
+.description {
+  max-width: 448px;
+  min-height: 104px;
+  color: #999;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 8px 0 0;
+  animation: appear 300ms ease-out;
+  text-wrap: pretty;
+}
+.description strong {
+  font-weight: 500;
+  color: #f4f4f4;
+}
+.explore {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  min-height: 40px;
+  background: #232323;
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: #f4f4f4;
+  text-decoration: none;
+  transition: background-color 150ms;
+}
+.explore:hover {
+  background: #333;
+}
+.example {
+  min-width: 0;
+}
+.conversation {
+  height: 620px;
+  background: #232323;
+  border-radius: 24px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  line-height: 19px;
+}
+.chatHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #ffffff0d;
+  color: #ddd;
+}
+.chatHeader > span {
+  flex: 1;
+  font-weight: 500;
+}
+.headerAvatar {
+  width: 24px;
+  height: 24px;
+}
+.messages {
+  padding: 8px 18px 24px;
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #414141 transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: appear 300ms ease-out;
+}
+.exampleLabel {
+  margin: 0;
+  text-align: center;
+  color: #aaa;
+  font-size: 10px;
+  line-height: 14px;
+}
+.timestamp {
+  color: #999;
+  text-align: center;
+  margin: 2px 0;
+  font-size: 10px;
+  line-height: 14px;
+}
+.humanMessage {
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--role-color) 21%, #232323);
+  color: #f4f4f4;
+  align-self: flex-end;
+  max-width: 91%;
+  padding: 10px 12px;
+  margin: 0;
+  transition: background-color 300ms;
+}
+.botMessage {
+  color: #ddd;
+  margin: 0;
+  white-space: pre-line;
+}
+.routine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: #bbb;
+  font-size: 11px;
+}
+.routine > span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-basis: 100%;
+  font-size: 10px;
+  color: #999;
+}
+.routine strong {
+  font-weight: 400;
+}
+.toolCard {
+  border: 1px solid #3e3e3e;
+  border-radius: 12px;
+  background: #292929;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.toolHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #3e3e3e;
+  font-size: 11px;
+  font-weight: 500;
+}
+.toolStatus {
+  margin-left: auto;
+  color: #aaa;
+  font-size: 10px;
+  font-weight: 400;
+}
+.details {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr);
+  gap: 5px 8px;
+  padding: 10px 12px 0;
+  margin: 0;
+  font-size: 10px;
+  line-height: 14px;
+}
+.details dt {
+  color: #999;
+}
+.details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #ddd;
+}
+.cardBody {
+  white-space: pre-line;
+  padding: 12px;
+  margin: 0;
+  color: #ddd;
+  font-size: 11px;
+  line-height: 16px;
+}
+.cardActions {
+  display: flex;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+.cardActions a {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 5px 9px;
+  text-decoration: none;
+  font-size: 10px;
+  color: #ddd;
+}
+.cardActions a:first-child {
+  color: #0a0a0a;
+  background: #e9e9e9;
+}
+.computerPreview {
+  margin: 0 12px 12px;
+  background: #151515;
+  border-radius: 8px;
+  height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #aaa;
+  font-size: 11px;
+}
+.previewCaption {
+  color: #777;
+  font-size: 10px;
+}
+.composer {
+  margin: 10px;
+  padding: 9px 10px;
+  border: 1px solid #414141;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  color: #999;
+  text-decoration: none;
+  background: #292929;
+  font-size: 12px;
+}
+.composer > span:first-of-type {
+  flex: 1;
+}
+.sendIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: #484848;
+  color: #ddd;
+  border-radius: 50%;
+}
+.pill:focus-visible,
+.explore:focus-visible,
+.composer:focus-visible,
+.cardActions a:focus-visible {
+  outline: 2px solid #f4f4f4;
+  outline-offset: 3px;
+}
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (min-width: 640px) {
+  .layout {
+    padding: 112px 24px;
+  }
+  .copy h2 {
+    font-size: 36px;
+    line-height: 40px;
+    letter-spacing: -0.36px;
+  }
+}
+@media (min-width: 1024px) {
+  .layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 64px;
+  }
+  .copy {
+    align-items: flex-start;
+    text-align: left;
+    min-height: 730px;
+    padding: 40px 0;
+  }
+  .pillRow {
+    justify-content: flex-start;
+  }
+  .explore {
+    align-self: flex-start;
+  }
+  .conversation {
+    height: 730px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pill,
+  .pillAvatar,
+  .pillAvatar svg,
+  .humanMessage,
+  .explore {
+    transition: none;
+  }
+  .messages,
+  .description {
+    animation: none;
+  }
+}

@@ -1,0 +1,1618 @@
+{
+  "HERO_DEMO_CONTENT": {
+    "appName": "Grok Bot",
+    "agents": [
+      {
+        "agent": {
+          "isRunning": false,
+          "isComposingMessage": false,
+          "isGroup": false,
+          "memberIds": [],
+          "id": "chief-of-staff",
+          "name": "Chief",
+          "title": "Right hand",
+          "description": "Runs your day: triages asks, preps decisions, and keeps the rest of the team pointed at what matters.",
+          "lastEntry": {
+            "kind": "text",
+            "text": "booked the venue and sent the confirmation around."
+          },
+          "lastActivityAt": 1791843896940,
+          "hasUnread": false,
+          "status": null,
+          "automations": [
+            {
+              "id": "chief-auto-1",
+              "name": "Morning briefing",
+              "triggerDescription": "Weekdays at 8:00 AM"
+            },
+            {
+              "id": "chief-auto-2",
+              "name": "End-of-week recap",
+              "triggerDescription": "Fridays at 5:00 PM"
+            }
+          ]
+        },
+        "transcript": [
+          {
+            "kind": "system",
+            "id": "chief-1",
+            "timestampMs": 1791138296940,
+            "event": {
+              "type": "created-routine",
+              "name": "Morning briefing",
+              "triggerDescription": "Weekdays at 8:00 AM"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "chief-2",
+            "timestampMs": 1791829496940,
+            "message": {
+              "type": "text",
+              "content": "morning briefing:\n✓ **Calendar** → 2pm double-booking resolved · board review kept\n✓ **Deck** → numbers checked against finance's sheet · 2 stale slides flagged\n✓ **Offsite** → 3 venues shortlisted · dates held on each\n\ntwo things need you today: the deck review at 2pm, and a yes/no on the venue. everything else is handled."
+            }
+          },
+          {
+            "kind": "message",
+            "id": "chief-3",
+            "role": "user",
+            "content": "take the venue, i'll do the deck",
+            "timestampMs": 1791840296940
+          },
+          {
+            "kind": "send-message",
+            "id": "chief-4",
+            "timestampMs": 1791840296940,
+            "message": {
+              "type": "text",
+              "content": "the marina house is the pick: seats all 40, the mid-week rate came in 15% under budget, and they'll hold the date until tomorrow."
+            }
+          },
+          {
+            "kind": "message",
+            "id": "chief-5",
+            "role": "user",
+            "content": "book it",
+            "reactions": [
+              "👍"
+            ],
+            "timestampMs": 1791843896940
+          },
+          {
+            "kind": "send-message",
+            "id": "chief-6",
+            "timestampMs": 1791843896940,
+            "message": {
+              "type": "text",
+              "content": "✓ **Venue** → marina house booked · deposit paid\n✓ **Calendar** → invites updated for all 40\n✓ **Holds** → other two released with a thank-you"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "chief-7",
+            "timestampMs": 1791843896940,
+            "message": {
+              "type": "text",
+              "content": "booked the venue and sent the confirmation around. you're clear until the 2pm deck review."
+            }
+          }
+        ]
+      },
+      {
+        "agent": {
+          "isRunning": false,
+          "isComposingMessage": false,
+          "isGroup": false,
+          "memberIds": [],
+          "id": "sales-outbound",
+          "name": "New agent",
+          "avatarHue": "yellow",
+          "title": "Sales",
+          "description": "Works the pipeline overnight: researches the prospects worth a look, pulls their context together, and leaves sequences drafted for the morning.",
+          "lastEntry": null,
+          "lastActivityAt": 1791915896940,
+          "hasUnread": false,
+          "status": null
+        },
+        "transcript": []
+      },
+      {
+        "agent": {
+          "isRunning": false,
+          "isComposingMessage": false,
+          "isGroup": false,
+          "memberIds": [],
+          "id": "inbox-manager",
+          "name": "Inbox Manager",
+          "avatarShape": "wedge",
+          "title": "Email triage",
+          "description": "Keeps the inbox at zero: archives noise, drafts replies, and flags real fires.",
+          "lastEntry": {
+            "kind": "text",
+            "text": "sent. inbox at zero, 5 drafts parked for tomorrow."
+          },
+          "lastActivityAt": 1791905096940,
+          "hasUnread": true,
+          "unreadCount": 1,
+          "status": null
+        },
+        "transcript": [
+          {
+            "kind": "message",
+            "id": "inbox-1",
+            "role": "user",
+            "content": "inbox got away from me over the weekend, sweep it?",
+            "timestampMs": 1791901496940
+          },
+          {
+            "kind": "send-message",
+            "id": "inbox-2",
+            "timestampMs": 1791901496940,
+            "message": {
+              "type": "text",
+              "content": "on it. **41 unread** since friday. archiving the noise, drafting the rest."
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "inbox-3",
+            "timestampMs": 1791905096940,
+            "message": {
+              "type": "text",
+              "content": "✓ **Archived** → 26 newsletters + receipts\n✓ **Replied** → 9 routine threads · scheduling and intros\n✓ **Drafted** → 6 that sound like you · held for your read\n✓ **Flagged** → 1 from dana · contract question"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "inbox-4",
+            "timestampMs": 1791905096940,
+            "message": {
+              "type": "text",
+              "content": "dana's asking whether the renewal covers the new seats. her draft answers yes and quotes the contract line. it's at the top of the held pile."
+            }
+          },
+          {
+            "kind": "message",
+            "id": "inbox-5",
+            "role": "user",
+            "content": "send dana's, i'll take the rest tomorrow",
+            "reactions": [
+              "👍"
+            ],
+            "timestampMs": 1791905096940
+          },
+          {
+            "kind": "send-message",
+            "id": "inbox-6",
+            "timestampMs": 1791905096940,
+            "message": {
+              "type": "text",
+              "content": "sent. inbox is at **zero**, with 5 drafts parked for tomorrow."
+            }
+          }
+        ]
+      },
+      {
+        "agent": {
+          "isRunning": false,
+          "isComposingMessage": false,
+          "isGroup": false,
+          "memberIds": [],
+          "id": "account-manager",
+          "name": "Account Manager",
+          "avatarShape": "gem",
+          "title": "Named accounts",
+          "description": "Owns the named accounts: keeps the threads warm and knows what each one is waiting on.",
+          "lastEntry": {
+            "kind": "text",
+            "text": "invite's out to vicky. globex note held in drafts."
+          },
+          "lastActivityAt": 1791897896940,
+          "hasUnread": false,
+          "status": null
+        },
+        "transcript": [
+          {
+            "kind": "message",
+            "id": "account-1",
+            "role": "user",
+            "content": "where are we with acme? renewal can't sneak up on us",
+            "timestampMs": 1791894296940
+          },
+          {
+            "kind": "send-message",
+            "id": "account-2",
+            "timestampMs": 1791894296940,
+            "message": {
+              "type": "text",
+              "content": "pulling usage, open threads, and the exec notes together now."
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "account-3",
+            "timestampMs": 1791897896940,
+            "message": {
+              "type": "text",
+              "content": "**acme** renews in 60 days:\n✓ **Usage** → 214 seats active · up 18% this quarter\n✓ **Threads** → 2 open · security review + a pricing question\n✓ **Next step** → renewal call with vicky drafted · week of the 18th"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "account-4",
+            "timestampMs": 1791897896940,
+            "message": {
+              "type": "text",
+              "content": "globex is the quiet one: nothing since the pilot wrapped. i wrote a re-engagement note that leads with their own pilot numbers. it's in drafts, not sent."
+            }
+          },
+          {
+            "kind": "message",
+            "id": "account-5",
+            "role": "user",
+            "content": "send the acme invite. hold globex until i've read the note",
+            "reactions": [
+              "👍"
+            ],
+            "timestampMs": 1791897896940
+          },
+          {
+            "kind": "system",
+            "id": "account-6",
+            "timestampMs": 1791897896940,
+            "event": {
+              "type": "memory-updated"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "account-7",
+            "timestampMs": 1791897896940,
+            "message": {
+              "type": "text",
+              "content": "invite's out to vicky. the globex note is holding in drafts, and quiet-account sends wait for your read from now on."
+            }
+          }
+        ]
+      },
+      {
+        "agent": {
+          "isRunning": false,
+          "isComposingMessage": false,
+          "isGroup": false,
+          "memberIds": [],
+          "id": "talent-scout",
+          "name": "Talent Scout",
+          "title": "Sourcing",
+          "description": "Keeps the candidate pipeline moving: sources profiles, drafts intros, and shortlists who's worth a call.",
+          "lastEntry": {
+            "kind": "text",
+            "text": "3 intros drafted in your voice, held for your ok."
+          },
+          "lastActivityAt": 1791887096940,
+          "hasUnread": false,
+          "status": null
+        },
+        "transcript": [
+          {
+            "kind": "message",
+            "id": "talent-1",
+            "role": "user",
+            "content": "take the platform engineer req: senior, infra-heavy, remote ok. source quietly.",
+            "timestampMs": 1791829496940
+          },
+          {
+            "kind": "send-message",
+            "id": "talent-2",
+            "timestampMs": 1791829496940,
+            "message": {
+              "type": "text",
+              "content": "on it. i'll screen overnight against the req and skip anyone already in the ats."
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "talent-3",
+            "timestampMs": 1791883496940,
+            "message": {
+              "type": "text",
+              "content": "overnight run:\n✓ **Sourced** → 64 profiles matched the req\n✓ **Skipped** → 11 already in the ats\n✓ **Shortlist** → 12 screened · notes on each"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "talent-4",
+            "timestampMs": 1791883496940,
+            "message": {
+              "type": "text",
+              "content": "three worth your time first:\n**Mara Iyer** → scaled ingest 40× at a data startup · writes like an owner\n**Tomás Rivera** → runs a 6-person infra team · wants to build again\n**Grace Osei** → your exact stack end to end · shipped the migration you keep citing"
+            }
+          },
+          {
+            "kind": "message",
+            "id": "talent-5",
+            "role": "user",
+            "content": "strong list, mara especially. draft the intros",
+            "reactions": [
+              "👍"
+            ],
+            "timestampMs": 1791887096940
+          },
+          {
+            "kind": "send-message",
+            "id": "talent-6",
+            "timestampMs": 1791887096940,
+            "message": {
+              "type": "text",
+              "content": "3 intros drafted in your voice and held for your ok. nothing sends until you've read them."
+            }
+          }
+        ]
+      },
+      {
+        "agent": {
+          "isRunning": false,
+          "isComposingMessage": false,
+          "isGroup": false,
+          "memberIds": [],
+          "id": "expense-manager",
+          "name": "Expense Manager",
+          "title": "Receipts & reports",
+          "description": "Files receipts as they land, matches them to trips, and flags anything that doesn't add up.",
+          "lastEntry": {
+            "kind": "text",
+            "text": "report filed. 9 receipts, nothing outstanding."
+          },
+          "lastActivityAt": 1791901496940,
+          "hasUnread": false,
+          "status": null,
+          "automations": [
+            {
+              "id": "expense-auto-1",
+              "name": "Month-end close",
+              "triggerDescription": "Last Friday of the month"
+            }
+          ]
+        },
+        "transcript": [
+          {
+            "kind": "message",
+            "id": "expense-1",
+            "role": "user",
+            "content": "month-end is friday, close out the card for me?",
+            "timestampMs": 1791829496940
+          },
+          {
+            "kind": "send-message",
+            "id": "expense-2",
+            "timestampMs": 1791829496940,
+            "message": {
+              "type": "text",
+              "content": "i'll match every charge to a receipt and file the report. anything that doesn't line up, i ask instead of guessing."
+            }
+          },
+          {
+            "kind": "system",
+            "id": "expense-3",
+            "timestampMs": 1791829496940,
+            "event": {
+              "type": "created-routine",
+              "name": "Month-end close",
+              "triggerDescription": "Last Friday of the month"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "expense-4",
+            "timestampMs": 1791897896940,
+            "message": {
+              "type": "text",
+              "content": "✓ **Receipts** → 9 matched to card charges\n✓ **Report** → drafted · $2,340 across 3 trips\n✓ **Flagged** → 1 charge · harbor hotel, $412 twice"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "expense-5",
+            "timestampMs": 1791897896940,
+            "message": {
+              "type": "text",
+              "content": "the harbor hotel charged $412 on the 12th and again on the 14th. double-billed, or two separate nights?"
+            }
+          },
+          {
+            "kind": "message",
+            "id": "expense-6",
+            "role": "user",
+            "content": "two nights, mia stayed the second one",
+            "timestampMs": 1791901496940
+          },
+          {
+            "kind": "send-message",
+            "id": "expense-7",
+            "timestampMs": 1791901496940,
+            "message": {
+              "type": "text",
+              "content": "that clears it. report filed: **9 receipts** matched, $2,340 across 3 trips, nothing outstanding."
+            }
+          }
+        ]
+      },
+      {
+        "agent": {
+          "isRunning": false,
+          "isComposingMessage": false,
+          "isGroup": true,
+          "memberIds": [
+            "chief-of-staff",
+            "inbox-manager",
+            "account-manager"
+          ],
+          "id": "offsite-crew",
+          "name": "Offsite crew",
+          "description": "Shared room for wrapping up the offsite: recap, follow-ups, and thanks.",
+          "lastEntry": {
+            "kind": "text",
+            "text": "that leaves the pipeline. i'd spin up a dedicated agent."
+          },
+          "lastActivityAt": 1791894296940,
+          "hasUnread": false,
+          "status": null
+        },
+        "transcript": [
+          {
+            "kind": "message",
+            "id": "crew-1",
+            "role": "user",
+            "content": "let's close out the offsite. what's left?",
+            "timestampMs": 1791890696940
+          },
+          {
+            "kind": "send-message",
+            "id": "crew-2",
+            "timestampMs": 1791890696940,
+            "author": {
+              "id": "account-manager",
+              "name": "Account Manager"
+            },
+            "message": {
+              "type": "text",
+              "content": "recap doc is done and owners are tagged. **3 follow-ups** land this week."
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "crew-3",
+            "timestampMs": 1791890696940,
+            "author": {
+              "id": "inbox-manager",
+              "name": "Inbox Manager"
+            },
+            "message": {
+              "type": "text",
+              "content": "thank-you notes went out to the venue and the speakers this morning."
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "crew-4",
+            "timestampMs": 1791894296940,
+            "author": {
+              "id": "chief-of-staff",
+              "name": "Chief"
+            },
+            "reactions": [
+              "👍"
+            ],
+            "message": {
+              "type": "text",
+              "content": "recap's shared. follow-ups, assigned:\n✓ **Acme pricing follow-up** → @[Account Manager] · numbers by thursday\n✓ **Speaker + venue thank-yous** → @[Inbox Manager] · done this morning\n✓ **Final invoice** → me · reconciling against the expense report"
+            }
+          },
+          {
+            "kind": "message",
+            "id": "crew-5",
+            "role": "user",
+            "content": "great close-out. anything we missed?",
+            "timestampMs": 1791894296940
+          },
+          {
+            "kind": "send-message",
+            "id": "crew-6",
+            "timestampMs": 1791894296940,
+            "author": {
+              "id": "chief-of-staff",
+              "name": "Chief"
+            },
+            "message": {
+              "type": "text",
+              "content": "that leaves the pipeline: nobody's touched the quiet accounts. i'd spin up a dedicated agent for outbound."
+            }
+          }
+        ]
+      }
+    ],
+    "replies": [
+      {
+        "triggers": [
+          "outbound"
+        ],
+        "steps": [
+          {
+            "kind": "pause",
+            "ms": 500
+          },
+          {
+            "kind": "rename",
+            "name": "Sales Outbound"
+          },
+          {
+            "kind": "pause",
+            "ms": 300
+          },
+          {
+            "kind": "message",
+            "content": "Checking what's connected. Hex, Gmail, and LinkedIn are already signed in. Salesforce isn't.",
+            "pending": {
+              "state": "searching",
+              "label": "Checking connections"
+            }
+          },
+          {
+            "kind": "pause",
+            "ms": 350
+          },
+          {
+            "kind": "computer-use",
+            "instruction": "Sign in to Salesforce so I can see the accounts you own.",
+            "ask": "Sign into Salesforce",
+            "screenKind": "crm-portal",
+            "autoResolveMs": 60000
+          },
+          {
+            "kind": "pause",
+            "ms": 1500
+          },
+          {
+            "kind": "message",
+            "content": "✓ **Salesforce** → list pulled · 52 accounts\n✓ **Hex** → 3 lookalike segments pulled\n✓ **LinkedIn** → 4 profiles skipped · recently contacted\n✓ **Sequencer** → 36 drafts queued · 0 sent",
+            "pending": {
+              "state": "working",
+              "label": "Wrapping the run"
+            }
+          },
+          {
+            "kind": "pause",
+            "ms": 800
+          },
+          {
+            "kind": "complete-computer"
+          },
+          {
+            "kind": "pause",
+            "ms": 700
+          },
+          {
+            "kind": "reveal-cast"
+          },
+          {
+            "kind": "pause",
+            "ms": 900
+          },
+          {
+            "kind": "system",
+            "event": {
+              "type": "received-context",
+              "sources": [
+                {
+                  "name": "Account Manager"
+                },
+                {
+                  "name": "Chief"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "pause",
+            "ms": 600
+          },
+          {
+            "kind": "message",
+            "content": "@[Account Manager] sent over the Acme + Globex threads and @[Chief] flagged the priority accounts. Both are folded into tonight's list.",
+            "pending": {
+              "state": "receiving",
+              "label": "Receiving context"
+            }
+          },
+          {
+            "kind": "pause",
+            "ms": 900
+          },
+          {
+            "kind": "message",
+            "content": "The 36 drafts are sitting in the LinkedIn queue on my screen: recipient, opener, and a Draft badge on each. Nothing goes out until you've had a look.",
+            "pending": {
+              "state": "writing",
+              "label": "Drafting"
+            }
+          },
+          {
+            "kind": "pause",
+            "ms": 1400
+          },
+          {
+            "kind": "user-message",
+            "content": "The top 10 look good. Send it. Run this every week."
+          },
+          {
+            "kind": "pause",
+            "ms": 700
+          },
+          {
+            "kind": "react",
+            "emoji": "👍"
+          },
+          {
+            "kind": "pause",
+            "ms": 700
+          },
+          {
+            "kind": "system",
+            "event": {
+              "type": "created-routine",
+              "name": "Overnight outbound",
+              "triggerDescription": "Sundays at 11:00 PM"
+            }
+          },
+          {
+            "kind": "pause",
+            "ms": 300
+          },
+          {
+            "kind": "message",
+            "content": "Done."
+          }
+        ]
+      },
+      {
+        "triggers": [
+          "routine"
+        ],
+        "steps": [
+          {
+            "kind": "pause",
+            "ms": 1200
+          },
+          {
+            "kind": "system",
+            "event": {
+              "type": "created-routine",
+              "name": "Morning briefing",
+              "triggerDescription": "Weekdays at 8:30 AM"
+            }
+          },
+          {
+            "kind": "message",
+            "content": "it runs at **8:30am** on weekdays from now on. you can change the time or turn it off from my routines list."
+          }
+        ]
+      },
+      {
+        "triggers": [
+          "remind",
+          "schedule"
+        ],
+        "steps": [
+          {
+            "kind": "pause",
+            "ms": 1200
+          },
+          {
+            "kind": "message",
+            "content": "scheduled, i'll nudge you right on time. anything else while i'm at it?"
+          }
+        ]
+      },
+      {
+        "triggers": [],
+        "steps": [
+          {
+            "kind": "pause",
+            "ms": 1600
+          },
+          {
+            "kind": "message",
+            "content": "On it. I'll take this from here and come back when there's something for you to look at."
+          }
+        ]
+      }
+    ],
+    "settings": [],
+    "viewer": {
+      "name": "Armand Segall",
+      "initials": "AS"
+    }
+  },
+  "HERO_DEMO_END_CONTENT": {
+    "appName": "Grok Bot",
+    "agents": [
+      {
+        "agent": {
+          "isRunning": false,
+          "isComposingMessage": false,
+          "isGroup": false,
+          "memberIds": [],
+          "id": "chief-of-staff",
+          "name": "Chief",
+          "title": "Right hand",
+          "description": "Runs your day: triages asks, preps decisions, and keeps the rest of the team pointed at what matters.",
+          "lastEntry": {
+            "kind": "text",
+            "text": "booked the venue and sent the confirmation around."
+          },
+          "lastActivityAt": 1791843896940,
+          "hasUnread": false,
+          "status": null,
+          "automations": [
+            {
+              "id": "chief-auto-1",
+              "name": "Morning briefing",
+              "triggerDescription": "Weekdays at 8:00 AM"
+            },
+            {
+              "id": "chief-auto-2",
+              "name": "End-of-week recap",
+              "triggerDescription": "Fridays at 5:00 PM"
+            }
+          ]
+        },
+        "transcript": [
+          {
+            "kind": "system",
+            "id": "chief-1",
+            "timestampMs": 1791138296940,
+            "event": {
+              "type": "created-routine",
+              "name": "Morning briefing",
+              "triggerDescription": "Weekdays at 8:00 AM"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "chief-2",
+            "timestampMs": 1791829496940,
+            "message": {
+              "type": "text",
+              "content": "morning briefing:\n✓ **Calendar** → 2pm double-booking resolved · board review kept\n✓ **Deck** → numbers checked against finance's sheet · 2 stale slides flagged\n✓ **Offsite** → 3 venues shortlisted · dates held on each\n\ntwo things need you today: the deck review at 2pm, and a yes/no on the venue. everything else is handled."
+            }
+          },
+          {
+            "kind": "message",
+            "id": "chief-3",
+            "role": "user",
+            "content": "take the venue, i'll do the deck",
+            "timestampMs": 1791840296940
+          },
+          {
+            "kind": "send-message",
+            "id": "chief-4",
+            "timestampMs": 1791840296940,
+            "message": {
+              "type": "text",
+              "content": "the marina house is the pick: seats all 40, the mid-week rate came in 15% under budget, and they'll hold the date until tomorrow."
+            }
+          },
+          {
+            "kind": "message",
+            "id": "chief-5",
+            "role": "user",
+            "content": "book it",
+            "reactions": [
+              "👍"
+            ],
+            "timestampMs": 1791843896940
+          },
+          {
+            "kind": "send-message",
+            "id": "chief-6",
+            "timestampMs": 1791843896940,
+            "message": {
+              "type": "text",
+              "content": "✓ **Venue** → marina house booked · deposit paid\n✓ **Calendar** → invites updated for all 40\n✓ **Holds** → other two released with a thank-you"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "chief-7",
+            "timestampMs": 1791843896940,
+            "message": {
+              "type": "text",
+              "content": "booked the venue and sent the confirmation around. you're clear until the 2pm deck review."
+            }
+          }
+        ]
+      },
+      {
+        "agent": {
+          "isRunning": false,
+          "isComposingMessage": false,
+          "isGroup": false,
+          "memberIds": [],
+          "id": "sales-outbound",
+          "name": "Sales Outbound",
+          "avatarHue": "yellow",
+          "title": "Sales",
+          "description": "Works the pipeline overnight: researches the prospects worth a look, pulls their context together, and leaves sequences drafted for the morning.",
+          "lastEntry": {
+            "kind": "text",
+            "text": "Done."
+          },
+          "lastActivityAt": 1791915836940,
+          "hasUnread": false,
+          "status": null,
+          "automations": [
+            {
+              "id": "outbound-auto-1",
+              "name": "Overnight outbound",
+              "triggerDescription": "Sundays at 11:00 PM"
+            }
+          ]
+        },
+        "transcript": [
+          {
+            "kind": "send-message",
+            "id": "so-1",
+            "timestampMs": 1791915416940,
+            "message": {
+              "type": "text",
+              "content": "Hey Armand, good to meet you. What do you want me around for? Anything concrete, or more of a general sidekick?"
+            }
+          },
+          {
+            "kind": "message",
+            "id": "so-3",
+            "role": "user",
+            "content": "Overnight pipeline generation and outbound.\n\nPick eligible prospects from this Google Sheet, research them on the web, grab context on contacts and accounts from Hex, Sumble, and Salesforce. Draft email and LinkedIn sequences in my voice.",
+            "timestampMs": 1791915476940
+          },
+          {
+            "kind": "system",
+            "id": "so-rename",
+            "timestampMs": 1791915476940,
+            "event": {
+              "type": "renamed",
+              "name": "Sales Outbound"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "so-4",
+            "timestampMs": 1791915476940,
+            "message": {
+              "type": "text",
+              "content": "Checking what's connected. Hex, Gmail, and LinkedIn are already signed in. Salesforce isn't."
+            }
+          },
+          {
+            "kind": "computer-use",
+            "id": "so-5",
+            "timestampMs": 1791915536940,
+            "instruction": "Sign in to Salesforce so I can see the accounts you own.",
+            "ask": "Sign into Salesforce",
+            "status": "done",
+            "screenKind": "crm-portal"
+          },
+          {
+            "kind": "send-message",
+            "id": "so-6",
+            "timestampMs": 1791915596940,
+            "message": {
+              "type": "text",
+              "content": "✓ **Salesforce** → list pulled · 52 accounts\n✓ **Hex** → 3 lookalike segments pulled\n✓ **LinkedIn** → 4 profiles skipped · recently contacted\n✓ **Sequencer** → 36 drafts queued · 0 sent"
+            }
+          },
+          {
+            "kind": "system",
+            "id": "so-7",
+            "timestampMs": 1791915656940,
+            "event": {
+              "type": "received-context",
+              "sources": [
+                {
+                  "name": "Account Manager"
+                },
+                {
+                  "name": "Chief"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "so-8",
+            "timestampMs": 1791915656940,
+            "message": {
+              "type": "text",
+              "content": "@[Account Manager] sent over the Acme + Globex threads and @[Chief] flagged the priority accounts. Both are folded into tonight's list."
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "so-9",
+            "timestampMs": 1791915716940,
+            "message": {
+              "type": "text",
+              "content": "The 36 drafts are sitting in the LinkedIn queue on my screen: recipient, opener, and a Draft badge on each. Nothing goes out until you've had a look."
+            }
+          },
+          {
+            "kind": "message",
+            "id": "so-10",
+            "role": "user",
+            "content": "The top 10 look good. Send it. Run this every week.",
+            "reactions": [
+              "👍"
+            ],
+            "timestampMs": 1791915776940
+          },
+          {
+            "kind": "system",
+            "id": "so-11",
+            "timestampMs": 1791915776940,
+            "event": {
+              "type": "created-routine",
+              "name": "Overnight outbound",
+              "triggerDescription": "Sundays at 11:00 PM"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "so-12",
+            "timestampMs": 1791915836940,
+            "message": {
+              "type": "text",
+              "content": "Done."
+            }
+          }
+        ]
+      },
+      {
+        "agent": {
+          "isRunning": false,
+          "isComposingMessage": false,
+          "isGroup": false,
+          "memberIds": [],
+          "id": "inbox-manager",
+          "name": "Inbox Manager",
+          "avatarShape": "wedge",
+          "title": "Email triage",
+          "description": "Keeps the inbox at zero: archives noise, drafts replies, and flags real fires.",
+          "lastEntry": {
+            "kind": "text",
+            "text": "sent. inbox at zero, 5 drafts parked for tomorrow."
+          },
+          "lastActivityAt": 1791905096940,
+          "hasUnread": true,
+          "unreadCount": 1,
+          "status": null
+        },
+        "transcript": [
+          {
+            "kind": "message",
+            "id": "inbox-1",
+            "role": "user",
+            "content": "inbox got away from me over the weekend, sweep it?",
+            "timestampMs": 1791901496940
+          },
+          {
+            "kind": "send-message",
+            "id": "inbox-2",
+            "timestampMs": 1791901496940,
+            "message": {
+              "type": "text",
+              "content": "on it. **41 unread** since friday. archiving the noise, drafting the rest."
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "inbox-3",
+            "timestampMs": 1791905096940,
+            "message": {
+              "type": "text",
+              "content": "✓ **Archived** → 26 newsletters + receipts\n✓ **Replied** → 9 routine threads · scheduling and intros\n✓ **Drafted** → 6 that sound like you · held for your read\n✓ **Flagged** → 1 from dana · contract question"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "inbox-4",
+            "timestampMs": 1791905096940,
+            "message": {
+              "type": "text",
+              "content": "dana's asking whether the renewal covers the new seats. her draft answers yes and quotes the contract line. it's at the top of the held pile."
+            }
+          },
+          {
+            "kind": "message",
+            "id": "inbox-5",
+            "role": "user",
+            "content": "send dana's, i'll take the rest tomorrow",
+            "reactions": [
+              "👍"
+            ],
+            "timestampMs": 1791905096940
+          },
+          {
+            "kind": "send-message",
+            "id": "inbox-6",
+            "timestampMs": 1791905096940,
+            "message": {
+              "type": "text",
+              "content": "sent. inbox is at **zero**, with 5 drafts parked for tomorrow."
+            }
+          }
+        ]
+      },
+      {
+        "agent": {
+          "isRunning": false,
+          "isComposingMessage": false,
+          "isGroup": false,
+          "memberIds": [],
+          "id": "account-manager",
+          "name": "Account Manager",
+          "avatarShape": "gem",
+          "title": "Named accounts",
+          "description": "Owns the named accounts: keeps the threads warm and knows what each one is waiting on.",
+          "lastEntry": {
+            "kind": "text",
+            "text": "invite's out to vicky. globex note held in drafts."
+          },
+          "lastActivityAt": 1791897896940,
+          "hasUnread": false,
+          "status": null
+        },
+        "transcript": [
+          {
+            "kind": "message",
+            "id": "account-1",
+            "role": "user",
+            "content": "where are we with acme? renewal can't sneak up on us",
+            "timestampMs": 1791894296940
+          },
+          {
+            "kind": "send-message",
+            "id": "account-2",
+            "timestampMs": 1791894296940,
+            "message": {
+              "type": "text",
+              "content": "pulling usage, open threads, and the exec notes together now."
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "account-3",
+            "timestampMs": 1791897896940,
+            "message": {
+              "type": "text",
+              "content": "**acme** renews in 60 days:\n✓ **Usage** → 214 seats active · up 18% this quarter\n✓ **Threads** → 2 open · security review + a pricing question\n✓ **Next step** → renewal call with vicky drafted · week of the 18th"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "account-4",
+            "timestampMs": 1791897896940,
+            "message": {
+              "type": "text",
+              "content": "globex is the quiet one: nothing since the pilot wrapped. i wrote a re-engagement note that leads with their own pilot numbers. it's in drafts, not sent."
+            }
+          },
+          {
+            "kind": "message",
+            "id": "account-5",
+            "role": "user",
+            "content": "send the acme invite. hold globex until i've read the note",
+            "reactions": [
+              "👍"
+            ],
+            "timestampMs": 1791897896940
+          },
+          {
+            "kind": "system",
+            "id": "account-6",
+            "timestampMs": 1791897896940,
+            "event": {
+              "type": "memory-updated"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "account-7",
+            "timestampMs": 1791897896940,
+            "message": {
+              "type": "text",
+              "content": "invite's out to vicky. the globex note is holding in drafts, and quiet-account sends wait for your read from now on."
+            }
+          }
+        ]
+      },
+      {
+        "agent": {
+          "isRunning": false,
+          "isComposingMessage": false,
+          "isGroup": false,
+          "memberIds": [],
+          "id": "talent-scout",
+          "name": "Talent Scout",
+          "title": "Sourcing",
+          "description": "Keeps the candidate pipeline moving: sources profiles, drafts intros, and shortlists who's worth a call.",
+          "lastEntry": {
+            "kind": "text",
+            "text": "3 intros drafted in your voice, held for your ok."
+          },
+          "lastActivityAt": 1791887096940,
+          "hasUnread": false,
+          "status": null
+        },
+        "transcript": [
+          {
+            "kind": "message",
+            "id": "talent-1",
+            "role": "user",
+            "content": "take the platform engineer req: senior, infra-heavy, remote ok. source quietly.",
+            "timestampMs": 1791829496940
+          },
+          {
+            "kind": "send-message",
+            "id": "talent-2",
+            "timestampMs": 1791829496940,
+            "message": {
+              "type": "text",
+              "content": "on it. i'll screen overnight against the req and skip anyone already in the ats."
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "talent-3",
+            "timestampMs": 1791883496940,
+            "message": {
+              "type": "text",
+              "content": "overnight run:\n✓ **Sourced** → 64 profiles matched the req\n✓ **Skipped** → 11 already in the ats\n✓ **Shortlist** → 12 screened · notes on each"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "talent-4",
+            "timestampMs": 1791883496940,
+            "message": {
+              "type": "text",
+              "content": "three worth your time first:\n**Mara Iyer** → scaled ingest 40× at a data startup · writes like an owner\n**Tomás Rivera** → runs a 6-person infra team · wants to build again\n**Grace Osei** → your exact stack end to end · shipped the migration you keep citing"
+            }
+          },
+          {
+            "kind": "message",
+            "id": "talent-5",
+            "role": "user",
+            "content": "strong list, mara especially. draft the intros",
+            "reactions": [
+              "👍"
+            ],
+            "timestampMs": 1791887096940
+          },
+          {
+            "kind": "send-message",
+            "id": "talent-6",
+            "timestampMs": 1791887096940,
+            "message": {
+              "type": "text",
+              "content": "3 intros drafted in your voice and held for your ok. nothing sends until you've read them."
+            }
+          }
+        ]
+      },
+      {
+        "agent": {
+          "isRunning": false,
+          "isComposingMessage": false,
+          "isGroup": false,
+          "memberIds": [],
+          "id": "expense-manager",
+          "name": "Expense Manager",
+          "title": "Receipts & reports",
+          "description": "Files receipts as they land, matches them to trips, and flags anything that doesn't add up.",
+          "lastEntry": {
+            "kind": "text",
+            "text": "report filed. 9 receipts, nothing outstanding."
+          },
+          "lastActivityAt": 1791901496940,
+          "hasUnread": false,
+          "status": null,
+          "automations": [
+            {
+              "id": "expense-auto-1",
+              "name": "Month-end close",
+              "triggerDescription": "Last Friday of the month"
+            }
+          ]
+        },
+        "transcript": [
+          {
+            "kind": "message",
+            "id": "expense-1",
+            "role": "user",
+            "content": "month-end is friday, close out the card for me?",
+            "timestampMs": 1791829496940
+          },
+          {
+            "kind": "send-message",
+            "id": "expense-2",
+            "timestampMs": 1791829496940,
+            "message": {
+              "type": "text",
+              "content": "i'll match every charge to a receipt and file the report. anything that doesn't line up, i ask instead of guessing."
+            }
+          },
+          {
+            "kind": "system",
+            "id": "expense-3",
+            "timestampMs": 1791829496940,
+            "event": {
+              "type": "created-routine",
+              "name": "Month-end close",
+              "triggerDescription": "Last Friday of the month"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "expense-4",
+            "timestampMs": 1791897896940,
+            "message": {
+              "type": "text",
+              "content": "✓ **Receipts** → 9 matched to card charges\n✓ **Report** → drafted · $2,340 across 3 trips\n✓ **Flagged** → 1 charge · harbor hotel, $412 twice"
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "expense-5",
+            "timestampMs": 1791897896940,
+            "message": {
+              "type": "text",
+              "content": "the harbor hotel charged $412 on the 12th and again on the 14th. double-billed, or two separate nights?"
+            }
+          },
+          {
+            "kind": "message",
+            "id": "expense-6",
+            "role": "user",
+            "content": "two nights, mia stayed the second one",
+            "timestampMs": 1791901496940
+          },
+          {
+            "kind": "send-message",
+            "id": "expense-7",
+            "timestampMs": 1791901496940,
+            "message": {
+              "type": "text",
+              "content": "that clears it. report filed: **9 receipts** matched, $2,340 across 3 trips, nothing outstanding."
+            }
+          }
+        ]
+      },
+      {
+        "agent": {
+          "isRunning": false,
+          "isComposingMessage": false,
+          "isGroup": true,
+          "memberIds": [
+            "chief-of-staff",
+            "inbox-manager",
+            "account-manager"
+          ],
+          "id": "offsite-crew",
+          "name": "Offsite crew",
+          "description": "Shared room for wrapping up the offsite: recap, follow-ups, and thanks.",
+          "lastEntry": {
+            "kind": "text",
+            "text": "that leaves the pipeline. i'd spin up a dedicated agent."
+          },
+          "lastActivityAt": 1791894296940,
+          "hasUnread": false,
+          "status": null
+        },
+        "transcript": [
+          {
+            "kind": "message",
+            "id": "crew-1",
+            "role": "user",
+            "content": "let's close out the offsite. what's left?",
+            "timestampMs": 1791890696940
+          },
+          {
+            "kind": "send-message",
+            "id": "crew-2",
+            "timestampMs": 1791890696940,
+            "author": {
+              "id": "account-manager",
+              "name": "Account Manager"
+            },
+            "message": {
+              "type": "text",
+              "content": "recap doc is done and owners are tagged. **3 follow-ups** land this week."
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "crew-3",
+            "timestampMs": 1791890696940,
+            "author": {
+              "id": "inbox-manager",
+              "name": "Inbox Manager"
+            },
+            "message": {
+              "type": "text",
+              "content": "thank-you notes went out to the venue and the speakers this morning."
+            }
+          },
+          {
+            "kind": "send-message",
+            "id": "crew-4",
+            "timestampMs": 1791894296940,
+            "author": {
+              "id": "chief-of-staff",
+              "name": "Chief"
+            },
+            "reactions": [
+              "👍"
+            ],
+            "message": {
+              "type": "text",
+              "content": "recap's shared. follow-ups, assigned:\n✓ **Acme pricing follow-up** → @[Account Manager] · numbers by thursday\n✓ **Speaker + venue thank-yous** → @[Inbox Manager] · done this morning\n✓ **Final invoice** → me · reconciling against the expense report"
+            }
+          },
+          {
+            "kind": "message",
+            "id": "crew-5",
+            "role": "user",
+            "content": "great close-out. anything we missed?",
+            "timestampMs": 1791894296940
+          },
+          {
+            "kind": "send-message",
+            "id": "crew-6",
+            "timestampMs": 1791894296940,
+            "author": {
+              "id": "chief-of-staff",
+              "name": "Chief"
+            },
+            "message": {
+              "type": "text",
+              "content": "that leaves the pipeline: nobody's touched the quiet accounts. i'd spin up a dedicated agent for outbound."
+            }
+          }
+        ]
+      }
+    ],
+    "replies": [
+      {
+        "triggers": [
+          "outbound"
+        ],
+        "steps": [
+          {
+            "kind": "pause",
+            "ms": 500
+          },
+          {
+            "kind": "rename",
+            "name": "Sales Outbound"
+          },
+          {
+            "kind": "pause",
+            "ms": 300
+          },
+          {
+            "kind": "message",
+            "content": "Checking what's connected. Hex, Gmail, and LinkedIn are already signed in. Salesforce isn't.",
+            "pending": {
+              "state": "searching",
+              "label": "Checking connections"
+            }
+          },
+          {
+            "kind": "pause",
+            "ms": 350
+          },
+          {
+            "kind": "computer-use",
+            "instruction": "Sign in to Salesforce so I can see the accounts you own.",
+            "ask": "Sign into Salesforce",
+            "screenKind": "crm-portal",
+            "autoResolveMs": 60000
+          },
+          {
+            "kind": "pause",
+            "ms": 1500
+          },
+          {
+            "kind": "message",
+            "content": "✓ **Salesforce** → list pulled · 52 accounts\n✓ **Hex** → 3 lookalike segments pulled\n✓ **LinkedIn** → 4 profiles skipped · recently contacted\n✓ **Sequencer** → 36 drafts queued · 0 sent",
+            "pending": {
+              "state": "working",
+              "label": "Wrapping the run"
+            }
+          },
+          {
+            "kind": "pause",
+            "ms": 800
+          },
+          {
+            "kind": "complete-computer"
+          },
+          {
+            "kind": "pause",
+            "ms": 700
+          },
+          {
+            "kind": "reveal-cast"
+          },
+          {
+            "kind": "pause",
+            "ms": 900
+          },
+          {
+            "kind": "system",
+            "event": {
+              "type": "received-context",
+              "sources": [
+                {
+                  "name": "Account Manager"
+                },
+                {
+                  "name": "Chief"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "pause",
+            "ms": 600
+          },
+          {
+            "kind": "message",
+            "content": "@[Account Manager] sent over the Acme + Globex threads and @[Chief] flagged the priority accounts. Both are folded into tonight's list.",
+            "pending": {
+              "state": "receiving",
+              "label": "Receiving context"
+            }
+          },
+          {
+            "kind": "pause",
+            "ms": 900
+          },
+          {
+            "kind": "message",
+            "content": "The 36 drafts are sitting in the LinkedIn queue on my screen: recipient, opener, and a Draft badge on each. Nothing goes out until you've had a look.",
+            "pending": {
+              "state": "writing",
+              "label": "Drafting"
+            }
+          },
+          {
+            "kind": "pause",
+            "ms": 1400
+          },
+          {
+            "kind": "user-message",
+            "content": "The top 10 look good. Send it. Run this every week."
+          },
+          {
+            "kind": "pause",
+            "ms": 700
+          },
+          {
+            "kind": "react",
+            "emoji": "👍"
+          },
+          {
+            "kind": "pause",
+            "ms": 700
+          },
+          {
+            "kind": "system",
+            "event": {
+              "type": "created-routine",
+              "name": "Overnight outbound",
+              "triggerDescription": "Sundays at 11:00 PM"
+            }
+          },
+          {
+            "kind": "pause",
+            "ms": 300
+          },
+          {
+            "kind": "message",
+            "content": "Done."
+          }
+        ]
+      },
+      {
+        "triggers": [
+          "routine"
+        ],
+        "steps": [
+          {
+            "kind": "pause",
+            "ms": 1200
+          },
+          {
+            "kind": "system",
+            "event": {
+              "type": "created-routine",
+              "name": "Morning briefing",
+              "triggerDescription": "Weekdays at 8:30 AM"
+            }
+          },
+          {
+            "kind": "message",
+            "content": "it runs at **8:30am** on weekdays from now on. you can change the time or turn it off from my routines list."
+          }
+        ]
+      },
+      {
+        "triggers": [
+          "remind",
+          "schedule"
+        ],
+        "steps": [
+          {
+            "kind": "pause",
+            "ms": 1200
+          },
+          {
+            "kind": "message",
+            "content": "scheduled, i'll nudge you right on time. anything else while i'm at it?"
+          }
+        ]
+      },
+      {
+        "triggers": [],
+        "steps": [
+          {
+            "kind": "pause",
+            "ms": 1600
+          },
+          {
+            "kind": "message",
+            "content": "On it. I'll take this from here and come back when there's something for you to look at."
+          }
+        ]
+      }
+    ],
+    "settings": [],
+    "viewer": {
+      "name": "Armand Segall",
+      "initials": "AS"
+    }
+  },
+  "HERO_GREETING_SCRIPT": {
+    "triggers": [],
+    "steps": [
+      {
+        "kind": "pause",
+        "ms": 250
+      },
+      {
+        "kind": "message",
+        "content": "Hey Armand, good to meet you. What do you want me around for? Anything concrete, or more of a general sidekick?",
+        "pending": {
+          "state": "spawning",
+          "label": "Spawning"
+        }
+      }
+    ]
+  },
+  "HERO_HIDDEN_AGENT_IDS": [],
+  "HERO_LOGIN_EMAIL": "armand@acme.co",
+  "HERO_LOGIN_PASSWORD_DOTS": 9,
+  "HERO_OUTBOUND_AGENT_ID": "sales-outbound",
+  "HERO_OUTBOUND_PROMPT": "Overnight pipeline generation and outbound.\n\nPick eligible prospects from this Google Sheet, research them on the web, grab context on contacts and accounts from Hex, Sumble, and Salesforce. Draft email and LinkedIn sequences in my voice."
+}

@@ -1,0 +1,3 @@
+# Exact source animation refinement
+User correction: use original Grok Bot landing page demo visual/elements and animations; only brand name becomes Krafty and links retain real app destinations. Characters subtly follow pointer. FAQ must use repository shadcn Accordion, with smooth height/opacity transitions. Feature illustrations must animate like source rather than static images.
+Extract the shipped source JS/CSS and DOM states before changing scenes. Preserve exact browser wireframes, foreground overlays, cursor shapes, character shape variants, sequence phases, timing and easing. No recorded approximation of an interactive DOM demo. Reduced motion provides a complete static frame. Only active/in-view scenes run. Clean all listeners/observers/timers on unmount.
