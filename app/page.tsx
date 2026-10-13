@@ -14,7 +14,6 @@ import { BotNavigation } from "@/components/landing/bot/navigation"
 import { BotChatDemo } from "@/components/landing/bot/chat-demo"
 import { BotFeatures } from "@/components/landing/bot/features"
 import { RoleShowcase } from "@/components/landing/bot/role-showcase"
-import { BotDemoVideo } from "@/components/landing/bot/demo-video"
 import { BotFaq } from "@/components/landing/bot/faq"
 import { LandingPricing } from "@/components/landing/pricing"
 import styles from "@/components/landing/bot/bot-landing.module.css"
@@ -96,7 +95,6 @@ export default async function LandingPage() {
         </section>
         <BotFeatures />
         <RoleShowcase workspaceHref={workspaceHref} />
-        <BotDemoVideo />
         <section
           id="pricing"
           className={`${styles.container} ${styles.section} ${styles.pricing}`}

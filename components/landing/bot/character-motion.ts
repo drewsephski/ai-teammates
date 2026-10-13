@@ -1,0 +1,182 @@
+export type CharacterState =
+  "idle" | "thinking" | "working" | "listening" | "spawning" | "celebrate"
+
+export const HEAD_CENTER = 114.2705
+export const BLINK_CADENCE: Record<
+  CharacterState,
+  readonly [number, number] | null
+> = {
+  idle: [6000, 14000],
+  thinking: [3500, 7000],
+  working: [2800, 5500],
+  listening: [3000, 7000],
+  spawning: null,
+  celebrate: [2200, 4500],
+}
+
+export function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
+export function gazeTarget(
+  pointer: { x: number; y: number } | null,
+  bounds: { left: number; top: number; width: number; height: number }
+) {
+  if (!pointer || bounds.width <= 0 || bounds.height <= 0) return { x: 0, y: 0 }
+  return {
+    x:
+      22 *
+      clamp(
+        (pointer.x - bounds.left - bounds.width / 2) / bounds.width,
+        -0.6,
+        0.6
+      ),
+    y:
+      14 *
+      clamp(
+        (pointer.y - bounds.top - bounds.height / 2) / bounds.height,
+        -0.6,
+        0.6
+      ),
+  }
+}
+
+export function gazeEase(dt: number) {
+  return 1 - Math.exp(60 * Math.log(0.84) * dt)
+}
+
+export type Spring = { position: number; velocity: number; target: number }
+export function spring(value = 0): Spring {
+  return { position: value, velocity: 0, target: value }
+}
+
+// Source physics uses semi-implicit Euler, subdivided at 120 Hz.
+export function stepSpring(
+  value: Spring,
+  frequency: number,
+  damping: number,
+  dt: number
+) {
+  const steps = Math.max(1, Math.ceil(dt * 120))
+  const step = dt / steps
+  for (let index = 0; index < steps; index++) {
+    value.velocity +=
+      (-2 * damping * frequency * value.velocity -
+        frequency ** 2 * (value.position - value.target)) *
+      step
+    value.position += value.velocity * step
+  }
+  if (!Number.isFinite(value.position) || !Number.isFinite(value.velocity)) {
+    value.position = value.target
+    value.velocity = 0
+  }
+}
+
+export function bodyTargets(state: CharacterState, seconds: number) {
+  if (state === "thinking")
+    return {
+      rotation: -9 + 5 * Math.sin(0.35 * seconds),
+      x: 5 * Math.sin(0.3 * seconds),
+      y: 2.5 * Math.sin(0.6 * seconds),
+      scaleY: 1,
+    }
+  if (state === "working") {
+    const beat = Math.sin(seconds * Math.PI * 3.2)
+    return {
+      rotation: 4 + 2.5 * beat,
+      x: 3,
+      y: 1.5 + 3 * Math.max(0, beat),
+      scaleY: 1 - 0.02 * Math.max(0, beat),
+    }
+  }
+  if (state === "listening")
+    return {
+      rotation: 8 + 1.5 * Math.sin(0.5 * seconds),
+      x: 2,
+      y: -2 + 0.8 * Math.sin(0.8 * seconds),
+      scaleY: 1.015,
+    }
+  if (state === "spawning") return { rotation: 0, x: 0, y: 0, scaleY: 1 }
+  if (state === "celebrate")
+    return {
+      rotation: 0,
+      x: 0,
+      y: -2.5 * Math.abs(Math.sin(1.6 * seconds)),
+      scaleY: 1,
+    }
+  return {
+    rotation: 1.5 * Math.sin(0.5 * seconds) + 0.6 * Math.sin(0.17 * seconds),
+    x: Math.sin(0.27 * seconds),
+    y: 1.2 * Math.sin(0.85 * seconds),
+    scaleY: 1 + 0.007 * Math.sin(0.85 * seconds),
+  }
+}
+
+export function seededRandom(seed: number) {
+  let value = Math.floor(seed) >>> 0 || 1
+  return () => {
+    let result = (value += 0x6d2b79f5)
+    result = Math.imul(result ^ (result >>> 15), 1 | result)
+    result ^= result + Math.imul(result ^ (result >>> 7), 61 | result)
+    return ((result ^ (result >>> 14)) >>> 0) / 0x100000000
+  }
+}
+
+export function easeOutCubic(value: number) {
+  return 1 - (1 - value) ** 3
+}
+
+export function smoothStep(value: number) {
+  return value * value * (3 - 2 * value)
+}
+
+export function pulse(time: number, index: number, amount: number) {
+  let phase = Math.abs(((time / 1400 + 0.119) % 1) - index / 3)
+  phase = Math.min(phase, 1 - phase)
+  const strength = Math.exp(-(phase * phase) / 0.045)
+  return {
+    lift: 9 * strength * amount,
+    pop: 0.84 + 0.22 * strength,
+    tone: 0.5 + 0.5 * strength,
+  }
+}
+
+function ringOutline(points: readonly (readonly number[])[]) {
+  const round = (value: number) => Math.round(value * 100) / 100
+  const count = points.length
+  let path = `M${round(points[0][0])} ${round(points[0][1])}`
+  for (let index = 0; index < count; index++) {
+    const previous = points[(index - 1 + count) % count]
+    const current = points[index]
+    const next = points[(index + 1) % count]
+    const after = points[(index + 2) % count]
+    path += `C${round(current[0] + (next[0] - previous[0]) / 6)} ${round(current[1] + (next[1] - previous[1]) / 6)} ${round(next[0] - (after[0] - current[0]) / 6)} ${round(next[1] - (after[1] - current[1]) / 6)} ${round(next[0])} ${round(next[1])}`
+  }
+  return path + "Z"
+}
+
+export const CIRCLE_RING = Array.from({ length: 96 }, (_, index) => {
+  const angle = (index / 96) * Math.PI * 2
+  return [
+    HEAD_CENTER + HEAD_CENTER * Math.cos(angle),
+    HEAD_CENTER + HEAD_CENTER * Math.sin(angle),
+  ]
+})
+
+export const CIRCLE_PATH = ringOutline(CIRCLE_RING)
+
+export function morphPath(
+  ring: readonly (readonly number[])[],
+  amount: number
+) {
+  const progress = clamp(amount / 0.62, 0, 1)
+  const ease =
+    progress < 0.5 ? 4 * progress ** 3 : 1 - (-2 * progress + 2) ** 3 / 2
+  if (ease >= 1) return CIRCLE_PATH
+  return ringOutline(
+    ring.map((point, index) => [
+      point[0] + (CIRCLE_RING[index][0] - point[0]) * ease,
+      point[1] + (CIRCLE_RING[index][1] - point[1]) * ease,
+    ])
+  )
+}

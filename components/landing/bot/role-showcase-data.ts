@@ -1,14 +1,149 @@
+import type { CSSProperties } from "react"
+
+export const roles = [
+  {
+    id: "sales-outbound",
+    name: "Sales Outbound",
+    color: "#54b9a6",
+    bubble: "#01b6c3",
+    pill: "#4ad8ec",
+    pillBackground: "#012f35",
+    description:
+      "Generate pipeline overnight. Researches accounts, scores contacts with intent, drafts email and LinkedIn in your voice, and leaves a review list for you to approve.",
+  },
+  {
+    id: "talent-scout",
+    name: "Talent Scout",
+    color: "#885cf5",
+    bubble: "#8f8deb",
+    pill: "#b6b3f9",
+    pillBackground: "#251f41",
+    description:
+      "Keep your talent pipeline moving. Runs screen-to-offer: sources, drafts outreach in your voice, skips profiles already in the ATS, and handles scheduling once you approve.",
+  },
+  {
+    id: "paid-media",
+    name: "Paid Media",
+    color: "#eb4699",
+    bubble: "#e76cb8",
+    pill: "#f6a0d5",
+    pillBackground: "#480c34",
+    description:
+      "Pulls live channel and campaign data, sends recommended reallocations against your monthly budget, and holds bids for your approval before making adjustments.",
+  },
+  {
+    id: "expense-manager",
+    name: "Expense Manager",
+    color: "#5bc67a",
+    bubble: "#2cb663",
+    pill: "#6dd998",
+    pillBackground: "#012f12",
+    description:
+      "Stay on top of money. Builds the weekly summary from your expense manager and sheets, logs new receipts from email, and nudges owners on missing categories before weekly review.",
+  },
+  {
+    id: "product-performance",
+    name: "Product Performance",
+    color: "#ea4045",
+    bubble: "#fd5c6a",
+    pill: "#ff99a8",
+    pillBackground: "#4e071c",
+    description:
+      "Get a clear view of the metrics that matter. Logs into observability tools, walks the flamegraphs, and comes back with hotspots plus a short writeup with screenshots.",
+  },
+  {
+    id: "bug-reproduction",
+    name: "Bug Reproduction",
+    color: "#ea4045",
+    bubble: "#fd5c6a",
+    pill: "#ff99a8",
+    pillBackground: "#4e071c",
+    description:
+      "Give engineers reports they can trust. Catches the thread, clicks the same path in staging, captures the failure, and drops a repro pack (steps, screenshots, network notes).",
+  },
+  {
+    id: "account-health",
+    name: "Account Health",
+    color: "#3c82f6",
+    bubble: "#2da0f5",
+    pill: "#7fc3ff",
+    pillBackground: "#002843",
+    description:
+      "See risk and expansion before the QBR. Reads usage and signals across your book and turns portfolio noise into a clear watch list.",
+  },
+  {
+    id: "chief-of-staff",
+    name: "Chief of Staff",
+    color: "#ed712e",
+    bubble: "#fe733d",
+    pill: "#ffa782",
+    pillBackground: "#481800",
+    description:
+      "Your always-on assistant. Scans Slack, email, calendar, and meeting notes and surfaces what's new and what maps to your priorities. Helps follow up on dropped threads, coordinate schedules, and update deliverables.",
+  },
+]
+
+export type BotRole = (typeof roles)[number]
+
+export function roleStyle(role: BotRole): CSSProperties {
+  return { "--role-color": role.color, "--role-bubble": role.bubble, "--role-pill": role.pill, "--role-pill-background": role.pillBackground } as CSSProperties
+}
+
+
 // Original x.ai/bot role demo transcript, with Krafty branding.
 export type RoleEntry =
-  | { kind: "message"; id: string; role: "user"; content: string; timestampMs: number }
-  | { kind: "send-message"; id: string; timestampMs: number; message: { type: "text"; content: string } }
-  | { kind: "system"; id: string; timestampMs: number; event: { type: "created-routine"; name: string; triggerDescription: string } | { type: "shared-context"; source: { name: string }; summary: string } }
-  | { kind: "computer-use"; id: string; timestampMs: number; instruction: string; ask: string; status: "done" }
-  | { kind: "outbound-message"; id: string; timestampMs: number; channel: "email" | "slack"; from?: string; workspace?: string; to: string; subject?: string; thread?: string; body: string[]; status: "ready" | "sent" }
+  | {
+      kind: "message"
+      id: string
+      role: "user"
+      content: string
+      timestampMs: number
+    }
+  | {
+      kind: "send-message"
+      id: string
+      timestampMs: number
+      message: { type: "text"; content: string }
+    }
+  | {
+      kind: "system"
+      id: string
+      timestampMs: number
+      event:
+        | { type: "created-routine"; name: string; triggerDescription: string }
+        | { type: "shared-context"; source: { name: string }; summary: string }
+    }
+  | {
+      kind: "computer-use"
+      id: string
+      timestampMs: number
+      instruction: string
+      ask: string
+      status: "done"
+    }
+  | {
+      kind: "outbound-message"
+      id: string
+      timestampMs: number
+      channel: "email" | "slack"
+      from?: string
+      workspace?: string
+      to: string
+      subject?: string
+      thread?: string
+      body: string[]
+      status: "ready" | "sent"
+    }
 
-export const roleScenarios: Record<string, { name: string; transcript: RoleEntry[] }> = {
+export const roleScenarios: Record<string, { name: string; lastMessage: string; lastActivityAt: number; isPinned: boolean; hasUnread: boolean; unreadCount: number; isRunning: boolean; transcript: RoleEntry[] }> = {
   "paid-media": {
     "name": "Paid Media",
+    "lastMessage": "paused and shifted. i'll watch the rest today.",
+    "lastActivityAt": -240000,
+    "isPinned": false,
+    "hasUnread": false,
+    "unreadCount": 0,
+    "isRunning": true,
     "transcript": [
       {
         "kind": "message",
@@ -69,6 +204,12 @@ export const roleScenarios: Record<string, { name: string; transcript: RoleEntry
   },
   "sales-outbound": {
     "name": "Sales Outbound",
+    "lastMessage": "top 10 sending. rest stay queued.",
+    "lastActivityAt": -1080000,
+    "isPinned": true,
+    "hasUnread": false,
+    "unreadCount": 0,
+    "isRunning": false,
     "transcript": [
       {
         "kind": "message",
@@ -141,6 +282,12 @@ export const roleScenarios: Record<string, { name: string; transcript: RoleEntry
   },
   "bug-reproduction": {
     "name": "Bug Reproduction",
+    "lastMessage": "dropped in #eng-checkout. i'll re-run when the pr updates.",
+    "lastActivityAt": -2460000,
+    "isPinned": false,
+    "hasUnread": true,
+    "unreadCount": 1,
+    "isRunning": false,
     "transcript": [
       {
         "kind": "message",
@@ -209,6 +356,12 @@ export const roleScenarios: Record<string, { name: string; transcript: RoleEntry
   },
   "product-performance": {
     "name": "Product Performance",
+    "lastMessage": "posted in #team-eng-perf with the pack.",
+    "lastActivityAt": -7200000,
+    "isPinned": false,
+    "hasUnread": false,
+    "unreadCount": 0,
+    "isRunning": false,
     "transcript": [
       {
         "kind": "message",
@@ -277,6 +430,12 @@ export const roleScenarios: Record<string, { name: string; transcript: RoleEntry
   },
   "chief-of-staff": {
     "name": "Chief",
+    "lastMessage": "sent one. legal stays. meeting brief for acme is in the thread.",
+    "lastActivityAt": -10800000,
+    "isPinned": true,
+    "hasUnread": false,
+    "unreadCount": 0,
+    "isRunning": false,
     "transcript": [
       {
         "kind": "system",
@@ -344,6 +503,12 @@ export const roleScenarios: Record<string, { name: string; transcript: RoleEntry
   },
   "account-health": {
     "name": "Account Health",
+    "lastMessage": "locked on the invite. i'll draft follow-ups when the call ends.",
+    "lastActivityAt": -14400000,
+    "isPinned": false,
+    "hasUnread": false,
+    "unreadCount": 0,
+    "isRunning": false,
     "transcript": [
       {
         "kind": "message",
@@ -412,6 +577,12 @@ export const roleScenarios: Record<string, { name: string; transcript: RoleEntry
   },
   "talent-scout": {
     "name": "Talent Scout",
+    "lastMessage": "queued. i'll handle scheduling when they reply.",
+    "lastActivityAt": -21600000,
+    "isPinned": true,
+    "hasUnread": false,
+    "unreadCount": 0,
+    "isRunning": false,
     "transcript": [
       {
         "kind": "message",
@@ -484,6 +655,12 @@ export const roleScenarios: Record<string, { name: string; transcript: RoleEntry
   },
   "expense-manager": {
     "name": "Expense Manager",
+    "lastMessage": "dropped. review doc is ready for thursday.",
+    "lastActivityAt": -32400000,
+    "isPinned": false,
+    "hasUnread": true,
+    "unreadCount": 3,
+    "isRunning": false,
     "transcript": [
       {
         "kind": "message",

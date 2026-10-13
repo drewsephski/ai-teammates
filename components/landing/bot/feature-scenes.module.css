@@ -1,0 +1,470 @@
+@font-face {
+  font-family: KraftyCursorIcons;
+  src: url("/landing/bot/cursor-icons.woff2") format("woff2");
+  font-display: block;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 32px;
+  border-radius: 24px;
+  overflow: hidden;
+  background: #1a1a1a;
+}
+.card h3 {
+  font-size: 16px;
+  line-height: 26px;
+  font-weight: 500;
+  text-wrap: pretty;
+}
+.card > p {
+  font-size: 16px;
+  line-height: 26px;
+  text-wrap: pretty;
+}
+.figure {
+  margin-top: auto;
+  padding-top: 32px;
+}
+.stage {
+  height: 230px;
+  position: relative;
+  flex-direction: column;
+  align-items: center;
+  display: flex;
+  overflow: visible;
+}
+.snippet {
+  --color-theme-fg: #fff;
+  --color-theme-bg: #0a0a0a;
+  --color-theme-text: #fff;
+  --color-theme-text-sec: #7d8187;
+  --color-theme-border-01: color-mix(
+    in srgb,
+    var(--color-theme-fg) 2.5%,
+    transparent
+  );
+  --color-brand-red-350: #fd5c6a;
+  --lightningcss-light: ;
+  --lightningcss-dark: initial;
+  flex: none;
+  width: 100%;
+  max-width: 540px;
+  margin-block: auto;
+}
+.computer,
+.memory {
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+  color: #f2f2f2;
+  -webkit-font-smoothing: antialiased;
+}
+.computer {
+  background: #ffffff0f;
+  letter-spacing: -0.15px;
+  border-radius: 16px;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 20px;
+}
+.computerTitle {
+  font-weight: 600;
+}
+.badge {
+  background: color-mix(in srgb, #e8a33d 14%, transparent);
+  color: #e8a33d;
+  letter-spacing: -0.1px;
+  white-space: nowrap;
+  border-radius: 999px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  font-size: 12px;
+  line-height: 19px;
+  display: inline-flex;
+  transition:
+    background-color 0.26s,
+    color 0.26s,
+    opacity 0.26s;
+}
+.badgeDot {
+  background: currentColor;
+  border-radius: 999px;
+  width: 5px;
+  height: 5px;
+}
+.spinner {
+  font-family: KraftyCursorIcons;
+  font-size: 12px;
+  line-height: 1;
+  width: 12px;
+  height: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.take {
+  position: relative;
+  transition: opacity 0.52s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.take[data-dimmed] {
+  opacity: 0;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.6, 1);
+}
+.swap {
+  display: grid;
+}
+.swap > * {
+  grid-area: 1/1;
+  transition: opacity 0.26s;
+}
+.swap > [data-hidden] {
+  opacity: 0;
+}
+.badgeSwap {
+  justify-items: end;
+}
+.desktop {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/10;
+  overflow: hidden;
+  background: url("/landing/bot/cloud-agents-4.webp") center/cover;
+}
+.dashboard {
+  background-image: url("/landing/bot/cloud-agents-3.webp");
+}
+.window {
+  position: absolute;
+  z-index: 4;
+  overflow: visible;
+  border-radius: 5px;
+  background: #0a0a0a;
+  box-shadow:
+    0 3px 12px #00000024,
+    0 0 0 0.5px #0000001a;
+}
+.handoverScreen {
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+}
+.cursor {
+  position: absolute;
+  z-index: 30;
+  pointer-events: none;
+  transform-origin: top left;
+}
+.cursorTag {
+  color: #fff;
+  white-space: nowrap;
+  background: #00000073;
+  border-radius: 999px;
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.4;
+  position: absolute;
+  top: 15px;
+  left: 11px;
+}
+.cursorAvatar {
+  position: absolute;
+  top: 12px;
+  left: 11px;
+  display: flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 1.5px solid white;
+  filter: drop-shadow(0 0.5px 1px #0005);
+  background: white;
+}
+.cursorAvatar svg {
+  flex-shrink: 0;
+  width: 100%;
+}
+.recording {
+  background: var(--color-theme-bg);
+  width: 100%;
+  box-shadow:
+    0 0 0 1px var(--color-theme-border-01),
+    0 10px 28px -14px #00000038;
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+}
+.recordingBar {
+  height: 28px;
+  color: var(--color-theme-text-sec);
+  font-size: 11px;
+  line-height: 1;
+  display: grid;
+}
+.recordingBar > * {
+  grid-area: 1/1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 6px 0 11px;
+  transition: opacity 0.3s;
+  display: flex;
+}
+.recordingBar > [data-hidden] {
+  opacity: 0;
+  pointer-events: none;
+}
+.recordingLabel {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.recordingTimer {
+  background: var(--color-brand-red-350);
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  border-radius: 4px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  display: flex;
+}
+.recordingDot {
+  background: currentColor;
+  border-radius: 1px;
+  width: 5px;
+  height: 5px;
+}
+.recordingClose {
+  color: color-mix(in oklch, var(--color-theme-text) 45%, transparent);
+  flex-shrink: 0;
+  padding-right: 2px;
+  font-size: 11px;
+}
+.teach {
+  background: color-mix(in oklch, var(--color-theme-text) 8%, transparent);
+  height: 20px;
+  color: var(--color-theme-text);
+  border-radius: 999px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  transition:
+    transform 0.12s,
+    background 0.12s;
+  display: flex;
+}
+.teach[data-pressed] {
+  background: color-mix(in oklch, var(--color-theme-text) 16%, transparent);
+  transform: scale(0.94);
+}
+.recordDot {
+  background: radial-gradient(currentColor 0 2.2px, #0000 2.2px);
+  border: 1px solid;
+  border-radius: 50%;
+  width: 9px;
+  height: 9px;
+}
+.recordingScreen {
+  position: relative;
+  overflow: hidden;
+}
+.recordingScreen:after {
+  z-index: 20;
+  content: "";
+  box-shadow:
+    inset 0 0 0 2px
+      color-mix(in oklch, var(--color-theme-text) 14%, transparent),
+    inset 0 0 40px transparent;
+  pointer-events: none;
+  transition: box-shadow 0.4s;
+  position: absolute;
+  inset: 0;
+}
+.recording[data-recording] .recordingScreen:after {
+  box-shadow:
+    inset 0 0 0 2px
+      color-mix(in srgb, var(--color-brand-red-350) 80%, transparent),
+    inset 0 0 48px
+      color-mix(in srgb, var(--color-brand-red-350) 58%, transparent);
+}
+.memory {
+  display: flex;
+  height: 212px;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+}
+.bubble {
+  background: #ffffff0f;
+  color: #f2f2f2;
+  border-radius: 16px;
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: -0.15px;
+  white-space: pre-wrap;
+}
+.entry {
+  animation: entry-pop 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+}
+@keyframes entry-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.memoryReceipt {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  overflow: hidden;
+  padding-block: 4px;
+  color: #ffffff94;
+  font-size: 13px;
+  line-height: 16px;
+}
+.memoryPill {
+  white-space: nowrap;
+  border-radius: 999px;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 1px 7px 1px 3px;
+  font-weight: 500;
+  display: inline-flex;
+  background: color-mix(in srgb, #885cf5 22%, #16161a);
+  color: color-mix(in srgb, #885cf5 82%, #fff);
+}
+.memoryPill svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+.collaboration {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-block: 16px;
+}
+.avatarRow {
+  --avatar-size: 2rem;
+  --avatar-pad: calc(var(--avatar-size) * 0.16);
+  --avatar-chip: calc(var(--avatar-size) - 2 * var(--avatar-pad));
+  isolation: isolate;
+  justify-content: center;
+  align-items: center;
+  list-style: none;
+  display: flex;
+  padding: 0;
+  margin: 0;
+}
+.pill {
+  box-sizing: border-box;
+  height: var(--avatar-size);
+  padding: var(--avatar-pad);
+  transition:
+    background 0.4s ease,
+    box-shadow 0.4s ease,
+    color 0.4s ease,
+    padding 0.4s ease;
+  border-radius: 9999px;
+  flex: none;
+  align-items: center;
+  display: flex;
+  position: relative;
+}
+.pill[data-open] {
+  padding-left: calc(var(--avatar-pad) + var(--avatar-chip) * 0.5);
+}
+.pill + .pill {
+  margin-left: calc(var(--avatar-size) * -0.24);
+}
+.avatar {
+  width: var(--avatar-chip);
+  height: var(--avatar-chip);
+  border-radius: 50%;
+  flex: none;
+  justify-content: center;
+  align-items: center;
+  display: flex;
+}
+.avatar svg {
+  width: calc(var(--avatar-chip) * 1.131);
+  flex-shrink: 0;
+}
+.spread {
+  overflow: hidden;
+}
+.activity {
+  white-space: nowrap;
+  align-items: center;
+  padding-left: 0.35rem;
+  padding-right: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1;
+  display: inline-flex;
+}
+@media (max-width: 639px) {
+  .card {
+    padding: 24px;
+  }
+  .stage {
+    height: 190px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .take,
+  .take[data-dimmed],
+  .swap > *,
+  .recordingBar > *,
+  .pill,
+  .recordingScreen:after {
+    transition: none;
+  }
+  .entry,
+  .spinner {
+    animation: none;
+  }
+}
+
+.card[data-paused] .spinner,
+.card[data-paused] .entry,
+.card[data-paused] :global(.animate-pulse) {
+  animation-play-state: paused;
+}
+
+.cursorAvatar {
+  --bg: #fff;
+}
+.memoryPill {
+  --bg: #1c1c1c;
+}
