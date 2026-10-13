@@ -29,6 +29,8 @@ import {
   TextCursorInputIcon,
   UsersRoundIcon,
   type LucideIcon,
+  SettingsIcon,
+  CircleHelpIcon,
 } from "lucide-react"
 
 type ToolPart = Extract<
@@ -39,6 +41,8 @@ type ToolPart = Extract<
 // Ready, running, and finished labels describe the action without implying
 // success before a tool has actually returned its result.
 const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
+  "tool-askUser": ["Question", "Question", "Answered question"],
+  "tool-configureBot": ["Configure bot", "Saving configuration", "Configured bot"],
   "tool-bash": ["Run command", "Running command", "Ran command"],
   "tool-readFile": ["Read file", "Reading file", "Read file"],
   "tool-writeFile": ["Save file", "Saving file", "Saved file"],
@@ -87,6 +91,8 @@ const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
 }
 
 const toolIcons: Record<ToolPart["type"], LucideIcon> = {
+  "tool-askUser": CircleHelpIcon,
+  "tool-configureBot": SettingsIcon,
   "tool-bash": SquareTerminalIcon,
   "tool-readFile": FileTextIcon,
   "tool-writeFile": FilePenLineIcon,

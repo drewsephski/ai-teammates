@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server"
 import * as Sentry from "@sentry/nextjs"
 import { and, eq, inArray } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
+import { z } from "zod"
 
 import { db } from "@/db"
 import {
@@ -17,8 +18,14 @@ import { deleteBotSandbox } from "@/lib/e2b"
 import { provisionTeammate } from "@/lib/teammates"
 import { withSandboxLock } from "@/lib/sandbox-lock"
 import { getUsage } from "@/lib/usage"
+import { createBotAvatar } from "@/lib/bot-avatar"
+import { botPresets, type BotPresetId } from "@/lib/bot-presets"
+import { teamOperationId } from "@/lib/team-policy"
 
-export async function createBot(values: BotInsert) {
+export async function createBot(input: {
+  requestId: string
+  presetId?: BotPresetId
+}) {
   const { isAuthenticated, userId, has } = await auth()
   if (!isAuthenticated) throw new Error("Unauthorized")
   // A bot always comes with a sandbox, so creating one takes both
@@ -30,7 +37,7 @@ export async function createBot(values: BotInsert) {
   }
   // Provisioning uses compute briefly; the new computer is then paused.
   const usage = await getUsage(userId)
-  if (!usage || usage.remaining.sandbox <= 0) {
+  if (!usage || usage.remaining.sandbox <= 0 || usage.remaining.ai <= 0) {
     Sentry.logger.warn("Bot creation blocked: usage limit reached", {
       "user.id": userId,
       "usage.kind": "sandbox",
@@ -38,12 +45,48 @@ export async function createBot(values: BotInsert) {
     throw new Error("Usage limit reached")
   }
 
-  const data = botInsertSchema.parse(values)
-
-  const { bot } = await provisionTeammate(userId, data)
+  const requestId = z
+    .string()
+    .min(1)
+    .max(128)
+    .regex(/^[a-zA-Z0-9_-]+$/)
+    .parse(input.requestId)
+  const preset =
+    input.presetId === undefined
+      ? undefined
+      : botPresets.find((preset) => preset.id === input.presetId)
+  if (input.presetId !== undefined && !preset)
+    throw new Error("Unknown starting role")
+  const operationId = teamOperationId(userId, "bot-setup", requestId)
+  const { bot, chatId } = await provisionTeammate(
+    userId,
+    {
+      name: "New Bot",
+      job: preset?.job ?? "Not configured",
+      instructions: preset?.instructions ?? null,
+      avatar: createBotAvatar(),
+    },
+    { botId: `bot_${operationId}`, chatId: `chat_${operationId}` },
+    { setup: true }
+  )
   revalidatePath("/", "layout")
   Sentry.logger.info("Bot created", { "user.id": userId, "bot.id": bot.id })
-  return bot
+  return { bot, chatId }
+}
+
+export async function setBotPinned(botId: string, pinned: boolean) {
+  const { isAuthenticated, userId } = await auth()
+  if (!isAuthenticated) throw new Error("Unauthorized")
+  const input = z
+    .object({ botId: z.string().min(1).max(128), pinned: z.boolean() })
+    .parse({ botId, pinned })
+  const [bot] = await db
+    .update(bots)
+    .set({ pinnedAt: input.pinned ? new Date() : null })
+    .where(and(eq(bots.id, input.botId), eq(bots.userId, userId)))
+    .returning({ id: bots.id })
+  if (!bot) throw new Error("Bot not found")
+  revalidatePath("/", "layout")
 }
 
 export async function updateBot(botId: string, values: BotInsert) {

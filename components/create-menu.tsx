@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { PlusIcon, UsersIcon } from "lucide-react"
 
-import { BotDialog } from "@/components/bot-dialog"
+import { useCreateBot } from "@/components/create-bot-button"
 import { GroupChatDialog } from "@/components/group-chat-dialog"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,12 +13,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import type { Bot } from "@/db/schema"
-import { usePaywall } from "@/hooks/use-paywall"
 
 function CreateMenu({ bots }: { bots: Pick<Bot, "id" | "name" | "avatar">[] }) {
-  const [botDialogOpen, setBotDialogOpen] = useState(false)
   const [groupChatDialogOpen, setGroupChatDialogOpen] = useState(false)
-  const { checkPlan, checkUsage } = usePaywall()
+  const { create, pending } = useCreateBot()
 
   return (
     <>
@@ -29,14 +27,7 @@ function CreateMenu({ bots }: { bots: Pick<Bot, "id" | "name" | "avatar">[] }) {
           <PlusIcon />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem
-            onClick={async () => {
-              // A new bot's sandbox starts running right away
-              if (checkPlan("bots") && (await checkUsage("sandbox"))) {
-                setBotDialogOpen(true)
-              }
-            }}
-          >
+          <DropdownMenuItem disabled={pending} onClick={create}>
             <PlusIcon />
             Create new bot
           </DropdownMenuItem>
@@ -46,7 +37,6 @@ function CreateMenu({ bots }: { bots: Pick<Bot, "id" | "name" | "avatar">[] }) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <BotDialog open={botDialogOpen} onOpenChange={setBotDialogOpen} />
       <GroupChatDialog
         bots={bots}
         open={groupChatDialogOpen}

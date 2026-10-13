@@ -3,7 +3,10 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { PencilIcon, Trash2Icon } from "lucide-react"
+import { PencilIcon, Trash2Icon, PinIcon, PinOffIcon } from "lucide-react"
+import { setBotPinned } from "@/actions/bot"
+import { toast } from "@/components/ui/toast"
+import { cn } from "@/lib/utils"
 
 import { BotDeleteDialog } from "@/components/bot-delete-dialog"
 import { BotDialog } from "@/components/bot-dialog"
@@ -24,17 +27,23 @@ function ChatMenuButton({
   tooltip,
   children,
   bot,
+  tile = false,
+  activeChatIds,
 }: {
   chatId: string
   tooltip: string
   children: React.ReactNode
   bot?: Bot
+  tile?: boolean
+  activeChatIds?: string[]
 }) {
   const params = useParams<{ chatId?: string }>()
   const router = useRouter()
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const isActive = params.chatId === chatId
+  const isActive =
+    params.chatId === chatId || !!activeChatIds?.includes(params.chatId ?? "")
+  const [pinPending, setPinPending] = useState(false)
   const { isMobile, setOpenMobile } = useSidebar()
 
   const button = (
@@ -42,7 +51,10 @@ function ChatMenuButton({
       size="lg"
       tooltip={tooltip}
       isActive={isActive}
-      className="h-16 gap-3 rounded-xl px-3"
+      className={cn(
+        "h-12 gap-2 rounded-xl px-2",
+        tile && "h-auto flex-col gap-1 py-3 text-center"
+      )}
       onClick={() => {
         if (isMobile) setOpenMobile(false)
       }}
@@ -65,9 +77,33 @@ function ChatMenuButton({
         <ContextMenuTrigger render={button} />
         <ContextMenuContent>
           <ContextMenuGroup>
-            <ContextMenuItem onClick={() => setEditOpen(true)}>
+            <ContextMenuItem
+              disabled={pinPending}
+              onClick={async () => {
+                setPinPending(true)
+                try {
+                  await setBotPinned(bot.id, !bot.pinnedAt)
+                  router.refresh()
+                } catch {
+                  toast.add({
+                    type: "error",
+                    title: "Couldn't update your pinned bots",
+                    description: "Try again.",
+                  })
+                } finally {
+                  setPinPending(false)
+                }
+              }}
+            >
+              {bot.pinnedAt ? <PinOffIcon /> : <PinIcon />}
+              {bot.pinnedAt ? "Unpin" : "Pin"}
+            </ContextMenuItem>
+            <ContextMenuItem onClick={() => {
+              if (!bot.setupComplete) router.push(`/chats/${chatId}`)
+              else setEditOpen(true)
+            }}>
               <PencilIcon />
-              Edit bot
+              {bot.setupComplete ? "Edit bot" : "Configure in chat"}
             </ContextMenuItem>
           </ContextMenuGroup>
           <ContextMenuSeparator />

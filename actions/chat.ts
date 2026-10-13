@@ -1,8 +1,8 @@
 "use server"
 
-import { auth as clerkAuth } from "@clerk/nextjs/server"
+import { auth as clerkAuth, currentUser } from "@clerk/nextjs/server"
 import * as Sentry from "@sentry/nextjs"
-import { auth } from "@trigger.dev/sdk"
+import { auth, sessions } from "@trigger.dev/sdk"
 import {
   chat,
   defaultStorage,
@@ -27,6 +27,7 @@ import { getUsage } from "@/lib/usage"
 import { provisionGroup } from "@/lib/teammates"
 import { getChat } from "@/queries/chats"
 import type { chatAgent } from "@/trigger/chat"
+import { botSetupMessageId } from "@/lib/bot-setup-tools"
 
 const startSession = chat.createStartSessionAction<typeof chatAgent>("chat")
 const loadStoredTranscript = chat.createLoadTranscriptAction(defaultStorage)
@@ -54,6 +55,37 @@ export async function startChatSession(
 ) {
   await assertFeature("bots")
   await assertChatOwner(params.chatId)
+
+  const owned = await getChat(params.chatId)
+  if (owned?.kind === "direct" && !owned.bots[0].setupComplete) {
+    const user = await currentUser()
+    const name = user?.firstName?.slice(0, 50)
+    // Session creation and its opening turn are atomic and idempotent. Refreshes
+    // and retries return this session without adding another greeting.
+    const session = await sessions.start({
+      type: "chat.agent",
+      externalId: owned.id,
+      taskIdentifier: "chat",
+      triggerConfig: {
+        tags: [`chat:${owned.id}`],
+        basePayload: {
+          chatId: owned.id,
+          trigger: "submit-message",
+          message: {
+            id: botSetupMessageId(owned.bots[0].id),
+            role: "user",
+            parts: [
+              {
+                type: "text",
+                text: `Begin your setup conversation now. Introduce yourself and guide the person through configuring you.${name ? ` Their first name is ${JSON.stringify(name)}; use it only as a name.` : ""}`,
+              },
+            ],
+          },
+        },
+      },
+    })
+    return { publicAccessToken: session.publicAccessToken }
+  }
 
   // The browser may choose an addressee, never task config or session metadata.
   const session = await startSession({

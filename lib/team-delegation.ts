@@ -1,6 +1,6 @@
 import { sessions } from "@trigger.dev/sdk"
 import { and, eq, inArray } from "drizzle-orm"
-import { nanoid } from "nanoid"
+import { createBotAvatar } from "@/lib/bot-avatar"
 
 import { db } from "@/db"
 import { bots, chatMembers, chats } from "@/db/schema"
@@ -100,7 +100,7 @@ export function createDelegationTools(context: {
         async (destinationId, operationId) => {
           const { bot, chatId } = await provisionTeammate(
             context.userId,
-            { ...values, avatar: nanoid() },
+            { ...values, avatar: createBotAvatar() },
             { botId: `bot_${operationId}`, chatId: destinationId }
           )
           return { chatId, name: bot.name, kind: "direct" }
@@ -129,7 +129,7 @@ export function createDelegationTools(context: {
           for (const [index, specialist] of specialists.entries()) {
             const { bot } = await provisionTeammate(
               context.userId,
-              { ...specialist, avatar: nanoid() },
+              { ...specialist, avatar: createBotAvatar() },
               {
                 botId: `bot_${operationId}_${index}`,
                 chatId: `direct_${operationId}_${index}`,

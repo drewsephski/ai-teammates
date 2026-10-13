@@ -1,6 +1,7 @@
 import { relations } from "drizzle-orm"
 import {
   index,
+  boolean,
   integer,
   pgEnum,
   pgTable,
@@ -29,6 +30,9 @@ export const bots = pgTable(
     job: text().notNull(),
     // How it should go about the job
     instructions: text(),
+    // Server-owned lifecycle and sidebar preferences.
+    setupComplete: boolean().notNull().default(true),
+    pinnedAt: timestamp({ withTimezone: true }),
     // E2B desktop sandbox ID, preserved across pause/resume
     sandboxId: text().notNull(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
@@ -144,7 +148,14 @@ export const botInsertSchema = createInsertSchema(bots, {
       .max(100, "Keep it under 100 characters."),
   instructions: (schema) =>
     schema.trim().max(4000, "Keep it under 4000 characters."),
-}).omit({ id: true, userId: true, sandboxId: true, createdAt: true })
+}).omit({
+  id: true,
+  userId: true,
+  sandboxId: true,
+  createdAt: true,
+  setupComplete: true,
+  pinnedAt: true,
+})
 
 // A group chat is a name and the bots in it; direct chats are made with their bot
 export const groupChatInsertSchema = createInsertSchema(chats, {

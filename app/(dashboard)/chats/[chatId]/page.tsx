@@ -41,12 +41,17 @@ export default async function Page({
   return (
     <DesktopPanelProvider key={chat.id} chatId={chat.id}>
       {/* The group sizes itself to its parent, so the viewport height goes here */}
-      <div className="h-svh">
+      <div className="chat-surface h-svh">
         <ResizablePanelGroup orientation="horizontal">
           <ResizablePanel id="chat" minSize="30%">
             <div className="flex h-full flex-col">
               <ChatHeader chat={chat} />
-              <Chat chatId={chat.id} name={chat.name ?? chat.bots[0].name} />
+              <Chat
+                chatId={chat.id}
+                name={chat.name ?? chat.bots[0].name}
+                botId={chat.bots[0].id}
+                setup={!chat.bots[0].setupComplete}
+              />
             </div>
           </ResizablePanel>
           <DesktopPanel name={chat.bots[0].name} />

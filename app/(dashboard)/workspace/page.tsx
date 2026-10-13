@@ -9,12 +9,12 @@ import {
 } from "lucide-react"
 
 import { AppPageHeader } from "@/components/app-page-header"
-import { BotDialog } from "@/components/bot-dialog"
+import { CreateBotButton } from "@/components/create-bot-button"
 import { ChatAvatar } from "@/components/chat-avatar"
 import { GroupChatAvatar } from "@/components/group-chat-avatar"
 import { GroupChatDialog } from "@/components/group-chat-dialog"
 import { BotMark } from "@/components/landing/bot/bot-mark"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { botPresets } from "@/lib/bot-presets"
 import { getBots, getChats } from "@/queries/bots"
 
@@ -74,13 +74,9 @@ export default async function WorkspacePage({
                 instructions; you can customize everything.
               </p>
             </div>
-            <BotDialog
-              key={preset.id}
-              presetId={preset.id}
-              trigger={<Button />}
-            >
-              <PlusIcon /> Create your {preset.job.toLowerCase()}
-            </BotDialog>
+            <CreateBotButton key={preset.id} presetId={preset.id}>
+              Create your {preset.job.toLowerCase()}
+            </CreateBotButton>
           </section>
         )}
         <section id="teammates" className="scroll-mt-6">
@@ -88,9 +84,7 @@ export default async function WorkspacePage({
             <h2 className="text-lg font-medium">
               {bots.length ? "Your teammates" : "Meet your first teammate"}
             </h2>
-            <BotDialog trigger={<Button />}>
-              <PlusIcon /> Create a teammate
-            </BotDialog>
+            <CreateBotButton>Create a teammate</CreateBotButton>
           </div>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
             Each teammate has a name, a role, saved memory, and a computer.
@@ -121,13 +115,13 @@ export default async function WorkspacePage({
               aria-label="Starting roles"
             >
               {botPresets.map((role) => (
-                <BotDialog
+                <CreateBotButton
                   key={role.id}
                   presetId={role.id}
-                  trigger={<Button variant="outline" />}
+                  variant="outline"
                 >
                   <role.icon /> {role.label}
-                </BotDialog>
+                </CreateBotButton>
               ))}
             </div>
           )}

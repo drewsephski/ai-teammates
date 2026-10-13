@@ -21,6 +21,11 @@ import { getUsage, recordUsage } from "@/lib/usage"
 import { createDelegationTools } from "@/lib/team-delegation"
 import { createConnectorTools } from "@/lib/composio"
 import { connectedAppInstructions } from "@/lib/agent-tool-instructions"
+import {
+  createBotSetupTools,
+  buildBotSetupInstructions,
+} from "@/lib/bot-setup-tools"
+import { configureBotProfile } from "@/lib/bot-profile"
 
 // Sent with each message. Missing in direct chats, and when the session starts.
 const clientDataSchema = z
@@ -80,6 +85,8 @@ function buildInstructions(
   group: { chat: Chat; bots: Bot[] } | undefined,
   appToolsAvailable: boolean
 ) {
+  if (!bot.setupComplete && !group)
+    return buildBotSetupInstructions(bot.job, bot.instructions)
   return [
     `You are ${bot.name}, an AI teammate. Your job: ${bot.job}`,
     "You work alongside the person you are talking to as a member of their team. They gave you your name and your job, and they come to you for that job. Stay in that role, and when asked who you are, answer as yourself.",
@@ -94,6 +101,7 @@ function buildInstructions(
     "When the person wants several specialists to collaborate, listTeammates and createGroupChat using two to eight teammates and a complete shared brief. Reuse existing bots and create missing specialists within the group tool. The first member starts, and can hand off within the group. Creating teammates provisions real computers and is subject to the person's plan and usage allowance.",
     connectedAppInstructions(appToolsAvailable),
     "Do the work rather than describing how it could be done, and say plainly when something failed.",
+    "Use askUser when a concise set of choices will help the person clarify a request. Wait for their answer. In a private chat, use configureBot to change your own name, job or instructions only after the person confirms the proposed changes.",
   ]
     .filter(Boolean)
     .join("\n\n")
@@ -167,7 +175,16 @@ export const chatAgent = chat
       const connectorTools = process.env.COMPOSIO_API_KEY
         ? createConnectorTools(userId)
         : {}
-      const sharedTools = { ...sandboxTools, ...teamTools, ...connectorTools }
+      const setupTools = createBotSetupTools((profile) =>
+        configureBotProfile(userId, current.id, profile)
+      )
+      const sharedTools = {
+        ...sandboxTools,
+        ...teamTools,
+        ...connectorTools,
+        ...setupTools,
+      }
+      if (!bot.setupComplete && kind === "direct") return setupTools
       if (kind !== "group") return sharedTools
 
       return {
@@ -203,7 +220,14 @@ export const chatAgent = chat
       }
     },
     // Fires for stopped and failed turns too, which spent tokens all the same
-    onTurnComplete: async ({ chatId, runId, turn, usage, error }) => {
+    onTurnComplete: async ({
+      chatId,
+      runId,
+      turn,
+      usage,
+      error,
+      responseMessage,
+    }) => {
       const refused =
         error instanceof Error && error.message === USAGE_LIMIT_ERROR
 
@@ -219,6 +243,23 @@ export const chatAgent = chat
         .select({ userId: chats.userId })
         .from(chats)
         .where(eq(chats.id, chatId))
+      const preview = responseMessage?.parts
+        .flatMap((part) =>
+          part.type === "text"
+            ? [part.text]
+            : part.type === "tool-askUser" && part.state === "input-available"
+              ? [part.input.question]
+              : []
+        )
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 160)
+      if (row && preview)
+        await db
+          .update(chats)
+          .set({ lastMessageAt: new Date(), lastMessagePreview: preview })
+          .where(eq(chats.id, chatId))
 
       if (usage && row) {
         await recordUsage([
@@ -294,19 +335,27 @@ export const chatAgent = chat
         messages,
         tools,
         // After a handoff the rest of the turn is the other bot's to answer
-        prepareStep: ({ steps, messages }) => {
+        prepareStep: async ({ steps, messages }) => {
           const handoff = steps
             .flatMap((step) => step.toolResults)
             .findLast((result) => result.toolName === "handoff")
           const current =
             handoff &&
             bots.find((bot) => bot.id === (handoff.output as Handoff).botId)
+          const configured = steps.some((step) =>
+            step.toolResults.some(
+              (result) => result.toolName === "configureBot"
+            )
+          )
+          const updated = configured
+            ? (await getChatBots(chatId, current?.id ?? clientData?.botId)).bot
+            : current
 
           return {
             model: chatModel(messages),
-            ...(current && {
+            ...(updated && {
               instructions: buildInstructions(
-                current,
+                updated,
                 group,
                 appToolsAvailable
               ),

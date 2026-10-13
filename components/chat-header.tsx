@@ -42,16 +42,20 @@ function ChatHeader({
   return (
     <header
       data-slot="chat-header"
-      className="flex h-16 shrink-0 items-center gap-3 border-b border-border/60 px-4 sm:px-6"
+      className="relative flex h-12 shrink-0 items-center gap-3 border-b border-border/60 px-4"
     >
       <SidebarTrigger className="text-muted-foreground" />
       {chat.kind === "group" ? (
-        <h1 className="-ml-2 flex min-w-0">
+        <h1 className="absolute left-1/2 flex max-w-[calc(100%-8rem)] min-w-0 -translate-x-1/2">
           <GroupChatDialog
             chat={chat}
             bots={bots}
             trigger={
-              <Button variant="ghost" className="min-w-0 shrink gap-2 px-2" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 min-w-0 shrink gap-2 bg-muted/40 px-3 text-xs"
+              />
             }
           >
             <GroupChatAvatar
@@ -63,16 +67,24 @@ function ChatHeader({
         </h1>
       ) : (
         <>
-          <h1 className="-ml-2 flex min-w-0">
+          <h1 className="absolute left-1/2 flex max-w-[calc(100%-8rem)] min-w-0 -translate-x-1/2">
+            {!chat.bots[0].setupComplete ? <span className="inline-flex h-8 min-w-0 items-center gap-2 rounded-full bg-muted/40 px-3 text-xs font-medium">
+              <ChatAvatar seed={chat.bots[0].avatar} className="size-6" />
+              <span className="truncate">{chat.bots[0].name}</span>
+            </span> :
             <BotDialog
               bot={chat.bots[0]}
               trigger={
-                <Button variant="ghost" className="min-w-0 shrink gap-2 px-2" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 min-w-0 shrink gap-2 bg-muted/40 px-3 text-xs"
+                />
               }
             >
               <ChatAvatar seed={chat.bots[0].avatar} className="size-6" />
               <span className="truncate">{chat.name ?? chat.bots[0].name}</span>
-            </BotDialog>
+            </BotDialog>}
           </h1>
           <DesktopButton />
         </>

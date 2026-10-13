@@ -45,7 +45,8 @@ export async function assertTeamAccess(userId: string, computer = false) {
 export async function provisionTeammate(
   userId: string,
   values: BotInsert,
-  ids = { botId: nanoid(), chatId: nanoid() }
+  ids = { botId: nanoid(), chatId: nanoid() },
+  options: { setup?: boolean } = {}
 ) {
   const data = botInsertSchema.parse(values)
   return withSandboxLock(`team:${userId}`, async () => {
@@ -70,6 +71,7 @@ export async function provisionTeammate(
             userId,
             sandboxId,
             instructions: data.instructions || null,
+            setupComplete: !options.setup,
           })
           .returning()
         await tx

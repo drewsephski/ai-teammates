@@ -35,6 +35,30 @@ function SidebarChatAvatar({ chat }: { chat: ChatWithBots }) {
 
 export async function AppSidebar() {
   const [chats, bots] = await Promise.all([getChats(), getBots()])
+  const pinned = bots
+    .filter((bot) => bot.pinnedAt)
+    .sort((a, b) => a.pinnedAt!.getTime() - b.pinnedAt!.getTime())
+    .flatMap((bot) => {
+      const chat = chats.find(
+        (chat) => chat.kind === "direct" && chat.bots[0].id === bot.id
+      )
+      return chat
+        ? [
+            {
+              bot,
+              chat,
+              chatIds: chats
+                .filter(
+                  (chat) => chat.kind === "direct" && chat.bots[0].id === bot.id
+                )
+                .map((chat) => chat.id),
+            },
+          ]
+        : []
+    })
+  const unpinnedChats = chats.filter(
+    (chat) => chat.kind !== "direct" || !chat.bots[0].pinnedAt
+  )
 
   return (
     <Sidebar collapsible="icon">
@@ -68,10 +92,42 @@ export async function AppSidebar() {
       </SidebarHeader>
       <SidebarContent className="overflow-hidden">
         <ScrollArea className="min-h-0 flex-1">
+          {pinned.length > 0 && (
+            <SidebarGroup aria-label="Pinned bots" className="px-3">
+              <SidebarGroupContent>
+                <SidebarMenu className="grid grid-cols-3 gap-1 group-data-[collapsible=icon]:grid-cols-1">
+                  {pinned.map(({ bot, chat, chatIds }) => (
+                    <SidebarMenuItem key={bot.id}>
+                      <ChatMenuButton
+                        chatId={chat.id}
+                        tooltip={bot.name}
+                        bot={bot}
+                        tile
+                        activeChatIds={chatIds}
+                      >
+                        <ChatAvatar
+                          seed={bot.avatar}
+                          className="size-12 group-data-[collapsible=icon]:size-6"
+                        />
+                        <span className="w-full truncate text-center text-xs font-medium group-data-[collapsible=icon]:hidden">
+                          {bot.name}
+                        </span>
+                        {bot.setupComplete && (
+                          <span className="max-w-full truncate rounded border border-sidebar-border px-1 text-[9px] text-muted-foreground group-data-[collapsible=icon]:hidden">
+                            {bot.job}
+                          </span>
+                        )}
+                      </ChatMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
           <SidebarGroup aria-label="Conversations" className="px-3">
             <SidebarGroupContent>
               <SidebarMenu className="gap-1">
-                {chats.map((chat) => (
+                {unpinnedChats.map((chat) => (
                   <SidebarMenuItem key={chat.id}>
                     <ChatMenuButton
                       chatId={chat.id}

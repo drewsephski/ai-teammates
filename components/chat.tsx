@@ -7,8 +7,8 @@ import {
   useLoadTranscript,
   useTriggerChatTransport,
 } from "@trigger.dev/sdk/chat/react"
-import { isToolUIPart } from "ai"
-import { useState } from "react"
+import { isToolUIPart, lastAssistantMessageIsCompleteWithToolCalls } from "ai"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowUpIcon } from "lucide-react"
 import { toast } from "@/components/ui/toast"
@@ -45,6 +45,10 @@ import {
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input"
 import { ToolCall } from "@/components/chat-tool-call"
+import { ChatQuestion } from "@/components/chat-question"
+import { Button } from "@/components/ui/button"
+import { botSetupMessageId } from "@/lib/bot-setup-tools"
+import { cn } from "@/lib/utils"
 import { BotMark } from "@/components/landing/bot/bot-mark"
 import { Spinner } from "@/components/ui/spinner"
 import { Badge } from "@/components/ui/badge"
@@ -88,10 +92,14 @@ function Chat({
   chatId,
   name,
   bots,
+  setup = false,
+  botId,
 }: {
   chatId: string
   name: string
   bots?: ChatBot[]
+  setup?: boolean
+  botId?: string
 }) {
   const transport = useTriggerChatTransport<typeof chatAgent>({
     task: "chat",
@@ -99,12 +107,58 @@ function Chat({
     startSession: ({ chatId, clientData }) =>
       startChatSession({ chatId, clientData }),
   })
-  const { messages, isLoading } = useLoadTranscript(chatId, loadTranscript, {
-    transport,
-  })
+  const [startup, setStartup] = useState<{ chatId: string; error?: string }>()
+  const [attempt, setAttempt] = useState(0)
+  useEffect(() => {
+    if (!setup) return
+    let current = true
+    transport
+      .preload(chatId)
+      .then(() => {
+        if (current) setStartup({ chatId })
+      })
+      .catch(() => {
+        if (current)
+          setStartup({
+            chatId,
+            error: "Couldn't start your setup conversation.",
+          })
+      })
+    return () => {
+      current = false
+    }
+  }, [chatId, setup, transport, attempt])
+  const { messages, isLoading, error } = useLoadTranscript(
+    chatId,
+    loadTranscript,
+    {
+      transport,
+    }
+  )
+
+  if (error || (setup && startup?.chatId === chatId && startup.error))
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
+        <p className="text-sm text-muted-foreground">
+          {error ? "Couldn't load your conversation." : startup?.error}
+        </p>
+        <Button
+          variant="outline"
+          onClick={() => {
+            if (error) window.location.reload()
+            else {
+              setStartup(undefined)
+              setAttempt((value) => value + 1)
+            }
+          }}
+        >
+          Try again
+        </Button>
+      </div>
+    )
 
   // useChat only reads its initial messages on mount, so wait for the transcript
-  if (isLoading)
+  if (isLoading || (setup && startup?.chatId !== chatId))
     return (
       <div
         className="flex flex-1 items-center justify-center gap-3 text-sm text-muted-foreground"
@@ -120,6 +174,8 @@ function Chat({
       chatId={chatId}
       name={name}
       bots={bots}
+      setup={setup}
+      botId={botId}
       initialMessages={messages}
       transport={transport}
     />
@@ -132,21 +188,41 @@ function ChatMessages({
   bots = [],
   initialMessages,
   transport,
+  setup,
+  botId: directBotId,
 }: {
   chatId: string
   name: string
   bots?: ChatBot[]
   initialMessages: ChatUIMessage[]
   transport: TriggerChatTransport
+  setup: boolean
+  botId?: string
 }) {
   const router = useRouter()
   const { checkPlan, showUsageLimit } = usePaywall()
-  const { messages, sendMessage, status, stop } = useChat<ChatUIMessage>({
+  const {
+    messages,
+    sendMessage,
+    status,
+    stop: stopLocal,
+    addToolOutput,
+  } = useChat<ChatUIMessage>({
     id: chatId,
     messages: initialMessages,
     transport,
+    resume: setup,
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     onFinish: ({ message, isAbort, isError }) => {
       if (isAbort || isError) return
+      if (
+        message.parts.some(
+          (part) =>
+            part.type === "tool-configureBot" &&
+            part.state === "output-available"
+        )
+      )
+        router.refresh()
       const destination = message.parts.findLast(
         (part) =>
           (part.type === "tool-createTeammate" ||
@@ -186,11 +262,40 @@ function ChatMessages({
   const [botId, setBotId] = useState(bots[0]?.id)
   // Falls back to the first one when the picked bot is removed from the group
   const selectedBot = bots.find((bot) => bot.id === botId) ?? bots[0]
+  const visibleMessages = messages.filter(
+    (message) => !directBotId || message.id !== botSetupMessageId(directBotId)
+  )
+  const pendingQuestion = visibleMessages
+    .flatMap((message) => message.parts)
+    .findLast(
+      (part) => part.type === "tool-askUser" && part.state === "input-available"
+    )
+  const busy = status === "submitted" || status === "streaming"
+
+  function answerQuestion(toolCallId: string, answer: string) {
+    addToolOutput({ tool: "askUser", toolCallId, output: { answer } })
+  }
+  function stop() {
+    stopLocal()
+    transport
+      .stopGeneration(chatId)
+      .catch(() =>
+        toast.add({
+          type: "error",
+          title: "Couldn't stop the reply",
+          description: "Try stopping again.",
+        })
+      )
+  }
 
   function handleSubmit(message: PromptInputMessage) {
     if (!message.text.trim()) return
     // Throwing keeps the draft in the input
     if (!checkPlan("bots")) throw new Error("Upgrade required")
+    if (pendingQuestion?.type === "tool-askUser") {
+      answerQuestion(pendingQuestion.toolCallId, message.text)
+      return
+    }
     // The agent reads this turn's metadata to decide which bot answers
     // and the message keeps it too, to show who it was for
     const metadata = selectedBot && { botId: selectedBot.id }
@@ -200,8 +305,8 @@ function ChatMessages({
   return (
     <div data-slot="chat" className="flex min-h-0 flex-1 flex-col">
       <Conversation>
-        <ConversationContent className="mx-auto w-full max-w-3xl px-5 py-8 sm:px-8">
-          {messages.length === 0 && (
+        <ConversationContent className="mx-auto w-full max-w-xl gap-3 px-5 py-8 sm:px-8">
+          {visibleMessages.length === 0 && !setup && (
             <ConversationEmptyState className="min-h-[45svh] gap-6">
               <BotMark
                 shape="blob"
@@ -219,7 +324,15 @@ function ChatMessages({
               </div>
             </ConversationEmptyState>
           )}
-          {messages.flatMap((message) => {
+          {visibleMessages.length === 0 && setup && (
+            <div
+              className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground"
+              role="status"
+            >
+              <Spinner /> Starting your setup conversation…
+            </div>
+          )}
+          {visibleMessages.flatMap((message) => {
             // The bot a group chat's message was sent to
             const addressee =
               message.role === "user"
@@ -233,18 +346,41 @@ function ChatMessages({
                     <MessageResponse
                       key={`${message.id}-${i}-${j}`}
                       // Flows the first paragraph inline, right after the tag
-                      className={
+                      className={cn(
+                        message.role === "assistant" &&
+                          "rounded-xl bg-muted/30 px-3 py-2",
                         addressee && j === 0
                           ? "inline [&>p:first-child]:inline"
                           : message.role === "assistant" && j > 0
                             ? "mt-2"
                             : undefined
-                      }
+                      )}
                     >
                       {part.text}
                     </MessageResponse>
                   )
                 }
+                if (part.type === "tool-askUser")
+                  return (
+                    <ChatQuestion
+                      key={part.toolCallId}
+                      part={part}
+                      active={pendingQuestion?.toolCallId === part.toolCallId}
+                      busy={busy}
+                      onAnswer={(answer) =>
+                        answerQuestion(part.toolCallId, answer)
+                      }
+                      onDismiss={() =>
+                        addToolOutput({
+                          tool: "askUser",
+                          toolCallId: part.toolCallId,
+                          state: "output-error",
+                          errorText:
+                            "The person dismissed this question and prefers to continue in the chat.",
+                        })
+                      }
+                    />
+                  )
                 if (part.type !== "dynamic-tool" && isToolUIPart(part)) {
                   return <ToolCall key={part.toolCallId} part={part} />
                 }
@@ -262,7 +398,7 @@ function ChatMessages({
                   )}
                   <MessageContent
                     className={
-                      message.role === "assistant" ? "w-full gap-1" : undefined
+                      message.role === "assistant" ? "w-full gap-2" : undefined
                     }
                   >
                     {addressee ? (
@@ -299,14 +435,25 @@ function ChatMessages({
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
-      <div className="chat-composer mx-auto w-full max-w-3xl px-4 pt-2 pb-5 sm:px-6">
+      <div
+        data-compact={!selectedBot}
+        className="chat-composer mx-auto w-full max-w-4xl px-4 pt-2 pb-5 sm:px-6"
+      >
         <PromptInput onSubmit={handleSubmit}>
           <PromptInputTextarea
             placeholder={`Message ${name}…`}
-            className="min-h-14 px-3 text-base sm:text-sm"
+            className={
+              selectedBot
+                ? "min-h-14 px-3 text-base sm:text-sm"
+                : "min-h-10 px-3 py-2.5 pr-14 text-base sm:text-sm"
+            }
           />
           <PromptInputFooter
-            className={selectedBot ? undefined : "justify-end"}
+            className={
+              selectedBot
+                ? undefined
+                : "absolute right-2 bottom-2 w-auto justify-end p-0"
+            }
           >
             {selectedBot && (
               <PromptInputTools>

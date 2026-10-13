@@ -58,7 +58,8 @@ export default function RootLayout({
               card: "bg-card! p-6! sm:p-8!",
               formButtonPrimary: "rounded-full! min-h-10! shadow-none!",
               socialButtonsBlockButton: "rounded-xl! min-h-11!",
-              formFieldInput: "rounded-xl! min-h-10!",
+              formFieldInput:
+                "rounded-xl! min-h-10! bg-muted! placeholder:text-muted-foreground!",
               footer: "bg-card!",
               pricingTable: "gap-5!",
               pricingTableCard:

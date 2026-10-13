@@ -4,10 +4,9 @@ import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
 import { ShuffleIcon, Trash2Icon } from "lucide-react"
-import { nanoid } from "nanoid"
 import { Controller, useForm, useWatch } from "react-hook-form"
 
-import { createBot, updateBot } from "@/actions/bot"
+import { updateBot } from "@/actions/bot"
 import { BotDeleteDialog } from "@/components/bot-delete-dialog"
 import { ChatAvatar } from "@/components/chat-avatar"
 import { Button } from "@/components/ui/button"
@@ -37,9 +36,9 @@ import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
 import { botInsertSchema, type Bot } from "@/db/schema"
-import { usePaywall } from "@/hooks/use-paywall"
+import { createBotAvatar } from "@/lib/bot-avatar"
 
-import { botPresets, type BotPresetId } from "@/lib/bot-presets"
+import { botPresets } from "@/lib/bot-presets"
 
 // Asks for confirmation, then deletes the bot and leaves its chat
 function BotDeleteButton({
@@ -66,25 +65,16 @@ function BotDeleteButton({
   )
 }
 
-// With a `bot` it edits that bot, without one it creates a new bot
-function BotForm({
-  bot,
-  presetId,
-  onSaved,
-}: {
-  bot?: Bot
-  presetId?: BotPresetId
-  onSaved: () => void
-}) {
-  const preset = botPresets.find((preset) => preset.id === presetId)
-  const [initialSeed] = useState(() => bot?.avatar ?? nanoid())
+// Manual editing remains available after conversational creation.
+function BotForm({ bot, onSaved }: { bot: Bot; onSaved: () => void }) {
+  const initialSeed = bot.avatar
   const form = useForm({
     resolver: zodResolver(botInsertSchema),
     defaultValues: {
-      name: bot?.name ?? "",
+      name: bot.name,
       avatar: initialSeed,
-      job: bot?.job ?? preset?.job ?? "",
-      instructions: bot?.instructions ?? preset?.instructions ?? "",
+      job: bot.job,
+      instructions: bot.instructions ?? "",
     },
   })
   const { isSubmitting } = form.formState
@@ -92,18 +82,13 @@ function BotForm({
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
-      if (bot) {
-        const updated = await updateBot(bot.id, values)
-        toast.add({ type: "success", title: `${updated.name} is updated` })
-      } else {
-        const created = await createBot(values)
-        toast.add({ type: "success", title: `${created.name} is ready` })
-      }
+      const updated = await updateBot(bot.id, values)
+      toast.add({ type: "success", title: `${updated.name} is updated` })
       onSaved()
     } catch {
       toast.add({
         type: "error",
-        title: bot ? "Couldn't update the bot" : "Couldn't create the bot",
+        title: "Couldn't update the bot",
         description: "Something went wrong. Try again.",
       })
     }
@@ -163,7 +148,7 @@ function BotForm({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => field.onChange(nanoid())}
+                onClick={() => field.onChange(createBotAvatar())}
               >
                 <ShuffleIcon data-icon="inline-start" />
                 Shuffle
@@ -227,13 +212,13 @@ function BotForm({
         />
       </FieldGroup>
       <DialogFooter>
-        {bot && <BotDeleteButton bot={bot} onDeleted={onSaved} />}
+        <BotDeleteButton bot={bot} onDeleted={onSaved} />
         <DialogClose render={<Button type="button" variant="outline" />}>
           Cancel
         </DialogClose>
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting && <Spinner data-icon="inline-start" />}
-          {bot ? "Save changes" : "Create bot"}
+          Save changes
         </Button>
       </DialogFooter>
     </form>
@@ -242,17 +227,15 @@ function BotForm({
 
 // Renders its own trigger from `children`, as `trigger` if given. Without
 // children it has no trigger and is opened by the parent through `open` /
-// `onOpenChange`. Pass `bot` to edit that bot instead of creating one.
+// `onOpenChange`. Creation happens in the chat, not this editor.
 function BotDialog({
   bot,
-  presetId,
   trigger = <Button variant="secondary" />,
   children,
   open: controlledOpen,
   onOpenChange,
 }: {
-  bot?: Bot
-  presetId?: BotPresetId
+  bot: Bot
   trigger?: React.ReactElement
   children?: React.ReactNode
   open?: boolean
@@ -260,30 +243,20 @@ function BotDialog({
 }) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
   const open = controlledOpen ?? uncontrolledOpen
-  const { checkPlan, checkUsage } = usePaywall()
 
-  const setOpen = async (open: boolean) => {
-    // Creating a bot is billable, and its sandbox starts running right away;
-    // editing or deleting one never is
-    if (open && !bot) {
-      if (!checkPlan("bots") || !(await checkUsage("sandbox"))) return
-    }
-    ;(onOpenChange ?? setUncontrolledOpen)(open)
-  }
+  const setOpen = onOpenChange ?? setUncontrolledOpen
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       {children && <DialogTrigger render={trigger}>{children}</DialogTrigger>}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{bot ? "Edit bot" : "New bot"}</DialogTitle>
+          <DialogTitle>Edit bot</DialogTitle>
           <DialogDescription>
-            {bot
-              ? "Change its face, its name, or the job it does."
-              : "Give it a face, a name, and a job to do."}
+            Change its face, its name, or the job it does.
           </DialogDescription>
         </DialogHeader>
-        <BotForm bot={bot} presetId={presetId} onSaved={() => setOpen(false)} />
+        <BotForm bot={bot} onSaved={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
   )

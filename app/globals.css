@@ -283,3 +283,20 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+:root {
+  --chat-surface: #fafafa;
+}
+.dark {
+  --chat-surface: #111111;
+}
+.chat-surface,
+.app-shell [data-slot="chat-header"] {
+  background: var(--chat-surface);
+}
+.chat-composer[data-compact="true"] [data-slot="input-group"] {
+  padding: 0;
+}
+.chat-composer[data-compact="true"] [data-slot="input-group-addon"] {
+  padding: 0;
+}
