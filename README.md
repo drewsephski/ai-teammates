@@ -72,7 +72,7 @@ flowchart LR
         METER[meter-sandboxes<br/>every 5 min]
     end
 
-    AGENT -- gpt-5 --> GATEWAY[Neon AI Gateway]
+    AGENT -- GLM-5.3 Flash / Luna vision --> GATEWAY[Neon AI Gateway]
     AGENT -- shell, files, mouse, keyboard --> SANDBOX[Daytona sandboxes]
     APP -- live desktop over noVNC --> SANDBOX
     METER -- list running / stop --> SANDBOX
@@ -87,6 +87,7 @@ flowchart LR
 ```
 
 - **A chat turn** (`trigger/chat.ts`) builds the bot's instructions from its job and streams a reply with the sandbox tools attached (`lib/sandbox-tools.ts`). It stops after 50 steps or when the allowance is spent.
+- **The models** (`lib/model.ts`) use GLM-5.3 Flash for text and tools, and GPT-5.6 Luna for steps containing images, through Neon AI Gateway. Both use low reasoning effort. Standard rates per million tokens are $0.15 input / $0.50 output for GLM and $0.20 input / $1.20 output for Luna. Usage is metered per step, including cached input and Luna's long-context tier; current rates are published in [Neon's model catalog](https://neon.com/models.json).
 - **In a group chat** the bot also gets a `handoff` tool, which gives the rest of the turn to a teammate. A request cannot bounce back to a bot that already held it.
 - **Usage** is an append-only ledger. Model spend is written when a turn completes; sandbox time by a task that charges every running sandbox each five minutes and stops those of owners who have run out. Limits live in `lib/usage.ts`.
 

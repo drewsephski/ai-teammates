@@ -83,12 +83,22 @@ function buildInstructions(bot: Bot, group?: { chat: Chat; bots: Bot[] }) {
     .join("\n\n")
 }
 
+const turnModelUsage = chat.local<{ cost: number }>({
+  id: "chat-turn-model-cost",
+})
+
 // The transcript is kept per chatId by the agent's default transcript storage
 export const chatAgent = chat
   .withUIMessage<ChatUIMessage>()
   .withClientData({ schema: clientDataSchema })
   .agent({
     id: "chat",
+    onBoot: () => {
+      turnModelUsage.init({ cost: 0 })
+    },
+    onTurnStart: () => {
+      turnModelUsage.cost = 0
+    },
     // Declared here so screenshots stay images when earlier turns are replayed
     tools: async ({ chatId, clientData }) => {
       const {
@@ -180,7 +190,7 @@ export const chatAgent = chat
           {
             userId: row.userId,
             kind: "ai",
-            amount: chatModelCost(usage),
+            amount: turnModelUsage.cost,
             idempotencyKey: `ai:${runId}:${turn}`,
           },
         ])
@@ -202,7 +212,7 @@ export const chatAgent = chat
           "gen_ai.usage.input_tokens": usage.inputTokens ?? 0,
           "gen_ai.usage.output_tokens": usage.outputTokens ?? 0,
           // Millionths of a dollar, as in the usage ledger
-          "usage.cost": chatModelCost(usage),
+          "usage.cost": turnModelUsage.cost,
         }),
       })
 
@@ -235,13 +245,13 @@ export const chatAgent = chat
       })
 
       return streamText({
-        model: chatModel(),
+        model: chatModel(messages),
         // The managed streamText takes the prompt as `system` on every AI SDK version
         system: buildInstructions(bot, group),
         messages,
         tools,
         // After a handoff the rest of the turn is the other bot's to answer
-        prepareStep: ({ steps }) => {
+        prepareStep: ({ steps, messages }) => {
           const handoff = steps
             .flatMap((step) => step.toolResults)
             .findLast((result) => result.toolName === "handoff")
@@ -249,17 +259,24 @@ export const chatAgent = chat
             handoff &&
             bots.find((bot) => bot.id === (handoff.output as Handoff).botId)
 
-          return current
-            ? { instructions: buildInstructions(current, group) }
-            : undefined
+          return {
+            model: chatModel(messages),
+            ...(current && { instructions: buildInstructions(current, group) }),
+          }
+        },
+        onStepEnd: ({ usage, model }) => {
+          turnModelUsage.cost += chatModelCost(usage, model.modelId)
         },
         stopWhen: [
           // Desktop work is one small action per step
           isStepCount(50),
           // A long turn ends once it has spent what was left
           ({ steps }) =>
-            steps.reduce((cost, step) => cost + chatModelCost(step.usage), 0) >=
-            usage.remaining.ai,
+            steps.reduce(
+              (cost, step) =>
+                cost + chatModelCost(step.usage, step.model.modelId),
+              0
+            ) >= usage.remaining.ai,
         ],
         abortSignal: signal,
       })
