@@ -437,7 +437,18 @@ export const chatAgent = chat
         const currentUsage = await getUsage(row.userId)
         if (currentUsage.remaining.ai <= 0) throw new Error(USAGE_LIMIT_ERROR)
         try {
-          await chat.pipe(respond(currentUsage))
+          const result = respond(currentUsage)
+          // Raw chat.pipe streams without saving text/tools or a shared message
+          // ID. Capture the full reply so continuation runs retain the answer
+          // and the browser resumes the same message rather than duplicating it.
+          const outcome = await chat.pipeAndCapture(result, {
+            signal,
+            originalMessages: chat.history.all(),
+          })
+          if (outcome.status === "error") throw outcome.error
+          // The managed agent skips auto-piping an already captured stream, but
+          // still reads this result's usage for its completion hook.
+          return result
         } finally {
           if (turnModelUsage.cost > 0)
             await recordUsage([

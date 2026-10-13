@@ -62,7 +62,16 @@ import type { chatAgent } from "@/trigger/chat"
 
 type ChatBot = Pick<Bot, "id" | "name" | "avatar">
 
-function ChatThinking() {
+function ChatThinking({ delay = 0 }: { delay?: number }) {
+  const [visible, setVisible] = useState(delay === 0)
+  useEffect(() => {
+    if (delay === 0) return
+    const timer = setTimeout(() => setVisible(true), delay)
+    return () => clearTimeout(timer)
+  }, [delay])
+
+  if (!visible) return null
+
   return (
     <div role="status" className="text-sm text-muted-foreground">
       <TextShimmer
@@ -321,10 +330,14 @@ function ChatMessages({
         !answeredQuestions.has(part.toolCallId)
     )
   const busy = status === "submitted" || status === "streaming"
+  const latestUser = visibleMessages.findLast(
+    (message) => message.role === "user"
+  )
   const thinking = isChatThinking(
     visibleMessages,
     status,
-    setup && !setupStopped
+    setup && !setupStopped,
+    seen
   )
 
   function answerQuestion(questionId: string, answer: string) {
@@ -493,7 +506,14 @@ function ChatMessages({
               )
             })
           })}
-          {thinking && <ChatThinking />}
+          {thinking && (
+            // Let Seen paint before the shimmer starts; a new prompt remounts
+            // the timer, and an early response or stop cancels it.
+            <ChatThinking
+              key={latestUser?.id ?? "setup"}
+              delay={latestUser ? 350 : 0}
+            />
+          )}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
