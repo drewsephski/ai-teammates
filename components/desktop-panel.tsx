@@ -35,6 +35,7 @@ type DesktopStatus =
 type DesktopPanelContextValue = {
   open: boolean
   toggle: () => void
+  close: () => void
   status: DesktopStatus
   connect: () => void
   pause: () => void
@@ -76,6 +77,7 @@ function DesktopPanelProvider({
   const interactiveRef = React.useRef(false)
   // Only the latest connection attempt may report its status
   const attemptRef = React.useRef(0)
+  const toggleRequestRef = React.useRef(0)
 
   const getScreen = React.useCallback(() => {
     if (!screenRef.current) {
@@ -138,20 +140,24 @@ function DesktopPanelProvider({
     }
   }, [chatId, getScreen])
 
+  const close = React.useCallback(() => {
+    toggleRequestRef.current++
+    attemptRef.current++
+    rfbRef.current?.disconnect()
+    rfbRef.current = null
+    setStatus("idle")
+    setOpen(false)
+  }, [])
+
   const toggle = React.useCallback(async () => {
-    if (!open) {
-      // Showing the desktop starts the sandbox
-      if (!checkPlan("sandboxes") || !(await checkUsage("sandbox"))) return
-      if (status !== "connected" && status !== "connecting") connect()
-    } else {
-      // A hidden screen must not renew the computer's idle lease.
-      attemptRef.current++
-      rfbRef.current?.disconnect()
-      rfbRef.current = null
-      setStatus("idle")
-    }
-    setOpen(!open)
-  }, [open, status, connect, checkPlan, checkUsage])
+    if (open) return close()
+    const request = ++toggleRequestRef.current
+    // Showing the desktop starts the sandbox
+    if (!checkPlan("sandboxes") || !(await checkUsage("sandbox"))) return
+    if (request !== toggleRequestRef.current) return
+    if (status !== "connected" && status !== "connecting") connect()
+    setOpen(true)
+  }, [open, status, connect, checkPlan, checkUsage, close])
 
   const pause = React.useCallback(async () => {
     setStatus("pausing")
@@ -190,6 +196,7 @@ function DesktopPanelProvider({
 
   React.useEffect(() => {
     return () => {
+      toggleRequestRef.current++
       attemptRef.current++
       rfbRef.current?.disconnect()
       rfbRef.current = null
@@ -200,6 +207,7 @@ function DesktopPanelProvider({
     () => ({
       open,
       toggle,
+      close,
       status,
       connect,
       pause,
@@ -207,7 +215,17 @@ function DesktopPanelProvider({
       attachScreen,
       setInteractive,
     }),
-    [open, toggle, status, connect, pause, reset, attachScreen, setInteractive]
+    [
+      open,
+      toggle,
+      close,
+      status,
+      connect,
+      pause,
+      reset,
+      attachScreen,
+      setInteractive,
+    ]
   )
 
   return <DesktopPanelContext value={value}>{children}</DesktopPanelContext>

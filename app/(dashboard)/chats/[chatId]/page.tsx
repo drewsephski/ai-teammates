@@ -3,6 +3,10 @@ import { auth } from "@clerk/nextjs/server"
 
 import { Chat } from "@/components/chat"
 import { ChatHeader } from "@/components/chat-header"
+import {
+  BotSettingsPanel,
+  BotSettingsProvider,
+} from "@/components/bot-settings-panel"
 import { DesktopPanel, DesktopPanelProvider } from "@/components/desktop-panel"
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { getBots } from "@/queries/bots"
@@ -40,23 +44,26 @@ export default async function Page({
 
   return (
     <DesktopPanelProvider key={chat.id} chatId={chat.id}>
-      {/* The group sizes itself to its parent, so the viewport height goes here */}
-      <div className="chat-surface h-svh">
-        <ResizablePanelGroup orientation="horizontal">
-          <ResizablePanel id="chat" minSize="30%">
-            <div className="flex h-full flex-col">
-              <ChatHeader chat={chat} />
-              <Chat
-                chatId={chat.id}
-                name={chat.name ?? chat.bots[0].name}
-                botId={chat.bots[0].id}
-                setup={!chat.bots[0].setupComplete}
-              />
-            </div>
-          </ResizablePanel>
-          <DesktopPanel name={chat.bots[0].name} />
-        </ResizablePanelGroup>
-      </div>
+      <BotSettingsProvider>
+        {/* The group sizes itself to its parent, so the viewport height goes here */}
+        <div className="chat-surface h-svh">
+          <ResizablePanelGroup orientation="horizontal">
+            <ResizablePanel id="chat" minSize="30%">
+              <div className="flex h-full flex-col">
+                <ChatHeader chat={chat} />
+                <Chat
+                  chatId={chat.id}
+                  name={chat.name ?? chat.bots[0].name}
+                  botId={chat.bots[0].id}
+                  setup={!chat.bots[0].setupComplete}
+                />
+              </div>
+            </ResizablePanel>
+            <DesktopPanel name={chat.bots[0].name} />
+            <BotSettingsPanel bot={chat.bots[0]} />
+          </ResizablePanelGroup>
+        </div>
+      </BotSettingsProvider>
     </DesktopPanelProvider>
   )
 }

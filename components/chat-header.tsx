@@ -2,7 +2,7 @@
 
 import { MonitorIcon } from "lucide-react"
 
-import { BotDialog } from "@/components/bot-dialog"
+import { useBotSettings } from "@/components/bot-settings-panel"
 import { ChatAvatar } from "@/components/chat-avatar"
 import { useDesktopPanel } from "@/components/desktop-panel"
 import { GroupChatAvatar } from "@/components/group-chat-avatar"
@@ -15,6 +15,7 @@ import type { ChatWithBots } from "@/queries/bots"
 // Only rendered in direct chats, the only ones inside a DesktopPanelProvider
 function DesktopButton() {
   const desktopPanel = useDesktopPanel()
+  const settings = useBotSettings()
 
   return (
     <Button
@@ -23,10 +24,32 @@ function DesktopButton() {
       className="ml-auto rounded-full text-muted-foreground aria-pressed:bg-muted aria-pressed:text-foreground"
       aria-label="Desktop"
       aria-pressed={desktopPanel.open}
-      onClick={desktopPanel.toggle}
+      onClick={() => {
+        settings.close(false)
+        desktopPanel.toggle()
+      }}
     >
       <MonitorIcon />
       <span className="hidden sm:inline">Desktop</span>
+    </Button>
+  )
+}
+
+function BotSettingsButton({ bot }: { bot: Bot }) {
+  const settings = useBotSettings()
+  return (
+    <Button
+      ref={settings.triggerRef}
+      variant="ghost"
+      size="sm"
+      className="h-8 min-w-0 shrink gap-2 bg-muted/40 px-3 text-xs"
+      aria-label={`Settings for ${bot.name}`}
+      aria-expanded={settings.open}
+      aria-controls="bot-config-panel"
+      onClick={() => (settings.open ? settings.close() : settings.show())}
+    >
+      <ChatAvatar seed={bot.avatar} className="size-6" />
+      <span className="truncate">{bot.name}</span>
     </Button>
   )
 }
@@ -68,28 +91,7 @@ function ChatHeader({
       ) : (
         <>
           <h1 className="absolute left-1/2 flex max-w-[calc(100%-8rem)] min-w-0 -translate-x-1/2">
-            {!chat.bots[0].setupComplete ? (
-              <span className="inline-flex h-8 min-w-0 items-center gap-2 rounded-full bg-muted/40 px-3 text-xs font-medium">
-                <ChatAvatar seed={chat.bots[0].avatar} className="size-6" />
-                <span className="truncate">{chat.bots[0].name}</span>
-              </span>
-            ) : (
-              <BotDialog
-                bot={chat.bots[0]}
-                trigger={
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 min-w-0 shrink gap-2 bg-muted/40 px-3 text-xs"
-                  />
-                }
-              >
-                <ChatAvatar seed={chat.bots[0].avatar} className="size-6" />
-                <span className="truncate">
-                  {chat.name ?? chat.bots[0].name}
-                </span>
-              </BotDialog>
-            )}
+            <BotSettingsButton bot={chat.bots[0]} />
           </h1>
           <DesktopButton />
         </>

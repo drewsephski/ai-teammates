@@ -482,7 +482,10 @@ function ChatMessages({
                     )}
                   </MessageContent>
                   {message.role === "user" && seen.has(message.id) && (
-                    <span className="pr-1 text-right text-[11px] leading-none text-muted-foreground" aria-live="polite">
+                    <span
+                      className="pr-1 text-right text-[11px] leading-none text-muted-foreground"
+                      aria-live="polite"
+                    >
                       Seen
                     </span>
                   )}

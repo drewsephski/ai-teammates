@@ -326,7 +326,10 @@ export const chatAgent = chat
         chat.response.write({
           type: "data-messageSeen",
           id: turnModelUsage.messageId,
-          data: { messageId: turnModelUsage.messageId, seenAt: new Date().toISOString() },
+          data: {
+            messageId: turnModelUsage.messageId,
+            seenAt: new Date().toISOString(),
+          },
         })
 
       return streamText({

@@ -2,7 +2,7 @@
 
 import { auth, currentUser } from "@clerk/nextjs/server"
 import * as Sentry from "@sentry/nextjs"
-import { and, eq, inArray } from "drizzle-orm"
+import { and, eq, inArray, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
@@ -107,7 +107,12 @@ export async function updateBot(botId: string, values: BotInsert) {
 
   const [bot] = await db
     .update(bots)
-    .set({ ...data, instructions: data.instructions || null })
+    .set({
+      ...data,
+      instructions: data.instructions || null,
+      // Appearance-only edits keep a blank bot's conversational setup active.
+      setupComplete: sql`${bots.setupComplete} OR ${data.job !== "Not configured"}`,
+    })
     .where(and(eq(bots.id, botId), eq(bots.userId, userId)))
     .returning()
   if (!bot) throw new Error("Bot not found")
