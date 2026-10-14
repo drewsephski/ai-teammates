@@ -35,7 +35,8 @@ Krafty is an open exploration of that idea. Every prompt, tool and limit is a fi
 - **Built-in web research**: Tavily search and page reading with source links, news/date/domain filters, and instructions to verify and cite current information. Available on free and paid plans when configured.
 - 🧠 **Memory across chats**: notes a bot saves in one conversation are there in all the others.
 - ♾️ **Durable turns**: a long desktop task survives refreshes, redeploys and closed tabs.
-- 💳 **Plans and usage limits**: subscriptions, with model spend and sandbox hours metered per billing period.
+- 💳 **Plans and usage limits**: subscriptions, with model spend and sandbox hours metered per billing period. Chats show how much is left once an allowance drops to a fifth, before it runs out.
+- **Copy and export**: copy any reply as Markdown, or download a whole direct or group chat as a Markdown transcript from the chat header.
 
 ## 🧱 Built with
 

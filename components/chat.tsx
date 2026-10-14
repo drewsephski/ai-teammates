@@ -52,6 +52,8 @@ import {
 import { ToolCall } from "@/components/chat-tool-call"
 import { ChatQuestion } from "@/components/chat-question"
 import { ChatFollowUps } from "@/components/chat-follow-ups"
+import { ChatMessageActions } from "@/components/chat-message-actions"
+import { sectionText } from "@/lib/chat-export"
 import { latestFollowUps } from "@/lib/chat-follow-ups"
 import { Button } from "@/components/ui/button"
 import { botSetupMessageId } from "@/lib/bot-setup-tools"
@@ -105,6 +107,7 @@ function Chat({
   botId,
   directBot,
   mentionBots = [],
+  notice,
 }: {
   chatId: string
   name: string
@@ -113,6 +116,8 @@ function Chat({
   botId?: string
   directBot?: ChatBot
   mentionBots?: MentionBot[]
+  // Shown above the composer, such as a low-allowance warning
+  notice?: React.ReactNode
 }) {
   const transport = useTriggerChatTransport<typeof chatAgent>({
     task: "chat",
@@ -158,6 +163,7 @@ function Chat({
       botId={botId}
       directBot={directBot}
       mentionBots={mentionBots}
+      notice={notice}
       initialMessages={messages}
       transport={transport}
     />
@@ -174,6 +180,7 @@ function ChatMessages({
   botId: directBotId,
   directBot,
   mentionBots = [],
+  notice,
 }: {
   chatId: string
   name: string
@@ -184,6 +191,7 @@ function ChatMessages({
   botId?: string
   directBot?: ChatBot
   mentionBots?: MentionBot[]
+  notice?: React.ReactNode
 }) {
   const router = useRouter()
   const { checkPlan, showUsageLimit } = usePaywall()
@@ -518,6 +526,12 @@ function ChatMessages({
                 })
 
                 if (!renderedParts.some(Boolean)) return null
+                // A reply still streaming in isn't ready to copy
+                const copyText =
+                  message.role === "assistant" &&
+                  !(busy && message.id === visibleMessages.at(-1)?.id)
+                    ? sectionText(parts)
+                    : ""
 
                 return (
                   <Message
@@ -598,6 +612,7 @@ function ChatMessages({
                       ) : (
                         renderedParts
                       )}
+                      {copyText && <ChatMessageActions text={copyText} />}
                     </MessageContent>
                     {message.role === "user" && seen.has(message.id) && (
                       <span
@@ -642,6 +657,7 @@ function ChatMessages({
         data-compact={!selectedBot}
         className="chat-composer mx-auto w-full max-w-4xl px-4 pt-2 pb-5 sm:px-6"
       >
+        {notice}
         <PromptInputProvider>
           {followUps && (
             <ChatFollowUps
