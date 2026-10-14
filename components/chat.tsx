@@ -7,7 +7,7 @@ import { useTriggerChatTransport } from "@trigger.dev/sdk/chat/react"
 import { isToolUIPart } from "ai"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowUpIcon, SquareIcon } from "lucide-react"
+import { ArrowUpIcon, SquareIcon, UsersRoundIcon } from "lucide-react"
 import { toast } from "@/components/ui/toast"
 
 import {
@@ -58,6 +58,7 @@ import { botSetupMessageId } from "@/lib/bot-setup-tools"
 import { cn } from "@/lib/utils"
 import { BotMark } from "@/components/landing/bot/bot-mark"
 import { Spinner } from "@/components/ui/spinner"
+import { Spiral } from "@/components/ui/spiral"
 import { isChatThinking } from "@/lib/chat-thinking"
 import { seenMessageIds } from "@/lib/chat-receipts"
 import { Badge } from "@/components/ui/badge"
@@ -81,10 +82,17 @@ function ChatLoading() {
   return (
     <div
       role="status"
-      className="flex items-center gap-2 text-sm text-muted-foreground"
+      aria-busy="true"
+      className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center"
     >
-      <Spinner className="size-4" />
-      Loading conversation…
+      <Spiral
+        role="presentation"
+        aria-hidden="true"
+        className="size-12 text-muted-foreground"
+      />
+      <p className="text-sm text-muted-foreground">
+        Opening your conversation…
+      </p>
     </div>
   )
 }
@@ -139,14 +147,7 @@ function Chat({
     )
 
   // useChat only reads its initial messages on mount, so wait for the transcript
-  if (isLoading)
-    return (
-      <Conversation>
-        <ConversationContent className="mx-auto w-full max-w-xl px-5 py-8 sm:px-8">
-          <ChatLoading />
-        </ConversationContent>
-      </Conversation>
-    )
+  if (isLoading) return <ChatLoading />
 
   return (
     <ChatMessages
@@ -189,7 +190,9 @@ function ChatMessages({
   const { checkPlan, showUsageLimit } = usePaywall()
   const publishActivity = usePublishChatActivity()
   const [completion, setCompletion] = useState<ChatActivity>()
-  const identities = directBot ? [directBot, ...bots] : bots
+  const identities = directBot
+    ? [directBot, ...bots, ...mentionBots]
+    : [...bots, ...mentionBots]
   const fallbackBotId = directBotId ?? bots[0]?.id
   const chatTransport = useMemo(
     () => navigationChatTransport(transport),
@@ -445,6 +448,11 @@ function ChatMessages({
 
             return chatAuthorSections(message, fallbackBotId).map(
               ({ botId: authorId, parts }, i) => {
+                const contribution = parts.some(
+                  (part) =>
+                    part.type === "tool-consultTeammate" &&
+                    part.state === "output-available"
+                )
                 const author =
                   message.role === "assistant"
                     ? identities.find((bot) => bot.id === authorId)
@@ -516,7 +524,9 @@ function ChatMessages({
                   <Message
                     from={message.role}
                     key={`${message.id}-${i}`}
-                    className={author && "flex-row items-start"}
+                    className={
+                      author || contribution ? "flex-row items-start" : undefined
+                    }
                   >
                     {author && (
                       <ChatAvatar
@@ -524,6 +534,12 @@ function ChatMessages({
                         identity={author.id}
                         state={current ? activity.state : "idle"}
                         className="mt-1 size-6"
+                      />
+                    )}
+                    {!author && contribution && (
+                      <UsersRoundIcon
+                        aria-hidden="true"
+                        className="mt-1 size-6 shrink-0 text-muted-foreground"
                       />
                     )}
                     <MessageContent

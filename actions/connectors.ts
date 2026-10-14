@@ -45,7 +45,9 @@ export async function connectApp(slug: string) {
   const toolkit = toolkitSlugSchema.parse(slug)
   try {
     // Next.js validates the browser's Origin against the Server Action host.
-    const origin = z.url().parse((await headers()).get("origin"))
+    const origin = z
+      .url({ protocol: /^https?$/ })
+      .parse((await headers()).get("origin"))
     const state = crypto.randomUUID()
     const callback = new URL("/workspace", origin)
     callback.searchParams.set("apps", "connect")
@@ -57,7 +59,8 @@ export async function connectApp(slug: string) {
     ) {
       throw new Error("This app requires a custom authentication setup.")
     }
-    ;(await cookies()).set(
+    const cookieStore = await cookies()
+    cookieStore.set(
       connectorCookieName(state),
       JSON.stringify({ userId, accountId: request.id, toolkit }),
       {

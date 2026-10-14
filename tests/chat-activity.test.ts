@@ -128,6 +128,78 @@ test("handoffs attribute only the current section, including before new text arr
   )
 })
 
+test("consultations show each contributor, then restore the requesting author", () => {
+  const consult = (botId: string): ChatUIMessage["parts"][number] => ({
+    type: "tool-consultTeammate",
+    toolCallId: `consult-${botId}`,
+    state: "output-available",
+    input: { botId, prompt: "Introduce yourself" },
+    output: { botId, name: botId, answer: `I'm ${botId}.` },
+  })
+  const first = consult("quill")
+  const second = consult("editor")
+  const intro = { type: "text" as const, text: "Asking my teammates." }
+  const conclusion = { type: "text" as const, text: "Here is our plan." }
+  const parts = [intro, first, second, conclusion]
+  const sections = chatAuthorSections(reply(parts))
+  assert.deepEqual(
+    sections.filter((section) => section.parts.length),
+    [
+      { botId: "scout", parts: [intro] },
+      { botId: "quill", parts: [first] },
+      { botId: "editor", parts: [second] },
+      { botId: "scout", parts: [conclusion] },
+    ]
+  )
+  assert.deepEqual(
+    sections.flatMap((section) => section.parts),
+    parts
+  )
+  // The requester continues thinking after a completed consultation, even
+  // before its next text arrives. It must not animate the completed contributor.
+  assert.equal(activity([intro, first]).botId, "scout")
+  assert.equal(activity([intro, first]).state, "thinking")
+  assert.equal(activity(parts).botId, "scout")
+  assert.equal(activity(parts).state, "responding")
+  assert.equal(activity(parts, "ready").state, "idle")
+})
+
+test("unfinished and failed consultations stay with the requester; handoffs still persist", () => {
+  const pending: ChatUIMessage["parts"][number] = {
+    type: "tool-consultTeammate",
+    toolCallId: "consult",
+    state: "input-available",
+    input: { botId: "quill", prompt: "Review this" },
+  }
+  assert.equal(chatAuthorSections(reply([pending])).length, 1)
+  assert.equal(activity([pending]).botId, "scout")
+  assert.equal(activity([pending]).state, "working")
+  const failed: ChatUIMessage["parts"][number] = {
+    ...pending,
+    state: "output-error",
+    errorText: "Teammate unavailable",
+  }
+  assert.equal(chatAuthorSections(reply([failed])).length, 1)
+  const handoff: ChatUIMessage["parts"][number] = {
+    type: "tool-handoff",
+    toolCallId: "handoff",
+    state: "output-available",
+    input: { botId: "quill", note: "Take over" },
+    output: { botId: "quill", name: "Quill" },
+  }
+  const contribution: ChatUIMessage["parts"][number] = {
+    ...pending,
+    state: "output-available",
+    output: { botId: "editor", name: "Editor", answer: "Reviewed." },
+  }
+  const sections = chatAuthorSections(reply([handoff, contribution]))
+  assert.deepEqual(
+    sections.map((section) => section.botId),
+    ["scout", "quill", "editor", "quill"]
+  )
+  assert.equal(activity([handoff, contribution]).botId, "quill")
+})
+
 test("unanswered questions stay attentive, but answering or failing ends the waiting state", () => {
   const question = reply([
     {

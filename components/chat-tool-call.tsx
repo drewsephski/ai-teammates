@@ -1,6 +1,7 @@
 "use client"
 
 import { CodeBlock } from "@/components/ai-elements/code-block"
+import { MessageResponse } from "@/components/ai-elements/message"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Image } from "@/components/ai-elements/image"
@@ -250,6 +251,21 @@ function toolSummary(part: ToolPart): string | undefined {
 
 export function ToolCall({ part }: { part: ToolPart }) {
   if (
+    part.type === "tool-consultTeammate" &&
+    part.state === "output-available"
+  ) {
+    return (
+      <div data-slot="teammate-contribution" className="min-w-0 space-y-1">
+        <p className="px-3 text-xs font-medium break-words text-muted-foreground">
+          {part.output.name}
+        </p>
+        <MessageResponse className="rounded-xl bg-muted/30 px-3 py-2">
+          {part.output.answer}
+        </MessageResponse>
+      </div>
+    )
+  }
+  if (
     (part.type === "tool-createTeammate" ||
       part.type === "tool-createGroupChat" ||
       part.type === "tool-delegateToTeammate") &&
@@ -473,13 +489,6 @@ function toolResult(part: ToolPart) {
               Page content shortened.
             </p>
           )}
-        </div>
-      )
-    case "tool-consultTeammate":
-      return (
-        <div className="space-y-2 p-2.5">
-          <p className="font-medium">{part.output.name}</p>
-          <p className="whitespace-pre-wrap">{part.output.answer}</p>
         </div>
       )
     case "tool-readFile":

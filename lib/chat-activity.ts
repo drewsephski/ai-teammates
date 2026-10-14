@@ -9,7 +9,7 @@ export type ChatActivity = {
   sectionIndex?: number
 }
 
-// Metadata names the first author; each successful handoff starts a new section.
+// Consultations temporarily change the author; handoffs change it for the turn.
 export function chatAuthorSections(
   message: ChatUIMessage,
   fallbackBotId?: string
@@ -20,6 +20,16 @@ export function chatAuthorSections(
   }
   const sections = [section]
   for (const part of message.parts) {
+    if (
+      message.role === "assistant" &&
+      part.type === "tool-consultTeammate" &&
+      part.state === "output-available"
+    ) {
+      sections.push({ botId: part.output.botId, parts: [part] })
+      section = { botId: section.botId, parts: [] }
+      sections.push(section)
+      continue
+    }
     section.parts.push(part)
     if (part.type === "tool-handoff" && part.state === "output-available") {
       section = { botId: part.output.botId, parts: [] }
