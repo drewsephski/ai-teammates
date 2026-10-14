@@ -16,8 +16,6 @@ export const botPresets = [
     job: "Research assistant",
     label: "Research",
     icon: BookOpenIcon,
-    onboardingTitle: "Research a market, deliver a brief",
-    onboardingDetail: "Browse, verify & share",
     suggestedApps: ["Google Drive", "Slack"],
     description:
       "Investigate competitors in the browser, verify sources, and deliver a decision-ready brief to a connected document or team channel.",
@@ -33,8 +31,6 @@ export const botPresets = [
     job: "Code reviewer",
     label: "Code review",
     icon: SquareCodeIcon,
-    onboardingTitle: "Investigate and fix a real bug",
-    onboardingDetail: "Inspect, test & open a PR",
     suggestedApps: ["GitHub", "Linear"],
     description:
       "Inspect a repository, reproduce a bug on your cloud computer, test a fix, and open a pull request when requested.",
@@ -50,8 +46,6 @@ export const botPresets = [
     job: "Writing editor",
     label: "Writing",
     icon: FilePenLineIcon,
-    onboardingTitle: "Take a launch from brief to publish",
-    onboardingDetail: "Research, create & publish",
     suggestedApps: ["Notion", "WordPress"],
     description:
       "Gather source material, prepare launch content and assets, then update a connected workspace or publish to the destination you choose.",
@@ -67,8 +61,6 @@ export const botPresets = [
     job: "Tutor",
     label: "Learning",
     icon: GraduationCapIcon,
-    onboardingTitle: "Build hands-on training",
-    onboardingDetail: "Build, practice & save",
     suggestedApps: ["Notion", "Google Drive"],
     description:
       "Research current resources, build exercises on your cloud computer, and organize a hands-on learning workspace in your connected service.",
@@ -84,8 +76,6 @@ export const botPresets = [
     job: "Project planner",
     label: "Planning",
     icon: CalendarCheckIcon,
-    onboardingTitle: "Coordinate a project launch",
-    onboardingDetail: "Create tasks & milestones",
     suggestedApps: ["Linear", "Google Calendar"],
     description:
       "Turn a brief into a workable launch plan, create tasks in your project tool, and add agreed milestones to your connected calendar.",
@@ -101,8 +91,6 @@ export const botPresets = [
     job: "Data analyst",
     label: "Data analysis",
     icon: ChartNoAxesCombinedIcon,
-    onboardingTitle: "Turn live data into decisions",
-    onboardingDetail: "Pull data, analyze & deliver",
     suggestedApps: ["Google Sheets", "Slack"],
     description:
       "Pull data from a connected service, run reproducible analysis on your computer, and deliver a report with charts to your team.",

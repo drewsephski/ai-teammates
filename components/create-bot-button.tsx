@@ -81,10 +81,15 @@ export function CreateBotButton({
       {...props}
       type="button"
       disabled={pending || props.disabled}
+      aria-busy={pending}
       onClick={create}
     >
-      {pending ? <Spinner data-icon="inline-start" /> : <PlusIcon />}
-      {children ?? "Create a teammate"}
+      {pending ? (
+        <Spinner aria-hidden="true" data-icon="inline-start" />
+      ) : (
+        <PlusIcon aria-hidden="true" />
+      )}
+      {children ?? "Create bot"}
     </Button>
   )
 }
