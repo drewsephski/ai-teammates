@@ -1,4 +1,4 @@
-import "./helpers/dom"
+import "./helpers/avatar-motion"
 import "./helpers/css.mjs"
 import assert from "node:assert/strict"
 import { afterEach, test } from "node:test"
@@ -25,7 +25,7 @@ test("a completed teammate contribution shows its name and actual Markdown answe
   }
   const view = render(<ToolCall part={part} />)
   assert.ok(view.getByText("Editor", { selector: "p" }))
-  assert.ok(view.getByText("Editor", { selector: "strong" }))
+  assert.ok(view.getByText("Editor", { selector: '[data-streamdown="strong"]' }))
   assert.ok(view.getByText("I edit drafts.", { selector: "li" }))
   assert.ok(view.container.querySelector('[data-slot="teammate-contribution"]'))
   assert.equal(view.queryByRole("button"), null)

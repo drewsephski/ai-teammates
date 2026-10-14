@@ -57,7 +57,6 @@ import { Button } from "@/components/ui/button"
 import { botSetupMessageId } from "@/lib/bot-setup-tools"
 import { cn } from "@/lib/utils"
 import { BotMark } from "@/components/landing/bot/bot-mark"
-import { Spinner } from "@/components/ui/spinner"
 import { Spiral } from "@/components/ui/spiral"
 import { isChatThinking } from "@/lib/chat-thinking"
 import { seenMessageIds } from "@/lib/chat-receipts"
@@ -525,7 +524,9 @@ function ChatMessages({
                     from={message.role}
                     key={`${message.id}-${i}`}
                     className={
-                      author || contribution ? "flex-row items-start" : undefined
+                      author || contribution
+                        ? "flex-row items-start"
+                        : undefined
                     }
                   >
                     {author && (
