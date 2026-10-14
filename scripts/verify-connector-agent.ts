@@ -8,6 +8,8 @@ import { connectedAppInstructions } from "../lib/agent-tool-instructions"
 import { botPersonalityInstructions } from "../lib/bot-personality"
 import { createAppTools, type AppTool } from "../lib/connector-tools"
 import { chatModel } from "../lib/model"
+import { buildChatInstructions } from "../lib/chat-instructions"
+import { createBotSetupTools } from "../lib/bot-setup-tools"
 
 const slugs = [
   "GMAIL_SEND_EMAIL",
@@ -40,8 +42,44 @@ const scenarios: {
   messages: ModelMessage[]
   timeoutSend?: boolean
   draftThenSendOnly?: boolean
+  setup?: boolean
   expected: string
 }[] = [
+  {
+    name: "unfinished setup sends requested email without saving a profile",
+    setup: true,
+    messages: [
+      {
+        role: "user",
+        content:
+          "Send an email now to recipient@example.com, subject Demo, body Hello from Drew.",
+      },
+    ],
+    expected: "GMAIL_SEND_EMAIL",
+  },
+  {
+    name: "unfinished setup recovers from a previous claim that Gmail is unavailable",
+    setup: true,
+    messages: [
+      { role: "user", content: "Planning and getting things done" },
+      {
+        role: "assistant",
+        content: "I'll be Planner. Should I save that setup?",
+      },
+      {
+        role: "user",
+        content:
+          "Send an email now to recipient@example.com, subject Demo, body Hello from Drew.",
+      },
+      {
+        role: "assistant",
+        content:
+          "I can't do that. The only tools I have are setup tools. No Gmail, no browser, no search.",
+      },
+      { role: "user", content: "You have Gmail. Use it to send that email." },
+    ],
+    expected: "GMAIL_SEND_EMAIL",
+  },
   {
     name: "new email sends directly once",
     messages: [
@@ -113,7 +151,7 @@ for (const scenario of scenarios) {
     : catalog
   const calls: { slug: string; input: Record<string, unknown> }[] = []
   const schemaLoads: string[] = []
-  const tools = createAppTools("evaluation-user", {
+  const appTools = createAppTools("evaluation-user", {
     accounts: async () => [{ id: "evaluation-account", toolkit: "gmail" }],
     search: async () => ({
       tools: available,
@@ -160,19 +198,50 @@ for (const scenario of scenarios) {
       }
     },
   })
+  const setupTools = createBotSetupTools(async () => {
+    throw new Error("A task request must not save a profile")
+  })
+  const tools = { ...appTools, ...(scenario.setup ? setupTools : {}) }
   const result = await generateText({
     model: chatModel(scenario.messages),
-    instructions: [
-      "You are Editor Bot, Drew's writing assistant. Complete the user's email task.",
-      botPersonalityInstructions,
-      connectedAppInstructions(true, false),
-    ].join("\n\n"),
+    instructions: scenario.setup
+      ? buildChatInstructions(
+          {
+            id: "evaluation-bot",
+            name: "New Bot",
+            job: "Not configured",
+            instructions: null,
+            setupComplete: false,
+          },
+          undefined,
+          true,
+          false,
+          false
+        )
+      : [
+          "You are Editor Bot, Drew's writing assistant. Complete the user's email task.",
+          botPersonalityInstructions,
+          connectedAppInstructions(true, false),
+        ].join("\n\n"),
     messages: scenario.messages,
     tools,
-    stopWhen: isStepCount(12),
+    stopWhen: [
+      isStepCount(12),
+      ({ steps }) =>
+        steps.some((step) =>
+          step.toolResults.some((result) => result?.toolName === "askUser")
+        ),
+    ],
     maxRetries: 0,
     abortSignal: AbortSignal.timeout(90_000),
   })
+  if (scenario.setup)
+    assert.ok(
+      result.steps.every((step) =>
+        step.toolCalls.every((call) => call?.toolName !== "configureBot")
+      ),
+      "Email work must not save an unapproved profile"
+    )
   const writes = calls.filter((call) => call.slug !== "GMAIL_FETCH_EMAILS")
   assert.deepEqual(
     writes.map((call) => call.slug),

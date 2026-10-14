@@ -2,7 +2,7 @@
 
 Set `TAVILY_API_KEY` in `.env.local`, the Railway `ai-teammates` production service, and the Trigger.dev project's production environment. The chat worker runs on Trigger.dev; setting only Railway's key does not configure the bots. Keep the key server-side and never use a `NEXT_PUBLIC_` prefix. Redeploy the app and chat worker when releasing this integration. Restart the local worker after changing its environment.
 
-The key belongs to the app. People do not connect Tavily through Apps, and web research works on both free and paid plans without an E2B computer. Bot setup remains limited to setup tools until configuration is complete. With no key, the tools are omitted and the prompt explicitly says live web search is unavailable.
+The key belongs to the app. People do not connect Tavily through Apps, and web research works on both free and paid plans without an E2B computer. Bots can use web research and connected apps before setup is complete; paid bots also retain their computer and team tools. A task takes priority over profile setup, while saving a profile still requires confirmation. With no key, the tools are omitted and the prompt explicitly says live web search is unavailable.
 
 ## Tools
 

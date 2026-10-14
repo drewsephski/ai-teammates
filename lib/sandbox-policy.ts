@@ -1,4 +1,5 @@
 // Leave a five-minute safety margin below Hobby's one-hour session ceiling.
+export const MEMORY_FILE = "/home/user/MEMORY.md"
 export const SESSION_LIMIT_MS = 55 * 60_000
 export const IDLE_TIMEOUT_MS = 5 * 60_000
 

@@ -7,6 +7,8 @@ import { createWebTools } from "../lib/web-tools"
 import { webSearchInstructions } from "../lib/web-search-instructions"
 import { chatModel } from "../lib/model"
 import { botPersonalityInstructions } from "../lib/bot-personality"
+import { buildChatInstructions } from "../lib/chat-instructions"
+import { createBotSetupTools } from "../lib/bot-setup-tools"
 
 assert.ok(
   process.env.TAVILY_API_KEY?.trim(),
@@ -50,6 +52,14 @@ console.log(
 
 const scenarios = [
   {
+    name: "unfinished setup researches immediately without profile confirmation",
+    setup: true,
+    prompt:
+      "Look up Tavily's current basic versus advanced search pricing. Search for the official pricing, read the official page to verify it, and cite that source. Keep the answer brief.",
+    expected: ["searchWeb", "readWebPage"],
+    citations: true,
+  },
+  {
     name: "current pricing searches, reads and cites",
     prompt:
       "Look up Tavily's current basic versus advanced search pricing. Search for the official pricing, read the official page to verify it, and cite that source. Keep the answer brief.",
@@ -76,6 +86,11 @@ for (const scenario of scenarios) {
   const calls: { name: string; urls: string[] }[] = []
   const baseTools = createWebTools(client)
   const tools = {
+    ...(scenario.setup
+      ? createBotSetupTools(async () => {
+          throw new Error("A research request must not save a profile")
+        })
+      : {}),
     searchWeb: {
       ...baseTools.searchWeb,
       execute: async (
@@ -113,17 +128,44 @@ for (const scenario of scenarios) {
   const messages: ModelMessage[] = [{ role: "user", content: scenario.prompt }]
   const result = await generateText({
     model: chatModel(messages),
-    instructions: [
-      `You are a research teammate. Current date (UTC): ${new Date().toISOString().slice(0, 10)}.`,
-      botPersonalityInstructions,
-      webSearchInstructions(true),
-    ].join("\n\n"),
+    instructions: scenario.setup
+      ? buildChatInstructions(
+          {
+            id: "evaluation-bot",
+            name: "New Bot",
+            job: "Not configured",
+            instructions: null,
+            setupComplete: false,
+          },
+          undefined,
+          false,
+          false,
+          true
+        )
+      : [
+          `You are a research teammate. Current date (UTC): ${new Date().toISOString().slice(0, 10)}.`,
+          botPersonalityInstructions,
+          webSearchInstructions(true),
+        ].join("\n\n"),
     messages,
     tools,
-    stopWhen: isStepCount(6),
+    stopWhen: [
+      isStepCount(6),
+      ({ steps }) =>
+        steps.some((step) =>
+          step.toolResults.some((result) => result?.toolName === "askUser")
+        ),
+    ],
     maxRetries: 0,
     abortSignal: AbortSignal.timeout(90_000),
   })
+  if (scenario.setup)
+    assert.ok(
+      result.steps.every((step) =>
+        step.toolCalls.every((call) => call?.toolName !== "configureBot")
+      ),
+      "Research must not save an unapproved profile"
+    )
   for (const expected of scenario.expected)
     assert.ok(
       calls.some((call) => call.name === expected),

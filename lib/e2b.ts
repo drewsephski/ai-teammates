@@ -10,11 +10,15 @@ import { and, eq } from "drizzle-orm"
 
 import { db } from "@/db"
 import { bots, sandboxSessions, usageEntries } from "@/db/schema"
-import { IDLE_TIMEOUT_MS, runningSeconds } from "@/lib/sandbox-policy"
+import {
+  IDLE_TIMEOUT_MS,
+  MEMORY_FILE,
+  runningSeconds,
+} from "@/lib/sandbox-policy"
 import { createSandboxLifecycle } from "@/lib/sandbox-lifecycle"
 import { withSandboxLock, tryWithSandboxLock } from "@/lib/sandbox-lock"
 
-export const MEMORY_FILE = "/home/user/MEMORY.md"
+export { MEMORY_FILE } from "@/lib/sandbox-policy"
 const APP = "ai-teammates"
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
