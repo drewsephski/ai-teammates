@@ -26,6 +26,9 @@ import { chatPreview } from "@/lib/chat-preview"
 import { ensureBotComputer } from "@/lib/bot-computer"
 import { assertBotAccess } from "@/lib/teammates"
 import { withSandboxLock } from "@/lib/sandbox-lock"
+import { createTavilyClient, tavilyCost } from "@/lib/tavily"
+import { createWebTools } from "@/lib/web-tools"
+import { webSearchInstructions } from "@/lib/web-search-instructions"
 
 // Sent with each message. Missing in direct chats, and when the session starts.
 const clientDataSchema = z
@@ -84,7 +87,8 @@ function buildInstructions(
   bot: Bot,
   group: { chat: Chat; bots: Bot[] } | undefined,
   appToolsAvailable: boolean,
-  computerAvailable = true
+  computerAvailable = true,
+  webToolsAvailable = false
 ) {
   if (!bot.setupComplete && !group)
     return buildBotSetupInstructions(bot.job, bot.instructions, bot.name)
@@ -94,6 +98,8 @@ function buildInstructions(
     bot.instructions &&
       `They also told you how to go about your job:\n\n${bot.instructions}`,
     botPersonalityInstructions,
+    `Current date (UTC): ${new Date().toISOString().slice(0, 10)}.`,
+    webSearchInstructions(webToolsAvailable),
     ...(computerAvailable
       ? [
           "You have a sandbox of your own: an isolated Linux machine in the cloud with its own filesystem, network, CPU, memory and disk. It belongs to you alone, is not shared with other teammates, and stays yours for as long as you exist. Files you leave there are still there next time.",
@@ -102,7 +108,7 @@ function buildInstructions(
           ...memoryInstructions,
         ]
       : [
-          "The person is on the free plan: one bot, one connected app, and a one-time $1 AI allowance. You can chat and use their connected app tools. Cloud computers, shell, files, screenshots, persistent memory, and additional teammates require a paid plan. Do not claim to have those capabilities or try to work around these limits. You can use the current conversation as context.",
+          "The person is on the free plan: one bot, one connected app, and a one-time $1 AI allowance. You can chat, use built-in web tools when configured, and use their connected app tools. Cloud computers, shell, files, screenshots, persistent memory, and additional teammates require a paid plan. Do not claim to have those capabilities or try to work around these limits. You can use the current conversation as context.",
         ]),
     ...(group ? buildGroupInstructions(bot, group.chat, group.bots) : []),
     ...(computerAvailable
@@ -120,6 +126,7 @@ function buildInstructions(
 
 const turnModelUsage = chat.local<{
   cost: number
+  webCost: number
   messageId: string
   usageKey: string
 }>({
@@ -133,11 +140,12 @@ export const chatAgent = chat
   .agent({
     id: "chat",
     onBoot: () => {
-      turnModelUsage.init({ cost: 0, messageId: "", usageKey: "" })
+      turnModelUsage.init({ cost: 0, webCost: 0, messageId: "", usageKey: "" })
     },
     onTurnStart: ({ uiMessages, runId, turn }) => {
       turnModelUsage.usageKey = `ai:${runId}:${turn}`
       turnModelUsage.cost = 0
+      turnModelUsage.webCost = 0
       const latest = uiMessages.findLast((message) => message.role === "user")
       if (!latest) throw new Error("No task to delegate")
       turnModelUsage.messageId = latest.id
@@ -188,6 +196,33 @@ export const chatAgent = chat
       const connectorTools = process.env.COMPOSIO_API_KEY
         ? createConnectorTools(userId)
         : {}
+      const webTools = process.env.TAVILY_API_KEY?.trim()
+        ? createWebTools(
+            createTavilyClient({
+              beforeRequest: async (maxCredits) => {
+                const usage = await getUsage(userId)
+                if (
+                  usage.remaining.ai - turnModelUsage.cost <
+                  tavilyCost(maxCredits)
+                )
+                  throw new Error(USAGE_LIMIT_ERROR)
+              },
+              onUsage: async (credits, toolCallId) => {
+                const cost = tavilyCost(credits)
+                if (cost === 0) return
+                await recordUsage([
+                  {
+                    userId,
+                    kind: "ai",
+                    amount: cost,
+                    idempotencyKey: `${turnModelUsage.usageKey}:web:${toolCallId}`,
+                  },
+                ])
+                turnModelUsage.webCost += cost
+              },
+            })
+          )
+        : {}
       const setupTools = createBotSetupTools((profile) =>
         configureBotProfile(userId, current.id, profile)
       )
@@ -195,10 +230,12 @@ export const chatAgent = chat
         ...sandboxTools,
         ...teamTools,
         ...connectorTools,
+        ...webTools,
         ...setupTools,
       }
       if (!bot.setupComplete && kind === "direct") return setupTools
-      if (plan.tier === "free") return { ...connectorTools, ...setupTools }
+      if (plan.tier === "free")
+        return { ...connectorTools, ...webTools, ...setupTools }
       if (kind !== "group") return sharedTools
 
       return {
@@ -303,6 +340,7 @@ export const chatAgent = chat
           "gen_ai.usage.output_tokens": usage.outputTokens ?? 0,
           // Millionths of a dollar, as in the usage ledger
           "usage.cost": turnModelUsage.cost,
+          "usage.web_cost": turnModelUsage.webCost,
         }),
       })
 
@@ -340,6 +378,7 @@ export const chatAgent = chat
 
         const appToolsAvailable =
           "searchAppTools" in tools && "executeAppTool" in tools
+        const webToolsAvailable = "searchWeb" in tools && "readWebPage" in tools
 
         // Stamped on the reply and kept in the transcript with it
         chat.setUIMessageStreamOptions({
@@ -365,7 +404,8 @@ export const chatAgent = chat
             bot,
             group,
             appToolsAvailable,
-            usage.tier === "paid"
+            usage.tier === "paid",
+            webToolsAvailable
           ),
           messages,
           tools,
@@ -394,7 +434,8 @@ export const chatAgent = chat
                   updated,
                   group,
                   appToolsAvailable,
-                  usage.tier === "paid"
+                  usage.tier === "paid",
+                  webToolsAvailable
                 ),
               }),
             }
@@ -425,7 +466,9 @@ export const chatAgent = chat
                 (cost, step) =>
                   cost + chatModelCost(step.usage, step.model.modelId),
                 0
-              ) >= usage.remaining.ai,
+              ) +
+                turnModelUsage.webCost >=
+              usage.remaining.ai,
           ],
           abortSignal: signal,
         })

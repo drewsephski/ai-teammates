@@ -335,6 +335,7 @@ export type ChatUIMessage = UIMessage<
       HandoffTools &
       import("@/lib/team-tools").TeamTools &
       import("@/lib/bot-setup-tools").BotSetupTools &
-      import("@/lib/composio").ConnectorTools
+      import("@/lib/composio").ConnectorTools &
+      import("@/lib/web-tools").WebTools
   >
 >

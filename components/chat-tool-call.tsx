@@ -31,6 +31,8 @@ import {
   type LucideIcon,
   SettingsIcon,
   CircleHelpIcon,
+  SearchIcon,
+  GlobeIcon,
 } from "lucide-react"
 
 type ToolPart = Extract<
@@ -41,6 +43,8 @@ type ToolPart = Extract<
 // Ready, running, and finished labels describe the action without implying
 // success before a tool has actually returned its result.
 const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
+  "tool-searchWeb": ["Search web", "Searching web", "Searched web"],
+  "tool-readWebPage": ["Read webpage", "Reading webpage", "Read webpage"],
   "tool-askUser": ["Question", "Question", "Answered question"],
   "tool-configureBot": [
     "Configure bot",
@@ -100,6 +104,8 @@ const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
 }
 
 const toolIcons: Record<ToolPart["type"], LucideIcon> = {
+  "tool-searchWeb": SearchIcon,
+  "tool-readWebPage": GlobeIcon,
   "tool-askUser": CircleHelpIcon,
   "tool-configureBot": SettingsIcon,
   "tool-bash": SquareTerminalIcon,
@@ -133,6 +139,11 @@ function preview(text?: string) {
 
 function appToolError(part: ToolPart): string | undefined {
   if (
+    (part.type === "tool-searchWeb" || part.type === "tool-readWebPage") &&
+    part.state === "output-available"
+  )
+    return part.output.status === "failed" ? part.output.message : undefined
+  if (
     (part.type !== "tool-executeAppTool" &&
       part.type !== "tool-getAppToolSchema" &&
       part.type !== "tool-searchAppTools") ||
@@ -162,6 +173,10 @@ function toolSummary(part: ToolPart): string | undefined {
   if (part.state === "output-denied") return "Execution was not approved"
 
   switch (part.type) {
+    case "tool-searchWeb":
+      return preview(part.input?.query)
+    case "tool-readWebPage":
+      return preview(part.input?.url)
     case "tool-bash":
       return preview(part.input?.command)
     case "tool-readFile":
@@ -372,6 +387,8 @@ function ToolCallDetails({ part }: { part: ToolPart }) {
 }
 
 const resultLabels: Partial<Record<ToolPart["type"], string>> = {
+  "tool-searchWeb": "Sources found",
+  "tool-readWebPage": "Page content",
   "tool-remember": "Saved note",
   "tool-recall": "Saved memories",
   "tool-readFile": "File content",
@@ -388,6 +405,66 @@ function toolResult(part: ToolPart) {
 
   // Text results should be readable, rather than one escaped JSON string.
   switch (part.type) {
+    case "tool-searchWeb":
+      if (part.output.status === "failed") return undefined
+      return part.output.results.length ? (
+        <ul className="space-y-3 p-2.5">
+          {part.output.results.map((result, index) => (
+            <li key={`${result.url}:${index}`} className="space-y-1">
+              <a
+                href={result.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium break-words underline underline-offset-4"
+              >
+                {result.title || result.url}
+              </a>
+              {result.publishedDate && (
+                <p className="text-xs text-muted-foreground">
+                  {result.publishedDate}
+                </p>
+              )}
+              <p className="break-words whitespace-pre-wrap">
+                {result.content}
+              </p>
+              {result.truncated && (
+                <p className="text-xs text-muted-foreground">
+                  Excerpt shortened.
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        textResult("No matching sources found.")
+      )
+    case "tool-readWebPage":
+      if (part.output.status === "failed") return undefined
+      return (
+        <div className="space-y-2 p-2.5">
+          <a
+            href={part.output.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="break-all underline underline-offset-4"
+          >
+            {part.output.url}
+          </a>
+          {part.output.excerptsOnly && (
+            <p className="text-xs text-muted-foreground">
+              Relevant excerpts from this page.
+            </p>
+          )}
+          <p className="break-words whitespace-pre-wrap">
+            {part.output.content}
+          </p>
+          {part.output.truncated && (
+            <p className="text-xs text-muted-foreground">
+              Page content shortened.
+            </p>
+          )}
+        </div>
+      )
     case "tool-readFile":
       return part.output.content
     case "tool-recall":

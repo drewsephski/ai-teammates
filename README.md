@@ -38,6 +38,7 @@ Krafty is an open exploration of that idea. Every prompt, tool and limit is a fi
 - 👥 **Group chats with handoffs**: a bot passes a request to the teammate whose job it is.
 - **Bots that build the team**: a teammate can create a specialist, give it a complete task brief, and open its chat. It can also assemble groups with existing and new teammates.
 - **Connected apps**: browse Composio's live catalog in the Apps dialog, connect accounts, and let teammates discover and use their tools.
+- **Built-in web research**: Tavily search and page reading with source links, news/date/domain filters, and instructions to verify and cite current information. Available on free and paid plans when configured.
 - 🧠 **Memory across chats**: notes a bot saves in one conversation are there in all the others.
 - ♾️ **Durable turns**: a long desktop task survives refreshes, redeploys and closed tabs.
 - 💳 **Plans and usage limits**: subscriptions, with model spend and sandbox hours metered per billing period.
@@ -52,6 +53,7 @@ Krafty is an open exploration of that idea. Every prompt, tool and limit is a fi
 | [**Neon**](https://cwa.run/neon)             | Serverless Postgres, and the AI Gateway the chat model is called through.                     |
 | [**Sentry**](https://cwa.run/sentry)         | Errors, traces, session replays and logs from the app and every task run.                     |
 | [**Railway**](https://cwa.run/railway)       | Hosts the Next.js app in production.                                                          |
+| [**Tavily**](https://tavily.com)             | Built-in public web search and page extraction for the bots.                                  |
 | [**Firecrawl**](https://cwa.run/firecrawl)   | Web search and scraping for the coding agent this project is developed with, through its CLI. |
 
 Plus Next.js 16, React 19, AI SDK 7, shadcn/ui, Tailwind CSS 4, Drizzle ORM and DiceBear.
@@ -75,6 +77,7 @@ flowchart LR
     end
 
     AGENT -- GLM-5.3 Flash / Luna vision --> GATEWAY[Neon AI Gateway]
+    AGENT -- search and read public sources --> WEB[Tavily]
     AGENT -- shell, files, mouse, keyboard --> SANDBOX[E2B desktop sandboxes]
     APP -- live desktop over noVNC --> SANDBOX
     METER -- list running / stop --> SANDBOX
@@ -128,6 +131,9 @@ NEON_AI_GATEWAY_TOKEN=
 # Optional: Composio project API key for the Apps marketplace and agent tools
 COMPOSIO_API_KEY=
 
+# Tavily: server-side public web search and page reading for every configured bot
+TAVILY_API_KEY=
+
 # Trigger.dev: the development key and the project ref
 TRIGGER_SECRET_KEY=
 TRIGGER_PROJECT_REF=
@@ -142,6 +148,8 @@ SENTRY_ORG=
 SENTRY_PROJECT=
 SENTRY_AUTH_TOKEN=
 ```
+
+Web searches and page reads share the AI allowance with model usage. See [web research configuration, behavior, and verification](docs/web-search.md). Configure the Tavily key on both Railway and Trigger.dev production when deploying.
 
 **3. Set up billing**
 
