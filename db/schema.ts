@@ -43,6 +43,11 @@ export const bots = pgTable(
 
 export const chatKind = pgEnum("chat_kind", ["direct", "group"])
 
+export const sidebarPreferences = pgTable("sidebar_preferences", {
+  userId: text().primaryKey(),
+  conversationOrder: text().array().notNull().default([]),
+})
+
 export const chats = pgTable(
   "chats",
   {

@@ -4,7 +4,13 @@ import { GaugeIcon, LayoutGridIcon, CreditCardIcon } from "lucide-react"
 import { ChatAvatar } from "@/components/chat-avatar"
 import { ChatMenuButton } from "@/components/chat-menu-button"
 import { reorderPinnedBots } from "@/actions/bot"
-import { SidebarPinnedBots } from "@/components/sidebar-pinned-bots"
+import {
+  SidebarReorderableItems,
+  SidebarReorderScrollArea,
+} from "@/components/sidebar-reorderable-items"
+import { reorderSidebarConversations } from "@/actions/sidebar"
+import { getSidebarConversationOrder } from "@/queries/sidebar"
+import { applySidebarOrder } from "@/lib/sidebar-order"
 import { CreateMenu } from "@/components/create-menu"
 import { ConnectorMarketplace } from "@/components/connector-marketplace"
 import { GroupChatAvatar } from "@/components/group-chat-avatar"
@@ -22,7 +28,6 @@ import {
 } from "@/components/ui/sidebar"
 import { UserMenu } from "@/components/user-menu"
 import { KraftyWordmark } from "@/components/krafty-wordmark"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { SidebarNavLink } from "@/components/sidebar-nav-link"
 import { getBots, getChats, type ChatWithBots } from "@/queries/bots"
 import { chatPreview } from "@/lib/chat-preview"
@@ -48,7 +53,11 @@ function SidebarChatAvatar({ chat }: { chat: ChatWithBots }) {
 }
 
 export async function AppSidebar() {
-  const [chats, bots] = await Promise.all([getChats(), getBots()])
+  const [chats, bots, conversationOrder] = await Promise.all([
+    getChats(),
+    getBots(),
+    getSidebarConversationOrder(),
+  ])
   const pinned = bots
     .filter((bot) => bot.pinnedAt)
     .sort(
@@ -74,8 +83,9 @@ export async function AppSidebar() {
           ]
         : []
     })
-  const unpinnedChats = chats.filter(
-    (chat) => chat.kind !== "direct" || !chat.bots[0].pinnedAt
+  const unpinnedChats = applySidebarOrder(
+    chats.filter((chat) => chat.kind !== "direct" || !chat.bots[0].pinnedAt),
+    conversationOrder
   )
 
   return (
@@ -123,11 +133,12 @@ export async function AppSidebar() {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent className="overflow-hidden">
-        <ScrollArea className="min-h-0 flex-1">
+        <SidebarReorderScrollArea>
           {pinned.length > 0 && (
             <SidebarGroup aria-label="Pinned bots" className="px-3">
               <SidebarGroupContent className="@container">
-                <SidebarPinnedBots
+                <SidebarReorderableItems
+                  label="Pinned bots"
                   version={pinned
                     .map(({ bot }) => `${bot.id}:${bot.pinnedAt!.getTime()}`)
                     .join(",")}
@@ -166,9 +177,15 @@ export async function AppSidebar() {
           )}
           <SidebarGroup aria-label="Conversations" className="px-3">
             <SidebarGroupContent>
-              <SidebarMenu className="gap-1">
-                {unpinnedChats.map((chat) => (
-                  <SidebarMenuItem key={chat.id}>
+              <SidebarReorderableItems
+                label="Conversations"
+                layout="list"
+                version={unpinnedChats.map((chat) => chat.id).join(",")}
+                saveOrder={reorderSidebarConversations}
+                items={unpinnedChats.map((chat) => ({
+                  id: chat.id,
+                  name: chat.name ?? chat.bots[0].name,
+                  content: (
                     <ChatMenuButton
                       chatId={chat.id}
                       tooltip={chat.name ?? chat.bots[0].name}
@@ -194,12 +211,12 @@ export async function AppSidebar() {
                         )}
                       </div>
                     </ChatMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
+                  ),
+                }))}
+              />
             </SidebarGroupContent>
           </SidebarGroup>
-        </ScrollArea>
+        </SidebarReorderScrollArea>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-3">
         <SidebarMenu className="gap-1">
