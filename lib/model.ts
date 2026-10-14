@@ -1,3 +1,4 @@
+import { normalizeFailedToolCalls as normalizeToolReplay } from "@/lib/model-tool-replay"
 import { neon } from "@neon/ai-sdk-provider"
 import type { LanguageModelUsage, ModelMessage } from "ai"
 
@@ -7,50 +8,10 @@ type CallOptions = Parameters<Model["doStream"]>[0]
 const textModelId = "glm-5-3-flash"
 const visionModelId = "gpt-5-6-luna"
 
-// Failed tool calls can retain the model's raw, malformed JSON in history.
-// Keep the failure and call ID, but give the provider valid object arguments
-// when replaying it. This never retries or executes the failed operation.
+// Keep the existing v3 provider's public prompt type while sharing replay repair
+// with the native v4 OpenAI provider.
 export function normalizeFailedToolCalls(prompt: CallOptions["prompt"]) {
-  const failed = new Set(
-    prompt.flatMap((message) =>
-      message.role === "tool"
-        ? message.content.flatMap((part) =>
-            part.type === "tool-result" &&
-            (part.output.type === "error-text" ||
-              part.output.type === "error-json")
-              ? [part.toolCallId]
-              : []
-          )
-        : []
-    )
-  )
-  if (failed.size === 0) return prompt
-
-  return prompt.map((message) => {
-    if (message.role !== "assistant") return message
-    return {
-      ...message,
-      content: message.content.map((part) => {
-        if (part.type !== "tool-call" || !failed.has(part.toolCallId))
-          return part
-        let input: unknown = part.input
-        if (typeof input === "string") {
-          try {
-            input = JSON.parse(input)
-          } catch {
-            input = undefined
-          }
-        }
-        return {
-          ...part,
-          input:
-            input !== null && typeof input === "object" && !Array.isArray(input)
-              ? input
-              : {},
-        }
-      }),
-    }
-  })
+  return normalizeToolReplay(prompt)
 }
 
 function hasImages(messages: readonly ModelMessage[]) {

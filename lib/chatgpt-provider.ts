@@ -1,6 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai"
 
 import { CHATGPT_RESOURCE } from "@/lib/chatgpt-config"
+import { normalizeFailedToolCalls } from "@/lib/model-tool-replay"
 import {
   CHATGPT_REQUEST_ERROR,
   chatGPTErrorMessage,
@@ -163,6 +164,7 @@ export function createChatGPTModel(
     doStream: (options: Parameters<typeof model.doStream>[0]) =>
       model.doStream({
         ...options,
+        prompt: normalizeFailedToolCalls(options.prompt),
         providerOptions: {
           ...options.providerOptions,
           openai: {

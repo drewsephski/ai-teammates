@@ -151,6 +151,8 @@ SENTRY_AUTH_TOKEN=
 
 Web searches and page reads share the AI allowance with model usage. See [web research configuration, behavior, and verification](docs/web-search.md). Configure the Tavily key on both Railway and Trigger.dev production when deploying.
 
+Optional ChatGPT account sign-in and subscription-backed replies are described in [ChatGPT authentication and usage](docs/chatgpt-auth.md). Hosted use requires OpenAI approval and a provisioned OAuth client. Subscription-backed model replies bypass Krafty's AI allowance; web searches and cloud-computer usage retain their existing limits.
+
 **3. Set up billing**
 
 In Clerk, enable Billing and create a user plan with two features, slugged `bots` and `sandboxes`.

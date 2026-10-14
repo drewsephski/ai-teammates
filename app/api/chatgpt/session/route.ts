@@ -39,7 +39,9 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     )
   }
-  response.cookies.delete(chatGPTCookieName("session"))
+  response.cookies.set(chatGPTCookieName("session"), "", {
+    httpOnly: true, secure: config.origin.startsWith("https:"), sameSite: "strict", path: "/", maxAge: 0,
+  })
   response.headers.set("Cache-Control", "no-store")
   response.headers.set("Referrer-Policy", "no-referrer")
   return response

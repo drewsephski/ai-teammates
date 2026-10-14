@@ -23,6 +23,7 @@ import { appModelCost } from "../lib/chatgpt-policy"
 
 const originalFetch = globalThis.fetch
 const userId = `chatgpt_fixture_${randomBytes(8).toString("hex")}`
+const newUserId = `${userId}_new`
 const attempts: string[] = []
 const configKeys = [
   "CHATGPT_CLIENT_ID",
@@ -58,6 +59,13 @@ let rejectedSignature = false
 let rejectRefresh = false
 let ticketRequests = 0
 let revocations = 0
+let subject = "fixture-subject"
+let existingEmail = false
+let createdUsers = 0
+let wrongNonce = false
+let wrongAudience = false
+let expiredIdentity = false
+let expectedTicketUserId = userId
 const passed: string[] = []
 
 globalThis.fetch = async (input, init) => {
@@ -100,17 +108,17 @@ globalThis.fetch = async (input, init) => {
         ? (await generateKeyPair("RS256")).privateKey
         : privateKey
       const idToken = await new SignJWT({
-        nonce,
+        nonce: wrongNonce ? nonce + "wrong" : nonce,
         email: "fixture@example.invalid",
         email_verified: true,
         name: "Fixture",
       })
         .setProtectedHeader({ alg: "RS256", kid: "fixture" })
         .setIssuer(url.origin)
-        .setAudience(clientId)
-        .setSubject("fixture-subject")
+        .setAudience(wrongAudience ? "oaiapp_wrong" : clientId)
+        .setSubject(subject)
         .setIssuedAt()
-        .setExpirationTime("5m")
+        .setExpirationTime(expiredIdentity ? "-1m" : "5m")
         .sign(signingKey)
       return Response.json({
         id_token: idToken,
@@ -131,7 +139,7 @@ globalThis.fetch = async (input, init) => {
       user_id: string
       expires_in_seconds: number
     }
-    assert.equal(body.user_id, userId)
+    assert.equal(body.user_id, expectedTicketUserId)
     assert.equal(body.expires_in_seconds, 60)
     return Response.json({
       object: "sign_in_token",
@@ -143,6 +151,19 @@ globalThis.fetch = async (input, init) => {
       created_at: Date.now(),
       updated_at: Date.now(),
     })
+  }
+  if (url.origin === "https://api.clerk.com" && url.pathname.startsWith("/v1/users")) {
+    const matches = existingEmail && url.searchParams.has("email_address")
+    if (url.pathname === "/v1/users/count") return Response.json({ object: "total_count", total_count: matches ? 1 : 0 })
+    if (request.method === "GET") return Response.json(matches ? [{ object: "user", id: "user_existing_fixture" }] : [])
+    if (request.method === "POST") {
+      const body = await request.json() as Record<string, unknown>
+      assert.deepEqual(body.email_address, ["fixture@example.invalid"])
+      assert.equal(body.skip_password_requirement, true)
+      assert.ok(body.legal_accepted_at)
+      createdUsers++
+      return Response.json({ object: "user", id: newUserId, external_id: body.external_id })
+    }
   }
   if (url.origin === "https://api.openai.com" && url.pathname === "/v1/models")
     return Response.json({
@@ -302,9 +323,15 @@ try {
     identityOnly.browserBinding,
     userId
   )
-  assert.equal(await isChatGPTSelected(userId), false)
+  assert.equal(await isChatGPTSelected(userId), true)
   await assert.rejects(getChatGPTAccessToken(userId))
-  pass("declining plan permission cannot bypass AI credit limits")
+  pass("declining plan permission blocks inference without silently changing billing")
+
+  await db.update(chatgptConnections).set({ enabled: false }).where(eq(chatgptConnections.userId, userId))
+  const preserveChoice = await attempt(false)
+  await completeChatGPTAuth(preserveChoice.callback, preserveChoice.browserBinding, null)
+  assert.equal(await isChatGPTSelected(userId), false)
+  pass("ordinary sign-in preserves a saved Krafty AI preference")
 
   scopes += " offline_access resource.invoke chatgpt.tokens.use.direct"
   const reconnect = await attempt()
@@ -330,6 +357,31 @@ try {
   assert.equal(revocations, 1)
   assert.equal(await isChatGPTSelected(userId), false)
   pass("disconnect revokes the renewable session and removes local credentials")
+  for (const invalidClaim of ["nonce", "audience", "expiry"]) {
+    const invalidIdentity = await attempt()
+    wrongNonce = invalidClaim === "nonce"
+    wrongAudience = invalidClaim === "audience"
+    expiredIdentity = invalidClaim === "expiry"
+    await assert.rejects(completeChatGPTAuth(invalidIdentity.callback, invalidIdentity.browserBinding, userId))
+    wrongNonce = wrongAudience = expiredIdentity = false
+    pass(`invalid identity ${invalidClaim} rejected`)
+  }
+
+  subject = "fixture-new-subject"
+  expectedTicketUserId = newUserId
+  const signup = await attempt(false)
+  await completeChatGPTAuth(signup.callback, signup.browserBinding, null)
+  assert.equal(createdUsers, 1)
+  const createdConnection = await db.query.chatgptConnections.findFirst({ where: eq(chatgptConnections.userId, newUserId) })
+  assert.equal(createdConnection?.subject, subject)
+  pass("new ChatGPT identities create a Clerk account and receive a one-time session ticket")
+
+  subject = "fixture-existing-email-subject"
+  existingEmail = true
+  const matchingEmail = await attempt(false)
+  await assert.rejects(completeChatGPTAuth(matchingEmail.callback, matchingEmail.browserBinding, null), (error: Error) => "code" in error && error.code === "link_required")
+  assert.equal(createdUsers, 1)
+  pass("matching email never automatically links an existing Krafty account")
   console.log(
     `${passed.length} integration checks passed; fixture rows will be removed.`
   )
@@ -342,7 +394,7 @@ try {
   }
   await db
     .delete(chatgptConnections)
-    .where(eq(chatgptConnections.userId, userId))
+    .where(inArray(chatgptConnections.userId, [userId, newUserId]))
   if (attempts.length)
     await db
       .delete(chatgptAuthAttempts)
