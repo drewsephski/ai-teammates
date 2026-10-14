@@ -24,6 +24,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { SidebarNavLink } from "@/components/sidebar-nav-link"
 import { getBots, getChats, type ChatWithBots } from "@/queries/bots"
 import { chatPreview } from "@/lib/chat-preview"
+import { chatSearchContent } from "@/lib/chat-search"
 
 // A group shows its bots together, a direct chat shows its one bot
 function SidebarChatAvatar({ chat }: { chat: ChatWithBots }) {
@@ -77,17 +78,31 @@ export async function AppSidebar() {
           />
         </div>
         <SearchCommand>
-          {chats.map((chat) => (
-            <SearchCommandItem
-              key={chat.id}
-              href={`/chats/${chat.id}`}
-              value={chat.id}
-              keywords={[chat.name ?? chat.bots[0].name]}
-            >
-              <SidebarChatAvatar chat={chat} />
-              <span className="truncate">{chat.name ?? chat.bots[0].name}</span>
-            </SearchCommandItem>
-          ))}
+          {chats.map((chat) => {
+            const { title, teammates, preview, keywords } =
+              chatSearchContent(chat)
+            return (
+              <SearchCommandItem
+                key={chat.id}
+                href={`/chats/${chat.id}`}
+                value={chat.id}
+                keywords={keywords}
+              >
+                <SidebarChatAvatar chat={chat} />
+                <div className="grid min-w-0 flex-1 gap-0.5">
+                  <span className="truncate">{title}</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {teammates}
+                  </span>
+                  {preview && (
+                    <span className="truncate text-xs text-muted-foreground">
+                      {preview}
+                    </span>
+                  )}
+                </div>
+              </SearchCommandItem>
+            )
+          })}
         </SearchCommand>
         <SidebarMenu className="gap-1">
           <SidebarMenuItem>

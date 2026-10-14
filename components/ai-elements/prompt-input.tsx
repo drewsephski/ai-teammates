@@ -190,7 +190,8 @@ export interface AttachmentsContext {
 export interface TextInputContext {
   value: string;
   setInput: (v: string) => void;
-  clear: () => void;
+  getRevision: () => number;
+  clear: (revision?: number) => void;
 }
 
 export interface PromptInputControllerProps {
@@ -251,7 +252,17 @@ export const PromptInputProvider = ({
 }: PromptInputProviderProps) => {
   // ----- textInput state
   const [textInput, setTextInput] = useState(initialTextInput);
-  const clearInput = useCallback(() => setTextInput(""), []);
+  const textRevision = useRef(0);
+  const setInput = useCallback((value: string) => {
+    textRevision.current += 1;
+    setTextInput(value);
+  }, []);
+  const getRevision = useCallback(() => textRevision.current, []);
+  const clearInput = useCallback((revision?: number) => {
+    if (revision !== undefined && revision !== textRevision.current) return;
+    textRevision.current += 1;
+    setTextInput("");
+  }, []);
 
   // ----- attachments state (global when wrapped)
   const [attachmentFiles, setAttachmentFiles] = useState<
@@ -349,11 +360,19 @@ export const PromptInputProvider = ({
       attachments,
       textInput: {
         clear: clearInput,
-        setInput: setTextInput,
+        getRevision,
+        setInput,
         value: textInput,
       },
     }),
-    [textInput, clearInput, attachments, __registerFileInput]
+    [
+      textInput,
+      clearInput,
+      getRevision,
+      setInput,
+      attachments,
+      __registerFileInput,
+    ]
   );
 
   return (
@@ -509,10 +528,11 @@ export type PromptInputProps = Omit<
     code: "max_files" | "max_file_size" | "accept";
     message: string;
   }) => void;
+  // Return false or throw/reject to preserve the draft for retry.
   onSubmit: (
     message: PromptInputMessage,
     event: FormEvent<HTMLFormElement>
-  ) => void | Promise<void>;
+  ) => void | boolean | Promise<void | boolean>;
 };
 
 export const PromptInput = ({
@@ -525,6 +545,7 @@ export const PromptInput = ({
   maxFileSize,
   onError,
   onSubmit,
+  onInputCapture,
   children,
   ...props
 }: PromptInputProps) => {
@@ -535,6 +556,8 @@ export const PromptInput = ({
   // Refs
   const inputRef = useRef<HTMLInputElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
+  const submitting = useRef(false);
+  const inputRevision = useRef(0);
 
   // ----- Local attachments (only used when no provider)
   const [items, setItems] = useState<(FileUIPart & { id: string })[]>([]);
@@ -712,11 +735,6 @@ export const PromptInput = ({
     ? controller.attachments.openFileDialog
     : openFileDialogLocal;
 
-  const clear = useCallback(() => {
-    clearAttachments();
-    clearReferencedSources();
-  }, [clearAttachments, clearReferencedSources]);
-
   // Let provider know about our hidden file input so external menus can call openFileDialog()
   useEffect(() => {
     if (!usingProvider) {
@@ -848,8 +866,13 @@ export const PromptInput = ({
   const handleSubmit: FormEventHandler<HTMLFormElement> = useCallback(
     async (event) => {
       event.preventDefault();
+      if (submitting.current) return;
+      submitting.current = true;
 
       const form = event.currentTarget;
+      const revision = controller
+        ? controller.textInput.getRevision()
+        : inputRevision.current;
       const text = usingProvider
         ? controller.textInput.value
         : (() => {
@@ -857,16 +880,11 @@ export const PromptInput = ({
             return (formData.get("message") as string) || "";
           })();
 
-      // Reset form immediately after capturing text to avoid race condition
-      // where user input during async blob conversion would be lost
-      if (!usingProvider) {
-        form.reset();
-      }
-
       try {
         // Convert blob URLs to data URLs asynchronously
         const convertedFiles: FileUIPart[] = await Promise.all(
           files.map(async ({ id: _id, ...item }) => {
+            void _id;
             if (item.url?.startsWith("blob:")) {
               const dataUrl = await convertBlobUrlToDataUrl(item.url);
               // If conversion failed, keep the original blob URL
@@ -879,31 +897,34 @@ export const PromptInput = ({
           })
         );
 
-        const result = onSubmit({ files: convertedFiles, text }, event);
+        const accepted = await onSubmit({ files: convertedFiles, text }, event);
+        if (accepted === false) return;
 
-        // Handle both sync and async onSubmit
-        if (result instanceof Promise) {
-          try {
-            await result;
-            clear();
-            if (usingProvider) {
-              controller.textInput.clear();
-            }
-          } catch {
-            // Don't clear on error - user may want to retry
-          }
-        } else {
-          // Sync function completed without throwing, clear inputs
-          clear();
-          if (usingProvider) {
-            controller.textInput.clear();
-          }
+        // Remove only the submitted content; edits made while awaiting acceptance
+        // belong to the next draft, including edits that return to the same text.
+        for (const file of files) remove(file.id);
+        const sourceIds = new Set(referencedSources.map((source) => source.id));
+        setReferencedSources((current) =>
+          current.filter((source) => !sourceIds.has(source.id))
+        );
+        if (controller) {
+          controller.textInput.clear(revision);
+        } else if (revision === inputRevision.current) {
+          const input = form.elements.namedItem("message");
+          if (
+            (input instanceof HTMLTextAreaElement ||
+              input instanceof HTMLInputElement) &&
+            input.value === text
+          )
+            input.value = "";
         }
       } catch {
         // Don't clear on error - user may want to retry
+      } finally {
+        submitting.current = false;
       }
     },
-    [usingProvider, controller, files, onSubmit, clear]
+    [usingProvider, controller, files, referencedSources, onSubmit, remove]
   );
 
   // Render with or without local provider
@@ -924,6 +945,16 @@ export const PromptInput = ({
         onSubmit={handleSubmit}
         ref={formRef}
         {...props}
+        onInputCapture={(event) => {
+          const input = event.target;
+          if (
+            (input instanceof HTMLTextAreaElement ||
+              input instanceof HTMLInputElement) &&
+            input.name === "message"
+          )
+            inputRevision.current += 1;
+          onInputCapture?.(event);
+        }}
       >
         <InputGroup className="overflow-hidden">{children}</InputGroup>
       </form>

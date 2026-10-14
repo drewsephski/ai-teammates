@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef } from "react"
+import { useRef, useState } from "react"
 import { XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -28,16 +28,31 @@ export function ChatQuestion({
   part: QuestionPart
   active: boolean
   busy: boolean
-  onAnswer: (answer: string) => void
-  onDismiss: () => void
+  onAnswer: (answer: string) => void | boolean | Promise<void | boolean>
+  onDismiss: () => void | boolean | Promise<void | boolean>
 }) {
   const answered = useRef(false)
+  const [submitting, setSubmitting] = useState(false)
   if (!active || part.state !== "output-available") return null
-  const disabled = !active || busy
-  function answer(value: string) {
-    if (answered.current || disabled || !value.trim()) return
+  const disabled = !active || busy || submitting
+  async function submit(action: () => ReturnType<typeof onDismiss>) {
+    if (answered.current || disabled) return
     answered.current = true
-    onAnswer(value.trim())
+    setSubmitting(true)
+    try {
+      // Keep the lock through this event's click/change handlers, even when the
+      // parent throws synchronously, so one selection submits only once.
+      if ((await Promise.resolve().then(action)) === false)
+        answered.current = false
+    } catch {
+      answered.current = false
+    } finally {
+      setSubmitting(false)
+    }
+  }
+  function answer(value: string) {
+    if (!value.trim()) return
+    void submit(() => onAnswer(value.trim()))
   }
   return (
     <div className="relative rounded-xl bg-muted/40 p-3">
@@ -48,11 +63,7 @@ export function ChatQuestion({
         className="absolute top-2 right-2"
         aria-label="Dismiss question"
         disabled={disabled}
-        onClick={() => {
-          if (answered.current) return
-          answered.current = true
-          onDismiss()
-        }}
+        onClick={() => void submit(onDismiss)}
       >
         <XIcon />
       </Button>
@@ -75,6 +86,7 @@ export function ChatQuestion({
               <QuestionnaireChoice
                 key={option}
                 value={option}
+                onClick={() => answer(option)}
                 onChange={(event) => {
                   if (event.target.checked) answer(option)
                 }}

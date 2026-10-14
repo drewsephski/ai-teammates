@@ -364,7 +364,7 @@ function ChatMessages({
   )
 
   function answerQuestion(questionId: string, answer: string) {
-    if (!checkPlan("bots")) return
+    if (!checkPlan("bots")) return false
     const metadata = {
       questionId,
       ...(selectedBot && { botId: selectedBot.id }),
@@ -384,12 +384,11 @@ function ChatMessages({
   }
 
   function handleSubmit(message: PromptInputMessage) {
-    if (!message.text.trim()) return
+    if (!message.text.trim()) return false
     // Throwing keeps the draft in the input
     if (!checkPlan("bots")) throw new Error("Upgrade required")
     if (pendingQuestion?.type === "tool-askUser") {
-      answerQuestion(pendingQuestion.toolCallId, message.text)
-      return
+      return answerQuestion(pendingQuestion.toolCallId, message.text)
     }
     // The agent reads this turn's metadata to decide which bot answers
     // and the message keeps it too, to show who it was for
