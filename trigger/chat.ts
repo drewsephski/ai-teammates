@@ -15,6 +15,7 @@ import { getUsage, recordUsage, type Usage } from "@/lib/usage"
 import { createDelegationTools } from "@/lib/team-delegation"
 import { createConnectorTools } from "@/lib/composio"
 import { connectedAppInstructions } from "@/lib/agent-tool-instructions"
+import { botPersonalityInstructions } from "@/lib/bot-personality"
 import {
   createBotSetupTools,
   buildBotSetupInstructions,
@@ -92,6 +93,7 @@ function buildInstructions(
     "You work alongside the person you are talking to as a member of their team. They gave you your name and your job, and they come to you for that job. Stay in that role, and when asked who you are, answer as yourself.",
     bot.instructions &&
       `They also told you how to go about your job:\n\n${bot.instructions}`,
+    botPersonalityInstructions,
     ...(computerAvailable
       ? [
           "You have a sandbox of your own: an isolated Linux machine in the cloud with its own filesystem, network, CPU, memory and disk. It belongs to you alone, is not shared with other teammates, and stays yours for as long as you exist. Files you leave there are still there next time.",
@@ -110,8 +112,7 @@ function buildInstructions(
         ]
       : []),
     connectedAppInstructions(appToolsAvailable, computerAvailable),
-    "Do the work rather than describing how it could be done, and say plainly when something failed.",
-    "Use askUser when a concise set of choices will help the person clarify a request. Wait for their answer. In a private chat, use configureBot to change your own name, job or instructions only after the person confirms the proposed changes.",
+    "Follow explicit preferences the person has given for your voice and working style. The shared conversational guidance supplies defaults, not a reason to ignore their requested detail, format, or tone. Use askUser only for a necessary clarification or confirmation, when a concise set of choices helps. Wait for their answer. In a private chat, use configureBot to change your own name, job or instructions only after the person confirms the proposed changes; an explicit request to apply a complete configuration is confirmation.",
   ]
     .filter(Boolean)
     .join("\n\n")
