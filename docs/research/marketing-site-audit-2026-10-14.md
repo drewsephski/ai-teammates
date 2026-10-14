@@ -1,8 +1,10 @@
 # Krafty marketing audit validation — 2026-10-14
 
 The supplied review identified four actionable gaps, all confirmed against the
-live site. The working tree now addresses them. These changes have not been
-deployed; the public site still serves the previous version.
+live site. The changes now address them and were observed on the live site at the
+end of validation. Concurrent work in the shared checkout committed and deployed
+the implementation during this audit; this audit performed no git or deployment
+actions.
 
 ## Findings
 
@@ -70,8 +72,15 @@ and the installed Next.js 16.3.4 documentation.
   mobile menu opened, closed with Escape, and closed after selecting Pricing.
   Browser navigation to `/pricing` reached `/#pricing`.
 
-Clerk's production keys reject `localhost` with an explicit HTTP-origin error.
-The SDK script loaded, but full sign-in, checkout and authenticated dashboard/
-desktop journeys could not be completed locally. Those journeys still need
-verification on the allowed hosted domain before calling this release validated.
+- After the concurrent deployment, the same HTTP checks passed against
+  `https://kraftybot.app`, including the anonymous pricing redirect, protected
+  routes, metadata routes, fresh script nonces and asset headers.
+- On the live domain, Clerk reached its ready state with the existing signed-in
+  session. The public pricing table loaded, signed-in `/pricing` retained its
+  Plans & billing page and pricing table, and client navigation to the workspace
+  preserved the session without CSP violations or horizontal overflow.
+
+Clerk's production keys reject `localhost` with an explicit HTTP-origin error;
+the live-domain checks resolved that local verification limit. Fresh sign-in/
+sign-up, checkout completion and desktop streaming were not exercised.
 The production-origin error is an environment limitation, not a CSP violation.

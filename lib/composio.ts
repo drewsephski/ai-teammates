@@ -100,7 +100,11 @@ export async function activeAccounts(userId: string): Promise<AppAccount[]> {
   )
 }
 
-export async function authorizeConnector(userId: string, toolkit: string) {
+export async function authorizeConnector(
+  userId: string,
+  toolkit: string,
+  callbackUrl: string
+) {
   return withSandboxLock(`connections:${userId}`, async () => {
     const plan = await getAccountPlan(userId)
     if (plan.tier === "free") {
@@ -127,7 +131,7 @@ export async function authorizeConnector(userId: string, toolkit: string) {
       assertAppCapacity(plan.tier, accounts, toolkit)
     }
     const session = await createConnectorSession(userId)
-    return session.authorize(toolkit)
+    return session.authorize(toolkit, { callbackUrl })
   })
 }
 

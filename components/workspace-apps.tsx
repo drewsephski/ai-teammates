@@ -2,13 +2,16 @@ import { ConnectorMarketplace } from "@/components/connector-marketplace"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { ConnectorApp } from "@/lib/composio"
+import type { ConnectorCallback } from "@/lib/connector-callback"
 
 export function WorkspaceApps({
   apps,
   unavailable,
+  connectionCallback,
 }: {
   apps: ConnectorApp[]
   unavailable: boolean
+  connectionCallback?: ConnectorCallback
 }) {
   return (
     <section aria-labelledby="workspace-apps-title" className="space-y-3">
@@ -16,7 +19,10 @@ export function WorkspaceApps({
         <h2 id="workspace-apps-title" className="text-sm font-medium">
           Connected apps
         </h2>
-        <ConnectorMarketplace trigger={<Button variant="ghost" size="sm" />}>
+        <ConnectorMarketplace
+          trigger={<Button variant="ghost" size="sm" />}
+          connectionCallback={connectionCallback}
+        >
           {apps.length ? "Manage apps" : "Connect apps"}
         </ConnectorMarketplace>
       </div>

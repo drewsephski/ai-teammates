@@ -14,11 +14,29 @@ import { WorkspaceForYou } from "@/components/workspace-for-you"
 export default async function WorkspacePage({
   searchParams,
 }: {
-  searchParams: Promise<{ role?: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   await auth.protect()
 
-  const { role } = await searchParams
+  const params = await searchParams
+  const { role } = params
+  const connectionCallback =
+    params.apps === "connect"
+      ? {
+          state:
+            typeof params.connection_state === "string"
+              ? params.connection_state
+              : "",
+          status:
+            params.status === "success"
+              ? ("success" as const)
+              : ("failed" as const),
+          accountId:
+            typeof params.connected_account_id === "string"
+              ? params.connected_account_id
+              : "",
+        }
+      : undefined
   const preset = botPresets.find((preset) => preset.id === role)
   const [bots, connections] = await Promise.all([
     getWorkspaceBots(),
@@ -49,7 +67,10 @@ export default async function WorkspacePage({
             .map((bot) => bot.id)}
           appsUnavailable={connections.unavailable}
         />
-        <WorkspaceApps {...connections} />
+        <WorkspaceApps
+          {...connections}
+          connectionCallback={connectionCallback}
+        />
         <WorkspacePresets presetId={preset?.id} />
       </div>
     </section>
