@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { auth } from "@clerk/nextjs/server"
 
@@ -9,6 +10,7 @@ import {
   BotSettingsProvider,
 } from "@/components/bot-settings-panel"
 import { DesktopPanel, DesktopPanelProvider } from "@/components/desktop-panel"
+import { UsageNotice } from "@/components/usage-notice"
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { getBots } from "@/queries/bots"
 import { getChat } from "@/queries/chats"
@@ -31,19 +33,24 @@ export default async function Page({
     avatar,
     job,
   }))
+  const headerBots = bots.map(({ id, name, avatar }) => ({ id, name, avatar }))
+  // Streams in after the chat, so a slow billing lookup never holds it up
+  const notice = (
+    <Suspense fallback={null}>
+      <UsageNotice />
+    </Suspense>
+  )
 
   // A group has several bots and so no single desktop to show
   if (chat.kind === "group") {
     return (
       <ChatActivityProvider key={chat.id}>
         <div className="chat-surface flex h-svh flex-col">
-          <ChatHeader
-            chat={chat}
-            bots={bots.map(({ id, name, avatar }) => ({ id, name, avatar }))}
-          />
+          <ChatHeader chat={chat} bots={headerBots} />
           <Chat
             chatId={chat.id}
             mentionBots={mentionBots}
+            notice={notice}
             name={chat.name ?? "your teammates"}
             bots={chat.bots.map(({ id, name, avatar }) => ({
               id,
@@ -65,10 +72,11 @@ export default async function Page({
             <ResizablePanelGroup orientation="horizontal">
               <ResizablePanel id="chat" minSize="30%">
                 <div className="flex h-full flex-col">
-                  <ChatHeader chat={chat} />
+                  <ChatHeader chat={chat} bots={headerBots} />
                   <Chat
                     chatId={chat.id}
                     mentionBots={mentionBots}
+                    notice={notice}
                     name={chat.name ?? chat.bots[0].name}
                     botId={chat.bots[0].id}
                     directBot={{

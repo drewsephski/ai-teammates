@@ -1,7 +1,9 @@
 "use client"
 
-import { MonitorIcon } from "lucide-react"
+import { useState } from "react"
+import { DownloadIcon, MonitorIcon } from "lucide-react"
 
+import { loadTranscript } from "@/actions/chat"
 import { useBotSettings } from "@/components/bot-settings-panel"
 import { ChatAvatar } from "@/components/chat-avatar"
 import { useChatActivity } from "@/components/chat-activity-provider"
@@ -11,6 +13,11 @@ import { GroupChatAvatar } from "@/components/group-chat-avatar"
 import { GroupChatDialog } from "@/components/group-chat-dialog"
 import { Button } from "@/components/ui/button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { Spinner } from "@/components/ui/spinner"
+import { toast } from "@/components/ui/toast"
+import { toolCallText } from "@/components/chat-tool-call"
+import { botSetupMessageId } from "@/lib/bot-setup-tools"
+import { chatExportFileName, chatTranscriptMarkdown } from "@/lib/chat-export"
 import type { Bot } from "@/db/schema"
 import type { ChatWithBots } from "@/queries/bots"
 
@@ -23,7 +30,7 @@ function DesktopButton() {
     <Button
       variant="ghost"
       size="sm"
-      className="ml-auto rounded-full text-muted-foreground aria-pressed:bg-muted aria-pressed:text-foreground"
+      className="rounded-full text-muted-foreground aria-pressed:bg-muted aria-pressed:text-foreground"
       aria-label="Desktop"
       aria-pressed={desktopPanel.open}
       onClick={() => {
@@ -64,7 +71,70 @@ function BotSettingsButton({ bot }: { bot: Bot }) {
   )
 }
 
-// `bots` are all the user's bots, the ones a group chat can have as members
+// Downloads the stored transcript as Markdown. `bots` name consulted teammates.
+function ExportChatButton({
+  chat,
+  bots,
+}: {
+  chat: ChatWithBots
+  bots: Pick<Bot, "id" | "name">[]
+}) {
+  const [pending, setPending] = useState(false)
+
+  async function exportChat() {
+    setPending(true)
+    try {
+      const { messages = [] } = await loadTranscript({ chatId: chat.id })
+      const title = chat.name ?? chat.bots[0]?.name ?? "Conversation"
+      const directBotId = chat.kind === "direct" ? chat.bots[0]?.id : undefined
+      const markdown = chatTranscriptMarkdown({
+        title,
+        // The hidden setup prompt isn't part of the conversation
+        messages: messages.filter(
+          (message) =>
+            !directBotId || message.id !== botSetupMessageId(directBotId)
+        ),
+        bots: [...chat.bots, ...bots],
+        fallbackBotId: chat.bots[0]?.id,
+        group: chat.kind === "group",
+        toolText: toolCallText,
+      })
+      const url = URL.createObjectURL(
+        new Blob([markdown], { type: "text/markdown;charset=utf-8" })
+      )
+      const link = document.createElement("a")
+      link.href = url
+      link.download = chatExportFileName(title)
+      link.click()
+      setTimeout(() => URL.revokeObjectURL(url))
+    } catch {
+      toast.add({
+        type: "error",
+        title: "Couldn't export the conversation",
+        description: "Try again.",
+      })
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      className="rounded-full text-muted-foreground"
+      aria-label="Export chat as Markdown"
+      title="Export chat"
+      disabled={pending}
+      onClick={exportChat}
+    >
+      {pending ? <Spinner /> : <DownloadIcon />}
+    </Button>
+  )
+}
+
+// `bots` are all the user's bots: a group chat's possible members, and the
+// names of teammates a chat consulted
 function ChatHeader({
   chat,
   bots = [],
@@ -107,13 +177,14 @@ function ChatHeader({
           </GroupChatDialog>
         </h1>
       ) : (
-        <>
-          <h1 className="absolute left-1/2 flex max-w-[calc(100%-8rem)] min-w-0 -translate-x-1/2">
-            <BotSettingsButton bot={chat.bots[0]} />
-          </h1>
-          <DesktopButton />
-        </>
+        <h1 className="absolute left-1/2 flex max-w-[calc(100%-12rem)] min-w-0 -translate-x-1/2">
+          <BotSettingsButton bot={chat.bots[0]} />
+        </h1>
       )}
+      <div className="ml-auto flex items-center gap-1">
+        {chat.kind === "direct" && <DesktopButton />}
+        <ExportChatButton chat={chat} bots={bots} />
+      </div>
       <span
         role="status"
         aria-live="polite"

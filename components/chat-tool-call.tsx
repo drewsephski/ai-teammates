@@ -249,6 +249,19 @@ function toolSummary(part: ToolPart): string | undefined {
   }
 }
 
+// One line for an exported transcript, with the title and summary the chat shows
+export function toolCallText(part: ToolPart) {
+  const failed =
+    part.state === "output-error" ||
+    !!appToolError(part) ||
+    (part.type === "tool-bash" &&
+      part.state === "output-available" &&
+      part.output.exitCode !== 0)
+  const title = toolTitles[part.type][part.state === "output-available" ? 2 : 0]
+  const summary = toolSummary(part)
+  return `${title}${failed ? " (failed)" : ""}${summary ? `: ${summary}` : ""}`
+}
+
 export function ToolCall({ part }: { part: ToolPart }) {
   if (
     part.type === "tool-consultTeammate" &&
