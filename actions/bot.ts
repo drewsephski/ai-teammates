@@ -2,7 +2,7 @@
 
 import { auth, currentUser } from "@clerk/nextjs/server"
 import * as Sentry from "@sentry/nextjs"
-import { and, eq, inArray, sql } from "drizzle-orm"
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
@@ -26,6 +26,10 @@ import { teamOperationId } from "@/lib/team-policy"
 import { FREE_BOT_LIMIT_ERROR } from "@/lib/billing-policy"
 import { isChatGPTSelected } from "@/lib/chatgpt-connection"
 import { canUseAI } from "@/lib/chatgpt-policy"
+import {
+  pinnedBotOrderSchema,
+  pinnedBotOrderUpdates,
+} from "@/lib/pinned-bot-order"
 
 type CreateBotResult =
   | { ok: true; bot: Bot; chatId: string }
@@ -105,6 +109,44 @@ export async function setBotPinned(botId: string, pinned: boolean) {
     .where(and(eq(bots.id, input.botId), eq(bots.userId, userId)))
     .returning({ id: bots.id })
   if (!bot) throw new Error("Bot not found")
+  revalidatePath("/", "layout")
+}
+
+export async function reorderPinnedBots(botIds: string[]) {
+  const { isAuthenticated, userId } = await auth()
+  if (!isAuthenticated) throw new Error("Unauthorized")
+  const ids = pinnedBotOrderSchema.parse(botIds)
+
+  await db.transaction(async (tx) => {
+    // Lock before reading ordering slots so concurrent reorder/pin changes are atomic.
+    const rows = await tx
+      .select({ id: bots.id, pinnedAt: bots.pinnedAt })
+      .from(bots)
+      .where(
+        and(
+          eq(bots.userId, userId),
+          inArray(bots.id, ids),
+          isNotNull(bots.pinnedAt)
+        )
+      )
+      .orderBy(bots.id)
+      .for("update")
+    const updates = pinnedBotOrderUpdates(ids, rows)
+    const cases = updates.map(
+      ({ id, pinnedAt }) =>
+        sql`WHEN ${id} THEN ${pinnedAt.toISOString()}::timestamptz`
+    )
+    await tx
+      .update(bots)
+      .set({ pinnedAt: sql`CASE ${bots.id} ${sql.join(cases, sql` `)} END` })
+      .where(
+        and(
+          eq(bots.userId, userId),
+          inArray(bots.id, ids),
+          isNotNull(bots.pinnedAt)
+        )
+      )
+  })
   revalidatePath("/", "layout")
 }
 

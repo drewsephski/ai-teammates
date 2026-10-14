@@ -15,7 +15,7 @@ const suggestion = {
   sourceId: "message_123",
   sourceQuote: "Krafty launch plan",
 }
-function modelFor(read: boolean) {
+function modelFor(read: boolean, candidate = suggestion) {
   let call = 0
   return new MockLanguageModelV4({
     doStream: async () => {
@@ -27,7 +27,7 @@ function modelFor(read: boolean) {
             {
               type: "text-delta" as const,
               id: "text",
-              delta: JSON.stringify({ suggestion }),
+              delta: JSON.stringify({ suggestion: candidate }),
             },
             { type: "text-end" as const, id: "text" },
           ]
@@ -121,6 +121,41 @@ test("a model-produced email suggestion without a successful app read is rejecte
       onUsage: async () => {},
     }),
     /Connected-app search|No verified connected-app data/
+  )
+})
+
+test("a rejected source is a failed recommendation check, never an empty result", async () => {
+  const tools = createAppTools("alice", {
+    accounts: async () => [{ id: "alice-gmail", toolkit: "gmail" }],
+    search: async () => ({
+      tools: [
+        {
+          slug: "GMAIL_READ_RECENT",
+          toolkit: "gmail",
+          description: "Read recent mail",
+          inputSchema: { type: "object", properties: {} },
+        },
+      ],
+      guidance: {},
+    }),
+    schema: async () => undefined,
+    execute: async () => ({
+      resultType: "completed",
+      data: {
+        messages: [{ id: "message_123", subject: "Krafty launch plan" }],
+      },
+    }),
+  })
+  await assert.rejects(
+    generateForYou({
+      bots: [{ id: "quill", name: "Quill", job: "Writing editor" }],
+      apps: ["gmail"],
+      tools,
+      model: modelFor(true, { ...suggestion, sourceId: "invented" }),
+      signal: new AbortController().signal,
+      onUsage: async () => {},
+    }),
+    /source could not be verified/
   )
 })
 

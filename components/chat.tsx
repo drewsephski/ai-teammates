@@ -550,7 +550,9 @@ function ChatMessages({
                           : undefined
                       }
                     >
-                      {author && <span className="sr-only">{author.name}</span>}
+                      {author && !contribution && (
+                        <span className="sr-only">{author.name}</span>
+                      )}
                       {message.role === "user" &&
                       message.metadata?.mentions?.length ? (
                         <div className="flex flex-wrap gap-1">

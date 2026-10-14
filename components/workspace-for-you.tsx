@@ -80,7 +80,8 @@ export function WorkspaceForYou({
         ? "Choose a bot preset to get started."
         : current?.reason === "usage"
           ? "Your AI allowance is too low to check for new tasks."
-          : (current?.error ?? "No recommendation right now.")
+          : (current?.error ??
+            "No actionable tasks found in the recent records checked.")
   return (
     <section aria-labelledby="workspace-for-you-title" className="space-y-3">
       <div className="flex items-center justify-between gap-3">
