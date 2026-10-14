@@ -234,6 +234,16 @@
 .app-shell [data-slot="sidebar-menu"] {
   gap: 4px;
 }
+
+/* The icon rail uses 40px controls with equal 8px side insets. */
+.app-shell [data-collapsible="icon"] [data-slot="sidebar-header"],
+.app-shell [data-collapsible="icon"] [data-slot="sidebar-footer"],
+.app-shell [data-collapsible="icon"] [data-slot="sidebar-group"] {
+  padding: 8px;
+}
+.app-shell [data-collapsible="icon"] [data-slot="sidebar-header"] {
+  gap: 4px;
+}
 .app-shell [data-slot="sidebar-menu-button"] {
   transition:
     background-color 160ms ease-out,
@@ -302,6 +312,7 @@
 }
 
 [data-slot="sidebar-wrapper"][data-resizing="true"] [data-slot="sidebar-gap"],
-[data-slot="sidebar-wrapper"][data-resizing="true"] [data-slot="sidebar-container"] {
+[data-slot="sidebar-wrapper"][data-resizing="true"]
+  [data-slot="sidebar-container"] {
   transition: none;
 }

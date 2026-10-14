@@ -43,8 +43,22 @@ const scenarios: {
   timeoutSend?: boolean
   draftThenSendOnly?: boolean
   setup?: boolean
+  lookupContact?: boolean
   expected: string
 }[] = [
+  {
+    name: "named recipients are resolved from connected correspondence before sending",
+    setup: true,
+    lookupContact: true,
+    messages: [
+      {
+        role: "user",
+        content:
+          "Send an email to Sam Stehno with subject Demo and body Hello from Drew. Find his address in my Gmail correspondence; don't guess it.",
+      },
+    ],
+    expected: "GMAIL_SEND_EMAIL",
+  },
   {
     name: "unfinished setup sends requested email without saving a profile",
     setup: true,
@@ -177,19 +191,31 @@ for (const scenario of scenarios) {
       const data =
         slug === "GMAIL_CREATE_EMAIL_DRAFT"
           ? { id: "r-created-123", message: { id: "message-456" } }
-          : slug === "GMAIL_FETCH_EMAILS"
+          : slug === "GMAIL_FETCH_EMAILS" && scenario.lookupContact
             ? {
                 messages: [
                   {
-                    id: "sent-789",
-                    labelIds: ["SENT"],
-                    to: "recipient@example.com",
-                    subject: "Demo",
-                    messageText: "Hello from Drew.",
+                    id: "existing-correspondence",
+                    sender: "Sam Stehno <sam@example.com>",
+                    to: "drew@example.com",
+                    subject: "Project update",
+                    messageText: "Thanks, Drew.\n\nSam Stehno\nsam@example.com",
                   },
                 ],
               }
-            : { id: "sent-789", labelIds: ["SENT"] }
+            : slug === "GMAIL_FETCH_EMAILS"
+              ? {
+                  messages: [
+                    {
+                      id: "sent-789",
+                      labelIds: ["SENT"],
+                      to: "recipient@example.com",
+                      subject: "Demo",
+                      messageText: "Hello from Drew.",
+                    },
+                  ],
+                }
+              : { id: "sent-789", labelIds: ["SENT"] }
       return {
         resultType: "completed",
         error: null,
@@ -243,6 +269,15 @@ for (const scenario of scenarios) {
       "Email work must not save an unapproved profile"
     )
   const writes = calls.filter((call) => call.slug !== "GMAIL_FETCH_EMAILS")
+  if (scenario.lookupContact) {
+    assert.ok(
+      calls.findIndex((call) => call.slug === "GMAIL_FETCH_EMAILS") >= 0 &&
+        calls.findIndex((call) => call.slug === "GMAIL_FETCH_EMAILS") <
+          calls.findIndex((call) => call.slug === "GMAIL_SEND_EMAIL"),
+      "A named contact must be looked up before sending"
+    )
+    assert.equal(writes[0]?.input.recipient_email, "sam@example.com")
+  }
   assert.deepEqual(
     writes.map((call) => call.slug),
     scenario.draftThenSendOnly

@@ -22,6 +22,15 @@ import { assertBotAccess } from "@/lib/teammates"
 import { withSandboxLock } from "@/lib/sandbox-lock"
 import { createTavilyClient, tavilyCost } from "@/lib/tavily"
 import { createWebTools } from "@/lib/web-tools"
+import { isChatGPTSelected } from "@/lib/chatgpt-connection"
+import { chatGPTModelForUser } from "@/lib/chatgpt-model"
+import {
+  appModelCost,
+  canUseAI,
+  CHATGPT_LIMIT_ERROR,
+  CHATGPT_RECONNECT_ERROR,
+  CHATGPT_REQUEST_ERROR,
+} from "@/lib/chatgpt-policy"
 
 // Sent with each message. Missing in direct chats, and when the session starts.
 const clientDataSchema = z
@@ -57,6 +66,7 @@ const turnModelUsage = chat.local<{
   webCost: number
   messageId: string
   usageKey: string
+  chatgpt: boolean
 }>({
   id: "chat-turn-model-cost",
 })
@@ -67,13 +77,33 @@ export const chatAgent = chat
   .withClientData({ schema: clientDataSchema })
   .agent({
     id: "chat",
+    uiMessageStreamOptions: {
+      onError: (error) => {
+        const message = error instanceof Error ? error.message : ""
+        return [
+          USAGE_LIMIT_ERROR,
+          CHATGPT_LIMIT_ERROR,
+          CHATGPT_RECONNECT_ERROR,
+          CHATGPT_REQUEST_ERROR,
+        ].includes(message)
+          ? message
+          : "Couldn’t complete the reply. Please try again."
+      },
+    },
     onBoot: () => {
-      turnModelUsage.init({ cost: 0, webCost: 0, messageId: "", usageKey: "" })
+      turnModelUsage.init({
+        cost: 0,
+        webCost: 0,
+        messageId: "",
+        usageKey: "",
+        chatgpt: false,
+      })
     },
     onTurnStart: ({ uiMessages, runId, turn }) => {
       turnModelUsage.usageKey = `ai:${runId}:${turn}`
       turnModelUsage.cost = 0
       turnModelUsage.webCost = 0
+      turnModelUsage.chatgpt = false
       const latest = uiMessages.findLast((message) => message.role === "user")
       if (!latest) throw new Error("No task to delegate")
       turnModelUsage.messageId = latest.id
@@ -239,7 +269,7 @@ export const chatAgent = chat
           .set({ lastMessageAt: new Date(), lastMessagePreview: preview })
           .where(eq(chats.id, chatId))
 
-      if (usage && row) {
+      if (usage && row && turnModelUsage.cost > 0) {
         await recordUsage([
           {
             userId: row.userId,
@@ -261,6 +291,7 @@ export const chatAgent = chat
             : "completed",
         "trigger.task": "chat",
         "trigger.run": runId,
+        "usage.ai_provider": turnModelUsage.chatgpt ? "chatgpt" : "krafty",
         ...(row && { "user.id": row.userId }),
         ...(usage && {
           "gen_ai.usage.input_tokens": usage.inputTokens ?? 0,
@@ -295,7 +326,15 @@ export const chatAgent = chat
       await assertBotAccess(row.userId, bot.id)
       if (usage.tier === "free" && group)
         throw new Error("Group chats require a paid plan.")
-      if (!usage || usage.remaining.ai <= 0) throw new Error(USAGE_LIMIT_ERROR)
+      const chatgptSelected = await isChatGPTSelected(row.userId)
+      if (!canUseAI(usage.remaining.ai, chatgptSelected))
+        throw new Error(USAGE_LIMIT_ERROR)
+      turnModelUsage.chatgpt = chatgptSelected
+      // Resolve from the authoritative connection, never browser clientData.
+      // Every tool step revalidates/refreshes this user's credential.
+      const subscriptionModel = chatgptSelected
+        ? await chatGPTModelForUser(row.userId)
+        : null
 
       function respond(usage: Usage) {
         // Keep the conversation/session, but release this worker after the turn.
@@ -325,7 +364,8 @@ export const chatAgent = chat
           })
 
         return streamText({
-          model: chatModel(messages),
+          model: subscriptionModel ?? chatModel(messages),
+          maxRetries: chatgptSelected ? 0 : undefined,
           // The managed streamText takes the prompt as `system` on every AI SDK version
           system: buildChatInstructions(
             bot,
@@ -355,7 +395,7 @@ export const chatAgent = chat
               : current
 
             return {
-              model: chatModel(messages),
+              model: subscriptionModel ?? chatModel(messages),
               ...(updated && {
                 instructions: buildChatInstructions(
                   updated,
@@ -368,7 +408,9 @@ export const chatAgent = chat
             }
           },
           onStepEnd: ({ usage, model }) => {
-            turnModelUsage.cost += chatModelCost(usage, model.modelId)
+            turnModelUsage.cost += appModelCost(chatgptSelected, () =>
+              chatModelCost(usage, model.modelId)
+            )
           },
           stopWhen: [
             ({ steps }) =>
@@ -388,19 +430,15 @@ export const chatAgent = chat
             // Desktop work is one small action per step
             isStepCount(50),
             // A long turn ends once it has spent what was left
-            ({ steps }) =>
-              steps.reduce(
-                (cost, step) =>
-                  cost + chatModelCost(step.usage, step.model.modelId),
-                0
-              ) +
-                turnModelUsage.webCost >=
-              usage.remaining.ai,
+            () =>
+              !chatgptSelected &&
+              turnModelUsage.cost + turnModelUsage.webCost >=
+                usage.remaining.ai,
           ],
           abortSignal: signal,
         })
       }
-      if (usage.tier === "paid") return respond(usage)
+      if (chatgptSelected || usage.tier === "paid") return respond(usage)
       // One free account cannot spend the same remaining starter credit from
       // parallel conversations. Persist cost before releasing the account lock.
       return withSandboxLock(`free-ai:${row.userId}`, async () => {

@@ -70,7 +70,7 @@ export async function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="gap-4 px-4 py-5">
-        <div className="flex items-center justify-between gap-2 group-data-[collapsible=icon]:flex-col">
+        <div className="flex items-center justify-between gap-2 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-1">
           <KraftyWordmark compact href="/workspace" />
           <CreateMenu
             bots={bots.map(({ id, name, avatar }) => ({ id, name, avatar }))}
@@ -102,7 +102,7 @@ export async function AppSidebar() {
           {pinned.length > 0 && (
             <SidebarGroup aria-label="Pinned bots" className="px-3">
               <SidebarGroupContent className="@container">
-                <SidebarMenu className="grid grid-cols-2 gap-1 @[220px]:grid-cols-3 group-data-[collapsible=icon]:grid-cols-1">
+                <SidebarMenu className="grid grid-cols-2 gap-1 group-data-[collapsible=icon]:grid-cols-1 @[220px]:grid-cols-3">
                   {pinned.map(({ bot, chat, chatIds }) => (
                     <SidebarMenuItem key={bot.id}>
                       <ChatMenuButton

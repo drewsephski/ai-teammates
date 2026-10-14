@@ -1,11 +1,13 @@
 import * as Sentry from "@sentry/node"
 import { tasks } from "@trigger.dev/sdk"
+import { redactChatGPTEvent } from "@/lib/chatgpt-telemetry"
 
 // Loaded by Trigger.dev before any task runs. Errors and logs only: Trigger.dev
 // traces the runs itself, and Sentry's default integrations would fight it for
 // OpenTelemetry.
 Sentry.init({
   defaultIntegrations: false,
+  beforeSend: redactChatGPTEvent,
   // The same variable the Next.js app reads (sentry.server.config.ts), so both
   // report to one project. It has to be set in Trigger.dev too.
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,

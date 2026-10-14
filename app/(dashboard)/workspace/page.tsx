@@ -16,17 +16,20 @@ import { BotMark } from "@/components/landing/bot/bot-mark"
 import { buttonVariants } from "@/components/ui/button"
 import { botPresets } from "@/lib/bot-presets"
 import { getBots, getChats } from "@/queries/bots"
+import { getChatGPTStatus } from "@/lib/chatgpt-connection"
+import { ChatGPTPlanCard } from "@/components/chatgpt-plan-card"
 
 export default async function WorkspacePage({
   searchParams,
 }: {
   searchParams: Promise<{ role?: string }>
 }) {
-  await auth.protect()
-  const [params, bots, chats] = await Promise.all([
+  const { userId } = await auth.protect()
+  const [params, bots, chats, chatgpt] = await Promise.all([
     searchParams,
     getBots(),
     getChats(),
+    getChatGPTStatus(userId),
   ])
   const preset = botPresets.find((preset) => preset.id === params.role)
   const directChats = chats.filter((chat) => chat.kind === "direct")
@@ -62,6 +65,7 @@ export default async function WorkspacePage({
             className="size-20 shrink-0 [--bg:var(--card)] sm:size-24"
           />
         </header>
+        <ChatGPTPlanCard status={chatgpt} compact />
         {preset && (
           <section className="flex flex-col items-start gap-5 rounded-2xl bg-muted p-6 sm:flex-row sm:items-center">
             <div className="flex-1">

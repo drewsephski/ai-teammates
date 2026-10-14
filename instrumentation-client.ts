@@ -1,6 +1,9 @@
 import * as Sentry from "@sentry/nextjs"
+import { redactChatGPTEvent } from "@/lib/chatgpt-telemetry"
 
 Sentry.init({
+  beforeSend: redactChatGPTEvent,
+  beforeSendTransaction: redactChatGPTEvent,
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
   dataCollection: {

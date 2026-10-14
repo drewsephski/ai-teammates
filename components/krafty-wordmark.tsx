@@ -14,7 +14,11 @@ export function KraftyWordmark({
     <Link
       href={href}
       aria-label="Krafty home"
-      className="inline-flex shrink-0 items-center rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring",
+        compact &&
+          "group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:justify-center"
+      )}
     >
       <span
         className={cn(

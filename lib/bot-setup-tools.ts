@@ -22,7 +22,7 @@ export function createBotSetupTools(
   return {
     askUser: tool({
       description:
-        "Ask one focused question only when a missing answer materially changes the work or confirmation is required. Offer two to five short choices; the person can select one or type their own answer. Do not use this to ask permission for work already requested. Wait for the answer before continuing; never answer for them.",
+        "Ask one focused question only when a missing answer materially changes the work or confirmation is required. First use available tools to resolve facts such as a named contact's email address. Offer two to five short choices grounded in the conversation or actual tool results; never invent email addresses, identities, dates or other factual choices. For missing free-form data, offer generic choices such as 'I will type it' and 'Cancel'; the person can type their own answer. Do not use this to ask permission for work already requested. Wait for the answer before continuing; never answer for them.",
       inputSchema: botQuestionSchema,
       outputSchema: botQuestionSchema,
       execute: async (input) => botQuestionSchema.parse(input),

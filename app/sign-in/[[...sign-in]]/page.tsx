@@ -1,14 +1,23 @@
 import { KraftySignIn } from "@/components/auth-ui"
 import { AuthShell } from "@/components/auth-shell"
+import { ChatGPTAuthOption } from "@/components/chatgpt-auth-option"
 
-export default function SignInPage() {
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ chatgpt?: string }>
+}) {
+  const params = await searchParams
   return (
     <AuthShell>
-      <KraftySignIn
-        appearance={{ elements: { rootBox: "w-full!", cardBox: "w-full!" } }}
-        fallbackRedirectUrl="/workspace"
-        signUpFallbackRedirectUrl="/workspace"
-      />
+      <div className="flex w-full flex-col gap-5">
+        <ChatGPTAuthOption intent="sign-in" result={params.chatgpt} />
+        <KraftySignIn
+          appearance={{ elements: { rootBox: "w-full!", cardBox: "w-full!" } }}
+          fallbackRedirectUrl="/workspace"
+          signUpFallbackRedirectUrl="/workspace"
+        />
+      </div>
     </AuthShell>
   )
 }

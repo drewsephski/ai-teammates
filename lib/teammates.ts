@@ -17,6 +17,8 @@ import { createBotSandbox, deleteBotSandbox } from "@/lib/e2b"
 import { withSandboxLock } from "@/lib/sandbox-lock"
 import { assertBotCapacity, FREE_BOT_LIMIT_ERROR } from "@/lib/billing-policy"
 import { getAccountPlan, getUsage } from "@/lib/usage"
+import { isChatGPTSelected } from "@/lib/chatgpt-connection"
+import { canUseAI } from "@/lib/chatgpt-policy"
 
 export async function assertTeamAccess(userId: string, computer = false) {
   const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
@@ -40,7 +42,7 @@ export async function assertTeamAccess(userId: string, computer = false) {
   const usage = await getUsage(userId)
   if (
     !usage ||
-    usage.remaining.ai <= 0 ||
+    !canUseAI(usage.remaining.ai, await isChatGPTSelected(userId)) ||
     (computer && usage.remaining.sandbox <= 0)
   ) {
     throw new Error("Usage limit reached")

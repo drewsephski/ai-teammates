@@ -347,7 +347,15 @@ function MarketplaceContent() {
             >
               <ItemMedia>
                 <Avatar className="size-9">
-                  <AvatarImage src={app.logo} alt="" />
+                  <AvatarImage
+                    src={app.logo}
+                    alt=""
+                    className={
+                      app.slug === "github"
+                        ? "dark:brightness-0 dark:invert"
+                        : undefined
+                    }
+                  />
                   <AvatarFallback>{app.name.slice(0, 2)}</AvatarFallback>
                 </Avatar>
               </ItemMedia>

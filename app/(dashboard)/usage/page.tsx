@@ -13,6 +13,9 @@ import {
 import { Progress } from "@/components/ui/progress"
 import { AppPageHeader } from "@/components/app-page-header"
 import { getUsage } from "@/lib/usage"
+import { getChatGPTStatus } from "@/lib/chatgpt-connection"
+import { ChatGPTPlanCard } from "@/components/chatgpt-plan-card"
+import { chatGPTAuthMessages } from "@/components/chatgpt-auth-option"
 
 const dollars = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -53,10 +56,18 @@ function UsageMeter({
   )
 }
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ chatgpt?: string }>
+}) {
   const { userId } = await auth.protect()
 
-  const usage = await getUsage(userId)
+  const [usage, chatgpt, params] = await Promise.all([
+    getUsage(userId),
+    getChatGPTStatus(userId),
+    searchParams,
+  ])
 
   const { period, used, limits } = usage
 
@@ -83,9 +94,23 @@ export default async function Page() {
           </p>
         </div>
         <div className="flex flex-col gap-5">
+          {params.chatgpt && chatGPTAuthMessages[params.chatgpt] && (
+            <p
+              role="alert"
+              className="rounded-xl border border-destructive/30 p-4 text-sm"
+            >
+              {chatGPTAuthMessages[params.chatgpt]}
+            </p>
+          )}
+          {params.chatgpt === "connected" && (
+            <p role="status" className="text-sm">
+              ChatGPT account connected. Review your AI preference below.
+            </p>
+          )}
+          <ChatGPTPlanCard status={chatgpt} />
           <UsageMeter
             title="AI usage"
-            description="What your bots' replies cost in model tokens."
+            description="Krafty-funded model replies and web searches. ChatGPT subscription-backed model usage is excluded."
             used={used.ai}
             limit={limits.ai}
             detail={`${dollars.format(used.ai / 1_000_000)} of ${dollars.format(limits.ai / 1_000_000)}`}

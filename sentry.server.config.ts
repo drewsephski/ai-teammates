@@ -1,7 +1,10 @@
 import * as Sentry from "@sentry/nextjs"
+import { redactChatGPTEvent } from "@/lib/chatgpt-telemetry"
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  beforeSend: redactChatGPTEvent,
+  beforeSendTransaction: redactChatGPTEvent,
 
   dataCollection: {
     // To disable sending user data and HTTP bodies, uncomment the lines below. For more info visit:

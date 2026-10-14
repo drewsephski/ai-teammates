@@ -8,6 +8,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core"
 import { createInsertSchema } from "drizzle-zod"
 import { nanoid } from "nanoid"
@@ -114,6 +115,54 @@ export const sandboxSessions = pgTable("sandbox_sessions", {
   endAt: timestamp({ withTimezone: true }).notNull(),
   meteredSeconds: integer().notNull().default(0),
 })
+
+// Identity survives disconnecting plan usage, so ChatGPT remains a sign-in method.
+// Credentials are encrypted server-side and never returned by dashboard queries.
+export const chatgptConnections = pgTable(
+  "chatgpt_connections",
+  {
+    userId: text().primaryKey(),
+    issuer: text().notNull(),
+    clientId: text().notNull(),
+    subject: text().notNull(),
+    email: text(),
+    name: text(),
+    accessToken: text(),
+    refreshToken: text(),
+    expiresAt: timestamp({ withTimezone: true }),
+    scopes: text().array().notNull().default([]),
+    enabled: boolean().notNull().default(false),
+    model: text(),
+    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("chatgpt_identity_idx").on(
+      table.issuer,
+      table.clientId,
+      table.subject
+    ),
+  ]
+)
+
+// State and the browser binding are hashed. The PKCE verifier stays encrypted.
+export const chatgptAuthAttempts = pgTable(
+  "chatgpt_auth_attempts",
+  {
+    id: text().primaryKey(),
+    browserHash: text().notNull(),
+    payload: text().notNull(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [index("chatgpt_auth_expiry_idx").on(table.expiresAt)]
+)
+
+export const chatgptPreferenceSchema = createInsertSchema(chatgptConnections, {
+  enabled: z.boolean(),
+  model: z.string().trim().min(1).max(200).nullable(),
+})
+  .pick({ enabled: true, model: true })
+  .required()
+export type ChatGPTPreference = z.infer<typeof chatgptPreferenceSchema>
 
 export const botsRelations = relations(bots, ({ many }) => ({
   memberships: many(chatMembers),

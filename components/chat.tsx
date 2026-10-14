@@ -56,6 +56,11 @@ import { seenMessageIds } from "@/lib/chat-receipts"
 import { Badge } from "@/components/ui/badge"
 import type { Bot } from "@/db/schema"
 import { USAGE_LIMIT_ERROR } from "@/lib/billing"
+import {
+  CHATGPT_LIMIT_ERROR,
+  CHATGPT_RECONNECT_ERROR,
+  CHATGPT_REQUEST_ERROR,
+} from "@/lib/chatgpt-policy"
 import { usePaywall } from "@/hooks/use-paywall"
 import type { ChatUIMessage } from "@/lib/sandbox-tools"
 import type { chatAgent } from "@/trigger/chat"
@@ -273,6 +278,24 @@ function ChatMessages({
     // The agent refuses a turn once the period's allowance is spent
     onError: (error) => {
       if (error.message === USAGE_LIMIT_ERROR) return showUsageLimit("ai")
+      if (
+        [
+          CHATGPT_LIMIT_ERROR,
+          CHATGPT_RECONNECT_ERROR,
+          CHATGPT_REQUEST_ERROR,
+        ].includes(error.message)
+      ) {
+        toast.add({
+          type: "error",
+          title: "ChatGPT reply unavailable",
+          description: error.message,
+          actionProps: {
+            children: "Manage ChatGPT",
+            onClick: () => router.push("/usage#chatgpt-plan"),
+          },
+        })
+        return
+      }
 
       // Handled here, so nothing else tells us a reply never arrived
       Sentry.logger.error("Chat reply failed", {
