@@ -25,6 +25,7 @@ export function createTeammateConsultation(context: {
   sourceBotId: string
   usageKey: () => string
   unrecordedCost: () => number
+  onCost: (cost: number) => void
 }) {
   const consulted = new Set<string>()
   return createConsultationTool(
@@ -38,6 +39,7 @@ export function createTeammateConsultation(context: {
         throw new Error("This is your own bot. Answer directly instead.")
       if (consulted.has(botId) || consulted.size >= 5)
         throw new Error("Consult each teammate once, up to five per turn.")
+      consulted.add(botId)
       // The model and browser both supply IDs; scope every lookup to the owner.
       const bot = await db.query.bots.findFirst({
         where: and(eq(bots.id, botId), eq(bots.userId, context.userId)),
@@ -49,7 +51,6 @@ export function createTeammateConsultation(context: {
       const usage = await getUsage(context.userId)
       if (!chatgpt && usage.remaining.ai - context.unrecordedCost() < 10_000)
         throw new Error(USAGE_LIMIT_ERROR)
-      consulted.add(botId)
       const [directChat] = await db
         .select({ id: chats.id })
         .from(chats)
@@ -88,6 +89,14 @@ export function createTeammateConsultation(context: {
         ),
         tools: bot.sandboxId ? { recall: memoryTools.recall } : {},
         signal,
+        beforeStep: async () => {
+          const current = await getUsage(context.userId)
+          if (
+            !chatgpt &&
+            current.remaining.ai - context.unrecordedCost() < 2000
+          )
+            throw new Error(USAGE_LIMIT_ERROR)
+        },
         onUsage: async (usage, modelId) => {
           const amount = appModelCost(chatgpt, () =>
             chatModelCost(usage, modelId)
@@ -101,6 +110,7 @@ export function createTeammateConsultation(context: {
                 idempotencyKey: `${context.usageKey()}:consult:${toolCallId}:${step}`,
               },
             ])
+          context.onCost(amount)
           step++
         },
       })

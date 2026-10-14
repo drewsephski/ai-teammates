@@ -75,6 +75,7 @@ async function getChatBots(chatId: string, botId?: string) {
 const turnModelUsage = chat.local<{
   cost: number
   webCost: number
+  consultationCost: number
   messageId: string
   usageKey: string
   chatgpt: boolean
@@ -108,6 +109,7 @@ export const chatAgent = chat
       turnModelUsage.init({
         cost: 0,
         webCost: 0,
+        consultationCost: 0,
         messageId: "",
         usageKey: "",
         chatgpt: false,
@@ -119,6 +121,7 @@ export const chatAgent = chat
       turnModelUsage.usageKey = `ai:${runId}:${turn}`
       turnModelUsage.cost = 0
       turnModelUsage.webCost = 0
+      turnModelUsage.consultationCost = 0
       turnModelUsage.chatgpt = false
       turnModelUsage.followUps = undefined
       const latest = uiMessages.findLast((message) => message.role === "user")
@@ -181,6 +184,9 @@ export const chatAgent = chat
         sourceBotId: bot.id,
         usageKey: () => turnModelUsage.usageKey,
         unrecordedCost: () => turnModelUsage.cost,
+        onCost: (cost) => {
+          turnModelUsage.consultationCost += cost
+        },
       })
       const sourceConfig = (await sessions.retrieve(chatId)).metadata?.forYou
       const source =
@@ -421,6 +427,7 @@ export const chatAgent = chat
           // Millionths of a dollar, as in the usage ledger
           "usage.cost": turnModelUsage.cost,
           "usage.web_cost": turnModelUsage.webCost,
+          "usage.consultation_cost": turnModelUsage.consultationCost,
         }),
       })
 
@@ -589,7 +596,9 @@ export const chatAgent = chat
             // A long turn ends once it has spent what was left
             () =>
               !chatgptSelected &&
-              turnModelUsage.cost + turnModelUsage.webCost >=
+              turnModelUsage.cost +
+                turnModelUsage.webCost +
+                turnModelUsage.consultationCost >=
                 usage.remaining.ai,
           ],
           abortSignal: signal,

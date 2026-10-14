@@ -144,10 +144,12 @@ export function composerTrigger(
     }
   const tag = /(?:^|\s)@([^@\n]*)$/.exec(before)
   if (!tag || tag[1].length > 100) return undefined
+  const start = caret - tag[1].length - 1
+  if (mentions.some((mention) => mention.start === start)) return undefined
   return {
     kind: "mention" as const,
     query: tag[1].toLowerCase(),
-    start: caret - tag[1].length - 1,
+    start,
     end: caret,
   }
 }

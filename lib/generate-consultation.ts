@@ -18,6 +18,7 @@ export async function generateConsultation({
   tools,
   signal,
   onUsage,
+  beforeStep,
 }: {
   model: LanguageModel
   bot: Pick<Bot, "name" | "job" | "instructions">
@@ -25,6 +26,7 @@ export async function generateConsultation({
   recentConversation: { role: string; text: string }[]
   tools: ToolSet
   signal: AbortSignal
+  beforeStep?: () => Promise<void>
   onUsage: (usage: LanguageModelUsage, modelId: string) => Promise<void>
 }) {
   const result = streamText({
@@ -41,6 +43,11 @@ export async function generateConsultation({
     prompt,
     tools,
     stopWhen: isStepCount(3),
+    prepareStep: async () => {
+      signal.throwIfAborted()
+      await beforeStep?.()
+      return {}
+    },
     maxOutputTokens: 1800,
     maxRetries: 0,
     abortSignal: signal,

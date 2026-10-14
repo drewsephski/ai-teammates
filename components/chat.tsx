@@ -638,6 +638,7 @@ function ChatMessages({
             onSubmit={handleSubmit}
             bots={mentionBots}
             memberIds={identities.map((bot) => bot.id)}
+            responderId={selectedBot?.id ?? directBotId}
             inputRef={inputRef}
             placeholder={`Message ${name}…`}
             textareaClassName={

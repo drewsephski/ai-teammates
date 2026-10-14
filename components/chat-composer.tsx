@@ -17,11 +17,12 @@ import {
   type MentionBot,
 } from "@/lib/composer"
 import { toast } from "@/components/ui/toast"
-import { cn } from "@/lib/utils"
+import { ComposerMenu, type ComposerOption } from "@/components/composer-menu"
 
 export function ChatComposer({
   bots,
   memberIds,
+  responderId,
   inputRef,
   placeholder,
   textareaClassName,
@@ -30,10 +31,14 @@ export function ChatComposer({
 }: {
   bots: MentionBot[]
   memberIds: string[]
+  responderId?: string
   inputRef: RefObject<HTMLTextAreaElement | null>
   placeholder: string
   textareaClassName?: string
-  onSubmit: (message: PromptInputMessage, mentions: BotMention[]) => boolean | void | Promise<boolean | void>
+  onSubmit: (
+    message: PromptInputMessage,
+    mentions: BotMention[]
+  ) => boolean | void | Promise<boolean | void>
   children: ReactNode
 }) {
   const { textInput } = usePromptInputController()
@@ -58,7 +63,7 @@ export function ChatComposer({
   const trigger = composerTrigger(textInput.value, caret, mentions)
   const triggerKey =
     trigger && `${trigger.kind}:${trigger.start}:${trigger.query}`
-  const options =
+  const options: ComposerOption[] =
     trigger?.kind === "command"
       ? composerCommands
           .filter((command) => command.name.includes(trigger.query))
@@ -115,9 +120,7 @@ export function ChatComposer({
     const option = options[index]
     if (!trigger || !option) return
     if ("bot" in option) {
-      if (
-        mentions.length >= 5
-      ) {
+      if (mentions.length >= 5) {
         toast.add({
           type: "error",
           title: "Tag up to five teammates per message",
@@ -160,125 +163,31 @@ export function ChatComposer({
 
   return (
     <div className="relative">
-      {(open || help) && (
-        <div className="absolute inset-x-0 bottom-full z-20 mb-2 overflow-hidden rounded-2xl border bg-popover text-popover-foreground shadow-lg">
-          <div className="flex items-center justify-between border-b px-3 py-2 text-xs text-muted-foreground">
-            <span>
-              {help
-                ? "Composer shortcuts"
-                : trigger?.kind === "command"
-                  ? "Commands"
-                  : "Your teammates · across all chats"}
-            </span>
-            <button
-              type="button"
-              className="px-2 py-1 hover:text-foreground"
-              aria-label="Close composer menu"
-              onClick={() => {
-                setHelp(false)
-                setDismissed(triggerKey)
-              }}
-            >
-              Close
-            </button>
-          </div>
-          {help ? (
-            <div className="max-h-64 overflow-y-auto p-3 text-sm">
-              <p className="mb-3 text-muted-foreground">
-                Type @ and pick a teammate to bring their perspective into this
-                chat. Use /delegate to hand over execution. Select with ↑ ↓ and
-                Enter or Tab; Esc closes the menu.
-              </p>
-              {composerCommands
-                .filter((command) => command.name !== "help")
-                .map((command) => (
-                  <button
-                    key={command.name}
-                    type="button"
-                    className="flex w-full gap-3 rounded-lg px-2 py-2 text-left hover:bg-muted"
-                    onClick={() => {
-                      setHelp(false)
-                      replace(
-                        0,
-                        0,
-                        `/${command.name} ${["ask", "delegate"].includes(command.name) ? "@" : ""}`
-                      )
-                    }}
-                  >
-                    <span className="w-24 shrink-0 font-medium">
-                      /{command.name}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {command.description}
-                    </span>
-                  </button>
-                ))}
-            </div>
-          ) : (
-            <div
-              id={listId}
-              role="listbox"
-              aria-label={
-                trigger?.kind === "command"
-                  ? "Slash commands"
-                  : "Mention a teammate"
-              }
-              className="max-h-60 overflow-y-auto p-1.5"
-            >
-              {options.map((option, index) => (
-                <button
-                  key={option.id}
-                  id={`${listId}-${index}`}
-                  ref={(element) => {
-                    optionRefs.current[index] = element
-                  }}
-                  type="button"
-                  role="option"
-                  aria-selected={index === selected}
-                  tabIndex={-1}
-                  className={cn(
-                    "flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left",
-                    index === selected && "bg-muted"
-                  )}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => choose(index)}
-                >
-                  {"bot" in option ? (
-                    <AtSignIcon className="size-4 shrink-0 text-muted-foreground" />
-                  ) : (
-                    <SlashIcon className="size-4 shrink-0 text-muted-foreground" />
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">
-                      {option.label}
-                    </span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {option.description}
-                    </span>
-                  </span>
-                  {"bot" in option && (
-                    <span className="shrink-0 text-[11px] text-muted-foreground">
-                      {memberIds.includes(option.id)
-                        ? "In this chat"
-                        : "Other chat"}
-                    </span>
-                  )}
-                </button>
-              ))}
-              {!options.length && (
-                <p
-                  role="status"
-                  className="px-3 py-4 text-sm text-muted-foreground"
-                >
-                  {trigger?.kind === "mention"
-                    ? "No matching teammates. Try a name or role."
-                    : "No matching commands. Type /help to explore."}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      <ComposerMenu
+        open={open}
+        help={help}
+        kind={trigger?.kind}
+        options={options}
+        selected={selected}
+        memberIds={memberIds}
+        listId={listId}
+        onClose={() => {
+          setHelp(false)
+          setDismissed(triggerKey)
+        }}
+        onCommand={(command) => {
+          setHelp(false)
+          replace(
+            0,
+            0,
+            `/${command} ${["ask", "delegate"].includes(command) ? "@" : ""}`
+          )
+        }}
+        onChoose={choose}
+        setOptionRef={(index, element) => {
+          optionRefs.current[index] = element
+        }}
+      />
       <PromptInput
         onSubmit={(message) => {
           const parsed = parseComposerCommand(message.text)
@@ -307,7 +216,7 @@ export function ChatComposer({
           if (
             parsed?.command &&
             ["ask", "delegate"].includes(parsed.command.name) &&
-            (!mentions.length ||
+            (!mentions.some((mention) => mention.botId !== responderId) ||
               !task ||
               (parsed.command.name === "delegate" &&
                 new Set(mentions.map((mention) => mention.botId)).size !== 1))
