@@ -12,7 +12,6 @@ import {
   chatgptConnections,
   usageEntries,
 } from "../db/schema"
-import { completeChatGPTAuth, startChatGPTAuth } from "../lib/chatgpt-auth"
 import {
   getChatGPTAccessToken,
   isChatGPTSelected,

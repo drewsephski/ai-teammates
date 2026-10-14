@@ -205,7 +205,7 @@ test("HTTP failures stay safe and never trigger an application-funded fallback",
       )
     }
   )
-  await assert.rejects(model.doStream({ prompt: [] }), (error: Error) => {
+  await assert.rejects(async () => model.doStream({ prompt: [] }), (error: Error) => {
     assert.equal(error.message, CHATGPT_LIMIT_ERROR)
     assert.ok(!JSON.stringify(error).includes("private"))
     return true
