@@ -61,7 +61,7 @@ export function WorkspaceBots({ bots }: { bots: WorkspaceBot[] }) {
           >
             Running
             {active.length > 0 && (
-              <span className="text-muted-foreground">{active.length}</span>
+              <span className="text-muted-foreground"> {active.length}</span>
             )}
           </Button>
         </div>
@@ -80,7 +80,19 @@ export function WorkspaceBots({ bots }: { bots: WorkspaceBot[] }) {
                 className="group flex h-full min-h-36 flex-col gap-4 rounded-2xl border border-border/60 p-4 transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <ChatAvatar seed={bot.avatar} className="size-9" />
+                  <ChatAvatar
+                    seed={bot.avatar}
+                    identity={bot.id}
+                    state={
+                      bot.activity === "working"
+                        ? "working"
+                        : bot.activity === "queued"
+                          ? "queued"
+                          : "idle"
+                    }
+                    interactive
+                    className="size-9"
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{bot.name}</p>
                     <p className="line-clamp-2 text-xs text-muted-foreground">

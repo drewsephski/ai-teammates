@@ -4,6 +4,38 @@ import type { ToolRouterSessionSearchResponse } from "@composio/core"
 import { createSessionRuntime } from "../lib/connector-session"
 
 const account = { id: "alice-gmail", toolkit: "gmail" }
+
+test("read-only discovery refuses mark-as-read flags before reaching the provider", async () => {
+  let calls = 0
+  const runtime = createSessionRuntime(
+    "alice",
+    async () => [account],
+    async () => ({
+      search: async () => searchResult,
+      execute: async () => {
+        calls++
+        return {}
+      },
+    }),
+    { readOnly: true }
+  )
+  for (const input of [
+    { mark_as_read: true },
+    { options: { markAsRead: true } },
+  ])
+    await assert.rejects(
+      runtime.execute("alice", "GMAIL_FETCH_EMAILS", input, account),
+      /Read-only/
+    )
+  assert.equal(calls, 0)
+  await runtime.execute(
+    "alice",
+    "GMAIL_FETCH_EMAILS",
+    { mark_as_read: false },
+    account
+  )
+  assert.equal(calls, 1)
+})
 const searchResult: ToolRouterSessionSearchResponse = {
   success: true,
   error: null,

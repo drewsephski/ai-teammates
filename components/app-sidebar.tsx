@@ -30,12 +30,16 @@ import { chatSearchContent } from "@/lib/chat-search"
 function SidebarChatAvatar({ chat }: { chat: ChatWithBots }) {
   return chat.kind === "group" ? (
     <GroupChatAvatar
+      interactive
       seeds={chat.bots.map((bot) => bot.avatar)}
+      identities={chat.bots.map((bot) => bot.id)}
       className="group-data-[collapsible=icon]:size-4"
     />
   ) : (
     <ChatAvatar
+      interactive
       seed={chat.bots[0].avatar}
+      identity={chat.bots[0].id}
       className="group-data-[collapsible=icon]:size-4"
     />
   )
@@ -129,6 +133,8 @@ export async function AppSidebar() {
                       >
                         <ChatAvatar
                           seed={bot.avatar}
+                          identity={bot.id}
+                          interactive
                           className="size-12 group-data-[collapsible=icon]:size-4"
                         />
                         <span className="w-full truncate text-center text-xs font-medium group-data-[collapsible=icon]:hidden">

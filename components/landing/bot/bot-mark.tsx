@@ -33,6 +33,11 @@ import { subscribeCharacterFrame } from "./character-runtime"
 import { createCharacterBurst } from "./character-burst"
 import { createCharacterReactions } from "./character-reactions"
 import { createCharacterTrails } from "./character-trails"
+import {
+  avatarBodyTargets,
+  avatarScale,
+  characterSeed,
+} from "./character-avatar-motion"
 
 export function BotMark({
   className,
@@ -41,6 +46,8 @@ export function BotMark({
   state = "idle",
   active = true,
   sequence,
+  compact = false,
+  personality,
 }: {
   className?: string
   color?: string
@@ -48,6 +55,8 @@ export function BotMark({
   state?: CharacterState
   active?: boolean
   sequence?: CharacterSequence
+  compact?: boolean
+  personality?: string
 }) {
   const svg = useRef<SVGSVGElement>(null)
   const body = useRef<SVGGElement>(null)
@@ -61,36 +70,42 @@ export function BotMark({
   const trailsBack = useRef<SVGGElement>(null)
   const trailsFront = useRef<SVGGElement>(null)
   const id = useId()
+  const controls = useRef({ state, active })
+  const syncAnimation = useRef<(() => void) | undefined>(undefined)
+  useEffect(() => {
+    controls.current = { state, active }
+    syncAnimation.current?.()
+  }, [state, active])
   const geometry = CHARACTER_GEOMETRY[shape]
-  const initialState = sequence ? sequenceState(sequence, 0).state : state
+  const initialState = sequence ? sequenceState(sequence, 0).state : "idle"
   const initialEyes = useMemo(
     () =>
-      active
+      compact || sequence
         ? paintEyes(
             expressionPair(initialState, EXPRESSION_POOLS[initialState][0]),
             shape,
             initialState
           )
         : geometry.eyes,
-    [active, initialState, shape, geometry]
+    [compact, sequence, initialState, shape, geometry]
   )
-  const neutralTransform = `translate(${HEAD_CENTER} ${HEAD_CENTER}) scale(${geometry.scale}) translate(${-HEAD_CENTER} ${-HEAD_CENTER})`
+  const scale = compact ? avatarScale(shape) : geometry.scale
+  const neutralTransform = `translate(${HEAD_CENTER} ${HEAD_CENTER}) scale(${scale}) translate(${-HEAD_CENTER} ${-HEAD_CENTER})`
 
   useEffect(() => {
     const element = svg.current
     if (!element) return
     const media = window.matchMedia("(prefers-reduced-motion: reduce)")
-    const seed = [...id].reduce(
-      (value, char) => Math.imul(value, 31) + char.charCodeAt(0),
-      1
-    )
+    const seed = characterSeed(personality ?? id)
     const random = seededRandom(seed)
-    const bursts = confetti.current
-      ? createCharacterBurst(confetti.current, random, HEAD_CENTER)
-      : null
+    const tempo = compact ? 0.88 + random() * 0.24 : 1
+    const bursts =
+      !compact && confetti.current
+        ? createCharacterBurst(confetti.current, random, HEAD_CENTER)
+        : null
     const react = createCharacterReactions(random)
     const trails =
-      trailsBack.current && trailsFront.current
+      !compact && trailsBack.current && trailsFront.current
         ? createCharacterTrails(
             trailsBack.current,
             trailsFront.current,
@@ -141,6 +156,7 @@ export function BotMark({
     let inView = false
     let unsubscribe: (() => void) | undefined
     let previousMorph = -1
+    let settlingUntil = -Infinity
 
     const reset = () => {
       body.current?.setAttribute("transform", neutralTransform)
@@ -158,9 +174,15 @@ export function BotMark({
       previousMorph = -1
       bursts?.clear()
       trails?.clear()
-      const stillEyes = media.matches
-        ? paintEyes(expressionPair("idle", 0), shape, "idle")
-        : initialEyes
+      const stillState = controls.current.state
+      const stillEyes =
+        media.matches || compact
+          ? paintEyes(
+              expressionPair(stillState, EXPRESSION_POOLS[stillState][0]),
+              shape,
+              stillState
+            )
+          : initialEyes
       stillEyes.forEach((eye, index) =>
         eyePaths.current[index]?.setAttribute("d", eye.path)
       )
@@ -171,16 +193,28 @@ export function BotMark({
       dt: number,
       pointer: { x: number; y: number } | null
     ) => {
-      elapsed += dt * 1000
+      elapsed += dt * 1000 * tempo
       const phase = sequence
         ? sequenceState(sequence, elapsed)
-        : { state, stateTime: elapsed }
+        : {
+            state: controls.current.active ? controls.current.state : "idle",
+            stateTime: elapsed,
+          }
       if (phase.state === "waking" && phase.stateTime > 200 && !wakingBurst) {
         bursts?.burst(9 + random() * 4, 0.8)
         wakingBurst = true
       }
       bursts?.update(dt)
-      const reaction = react(phase.state, elapsed, dt)
+      const reaction = compact
+        ? {
+            x: 0,
+            y: 0,
+            rotation: 0,
+            spin: null,
+            eyeSize: undefined,
+            lid: undefined,
+          }
+        : react(phase.state, elapsed, dt)
       const changeExpression = (index: number, frequency: number) => {
         expressionFrom = interpolateEyes(
           expressionFrom,
@@ -245,12 +279,13 @@ export function BotMark({
                     : 1
       if (reaction.eyeSize !== undefined) eyeSize.target = reaction.eyeSize
       stepSpring(eyeSize, 9, 0.85, dt)
-      const targets = bodyTargets(
+      const targets = (compact ? avatarBodyTargets : bodyTargets)(
         currentState,
         elapsed / 1000,
         (elapsed - stateStarted) / 1000
       )
       if (
+        !compact &&
         (currentState === "curious" || currentState === "listening") &&
         elapsed >= nextNod
       ) {
@@ -294,8 +329,9 @@ export function BotMark({
       stepSpring(scaleY, 10, 0.8, dt)
       const spawnTime = elapsed % 3500
       morph.target = Number(
-        currentState === "thinking" ||
-          (currentState === "spawning" && spawnTime < 2000)
+        !compact &&
+          (currentState === "thinking" ||
+            (currentState === "spawning" && spawnTime < 2000))
       )
       stepSpring(morph, 14, 1, dt)
       const amount = clamp(morph.position, 0, 1)
@@ -327,7 +363,14 @@ export function BotMark({
         bounds = element.getBoundingClientRect()
         boundsRead = time
       }
-      const target = gazeTarget(pointer, bounds)
+      const nearPointer =
+        !compact ||
+        (pointer &&
+          pointer.x >= bounds.left - bounds.width &&
+          pointer.x <= bounds.right + bounds.width &&
+          pointer.y >= bounds.top - bounds.height &&
+          pointer.y <= bounds.bottom + bounds.height)
+      const target = gazeTarget(nearPointer ? pointer : null, bounds)
       trails?.update(
         elapsed,
         dt,
@@ -351,9 +394,9 @@ export function BotMark({
       const dotScale =
         (radius / HEAD_CENTER) *
         (currentState === "thinking" ? centerPulse.pop : 1)
-      const bodyScaleX = geometry.scale * (1 - amount + dotScale * amount)
+      const bodyScaleX = scale * (1 - amount + dotScale * amount)
       const bodyScaleY =
-        geometry.scale * (scaleY.position * (1 - amount) + dotScale * amount)
+        scale * (scaleY.position * (1 - amount) + dotScale * amount)
       body.current?.setAttribute(
         "transform",
         `translate(${HEAD_CENTER + (x.position + reaction.x) * (1 - amount)} ${HEAD_CENTER + (y.position + reaction.y) * (1 - amount) - centerPulse.lift * amount * Number(currentState === "thinking")}) rotate(${(rotation.position + reaction.rotation) * geometry.tiltScale * (1 - amount)}) scale(${bodyScaleX} ${bodyScaleY}) translate(${-HEAD_CENTER} ${-HEAD_CENTER})`
@@ -454,18 +497,27 @@ export function BotMark({
           String(amount >= 0.5 ? 0 : eye.opacity)
         )
       })
-    }
-
-    const sync = () => {
-      const shouldAnimate = active && inView && !media.matches
-      if (shouldAnimate && !unsubscribe)
-        unsubscribe = subscribeCharacterFrame(update)
-      else if (!shouldAnimate) {
+      if (!controls.current.active && elapsed >= settlingUntil) {
         unsubscribe?.()
         unsubscribe = undefined
         reset()
       }
     }
+
+    const sync = () => {
+      const canAnimate = inView && !media.matches
+      const shouldAnimate = controls.current.active && canAnimate
+      if (shouldAnimate && !unsubscribe)
+        unsubscribe = subscribeCharacterFrame(update)
+      else if (!controls.current.active && canAnimate && unsubscribe) {
+        settlingUntil = elapsed + 900
+      } else if (!shouldAnimate) {
+        unsubscribe?.()
+        unsubscribe = undefined
+        reset()
+      }
+    }
+    syncAnimation.current = sync
     const observer = new IntersectionObserver(([entry]) => {
       inView = entry?.isIntersecting ?? false
       sync()
@@ -474,21 +526,23 @@ export function BotMark({
     media.addEventListener("change", sync)
     sync()
     return () => {
+      syncAnimation.current = undefined
       unsubscribe?.()
       observer.disconnect()
       media.removeEventListener("change", sync)
       reset()
     }
   }, [
-    active,
     geometry,
     id,
     neutralTransform,
-    state,
     sequence,
     shape,
     initialState,
     initialEyes,
+    compact,
+    personality,
+    scale,
   ])
 
   return (
@@ -498,7 +552,7 @@ export function BotMark({
       viewBox="-15 -15 259 259"
       className={className}
       style={{ color, overflow: "visible" }}
-      data-state={initialState}
+      data-state={state}
       data-shape={shape}
     >
       <defs>
@@ -533,7 +587,13 @@ export function BotMark({
         />
       ))}
       <g ref={body} transform={neutralTransform}>
-        <path ref={head} fill="currentColor" d={geometry.head} />
+        <path
+          ref={head}
+          fill="currentColor"
+          d={geometry.head}
+          stroke={compact ? "var(--avatar-edge)" : undefined}
+          strokeWidth={compact ? 1.5 : undefined}
+        />
         <g clipPath={`url(#${id}-face)`}>
           {initialEyes.map((eye, index) => (
             <g

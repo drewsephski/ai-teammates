@@ -35,11 +35,15 @@ export function getComposio() {
 export function createConnectorSession(
   userId: string,
   toolkits?: string[],
-  connectedAccounts?: Record<string, string[]>
+  connectedAccounts?: Record<string, string[]>,
+  options: { readOnly?: boolean } = {}
 ) {
   return getComposio().create(userId, {
     ...(toolkits && { toolkits: { enable: toolkits } }),
     ...(connectedAccounts && { connectedAccounts }),
+    ...(options.readOnly && {
+      tags: { enable: ["readOnlyHint"], disable: ["destructiveHint"] },
+    }),
     sandbox: { enable: false },
     manageConnections: { enable: false },
   })
@@ -71,7 +75,7 @@ export async function connectorCatalog(
   }
 }
 
-async function activeAccounts(userId: string): Promise<AppAccount[]> {
+export async function activeAccounts(userId: string): Promise<AppAccount[]> {
   const accounts: AppAccount[] = []
   let cursor: string | undefined
   do {
@@ -127,9 +131,23 @@ export async function authorizeConnector(userId: string, toolkit: string) {
   })
 }
 
-export function createConnectorTools(userId: string) {
+export function createConnectorTools(
+  userId: string,
+  options: { readOnly?: boolean; accountBindings?: Record<string, string> } = {}
+) {
   return createAppTools(
     userId,
-    createSessionRuntime(userId, activeAccounts, createConnectorSession)
+    createSessionRuntime(
+      userId,
+      async (owner) =>
+        (await activeAccounts(owner)).filter(
+          (account) =>
+            !options.accountBindings?.[account.toolkit] ||
+            options.accountBindings[account.toolkit] === account.id
+        ),
+      (owner, toolkits, accounts) =>
+        createConnectorSession(owner, toolkits, accounts, options),
+      { readOnly: options.readOnly }
+    )
   )
 }

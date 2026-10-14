@@ -158,6 +158,7 @@ export function BotSettingsForm({
                       >
                         <ChatAvatar
                           seed={`blob:${shape}:${colorIndex}`}
+                          interactive
                           className="size-7"
                         />
                       </Button>

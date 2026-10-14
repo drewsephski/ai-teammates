@@ -4,6 +4,8 @@ import { MonitorIcon } from "lucide-react"
 
 import { useBotSettings } from "@/components/bot-settings-panel"
 import { ChatAvatar } from "@/components/chat-avatar"
+import { useChatActivity } from "@/components/chat-activity-provider"
+import { avatarStatusLabels } from "@/lib/avatar-state"
 import { useDesktopPanel } from "@/components/desktop-panel"
 import { GroupChatAvatar } from "@/components/group-chat-avatar"
 import { GroupChatDialog } from "@/components/group-chat-dialog"
@@ -37,6 +39,8 @@ function DesktopButton() {
 
 function BotSettingsButton({ bot }: { bot: Bot }) {
   const settings = useBotSettings()
+  const activity = useChatActivity()
+  const state = activity.botId === bot.id ? activity.state : "idle"
   return (
     <Button
       id="bot-settings-trigger"
@@ -48,7 +52,13 @@ function BotSettingsButton({ bot }: { bot: Bot }) {
       aria-controls="bot-config-panel"
       onClick={() => (settings.open ? settings.close() : settings.show())}
     >
-      <ChatAvatar seed={bot.avatar} className="size-6" />
+      <ChatAvatar
+        seed={bot.avatar}
+        identity={bot.id}
+        state={state}
+        interactive
+        className="size-6"
+      />
       <span className="truncate">{bot.name}</span>
     </Button>
   )
@@ -62,6 +72,9 @@ function ChatHeader({
   chat: ChatWithBots
   bots?: Pick<Bot, "id" | "name" | "avatar">[]
 }) {
+  const activity = useChatActivity()
+  const author = chat.bots.find((bot) => bot.id === activity.botId)
+  const label = author && avatarStatusLabels[activity.state]
   return (
     <header
       data-slot="chat-header"
@@ -83,6 +96,11 @@ function ChatHeader({
           >
             <GroupChatAvatar
               seeds={chat.bots.map((bot) => bot.avatar)}
+              identities={chat.bots.map((bot) => bot.id)}
+              states={chat.bots.map((bot) =>
+                bot.id === activity.botId ? activity.state : "idle"
+              )}
+              interactive
               className="size-6"
             />
             <span className="truncate">{chat.name}</span>
@@ -96,6 +114,14 @@ function ChatHeader({
           <DesktopButton />
         </>
       )}
+      <span
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {label ? `${author.name}: ${label}` : ""}
+      </span>
     </header>
   )
 }

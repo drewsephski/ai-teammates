@@ -28,6 +28,7 @@ Krafty is an open exploration of that idea. Every prompt, tool and limit is a fi
 - 🖥️ **A computer per teammate**: a persistent Linux sandbox with a shell, a filesystem and a graphical desktop.
 - 👀 **Live desktop view**: watch a bot move the mouse and type, streamed into the chat.
 - 👥 **Group chats with handoffs**: a bot passes a request to the teammate whose job it is.
+- **Expressive teammate avatars**: thinking, tool work, response writing, and questions reflect live chat activity. Handoffs animate the current author, with restrained motion, accessible status text, and reduced-motion support.
 - **Bots that build the team**: a teammate can create a specialist, give it a complete task brief, and open its chat. It can also assemble groups with existing and new teammates.
 - **Connected apps**: browse Composio's live catalog in the Apps dialog, connect accounts, and let teammates discover and use their tools.
 - **Built-in web research**: Tavily search and page reading with source links, news/date/domain filters, and instructions to verify and cite current information. Available on free and paid plans when configured.

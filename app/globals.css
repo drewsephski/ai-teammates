@@ -304,6 +304,50 @@
 .app-shell [data-slot="chat-header"] {
   background: var(--chat-surface);
 }
+
+/* Identity colors stay stable; a fine edge keeps pale silhouettes readable. */
+.chat-avatar > svg {
+  filter: drop-shadow(0 0.5px 0.5px #00000010);
+}
+.chat-avatar[data-tone="neutral"] > svg {
+  filter: drop-shadow(0 0 0.5px #a5a5a5);
+}
+.chat-avatar[data-state="waiting"] {
+  animation: avatar-attention 900ms ease-out both;
+}
+.chat-avatar[data-renderer="gaze"][data-state="complete"],
+.chat-avatar[data-renderer="gaze"][data-state="idle"][data-reaction="happy"] {
+  animation: avatar-nod 700ms ease-in-out both;
+}
+.chat-avatar[data-renderer="gaze"][data-interactive] > img {
+  transition: transform 250ms ease-out;
+}
+:is(button, a):hover
+  .chat-avatar[data-renderer="gaze"][data-state="idle"]
+  > img,
+:is(button, a):focus-visible
+  .chat-avatar[data-renderer="gaze"][data-state="idle"]
+  > img {
+  transform: rotate(4deg) translateY(-0.5px);
+}
+@keyframes avatar-attention {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  45% {
+    transform: rotate(4deg);
+  }
+}
+@keyframes avatar-nod {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  45% {
+    transform: translateY(1.5px) rotate(3deg);
+  }
+}
 .chat-composer[data-compact="true"] [data-slot="input-group"] {
   padding: 0;
 }

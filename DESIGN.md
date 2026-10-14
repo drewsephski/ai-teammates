@@ -260,6 +260,8 @@ Actions use full pills; icon actions use circular silhouettes. Shared inputs, na
 
 Source-native teammate characters are shape assets drawn by the existing `BotMark` and character geometry. They are not generic rounded-square application icons. Keep the existing shape/color identity and its subtle pointer-responsive eyes where animation is enabled. Retained DiceBear identities use their existing renderer. The compact identity pill uses a small avatar; the sidebar’s pinned tiles use larger avatars than regular conversation rows.
 
+Chat identities use restrained motion: thinking keeps the silhouette and glances upward, tool work has a small rhythmic movement, and response writing uses an attentive breathing motion. An unanswered question tilts once and settles; a completed response gets one small nod. Only the current author and header identity reflect live activity; historical messages stay still. Group handoffs transfer activity by bot ID, including members beyond the first three visible avatars. Hover and keyboard focus add brief reactions on identity controls. Colors remain stable, with contrasting eye ink and a fine silhouette edge. Reduced motion, offscreen visibility, and hidden tabs pause animation; readable status text carries the same information.
+
 The source-pinned gallery retains its compact (9px) role micro-label as the `pinned-role-label` token. It is a component-specific exception to the main type ramp; keep it confined to this gallery. The (11px) `receipt-label` is similarly confined to message receipts.
 
 ## Components

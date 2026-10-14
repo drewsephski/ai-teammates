@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-14T15:42:58.099Z",
+  "generatedAt": "2026-10-14T17:47:13.466904Z",
   "title": "Design System: Krafty application",
   "extensions": {
     "colorMeta": {
@@ -614,7 +614,7 @@
       {
         "name": "black-avatar-edge",
         "value": "drop-shadow(0 0 0.5px #a5a5a5)",
-        "purpose": "Visibility edge for black source-native characters; paired with white eye details."
+        "purpose": "Visibility edge for black and white source-native characters; eye ink contrasts with the actual body color."
       }
     ],
     "motion": [
@@ -649,9 +649,29 @@
         "purpose": "Global application reduced-motion override; tool and marketing transitions are disabled."
       },
       {
-        "name": "thinking-shimmer",
-        "value": "2s linear infinite; background-position: 100% center to 0% center",
-        "purpose": "A single Thinking… label with muted-foreground base and foreground highlight until visible response content begins; reduced motion renders current-color text without animation."
+        "name": "conversation-loading",
+        "value": "Spinner with static Loading conversation… label",
+        "purpose": "Transcript loading is distinct from acknowledged agent thinking; live activity is represented by the current avatar and readable status text."
+      },
+      {
+        "name": "avatar-state-transition",
+        "value": "spring interpolation; 900ms idle settling",
+        "purpose": "Compact identities preserve their shape while thinking, working, and writing. Stable bot identity seeds blink and movement timing. Historical avatars remain still; offscreen, hidden tabs, and reduced motion pause animation."
+      },
+      {
+        "name": "avatar-attention",
+        "value": "900ms ease-out, once",
+        "purpose": "An unanswered question tilts once and settles; readable activity text and polite header announcements remain available."
+      },
+      {
+        "name": "avatar-completion",
+        "value": "700ms nod; 1200ms completion state",
+        "purpose": "A successful response gets one small nod before returning to idle. Abort and error never trigger completion."
+      },
+      {
+        "name": "gaze-activity",
+        "value": "DiceBear animationVariant: slow; slowest while writing",
+        "purpose": "Generated SVG images isolate built-in CSS, keep identity stable, and use explicit activity speeds."
       }
     ],
     "breakpoints": [

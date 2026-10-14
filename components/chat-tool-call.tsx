@@ -81,6 +81,11 @@ const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
     "Creating group chat",
     "Created group chat",
   ],
+  "tool-consultTeammate": [
+    "Consult teammate",
+    "Consulting teammate",
+    "Teammate contributed",
+  ],
   "tool-delegateToTeammate": [
     "Hand over task",
     "Handing over task",
@@ -127,6 +132,7 @@ const toolIcons: Record<ToolPart["type"], LucideIcon> = {
   "tool-createTeammate": UsersRoundIcon,
   "tool-createGroupChat": UsersRoundIcon,
   "tool-delegateToTeammate": UsersRoundIcon,
+  "tool-consultTeammate": UsersRoundIcon,
   "tool-searchAppTools": FolderSearchIcon,
   "tool-getAppToolSchema": FileTextIcon,
   "tool-executeAppTool": ArrowDownUpIcon,
@@ -228,6 +234,10 @@ function toolSummary(part: ToolPart): string | undefined {
     case "tool-createTeammate":
     case "tool-createGroupChat":
       return preview(part.input?.name)
+    case "tool-consultTeammate":
+      return part.state === "output-available"
+        ? `${part.output.name} contributed`
+        : preview(part.input?.prompt)
     case "tool-delegateToTeammate":
       return preview(part.input?.prompt)
     case "tool-searchAppTools":
@@ -463,6 +473,13 @@ function toolResult(part: ToolPart) {
               Page content shortened.
             </p>
           )}
+        </div>
+      )
+    case "tool-consultTeammate":
+      return (
+        <div className="space-y-2 p-2.5">
+          <p className="font-medium">{part.output.name}</p>
+          <p className="whitespace-pre-wrap">{part.output.answer}</p>
         </div>
       )
     case "tool-readFile":
