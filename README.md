@@ -2,8 +2,6 @@
 
 <img src="public/krafty-wordmark.png" alt="Krafty logo" width="240" />
 
-# Krafty
-
 ### The open-source alternative to Grok Bot, OpenAI Dots and Meta Muse
 
 AI teammates with a job, a memory and a cloud computer of their own.
