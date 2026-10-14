@@ -23,9 +23,40 @@ const fontMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://kraftybot.app"),
   title: { default: "Krafty", template: "%s · Krafty" },
   applicationName: "Krafty",
   description: "AI teammates with their own personality, memory, and computer.",
+  openGraph: {
+    title: "Krafty — AI teammates you can give real work to",
+    description:
+      "Create your team, connect your tools, and work together with persistent memory and cloud computers.",
+    siteName: "Krafty",
+    type: "website",
+    locale: "en_US",
+    url: "/",
+    images: [
+      {
+        url: "/brand/krafty-social-v1.jpg",
+        width: 1200,
+        height: 630,
+        type: "image/jpeg",
+        alt: "Krafty — AI teammates you can give real work to. An ivory sculptural bot on a charcoal backdrop.",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Krafty — AI teammates you can give real work to",
+    description:
+      "AI teammates with their own personality, memory, and computer.",
+    images: [
+      {
+        url: "/brand/krafty-social-v1.jpg",
+        alt: "Krafty — AI teammates you can give real work to. An ivory sculptural bot on a charcoal backdrop.",
+      },
+    ],
+  },
 }
 
 export default function RootLayout({

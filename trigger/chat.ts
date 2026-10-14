@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/node"
 import { chat } from "@trigger.dev/sdk/ai"
-import { isStepCount, type LanguageModel } from "ai"
+import { isStepCount } from "ai"
 import { asc, eq } from "drizzle-orm"
 import { z } from "zod"
 
@@ -69,7 +69,7 @@ const turnModelUsage = chat.local<{
   messageId: string
   usageKey: string
   chatgpt: boolean
-  followUps?: { model: LanguageModel; signal: AbortSignal }
+  followUps?: { signal: AbortSignal }
 }>({
   id: "chat-turn-model-cost",
 })
@@ -266,21 +266,15 @@ export const chatAgent = chat
         const suggest = async () => {
           const currentUsage = await getUsage(row.userId)
           // Leave room for this bounded auxiliary call; never spend a depleted
-          // Krafty allowance or fall back from the user's selected provider.
+          // Krafty allowance. Recommendations always use the app's GLM model.
           const unrecordedCost = plan.tier === "free" ? 0 : turnModelUsage.cost
-          if (
-            !turnModelUsage.chatgpt &&
-            currentUsage.remaining.ai - unrecordedCost < 10_000
-          )
-            return
+          if (currentUsage.remaining.ai - unrecordedCost < 10_000) return
           const suggestions = await generateChatFollowUps({
             ...config,
             messages: uiMessages,
             profile: `${bot.name}: ${bot.job}\n${bot.instructions ?? ""}`,
             onUsage: async (usage) => {
-              const cost = appModelCost(turnModelUsage.chatgpt, () =>
-                chatModelCost(usage)
-              )
+              const cost = chatModelCost(usage)
               if (cost > 0)
                 await recordUsage([
                   {
@@ -299,14 +293,15 @@ export const chatAgent = chat
             data: { botId: bot.id, suggestions },
           })
         }
-        if (plan.tier === "free" && !turnModelUsage.chatgpt) {
+        if (plan.tier === "free") {
           // See the account lock in run(): both calls share the same budget.
           await withSandboxLock(`free-ai:${row.userId}`, suggest)
         } else await suggest()
-      } catch {
+      } catch (error) {
         // Suggestions are optional. Their failure must never fail a completed reply.
         Sentry.logger.warn("Chat follow-up suggestions unavailable", {
           "chat.id": chatId,
+          "error.type": error instanceof Error ? error.name : "UnknownError",
         })
       }
     },
@@ -419,7 +414,6 @@ export const chatAgent = chat
         ? await chatGPTModelForUser(row.userId)
         : null
       turnModelUsage.followUps = {
-        model: subscriptionModel ?? chatModel(),
         signal,
       }
 

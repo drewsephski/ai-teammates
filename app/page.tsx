@@ -30,11 +30,7 @@ export const metadata: Metadata = {
   title: "Meet Krafty Bot — AI teammates that finish the work",
   description:
     "AI teammates you can give real work to. Create your team, connect your tools, and work together with persistent memory and cloud computers.",
-  openGraph: {
-    title: "Meet Krafty Bot",
-    description: "AI teammates you can give real work to.",
-    type: "website",
-  },
+  alternates: { canonical: "/" },
 }
 
 export default async function LandingPage() {

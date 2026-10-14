@@ -91,6 +91,12 @@ export function chatModel(messages: readonly ModelMessage[] = []): Model {
   }
 }
 
+// Recommendations only contain prose and always use the inexpensive text
+// model, independently of the provider selected for the main conversation.
+export function followUpModel(): Model {
+  return chatModel()
+}
+
 // Dollars per million tokens, from https://neon.com/models.json.
 function modelPricing(modelId: string, inputTokens: number) {
   switch (modelId) {
