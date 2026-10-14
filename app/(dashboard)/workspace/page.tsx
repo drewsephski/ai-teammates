@@ -65,7 +65,6 @@ export default async function WorkspacePage({
             className="size-20 shrink-0 [--bg:var(--card)] sm:size-24"
           />
         </header>
-        <ChatGPTPlanCard status={chatgpt} compact />
         {preset && (
           <section className="flex flex-col items-start gap-5 rounded-2xl bg-muted p-6 sm:flex-row sm:items-center">
             <div className="flex-1">
@@ -207,6 +206,7 @@ export default async function WorkspacePage({
             </Link>
           </section>
         </div>
+        <ChatGPTPlanCard status={chatgpt} compact />
         <footer className="flex flex-wrap gap-3 border-t pt-6">
           <Link href="/usage" className={buttonVariants({ variant: "ghost" })}>
             View usage
