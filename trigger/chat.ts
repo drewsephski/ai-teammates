@@ -17,6 +17,7 @@ import {
   composerInstructions,
   mentionsSchema,
   validateMentionRanges,
+  resolveMentionedBots,
   type BotMention,
 } from "@/lib/composer"
 import { createDelegationTools } from "@/lib/team-delegation"
@@ -450,26 +451,22 @@ export const chatAgent = chat
       } = await getChatBots(chatId, clientData?.botId)
       const group = row.kind === "group" ? { chat: row, bots } : undefined
       metadata.set("botId", bot.id)
-      const mentionedIds = [
-        ...new Set(turnModelUsage.mentions.map((mention) => mention.botId)),
-      ]
-      const mentioned = mentionedIds.length
-        ? await db
+      const mentioned = await resolveMentionedBots(
+        turnModelUsage.composerText,
+        turnModelUsage.mentions,
+        (ids) =>
+          db
             .select({ id: botTable.id, name: botTable.name, job: botTable.job })
             .from(botTable)
             .where(
-              and(
-                eq(botTable.userId, row.userId),
-                inArray(botTable.id, mentionedIds)
-              )
+              and(eq(botTable.userId, row.userId), inArray(botTable.id, ids))
             )
-        : []
-      if (mentioned.length !== mentionedIds.length)
-        throw new Error("Tagged teammate is no longer available")
+      )
       const composerContext = composerInstructions(
         turnModelUsage.composerText,
         mentioned,
-        bot.id
+        bot.id,
+        turnModelUsage.mentions
       )
 
       // Every turn, as a session outlives the plan it was started on

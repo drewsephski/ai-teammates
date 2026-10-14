@@ -123,3 +123,28 @@ test("a model-produced email suggestion without a successful app read is rejecte
     /Connected-app search|No verified connected-app data/
   )
 })
+
+test("oversized searches stop before sending account context to the model", async () => {
+  let calls = 0
+  const model = new MockLanguageModelV4({
+    doStream: async () => {
+      calls++
+      throw new Error("The model must not be called")
+    },
+  })
+  await assert.rejects(
+    generateForYou({
+      bots: [{ id: "quill", name: "Quill", job: "Writing editor" }],
+      apps: ["gmail"],
+      context: ["a".repeat(700_000)],
+      tools: {},
+      model,
+      signal: new AbortController().signal,
+      onUsage: async () => {
+        assert.fail("No request was sent")
+      },
+    }),
+    /reached its budget/
+  )
+  assert.equal(calls, 0)
+})

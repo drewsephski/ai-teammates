@@ -36,10 +36,9 @@ export function BotNavigation({ workspaceHref }: { workspaceHref: string }) {
           <Image
             src="/krafty-wordmark.png"
             alt="Krafty"
-            width={1983}
-            height={793}
-            sizes="90px"
-            priority
+            width={90}
+            height={36}
+            preload
           />
         </Link>
         <nav aria-label="Main navigation" className={styles.desktop}>

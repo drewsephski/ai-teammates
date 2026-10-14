@@ -13,6 +13,9 @@ export function createConsultationTool(
     options: { toolCallId: string; abortSignal?: AbortSignal }
   ) => Promise<TeammateContribution>
 ) {
+  // Parallel model tool calls share this turn's allowance. A failed request must
+  // not block the next teammate, and cancelled queued work must never start.
+  let pending: Promise<unknown> = Promise.resolve()
   return {
     consultTeammate: tool({
       description:
@@ -21,7 +24,14 @@ export function createConsultationTool(
         botId: z.string().min(1).max(200),
         prompt: z.string().trim().min(1).max(12000),
       }),
-      execute: consult,
+      execute: (input, options) => {
+        const operation = pending.then(() => {
+          options.abortSignal?.throwIfAborted()
+          return consult(input, options)
+        })
+        pending = operation.catch(() => undefined)
+        return operation
+      },
     }),
   }
 }

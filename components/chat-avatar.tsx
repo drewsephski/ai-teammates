@@ -40,6 +40,7 @@ function ChatAvatar({
   animated = false,
   state = animated ? "working" : "idle",
   interactive = false,
+  engaged = false,
   identity,
   className,
 }: {
@@ -47,6 +48,7 @@ function ChatAvatar({
   animated?: boolean
   state?: AvatarState
   interactive?: boolean
+  engaged?: boolean
   identity?: string
   className?: string
 }) {
@@ -56,9 +58,10 @@ function ChatAvatar({
   const [motionAllowed, setMotionAllowed] = useState(false)
   const blob = parseBotAvatar(seed)
   const native = !!blob
-  const active = avatarIsAnimated(state) || (state === "idle" && !!interaction)
+  const reaction = interaction ?? (engaged ? "curious" : undefined)
+  const active = avatarIsAnimated(state) || (state === "idle" && !!reaction)
   const expression =
-    state === "idle" && interaction ? interaction : expressions[state]
+    state === "idle" && reaction ? reaction : expressions[state]
 
   useEffect(() => {
     const target = element.current
@@ -140,7 +143,7 @@ function ChatAvatar({
       data-slot="chat-avatar"
       data-state={state}
       data-interactive={interactive || undefined}
-      data-reaction={interaction}
+      data-reaction={reaction}
       data-renderer={blob ? "native" : "gaze"}
       data-tone={
         blob?.color === "#111111" || blob?.color === "#fafafa"

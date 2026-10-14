@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import {
   composerInstructions,
+  resolveMentionedBots,
   composerTrigger,
   parseComposerCommand,
   reconcileMentions,
@@ -124,4 +125,47 @@ test("tagged IDs and slash intent reach agent instructions, with explicit execut
     composerInstructions("/plan launch", [], "source"),
     /does not authorize external execution/
   )
+})
+
+test("owned-mention resolution refuses missing or foreign bots before constructing agent context", async () => {
+  const own = { id: "own", name: "Alex", job: "Analyze" }
+  const text = "@Alex @Other review this"
+  const mentions = [
+    { botId: "own", start: 0, end: 5 },
+    { botId: "foreign", start: 6, end: 12 },
+  ]
+  await assert.rejects(
+    resolveMentionedBots(text, mentions, async (ids) => {
+      assert.deepEqual(ids, ["own", "foreign"])
+      return [own]
+    }),
+    /no longer available/
+  )
+  assert.deepEqual(
+    await resolveMentionedBots(
+      "@Alex review this",
+      mentions.slice(0, 1),
+      async () => [own]
+    ),
+    [own]
+  )
+  assert.throws(
+    () =>
+      composerInstructions("/ask @Alex", [own], "source", [
+        { botId: "own", start: 5, end: 10 },
+      ]),
+    /task or question/
+  )
+  let called = false
+  await assert.rejects(
+    resolveMentionedBots(
+      "@Alex",
+      [{ botId: "own", start: 0, end: 20 }],
+      async () => {
+        called = true
+        return [own]
+      }
+    )
+  )
+  assert.equal(called, false)
 })

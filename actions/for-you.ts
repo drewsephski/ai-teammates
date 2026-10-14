@@ -11,7 +11,7 @@ import { bots, chats, chatMembers } from "@/db/schema"
 import { activeAccounts, createConnectorTools } from "@/lib/composio"
 import { getUsage, recordUsage } from "@/lib/usage"
 import { chatModelCost } from "@/lib/model"
-import { generateForYou } from "@/lib/generate-for-you"
+import { generateForYou, FOR_YOU_MODEL_BUDGET } from "@/lib/generate-for-you"
 import {
   signForYouToken,
   verifyForYouToken,
@@ -44,7 +44,7 @@ export async function getForYouSuggestion(): Promise<{
   if (!owned.length) return { card: null, reason: "no-bots" }
   const scan = async () => {
     const usage = await getUsage(userId)
-    if (usage.remaining.ai < 100_000)
+    if (usage.remaining.ai < FOR_YOU_MODEL_BUDGET)
       return { card: null, reason: "usage" as const }
     const eligible = (usage.tier === "free" ? owned.slice(0, 1) : owned).filter(
       (bot) => bot.setupComplete

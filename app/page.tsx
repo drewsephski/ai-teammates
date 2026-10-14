@@ -15,6 +15,7 @@ import { BotChatDemo } from "@/components/landing/bot/chat-demo"
 import { BotFeatures } from "@/components/landing/bot/features"
 import { RoleShowcase } from "@/components/landing/bot/role-showcase"
 import { BotFaq } from "@/components/landing/bot/faq"
+import { GetStartedButton } from "@/components/landing/bot/get-started-button"
 import { LandingPricing } from "@/components/landing/pricing"
 import { HalftoneWordmark } from "@/components/landing/halftone-wordmark-footer"
 import styles from "@/components/landing/bot/bot-landing.module.css"
@@ -40,7 +41,7 @@ export default async function LandingPage() {
       ? destination
       : `/sign-in?redirect_url=${encodeURIComponent(destination)}`
   const workspaceHref = appHref("/workspace")
-  const plansHref = appHref("/pricing")
+  const plansHref = isAuthenticated ? "/pricing" : "#pricing"
   const startHref = isAuthenticated
     ? "/workspace"
     : "/sign-up?redirect_url=%2Fworkspace"
@@ -76,9 +77,7 @@ export default async function LandingPage() {
             tools, use them just like you do, and come back with finished work.
           </p>
           <div className={styles.actions}>
-            <Link href={startHref} prefetch={false} className={styles.button}>
-              <GlobeIcon size={17} /> Get started
-            </Link>
+            <GetStartedButton href={startHref} />
             <a href="#pricing" className={styles.secondaryButton}>
               View plans
             </a>

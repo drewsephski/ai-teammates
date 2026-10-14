@@ -1,6 +1,7 @@
 "use client"
 
-import { AtSignIcon, SlashIcon } from "lucide-react"
+import { SlashIcon } from "lucide-react"
+import { ChatAvatar } from "@/components/chat-avatar"
 import {
   composerCommands,
   type ComposerCommand,
@@ -41,7 +42,6 @@ export function ComposerMenu({
 }) {
   return (
     <>
-      {" "}
       {(open || help) && (
         <div className="absolute inset-x-0 bottom-full z-20 mb-2 overflow-hidden rounded-2xl border bg-popover text-popover-foreground shadow-lg">
           <div className="flex items-center justify-between border-b px-3 py-2 text-xs text-muted-foreground">
@@ -54,11 +54,9 @@ export function ComposerMenu({
             </span>
             <button
               type="button"
-              className="px-2 py-1 hover:text-foreground"
+              className="min-h-11 px-2 py-1 hover:text-foreground"
               aria-label="Close composer menu"
-              onClick={() => {
-                onClose()
-              }}
+              onClick={onClose}
             >
               Close
             </button>
@@ -118,7 +116,13 @@ export function ComposerMenu({
                   onClick={() => onChoose(index)}
                 >
                   {"bot" in option ? (
-                    <AtSignIcon className="size-4 shrink-0 text-muted-foreground" />
+                    <ChatAvatar
+                      seed={option.bot.avatar}
+                      identity={option.bot.id}
+                      engaged={index === selected}
+                      interactive
+                      className="size-8"
+                    />
                   ) : (
                     <SlashIcon className="size-4 shrink-0 text-muted-foreground" />
                   )}

@@ -171,17 +171,50 @@ export function validateMentionRanges(text: string, value: unknown) {
   return mentions
 }
 
+export function composerTask(text: string, mentions: BotMention[]) {
+  return [...mentions]
+    .sort((a, b) => a.start - b.start)
+    .reduceRight(
+      (draft, mention) =>
+        draft.slice(0, mention.start) + draft.slice(mention.end),
+      text
+    )
+    .replace(/^\s*\/\w+\s*/, "")
+    .trim()
+}
+
+export async function resolveMentionedBots(
+  text: string,
+  value: unknown,
+  loadOwned: (
+    ids: string[]
+  ) => Promise<{ id: string; name: string; job: string }[]>
+) {
+  const mentions = validateMentionRanges(text, value)
+  const ids = [...new Set(mentions.map((mention) => mention.botId))]
+  if (!ids.length) return []
+  const owned = await loadOwned(ids)
+  const referenced = ids.map((id) => owned.find((bot) => bot.id === id))
+  if (referenced.some((bot) => !bot))
+    throw new Error("Tagged teammate is no longer available")
+  return referenced.filter((bot): bot is NonNullable<typeof bot> =>
+    Boolean(bot)
+  )
+}
+
 export function composerInstructions(
   text: string,
   mentioned: { id: string; name: string; job: string }[],
-  currentBotId: string
+  currentBotId: string,
+  mentions?: BotMention[]
 ) {
   const parsed = parseComposerCommand(text)
   if (parsed && !parsed.command) throw new Error("Unknown slash command")
   const targets = mentioned.filter((bot) => bot.id !== currentBotId)
   if (
     (parsed?.command?.name === "ask" || parsed?.command?.name === "delegate") &&
-    (!targets.length || !parsed.argument)
+    (!targets.length ||
+      !(mentions ? composerTask(text, mentions) : parsed.argument))
   )
     throw new Error("Tag a teammate and include a task or question")
   if (parsed?.command?.name === "delegate" && targets.length !== 1)

@@ -121,3 +121,46 @@ test("consultation dispatch forwards ID, brief and cancellation; failures never 
     /Teammate not found/
   )
 })
+
+test("parallel consultations recheck the shared allowance after metering, and cancellation prevents queued dispatch", async () => {
+  let remaining = 1
+  let release!: () => void
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const started: string[] = []
+  const tools = createConsultationTool(async ({ botId }) => {
+    started.push(botId)
+    if (remaining <= 0) throw new Error("Usage limit reached")
+    await blocked
+    remaining--
+    return { botId, name: botId, answer: "Advice" }
+  })
+  const options = { toolCallId: "parallel", messages: [], context: {} }
+  const first = Promise.resolve(
+    tools.consultTeammate.execute!({ botId: "first", prompt: "Task" }, options)
+  )
+  const second = assert.rejects(
+    async () =>
+      tools.consultTeammate.execute!(
+        { botId: "second", prompt: "Task" },
+        options
+      ),
+    /Usage limit/
+  )
+  const controller = new AbortController()
+  const cancelled = assert.rejects(
+    async () =>
+      tools.consultTeammate.execute!(
+        { botId: "cancelled", prompt: "Task" },
+        { ...options, abortSignal: controller.signal }
+      ),
+    /abort/i
+  )
+  controller.abort()
+  await Promise.resolve()
+  assert.deepEqual(started, ["first"])
+  release()
+  await Promise.all([first, second, cancelled])
+  assert.deepEqual(started, ["first", "second"])
+})

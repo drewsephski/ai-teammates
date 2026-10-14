@@ -11,6 +11,7 @@ import {
 import {
   composerCommands,
   composerTrigger,
+  composerTask,
   parseComposerCommand,
   reconcileMentions,
   type BotMention,
@@ -205,14 +206,7 @@ export function ChatComposer({
             })
             return false
           }
-          const task = mentions
-            .reduceRight(
-              (text, mention) =>
-                text.slice(0, mention.start) + text.slice(mention.end),
-              message.text
-            )
-            .replace(/^\s*\/\w+\s*/, "")
-            .trim()
+          const task = composerTask(message.text, mentions)
           if (
             parsed?.command &&
             ["ask", "delegate"].includes(parsed.command.name) &&
@@ -240,7 +234,7 @@ export function ChatComposer({
           aria-label="Message"
           aria-autocomplete="list"
           aria-controls={open ? listId : undefined}
-          aria-expanded={open}
+          aria-haspopup="listbox"
           aria-activedescendant={
             open && options.length ? `${listId}-${selected}` : undefined
           }

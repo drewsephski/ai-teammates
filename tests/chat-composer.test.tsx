@@ -1,4 +1,4 @@
-import "./helpers/dom"
+import "./helpers/avatar-motion"
 import assert from "node:assert/strict"
 import { afterEach, test } from "node:test"
 import { useRef } from "react"
@@ -10,16 +10,37 @@ import {
 } from "../components/ai-elements/prompt-input"
 import type { BotMention } from "../lib/composer"
 
-globalThis.requestAnimationFrame = (callback) => {
-  callback(0)
-  return 0
-}
 afterEach(cleanup)
 const bots = [
   { id: "analyst", name: "Alex", avatar: "a", job: "Analyze pricing" },
   { id: "writer", name: "Alex", avatar: "b", job: "Write launch copy" },
   { id: "data", name: "Data Analyst", avatar: "c", job: "Data analysis" },
 ]
+
+function TestInput({
+  submit,
+}: {
+  submit: (text: string, mentions: BotMention[]) => boolean | Promise<boolean>
+}) {
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const { textInput } = usePromptInputController()
+  return (
+    <>
+      <button onClick={() => textInput.setInput("A different draft")}>
+        Replace draft
+      </button>
+      <ChatComposer
+        bots={bots}
+        memberIds={["analyst"]}
+        inputRef={inputRef}
+        placeholder="Message"
+        onSubmit={(message, mentions) => submit(message.text, mentions)}
+      >
+        <button type="submit">Send</button>
+      </ChatComposer>
+    </>
+  )
+}
 
 function Harness({
   submit,
@@ -28,29 +49,9 @@ function Harness({
   submit: (text: string, mentions: BotMention[]) => boolean | Promise<boolean>
   initial?: string
 }) {
-  function Input() {
-    const inputRef = useRef<HTMLTextAreaElement>(null)
-    const { textInput } = usePromptInputController()
-    return (
-      <>
-        <button onClick={() => textInput.setInput("A different draft")}>
-          Replace draft
-        </button>
-        <ChatComposer
-          bots={bots}
-          memberIds={["analyst"]}
-          inputRef={inputRef}
-          placeholder="Message"
-          onSubmit={(message, mentions) => submit(message.text, mentions)}
-        >
-          <button type="submit">Send</button>
-        </ChatComposer>
-      </>
-    )
-  }
   return (
     <PromptInputProvider initialInput={initial}>
-      <Input />
+      <TestInput submit={submit} />
     </PromptInputProvider>
   )
 }
@@ -94,6 +95,15 @@ test("role search selects the right duplicate name across chats, and carries the
   )
   const input = type(view, "Ask @copy")
   assert.equal(view.getAllByRole("option").length, 1)
+  const avatar = view
+    .getByRole("option")
+    .querySelector("[data-slot=chat-avatar]")!
+  assert.equal(avatar.getAttribute("data-reaction"), "curious")
+  const uri = avatar.querySelector("img")!.getAttribute("src")!
+  const svg = uri.includes(";base64,")
+    ? Buffer.from(uri.split(",")[1], "base64").toString()
+    : decodeURIComponent(uri.slice(uri.indexOf(",") + 1))
+  assert.match(svg, /animation-slow-/)
   assert.match(view.getByRole("option").textContent ?? "", /Other chat/)
   fireEvent.keyDown(input, { key: "Enter" })
   assert.equal(input.value, "Ask @Alex ")
