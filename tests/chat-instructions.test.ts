@@ -66,6 +66,18 @@ test("missing worker configuration remains explicit during setup", () => {
   assert.doesNotMatch(instructions, /You have built-in public-web tools/)
 })
 
+test("authentication guidance uses connected apps and only offers browser sign-in when the computer is available", () => {
+  const paid = buildChatInstructions(bot, undefined, true, true, true)
+  assert.match(paid, /prompt the person to authenticate through Apps/)
+  assert.match(paid, /open Desktop and sign in themselves/)
+  assert.match(paid, /Pause at login, MFA, or a CAPTCHA/)
+  assert.match(paid, /An app connection does not sign the desktop browser in/)
+  const free = buildChatInstructions(bot, undefined, true, false, true)
+  assert.match(free, /prompt the person to authenticate through Apps/)
+  assert.match(free, /do not offer a live Desktop on the free plan/)
+  assert.doesNotMatch(free, /open Desktop and sign in themselves/)
+})
+
 test("saved profiles and group handoffs retain role and capability guidance", () => {
   const configured = {
     ...bot,

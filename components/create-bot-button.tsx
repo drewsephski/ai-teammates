@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { nanoid } from "nanoid"
 import { PlusIcon } from "lucide-react"
@@ -15,17 +15,20 @@ export function useCreateBot(presetId?: BotPresetId) {
   const router = useRouter()
   const { checkPlan, showUsageLimit } = usePaywall()
   const [pending, setPending] = useState(false)
+  const [navigating, startNavigation] = useTransition()
   const inFlight = useRef(false)
-  const requestId = useRef<string | null>(null)
+  const requests = useRef(new Map<string, string>())
 
-  async function create() {
-    if (inFlight.current) return
+  async function createWithPreset(selectedPresetId?: BotPresetId) {
+    if (inFlight.current || navigating) return
     inFlight.current = true
     setPending(true)
     try {
       if (!checkPlan("bots")) return
-      requestId.current ??= nanoid()
-      const result = await createBot({ requestId: requestId.current, presetId })
+      const requestKey = selectedPresetId ?? "custom"
+      const requestId = requests.current.get(requestKey) ?? nanoid()
+      requests.current.set(requestKey, requestId)
+      const result = await createBot({ requestId, presetId: selectedPresetId })
       if (!result.ok) {
         if ("planLimit" in result) {
           toast.add({
@@ -43,9 +46,12 @@ export function useCreateBot(presetId?: BotPresetId) {
         showUsageLimit(result.usageLimit)
         return
       }
-      requestId.current = null
-      router.push(`/chats/${encodeURIComponent(result.chatId)}`)
-      router.refresh()
+      // A sidebar creator survives navigation, so release it when the route settles.
+      startNavigation(() => {
+        router.push(`/chats/${encodeURIComponent(result.chatId)}`)
+        router.refresh()
+      })
+      requests.current.delete(requestKey)
     } catch {
       toast.add({
         type: "error",
@@ -57,7 +63,11 @@ export function useCreateBot(presetId?: BotPresetId) {
       setPending(false)
     }
   }
-  return { create, pending }
+  return {
+    create: () => createWithPreset(presetId),
+    createWithPreset,
+    pending: pending || navigating,
+  }
 }
 
 export function CreateBotButton({

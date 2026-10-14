@@ -54,7 +54,7 @@ export default async function LandingPage() {
       <a className={styles.skip} href="#main">
         Skip to content
       </a>
-      <BotNavigation workspaceHref={workspaceHref} plansHref={plansHref} />
+      <BotNavigation workspaceHref={workspaceHref} />
       <main id="main">
         <section
           className={`${styles.container} ${styles.hero}`}
@@ -83,13 +83,9 @@ export default async function LandingPage() {
             <Link href={startHref} prefetch={false} className={styles.button}>
               <GlobeIcon size={17} /> Get started
             </Link>
-            <Link
-              href={plansHref}
-              prefetch={false}
-              className={styles.secondaryButton}
-            >
+            <a href="#pricing" className={styles.secondaryButton}>
               View plans
-            </Link>
+            </a>
           </div>
           <div className={styles.heroPreview}>
             <BotChatDemo workspaceHref={workspaceHref} />
@@ -189,13 +185,9 @@ export default async function LandingPage() {
             <Link href={startHref} prefetch={false} className={styles.button}>
               Get started
             </Link>
-            <Link
-              href={plansHref}
-              prefetch={false}
-              className={styles.secondaryButton}
-            >
+            <a href="#pricing" className={styles.secondaryButton}>
               View plans
-            </Link>
+            </a>
           </div>
           <BotMark className={styles.giantMark} sequence="footer" />
         </section>

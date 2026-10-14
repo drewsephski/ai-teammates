@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-color",
+        "value": "#dedede",
+        "createdAt": "2026-10-14T15:09:06.721Z",
+        "reason": "Agent review: existing landing navigation hover matches the primary CTA hover in bot-landing.module.css; this link destination change adds no colors."
+      }
+    ]
+  }
+}

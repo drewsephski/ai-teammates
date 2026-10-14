@@ -288,6 +288,14 @@ Shared fields are (40px) tall with quiet input borders, extra-large corners, and
 
 Bot settings use the existing labeled field and validation patterns in the right panel or mobile sheet; the context-menu editor retains a dialog using the same form. Group editing retains its scrolling dialog. Teammate creation starts a conversation immediately; it has no creation form.
 
+### First-run workspace
+
+Owners without teammates see a two-step introduction in the workspace content area: choose an end-to-end workflow, then connect services and enter the real setup conversation. Six role presets cover researching and delivering a brief, fixing and testing code with a pull request, launch publishing, hands-on training, project coordination, and live-data analysis. Each carries execution and authentication guidance into its real bot configuration. A blank-slate option supports other workflows. The existing creation action, plan checks, and retry identity remain authoritative. A valid role link starts at its preview. Existing teammates bypass this introduction.
+
+Suggested service buttons open the existing app marketplace with a search by display name; Find another app opens its full searchable catalog. Actual provider discovery determines available integrations and connection status. Users authenticate through the provider authorization page. Browser-only services use personal sign-in in the live Desktop, with no passwords or codes in chat. Connecting an app does not sign in the desktop browser or authorize unrelated actions. The introduction explicitly distinguishes connected apps from paid cloud-computer and file capabilities.
+
+Keep the existing charcoal chrome, page-heading type sizes, native character palette, and white pill actions. Characters provide a quiet introduction beside the choices on desktop and above them on phones; the role illustration is explicitly a preview. Step changes have one brief entrance, disabled under reduced motion, and move keyboard focus to the new heading. Skip is always visible, remembered per account in this browser, and reversible through Resume getting started. Storage failure permits skipping for the current visit. Advanced workspace features sit inside a collapsed More you can do disclosure.
+
 ### Navigation
 
 Sidebar destinations use rounded rows with compact icons and medium active text. Hover/active states use the sidebar accent; keyboard focus has its own visible ring. Regular conversation rows are (48px) tall with (32px) avatars, truncated names/previews, and muted timestamps. Pinned teammates appear above conversations with (48px) avatars. The gallery uses two columns and becomes three when its own content container reaches (220px); the collapsed rail uses (16px) avatars and hides tile labels. Selecting a destination closes the mobile sheet.

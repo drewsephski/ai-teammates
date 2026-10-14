@@ -48,17 +48,31 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/toast"
 import { FREE_APP_LIMIT_ERROR } from "@/lib/billing-policy"
 
-export function ConnectorMarketplace() {
+export function ConnectorMarketplace({
+  trigger,
+  children,
+  initialSearch = "",
+}: {
+  trigger?: React.ReactElement
+  children?: React.ReactNode
+  initialSearch?: string
+} = {}) {
   const [open, setOpen] = useState(false)
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <SidebarMenuButton tooltip="Apps" className="h-10 rounded-xl" />
+          trigger ?? (
+            <SidebarMenuButton tooltip="Apps" className="h-10 rounded-xl" />
+          )
         }
       >
-        <Grid2X2Icon />
-        <span>Apps</span>
+        {children ?? (
+          <>
+            <Grid2X2Icon />
+            <span>Apps</span>
+          </>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
@@ -67,16 +81,16 @@ export function ConnectorMarketplace() {
             Connect the tools your teammates need to get work done.
           </DialogDescription>
         </DialogHeader>
-        {open && <MarketplaceContent />}
+        {open && <MarketplaceContent initialSearch={initialSearch} />}
       </DialogContent>
     </Dialog>
   )
 }
 
-function MarketplaceContent() {
+function MarketplaceContent({ initialSearch }: { initialSearch: string }) {
   const router = useRouter()
   const generation = useRef(0)
-  const [search, setSearch] = useState("")
+  const [search, setSearch] = useState(initialSearch)
   const [tab, setTab] = useState("all")
   const [revision, setRevision] = useState(0)
   const [apps, setApps] = useState<ConnectorApp[]>([])

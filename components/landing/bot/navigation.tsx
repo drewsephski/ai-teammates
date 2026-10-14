@@ -13,13 +13,7 @@ const navigation = [
   ["Pricing", "#pricing"],
 ] as const
 
-export function BotNavigation({
-  workspaceHref,
-  plansHref,
-}: {
-  workspaceHref: string
-  plansHref: string
-}) {
+export function BotNavigation({ workspaceHref }: { workspaceHref: string }) {
   const [open, setOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
@@ -59,9 +53,9 @@ export function BotNavigation({
           </Link>
         </nav>
         <div className={styles.actions}>
-          <Link href={plansHref} prefetch={false} className={styles.plans}>
+          <a href="#pricing" className={styles.plans}>
             View plans
-          </Link>
+          </a>
           <Link href={workspaceHref} prefetch={false} className={styles.start}>
             Open Krafty
           </Link>
@@ -88,9 +82,9 @@ export function BotNavigation({
               {label}
             </a>
           ))}
-          <Link href={plansHref} prefetch={false}>
+          <a href="#pricing" onClick={() => setOpen(false)}>
             View plans
-          </Link>
+          </a>
           <Link href={workspaceHref} prefetch={false}>
             Open workspace
           </Link>
