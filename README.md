@@ -6,8 +6,6 @@
 
 AI teammates with a job, a memory and a cloud computer of their own.
 
-[![Watch the full tutorial on YouTube](https://img.shields.io/badge/Watch_the_full_tutorial-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=mQBuZ6Dp0u0)
-
 [![Trigger.dev](https://img.shields.io/badge/Trigger.dev-121317?style=for-the-badge&labelColor=121317&color=41FF54)](https://cwa.run/trigger-1)
 [![E2B](https://img.shields.io/badge/E2B-0A0A0A?style=for-the-badge)](https://e2b.dev)
 [![Firecrawl](https://img.shields.io/badge/Firecrawl-FF4C00?style=for-the-badge)](https://cwa.run/firecrawl)
@@ -23,10 +21,6 @@ AI teammates with a job, a memory and a cloud computer of their own.
 2026 is the year AI stopped being a chat box and became a coworker. Grok Bot, OpenAI Dots and Meta Muse all landed on the same idea: an always-on agent with a computer of its own that does the work instead of describing it. They are also closed.
 
 Krafty is an open exploration of that idea. Every prompt, tool and limit is a file in this repository, with auth, billing, usage metering and observability already in place, so you start from a working product and change whatever you like.
-
-## 🎬 Watch it being built
-
-[![How I Build AI Teammates With Claude Code - Grok Bot Clone](https://img.youtube.com/vi/mQBuZ6Dp0u0/maxresdefault.jpg)](https://www.youtube.com/watch?v=mQBuZ6Dp0u0)
 
 ## ✨ Features
 
