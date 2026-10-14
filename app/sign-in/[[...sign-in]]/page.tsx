@@ -11,12 +11,12 @@ export default async function SignInPage({
   return (
     <AuthShell>
       <div className="flex w-full flex-col gap-5">
-        <ChatGPTAuthOption intent="sign-in" result={params.chatgpt} />
         <KraftySignIn
           appearance={{ elements: { rootBox: "w-full!", cardBox: "w-full!" } }}
           fallbackRedirectUrl="/workspace"
           signUpFallbackRedirectUrl="/workspace"
         />
+        <ChatGPTAuthOption intent="sign-in" result={params.chatgpt} />
       </div>
     </AuthShell>
   )

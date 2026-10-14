@@ -26,6 +26,14 @@ export function ChatGPTAuthOption({
   const config = chatGPTConfig()
   return (
     <div className="flex w-full flex-col gap-3">
+      <div
+        className="flex items-center gap-3 text-xs text-muted-foreground"
+        aria-hidden="true"
+      >
+        <span className="h-px flex-1 bg-border" />
+        or
+        <span className="h-px flex-1 bg-border" />
+      </div>
       {result && chatGPTAuthMessages[result] && (
         <p
           role="alert"
@@ -69,14 +77,6 @@ export function ChatGPTAuthOption({
           .
         </p>
       )}
-      <div
-        className="flex items-center gap-3 text-xs text-muted-foreground"
-        aria-hidden="true"
-      >
-        <span className="h-px flex-1 bg-border" />
-        or
-        <span className="h-px flex-1 bg-border" />
-      </div>
     </div>
   )
 }

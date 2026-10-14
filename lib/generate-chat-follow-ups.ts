@@ -1,7 +1,13 @@
-import { streamText, type LanguageModel, type LanguageModelUsage } from "ai"
+import {
+  Output,
+  streamText,
+  type LanguageModel,
+  type LanguageModelUsage,
+} from "ai"
 import {
   followUpContext,
   followUpInstructions,
+  followUpsSchema,
   parseFollowUps,
 } from "@/lib/chat-follow-ups"
 import type { ChatUIMessage } from "@/lib/sandbox-tools"
@@ -29,14 +35,15 @@ export async function generateChatFollowUps({
       conversation: followUpContext(messages),
     }),
     maxOutputTokens: 500,
+    output: Output.object({ schema: followUpsSchema }),
     maxRetries: 0,
     abortSignal: AbortSignal.any([signal, AbortSignal.timeout(8000)]),
     onStepEnd: async ({ usage }) => onUsage(usage),
   })
-  const text = await result.text
+  await result.text
   if ((await result.finishReason) !== "stop") return []
   try {
-    return parseFollowUps(JSON.parse(text))
+    return parseFollowUps(await result.output)
   } catch {
     return []
   }
