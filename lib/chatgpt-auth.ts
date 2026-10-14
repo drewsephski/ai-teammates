@@ -220,7 +220,8 @@ export async function completeChatGPTAuth(
     }
     // Sign-in preserves the saved funding choice. Losing a grant must not
     // silently switch a subscription-backed account to app-funded requests.
-    if (existing && transaction.intent !== "connect") data.enabled = existing.enabled
+    if (existing && transaction.intent !== "connect")
+      data.enabled = existing.enabled
     if (existing?.enabled && !data.enabled) data.enabled = true
     await db
       .insert(chatgptConnections)

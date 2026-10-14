@@ -9,7 +9,9 @@ type ReplayPart = {
 }
 type ReplayMessage = { role: string; content: string | ReplayPart[] }
 
-export function normalizeFailedToolCalls<T extends ReplayMessage>(prompt: T[]): T[] {
+export function normalizeFailedToolCalls<T extends ReplayMessage>(
+  prompt: T[]
+): T[] {
   const failed = new Set(
     prompt.flatMap((message) =>
       message.role === "tool" && typeof message.content !== "string"
@@ -26,7 +28,8 @@ export function normalizeFailedToolCalls<T extends ReplayMessage>(prompt: T[]): 
   if (failed.size === 0) return prompt
 
   return prompt.map((message): T => {
-    if (message.role !== "assistant" || typeof message.content === "string") return message
+    if (message.role !== "assistant" || typeof message.content === "string")
+      return message
     return {
       ...message,
       content: message.content.map((part) => {
@@ -51,4 +54,3 @@ export function normalizeFailedToolCalls<T extends ReplayMessage>(prompt: T[]): 
     }
   })
 }
-

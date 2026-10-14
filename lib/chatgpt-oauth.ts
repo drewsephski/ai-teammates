@@ -58,10 +58,8 @@ export class ChatGPTTokenError extends Error {
   }
 }
 
-export async function chatGPTTokenRequest(parameters: URLSearchParams) {
+export function chatGPTClientHeaders() {
   const config = requireChatGPTConfig()
-  const metadata = await chatGPTDiscovery()
-  parameters.set("client_id", config.clientId)
   const headers = new Headers({
     "Content-Type": "application/x-www-form-urlencoded",
     accept: "application/json",
@@ -74,6 +72,14 @@ export async function chatGPTTokenRequest(parameters: URLSearchParams) {
       `Basic ${Buffer.from(`${encode(config.clientId)}:${encode(config.clientSecret)}`).toString("base64")}`
     )
   }
+  return headers
+}
+
+export async function chatGPTTokenRequest(parameters: URLSearchParams) {
+  const config = requireChatGPTConfig()
+  const metadata = await chatGPTDiscovery()
+  parameters.set("client_id", config.clientId)
+  const headers = chatGPTClientHeaders()
   const response = await fetch(metadata.token_endpoint, {
     method: "POST",
     headers,

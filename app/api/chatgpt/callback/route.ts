@@ -58,7 +58,11 @@ export async function GET(request: NextRequest) {
     )
   }
   response.cookies.set(chatGPTCookieName("oauth"), "", {
-    httpOnly: true, secure: config.origin.startsWith("https:"), sameSite: "lax", path: "/", maxAge: 0,
+    httpOnly: true,
+    secure: config.origin.startsWith("https:"),
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
   })
   response.headers.set("Cache-Control", "no-store")
   response.headers.set("Referrer-Policy", "no-referrer")

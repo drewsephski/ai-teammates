@@ -152,17 +152,31 @@ globalThis.fetch = async (input, init) => {
       updated_at: Date.now(),
     })
   }
-  if (url.origin === "https://api.clerk.com" && url.pathname.startsWith("/v1/users")) {
+  if (
+    url.origin === "https://api.clerk.com" &&
+    url.pathname.startsWith("/v1/users")
+  ) {
     const matches = existingEmail && url.searchParams.has("email_address")
-    if (url.pathname === "/v1/users/count") return Response.json({ object: "total_count", total_count: matches ? 1 : 0 })
-    if (request.method === "GET") return Response.json(matches ? [{ object: "user", id: "user_existing_fixture" }] : [])
+    if (url.pathname === "/v1/users/count")
+      return Response.json({
+        object: "total_count",
+        total_count: matches ? 1 : 0,
+      })
+    if (request.method === "GET")
+      return Response.json(
+        matches ? [{ object: "user", id: "user_existing_fixture" }] : []
+      )
     if (request.method === "POST") {
-      const body = await request.json() as Record<string, unknown>
+      const body = (await request.json()) as Record<string, unknown>
       assert.deepEqual(body.email_address, ["fixture@example.invalid"])
       assert.equal(body.skip_password_requirement, true)
       assert.ok(body.legal_accepted_at)
       createdUsers++
-      return Response.json({ object: "user", id: newUserId, external_id: body.external_id })
+      return Response.json({
+        object: "user",
+        id: newUserId,
+        external_id: body.external_id,
+      })
     }
   }
   if (url.origin === "https://api.openai.com" && url.pathname === "/v1/models")
@@ -193,7 +207,8 @@ globalThis.fetch = async (input, init) => {
   throw new Error(`Unexpected fixture request: ${url.origin}${url.pathname}`)
 }
 
-const { completeChatGPTAuth, startChatGPTAuth } = await import("../lib/chatgpt-auth")
+const { completeChatGPTAuth, startChatGPTAuth } =
+  await import("../lib/chatgpt-auth")
 
 async function attempt(signedIn = true) {
   const result = await startChatGPTAuth(
@@ -325,11 +340,20 @@ try {
   )
   assert.equal(await isChatGPTSelected(userId), true)
   await assert.rejects(getChatGPTAccessToken(userId))
-  pass("declining plan permission blocks inference without silently changing billing")
+  pass(
+    "declining plan permission blocks inference without silently changing billing"
+  )
 
-  await db.update(chatgptConnections).set({ enabled: false }).where(eq(chatgptConnections.userId, userId))
+  await db
+    .update(chatgptConnections)
+    .set({ enabled: false })
+    .where(eq(chatgptConnections.userId, userId))
   const preserveChoice = await attempt(false)
-  await completeChatGPTAuth(preserveChoice.callback, preserveChoice.browserBinding, null)
+  await completeChatGPTAuth(
+    preserveChoice.callback,
+    preserveChoice.browserBinding,
+    null
+  )
   assert.equal(await isChatGPTSelected(userId), false)
   pass("ordinary sign-in preserves a saved Krafty AI preference")
 
@@ -362,7 +386,13 @@ try {
     wrongNonce = invalidClaim === "nonce"
     wrongAudience = invalidClaim === "audience"
     expiredIdentity = invalidClaim === "expiry"
-    await assert.rejects(completeChatGPTAuth(invalidIdentity.callback, invalidIdentity.browserBinding, userId))
+    await assert.rejects(
+      completeChatGPTAuth(
+        invalidIdentity.callback,
+        invalidIdentity.browserBinding,
+        userId
+      )
+    )
     wrongNonce = wrongAudience = expiredIdentity = false
     pass(`invalid identity ${invalidClaim} rejected`)
   }
@@ -372,14 +402,25 @@ try {
   const signup = await attempt(false)
   await completeChatGPTAuth(signup.callback, signup.browserBinding, null)
   assert.equal(createdUsers, 1)
-  const createdConnection = await db.query.chatgptConnections.findFirst({ where: eq(chatgptConnections.userId, newUserId) })
+  const createdConnection = await db.query.chatgptConnections.findFirst({
+    where: eq(chatgptConnections.userId, newUserId),
+  })
   assert.equal(createdConnection?.subject, subject)
-  pass("new ChatGPT identities create a Clerk account and receive a one-time session ticket")
+  pass(
+    "new ChatGPT identities create a Clerk account and receive a one-time session ticket"
+  )
 
   subject = "fixture-existing-email-subject"
   existingEmail = true
   const matchingEmail = await attempt(false)
-  await assert.rejects(completeChatGPTAuth(matchingEmail.callback, matchingEmail.browserBinding, null), (error: Error) => "code" in error && error.code === "link_required")
+  await assert.rejects(
+    completeChatGPTAuth(
+      matchingEmail.callback,
+      matchingEmail.browserBinding,
+      null
+    ),
+    (error: Error) => "code" in error && error.code === "link_required"
+  )
   assert.equal(createdUsers, 1)
   pass("matching email never automatically links an existing Krafty account")
   console.log(

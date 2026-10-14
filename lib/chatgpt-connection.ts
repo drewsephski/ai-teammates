@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm"
+import { setTimeout } from "node:timers/promises"
 
 import { db } from "@/db"
 import { chatgptConnections } from "@/db/schema"
@@ -11,6 +12,7 @@ import {
 import { decryptChatGPTValue, encryptChatGPTValue } from "@/lib/chatgpt-crypto"
 import {
   chatGPTDiscovery,
+  chatGPTClientHeaders,
   ChatGPTTokenError,
   chatGPTTokenRequest,
   type ChatGPTTokens,
@@ -211,13 +213,22 @@ export async function disconnectChatGPT(userId: string) {
             token_type_hint: "refresh_token",
             client_id: row.clientId,
           })
-          const response = await fetch(metadata.revocation_endpoint, {
-            method: "POST",
-            body,
-            redirect: "error",
-            signal: AbortSignal.timeout(10_000),
-          })
-          revoked = response.ok
+          for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+              const response = await fetch(metadata.revocation_endpoint, {
+                method: "POST",
+                headers: chatGPTClientHeaders(),
+                body,
+                redirect: "error",
+                signal: AbortSignal.timeout(10_000),
+              })
+              revoked = response.ok
+              if (response.ok || response.status < 500) break
+            } catch {
+              revoked = false
+            }
+            if (attempt === 0) await setTimeout(250)
+          }
         }
       } catch {
         revoked = false

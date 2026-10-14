@@ -13,13 +13,13 @@ After approval, obtain the provisioned client and confirm its identity scopes, t
 
 Configure the following server-side variables in ignored `.env.local`, Railway's `ai-teammates` service / `production`, and the Trigger.dev project's `prod` environment:
 
-| Variable | Value |
-| --- | --- |
-| `CHATGPT_CLIENT_ID` | The OpenAI-provisioned `oaiapp_…` client ID. Leave empty until provisioned. |
-| `CHATGPT_CLIENT_SECRET` | Client secret for a confidential client using `client_secret_basic`; leave empty only for a provisioned public client. |
-| `CHATGPT_REDIRECT_URI` | The exact registered callback for this deployment. |
+| Variable                       | Value                                                                                                                                                     |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CHATGPT_CLIENT_ID`            | The OpenAI-provisioned `oaiapp_…` client ID. Leave empty until provisioned.                                                                               |
+| `CHATGPT_CLIENT_SECRET`        | Client secret for a confidential client using `client_secret_basic`; leave empty only for a provisioned public client.                                    |
+| `CHATGPT_REDIRECT_URI`         | The exact registered callback for this deployment.                                                                                                        |
 | `CHATGPT_TOKEN_ENCRYPTION_KEY` | A stable, cryptographically random 32-byte key encoded as 64 hexadecimal characters. Share it between the web app and workers that use the same database. |
-| `CHATGPT_PLAN_USAGE_ENABLED` | `true` only after OpenAI has approved and enabled plan usage for this client; otherwise `false`. |
+| `CHATGPT_PLAN_USAGE_ENABLED`   | `true` only after OpenAI has approved and enabled plan usage for this client; otherwise `false`.                                                          |
 
 The local and production callback may differ, but the deployed web app must use its own canonical origin. An invalid or incomplete configuration disables the sign-in option. Identity-only sign-in can be enabled before subscription usage. No placeholder client, existing Codex client ID, ChatGPT cookies, or private ChatGPT endpoints are accepted. Never put credentials in `NEXT_PUBLIC_` variables. Rotating the encryption key requires reconnecting affected accounts; there is no credential backfill.
 

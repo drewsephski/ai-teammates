@@ -40,7 +40,11 @@ export async function POST(request: NextRequest) {
     )
   }
   response.cookies.set(chatGPTCookieName("session"), "", {
-    httpOnly: true, secure: config.origin.startsWith("https:"), sameSite: "strict", path: "/", maxAge: 0,
+    httpOnly: true,
+    secure: config.origin.startsWith("https:"),
+    sameSite: "strict",
+    path: "/",
+    maxAge: 0,
   })
   response.headers.set("Cache-Control", "no-store")
   response.headers.set("Referrer-Policy", "no-referrer")
