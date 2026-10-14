@@ -8,6 +8,222 @@
         "value": "#dedede",
         "createdAt": "2026-10-14T15:09:06.721Z",
         "reason": "Agent review: existing landing navigation hover matches the primary CTA hover in bot-landing.module.css; this link destination change adds no colors."
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#54b9a6",
+        "files": [
+          "components/landing/bot/feature-scenes.tsx"
+        ],
+        "createdAt": "2026-10-14T18:52:56.104Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#012f35",
+        "files": [
+          "components/landing/bot/feature-scenes.tsx"
+        ],
+        "createdAt": "2026-10-14T18:52:56.236Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#885cf5",
+        "files": [
+          "components/landing/bot/feature-scenes.tsx"
+        ],
+        "createdAt": "2026-10-14T18:52:56.377Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#251f41",
+        "files": [
+          "components/landing/bot/feature-scenes.tsx"
+        ],
+        "createdAt": "2026-10-14T18:52:56.522Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#3c82f6",
+        "files": [
+          "components/landing/bot/feature-scenes.tsx"
+        ],
+        "createdAt": "2026-10-14T18:52:56.729Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#002843",
+        "files": [
+          "components/landing/bot/feature-scenes.tsx"
+        ],
+        "createdAt": "2026-10-14T18:52:56.876Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#f19d38",
+        "files": [
+          "components/landing/bot/feature-scenes.tsx"
+        ],
+        "createdAt": "2026-10-14T18:52:57.025Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#3b2703",
+        "files": [
+          "components/landing/bot/feature-scenes.tsx"
+        ],
+        "createdAt": "2026-10-14T18:52:57.223Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "16px",
+        "files": [
+          "components/landing/bot/feature-scenes.module.css"
+        ],
+        "createdAt": "2026-10-14T18:52:57.405Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#e8a33d",
+        "files": [
+          "components/landing/bot/feature-scenes.module.css"
+        ],
+        "createdAt": "2026-10-14T18:52:57.531Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "5px",
+        "files": [
+          "components/landing/bot/feature-scenes.module.css"
+        ],
+        "createdAt": "2026-10-14T18:52:57.657Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "10px",
+        "files": [
+          "components/landing/bot/feature-scenes.module.css"
+        ],
+        "createdAt": "2026-10-14T18:52:57.782Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#00000073",
+        "files": [
+          "components/landing/bot/feature-scenes.module.css"
+        ],
+        "createdAt": "2026-10-14T18:52:57.906Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "4px",
+        "files": [
+          "components/landing/bot/feature-scenes.module.css"
+        ],
+        "createdAt": "2026-10-14T18:52:58.037Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "1px",
+        "files": [
+          "components/landing/bot/feature-scenes.module.css"
+        ],
+        "createdAt": "2026-10-14T18:52:58.167Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#50b6a31a",
+        "files": [
+          "components/landing/bot/feature-scenes.module.css"
+        ],
+        "createdAt": "2026-10-14T18:52:58.295Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "13px",
+        "files": [
+          "components/landing/bot/feature-scenes.module.css"
+        ],
+        "createdAt": "2026-10-14T18:52:58.458Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#50b6a3",
+        "files": [
+          "components/landing/bot/feature-scenes.module.css"
+        ],
+        "createdAt": "2026-10-14T18:52:58.582Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#9cd7ca",
+        "files": [
+          "components/landing/bot/feature-scenes.module.css"
+        ],
+        "createdAt": "2026-10-14T18:52:58.708Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "4px",
+        "files": [
+          "components/landing/bot/feature-browser.tsx"
+        ],
+        "createdAt": "2026-10-14T18:52:58.835Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "4.5px",
+        "files": [
+          "components/landing/bot/feature-browser.tsx"
+        ],
+        "createdAt": "2026-10-14T18:52:58.960Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "5px",
+        "files": [
+          "components/landing/bot/feature-browser.tsx"
+        ],
+        "createdAt": "2026-10-14T18:52:59.082Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "6px",
+        "files": [
+          "components/landing/bot/feature-browser.tsx"
+        ],
+        "createdAt": "2026-10-14T18:52:59.200Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "7px",
+        "files": [
+          "components/landing/bot/feature-browser.tsx"
+        ],
+        "createdAt": "2026-10-14T18:52:59.321Z",
+        "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
       }
     ]
   }
