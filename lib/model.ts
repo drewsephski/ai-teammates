@@ -7,6 +7,52 @@ type CallOptions = Parameters<Model["doStream"]>[0]
 const textModelId = "glm-5-3-flash"
 const visionModelId = "gpt-5-6-luna"
 
+// Failed tool calls can retain the model's raw, malformed JSON in history.
+// Keep the failure and call ID, but give the provider valid object arguments
+// when replaying it. This never retries or executes the failed operation.
+export function normalizeFailedToolCalls(prompt: CallOptions["prompt"]) {
+  const failed = new Set(
+    prompt.flatMap((message) =>
+      message.role === "tool"
+        ? message.content.flatMap((part) =>
+            part.type === "tool-result" &&
+            (part.output.type === "error-text" ||
+              part.output.type === "error-json")
+              ? [part.toolCallId]
+              : []
+          )
+        : []
+    )
+  )
+  if (failed.size === 0) return prompt
+
+  return prompt.map((message) => {
+    if (message.role !== "assistant") return message
+    return {
+      ...message,
+      content: message.content.map((part) => {
+        if (part.type !== "tool-call" || !failed.has(part.toolCallId))
+          return part
+        let input: unknown = part.input
+        if (typeof input === "string") {
+          try {
+            input = JSON.parse(input)
+          } catch {
+            input = undefined
+          }
+        }
+        return {
+          ...part,
+          input:
+            input !== null && typeof input === "object" && !Array.isArray(input)
+              ? input
+              : {},
+        }
+      }),
+    }
+  })
+}
+
 function hasImages(messages: readonly ModelMessage[]) {
   return messages.some((message) => {
     if (message.role === "user" && typeof message.content !== "string") {
@@ -41,7 +87,7 @@ function withModelDefaults(options: CallOptions, vision: boolean): CallOptions {
         ...options.providerOptions?.[provider],
       },
     },
-    prompt: options.prompt.map((message) => {
+    prompt: normalizeFailedToolCalls(options.prompt).map((message) => {
       if (message.role !== "tool") return message
       return {
         ...message,
