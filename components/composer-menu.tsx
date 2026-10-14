@@ -1,7 +1,10 @@
 "use client"
 
-import { SlashIcon } from "lucide-react"
 import { ChatAvatar } from "@/components/chat-avatar"
+import {
+  ComposerCommandIcon,
+  commandIcons,
+} from "@/components/composer-command-icon"
 import {
   composerCommands,
   type ComposerCommand,
@@ -79,6 +82,7 @@ export function ComposerMenu({
                       onCommand(command.name)
                     }}
                   >
+                    <ComposerCommandIcon icon={commandIcons[command.name]} />
                     <span className="w-24 shrink-0 font-medium">
                       /{command.name}
                     </span>
@@ -124,7 +128,10 @@ export function ComposerMenu({
                       className="size-8"
                     />
                   ) : (
-                    <SlashIcon className="size-4 shrink-0 text-muted-foreground" />
+                    <ComposerCommandIcon
+                      icon={commandIcons[option.command.name]}
+                      active={index === selected}
+                    />
                   )}
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">
