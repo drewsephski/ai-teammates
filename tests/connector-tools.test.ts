@@ -18,8 +18,9 @@ const githubTool = {
 function runtime(overrides: Partial<ConnectorRuntime> = {}): ConnectorRuntime {
   return {
     accounts: async () => [{ id: "alice-github", toolkit: "github" }],
-    search: async () => [githubTool],
-    execute: async () => ({ successful: true }),
+    search: async () => ({ tools: [githubTool], guidance: {} }),
+    schema: async (slug) => (slug === githubTool.slug ? githubTool : undefined),
+    execute: async () => ({ resultType: "completed", error: null, data: {} }),
     ...overrides,
   }
 }
@@ -32,7 +33,7 @@ test("no connections means no discovery request and no external execution", asyn
       accounts: async () => [],
       search: async () => {
         contacted = true
-        return [githubTool]
+        return { tools: [githubTool], guidance: {} }
       },
       execute: async () => {
         contacted = true
@@ -45,13 +46,14 @@ test("no connections means no discovery request and no external execution", asyn
   )
   assert.equal(contacted, false)
   assert.match(String(result), /No apps connected/)
-  await assert.rejects(
-    async () =>
-      tools.executeAppTool.execute!(
+  assert.match(
+    String(
+      await tools.executeAppTool.execute!(
         { slug: "GITHUB_GET_ISSUE", arguments: {} },
         options
-      ),
-    /Search for this tool/
+      )
+    ),
+    /SCHEMA_REQUIRED/
   )
   assert.equal(contacted, false)
 })
@@ -60,12 +62,15 @@ test("discovery filters provider results even if the provider ignores its scope"
   const tools = createAppTools(
     "alice",
     runtime({
-      search: async (_query, toolkits) => {
-        assert.deepEqual(toolkits, ["github"])
-        return [
-          githubTool,
-          { ...githubTool, slug: "GMAIL_FETCH_EMAILS", toolkit: "gmail" },
-        ]
+      search: async (_query, accounts) => {
+        assert.deepEqual(accounts, [{ id: "alice-github", toolkit: "github" }])
+        return {
+          tools: [
+            githubTool,
+            { ...githubTool, slug: "GMAIL_FETCH_EMAILS", toolkit: "gmail" },
+          ],
+          guidance: {},
+        }
       },
     })
   )
@@ -75,13 +80,14 @@ test("discovery filters provider results even if the provider ignores its scope"
   )
   assert.match(String(result), /GITHUB_GET_ISSUE/)
   assert.doesNotMatch(String(result), /GMAIL_FETCH_EMAILS/)
-  await assert.rejects(
-    async () =>
-      tools.executeAppTool.execute!(
+  assert.match(
+    String(
+      await tools.executeAppTool.execute!(
         { slug: "GMAIL_FETCH_EMAILS", arguments: {} },
         options
-      ),
-    /Search for this tool/
+      )
+    ),
+    /SCHEMA_REQUIRED/
   )
 })
 
@@ -130,12 +136,13 @@ test("disconnecting an app after discovery prevents execution", async () => {
   )
   await tools.searchAppTools.execute!({ query: "Read issue" }, options)
   accounts = []
-  await assert.rejects(
-    async () =>
-      tools.executeAppTool.execute!(
+  assert.match(
+    String(
+      await tools.executeAppTool.execute!(
         { slug: "GITHUB_GET_ISSUE", arguments: {} },
         options
-      ),
+      )
+    ),
     /no longer connected/
   )
   assert.equal(executed, false)
@@ -149,13 +156,14 @@ test("another user's tools and a new turn cannot reuse a prior discovery", async
     createAppTools("bob", provider),
     createAppTools("alice", provider),
   ]) {
-    await assert.rejects(
-      async () =>
-        tools.executeAppTool.execute!(
+    assert.match(
+      String(
+        await tools.executeAppTool.execute!(
           { slug: "GITHUB_GET_ISSUE", arguments: {} },
           options
-        ),
-      /Search for this tool/
+        )
+      ),
+      /SCHEMA_REQUIRED/
     )
   }
 })
@@ -179,13 +187,293 @@ test("a downgrade between discovery and execution blocks a second connected app"
   )
   await tools.searchAppTools.execute!({ query: "Read issue" }, options)
   paid = false
-  await assert.rejects(
-    async () =>
-      tools.executeAppTool.execute!(
+  assert.match(
+    String(
+      await tools.executeAppTool.execute!(
         { slug: "GITHUB_GET_ISSUE", arguments: {} },
         options
-      ),
+      )
+    ),
     /no longer connected/
   )
   assert.equal(executed, false)
+})
+
+const sendDraft = {
+  slug: "GMAIL_SEND_DRAFT",
+  toolkit: "gmail",
+  description: "Send an existing draft as-is; draft_id is not a message ID.",
+  inputSchema: {
+    type: "object",
+    required: ["draft_id"],
+    properties: {
+      draft_id: { type: "string" },
+      user_id: { type: "string", default: "me" },
+    },
+    additionalProperties: false,
+  },
+}
+const gmailAccount = { id: "alice-gmail", toolkit: "gmail" }
+
+function gmailRuntime(overrides: Partial<ConnectorRuntime> = {}) {
+  return runtime({
+    accounts: async () => [gmailAccount],
+    search: async () => ({
+      tools: [sendDraft],
+      guidance: { knownPitfalls: ["Use a draft ID, not a message ID"] },
+    }),
+    schema: async (slug) => (slug === sendDraft.slug ? sendDraft : undefined),
+    ...overrides,
+  })
+}
+
+async function loadDraftTool(provider: ConnectorRuntime) {
+  const tools = createAppTools("alice", provider)
+  await tools.getAppToolSchema.execute!({ slug: sendDraft.slug }, options)
+  return tools
+}
+
+test("a fresh approval turn can load an exact schema without repeating fuzzy search", async () => {
+  let calls = 0
+  const tools = await loadDraftTool(
+    gmailRuntime({
+      search: async () => {
+        throw new Error("No fuzzy search needed")
+      },
+      execute: async (_user, slug, input) => {
+        calls++
+        assert.equal(slug, sendDraft.slug)
+        assert.deepEqual(input, { draft_id: "r-existing-approved-draft" })
+        return {
+          resultType: "completed",
+          error: null,
+          logId: "log-send",
+          data: { id: "sent-message" },
+        }
+      },
+    })
+  )
+  const result = JSON.parse(
+    String(
+      await tools.executeAppTool.execute!(
+        {
+          slug: sendDraft.slug,
+          arguments: { draft_id: "r-existing-approved-draft" },
+        },
+        options
+      )
+    )
+  )
+  assert.equal(result.status, "succeeded")
+  assert.equal(result.logId, "log-send")
+  assert.equal(calls, 1)
+})
+
+test("missing fields, wrong types and unsupported fields never reach the provider", async () => {
+  let calls = 0
+  const tools = await loadDraftTool(
+    gmailRuntime({
+      execute: async () => {
+        calls++
+      },
+    })
+  )
+  for (const input of [
+    {},
+    { draft_id: 42 },
+    { draft_id: "r1", recipient_email: "new@example.com" },
+  ]) {
+    const result = JSON.parse(
+      String(
+        await tools.executeAppTool.execute!(
+          { slug: sendDraft.slug, arguments: input },
+          options
+        )
+      )
+    )
+    assert.equal(result.code, "INVALID_ARGUMENTS")
+    assert.ok(result.issues.length)
+  }
+  assert.equal(calls, 0)
+})
+
+test("exact schema lookup cannot expose or authorize another toolkit", async () => {
+  const tools = createAppTools(
+    "alice",
+    runtime({ schema: async () => sendDraft })
+  )
+  assert.match(
+    String(
+      await tools.getAppToolSchema.execute!({ slug: sendDraft.slug }, options)
+    ),
+    /TOOL_NOT_AVAILABLE/
+  )
+  assert.match(
+    String(
+      await tools.executeAppTool.execute!(
+        { slug: sendDraft.slug, arguments: { draft_id: "r1" } },
+        options
+      )
+    ),
+    /SCHEMA_REQUIRED/
+  )
+})
+
+test("replacement accounts require a fresh schema instead of silently switching sender", async () => {
+  let current = gmailAccount
+  let calls = 0
+  const tools = await loadDraftTool(
+    gmailRuntime({
+      accounts: async () => [current],
+      execute: async () => {
+        calls++
+      },
+    })
+  )
+  current = { ...gmailAccount, id: "replacement" }
+  assert.match(
+    String(
+      await tools.executeAppTool.execute!(
+        { slug: sendDraft.slug, arguments: { draft_id: "r1" } },
+        options
+      )
+    ),
+    /ACCOUNT_CHANGED/
+  )
+  assert.equal(calls, 0)
+})
+
+test("failed executions with null error are not reported as successful", async () => {
+  const tools = await loadDraftTool(
+    gmailRuntime({
+      execute: async () => ({
+        resultType: "failed",
+        error: null,
+        logId: "log-failed",
+        data: { detail: "Draft not found" },
+      }),
+    })
+  )
+  const result = JSON.parse(
+    String(
+      await tools.executeAppTool.execute!(
+        { slug: sendDraft.slug, arguments: { draft_id: "r1" } },
+        options
+      )
+    )
+  )
+  assert.equal(result.status, "failed")
+  assert.equal(result.logId, "log-failed")
+  assert.equal(result.data.detail, "Draft not found")
+})
+
+test("transport exceptions produce an unconfirmed outcome without leaking SDK internals", async () => {
+  let calls = 0
+  const tools = await loadDraftTool(
+    gmailRuntime({
+      execute: async () => {
+        calls++
+        throw new Error("secret-request-header")
+      },
+    })
+  )
+  const result = String(
+    await tools.executeAppTool.execute!(
+      { slug: sendDraft.slug, arguments: { draft_id: "r1" } },
+      options
+    )
+  )
+  assert.equal(JSON.parse(result).status, "unknown")
+  assert.match(result, /Verify external state/)
+  assert.doesNotMatch(result, /secret-request-header/)
+  assert.equal(calls, 1)
+})
+
+test("large execution results retain outcome and diagnostic IDs as valid JSON", async () => {
+  const tools = await loadDraftTool(
+    gmailRuntime({
+      execute: async () => ({
+        resultType: "failed",
+        error: null,
+        logId: "log-large",
+        data: { text: "x".repeat(110_000) },
+      }),
+    })
+  )
+  const result = JSON.parse(
+    String(
+      await tools.executeAppTool.execute!(
+        { slug: sendDraft.slug, arguments: { draft_id: "r1" } },
+        options
+      )
+    )
+  )
+  assert.equal(result.status, "failed")
+  assert.equal(result.logId, "log-large")
+  assert.equal(result.truncated, true)
+})
+
+test("oversized discovery never authorizes a schema omitted from the model output", async () => {
+  let calls = 0
+  const large = {
+    ...sendDraft,
+    inputSchema: { ...sendDraft.inputSchema, description: "x".repeat(80_000) },
+  }
+  const tools = createAppTools(
+    "alice",
+    gmailRuntime({
+      search: async () => ({ tools: [large], guidance: {} }),
+      execute: async () => {
+        calls++
+      },
+    })
+  )
+  const search = JSON.parse(
+    String(
+      await tools.searchAppTools.execute!(
+        { query: "Send an existing Gmail draft" },
+        options
+      )
+    )
+  )
+  assert.equal(search.tools[0].inputSchema, undefined)
+  assert.match(
+    String(
+      await tools.executeAppTool.execute!(
+        { slug: sendDraft.slug, arguments: { draft_id: "r1" } },
+        options
+      )
+    ),
+    /SCHEMA_REQUIRED/
+  )
+  assert.equal(calls, 0)
+})
+
+test("a failed schema refresh invalidates the previous schema and preserves safe request IDs", async () => {
+  let lookups = 0
+  const tools = await loadDraftTool(
+    gmailRuntime({
+      schema: async () => {
+        if (lookups++ === 0) return sendDraft
+        throw Object.assign(new Error("private SDK details"), {
+          requestId: "request-123",
+        })
+      },
+    })
+  )
+  const result = String(
+    await tools.getAppToolSchema.execute!({ slug: sendDraft.slug }, options)
+  )
+  assert.match(result, /SCHEMA_LOOKUP_FAILED/)
+  assert.match(result, /request-123/)
+  assert.doesNotMatch(result, /private SDK details/)
+  assert.match(
+    String(
+      await tools.executeAppTool.execute!(
+        { slug: sendDraft.slug, arguments: { draft_id: "r1" } },
+        options
+      )
+    ),
+    /SCHEMA_REQUIRED/
+  )
 })

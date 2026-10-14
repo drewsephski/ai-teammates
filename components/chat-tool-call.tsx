@@ -42,7 +42,11 @@ type ToolPart = Extract<
 // success before a tool has actually returned its result.
 const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
   "tool-askUser": ["Question", "Question", "Answered question"],
-  "tool-configureBot": ["Configure bot", "Saving configuration", "Configured bot"],
+  "tool-configureBot": [
+    "Configure bot",
+    "Saving configuration",
+    "Configured bot",
+  ],
   "tool-bash": ["Run command", "Running command", "Ran command"],
   "tool-readFile": ["Read file", "Reading file", "Read file"],
   "tool-writeFile": ["Save file", "Saving file", "Saved file"],
@@ -83,6 +87,11 @@ const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
     "Finding app tools",
     "Found app tools",
   ],
+  "tool-getAppToolSchema": [
+    "Read app tool schema",
+    "Reading app tool schema",
+    "Read app tool schema",
+  ],
   "tool-executeAppTool": [
     "Use connected app",
     "Using connected app",
@@ -113,6 +122,7 @@ const toolIcons: Record<ToolPart["type"], LucideIcon> = {
   "tool-createGroupChat": UsersRoundIcon,
   "tool-delegateToTeammate": UsersRoundIcon,
   "tool-searchAppTools": FolderSearchIcon,
+  "tool-getAppToolSchema": FileTextIcon,
   "tool-executeAppTool": ArrowDownUpIcon,
 }
 
@@ -121,7 +131,33 @@ function preview(text?: string) {
   return text?.replace(/\s+/g, " ").trim().slice(0, 180)
 }
 
+function appToolError(part: ToolPart): string | undefined {
+  if (
+    (part.type !== "tool-executeAppTool" &&
+      part.type !== "tool-getAppToolSchema" &&
+      part.type !== "tool-searchAppTools") ||
+    part.state !== "output-available"
+  )
+    return undefined
+  try {
+    const result = JSON.parse(part.output)
+    if (["failed", "unknown", "requires_input"].includes(result.status))
+      return [
+        result.message,
+        result.error,
+        result.logId && `Log: ${result.logId}`,
+        result.requestId && `Request: ${result.requestId}`,
+      ]
+        .filter((value) => typeof value === "string")
+        .join("\n")
+  } catch {
+    // Historical results may be plain text.
+  }
+}
+
 function toolSummary(part: ToolPart): string | undefined {
+  const appError = appToolError(part)
+  if (appError) return preview(appError)
   if (part.state === "output-error") return preview(part.errorText)
   if (part.state === "output-denied") return "Execution was not approved"
 
@@ -182,6 +218,7 @@ function toolSummary(part: ToolPart): string | undefined {
     case "tool-searchAppTools":
       return preview(part.input?.query)
     case "tool-executeAppTool":
+    case "tool-getAppToolSchema":
       return preview(part.input?.slug)
   }
 }
@@ -236,9 +273,10 @@ export function ToolCall({ part }: { part: ToolPart }) {
   }
 
   const state =
-    part.type === "tool-bash" &&
-    part.state === "output-available" &&
-    part.output.exitCode !== 0
+    appToolError(part) ||
+    (part.type === "tool-bash" &&
+      part.state === "output-available" &&
+      part.output.exitCode !== 0)
       ? "output-error"
       : part.state
   const titles = toolTitles[part.type]
@@ -266,13 +304,14 @@ export function ToolCall({ part }: { part: ToolPart }) {
 
 function ToolCallDetails({ part }: { part: ToolPart }) {
   const error =
-    part.state === "output-error"
+    appToolError(part) ??
+    (part.state === "output-error"
       ? part.errorText
       : part.type === "tool-bash" &&
           part.state === "output-available" &&
           part.output.exitCode !== 0
         ? `Command exited with code ${part.output.exitCode}`
-        : undefined
+        : undefined)
 
   // Screenshots are for the bot's eyes and stay out of the chat
   if (part.type === "tool-viewScreen" || part.type === "tool-showScreen") {

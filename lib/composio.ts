@@ -1,7 +1,7 @@
 import { Composio } from "@composio/core"
 import { z } from "zod"
 import { createAppTools, type AppAccount } from "@/lib/connector-tools"
-import { executeConnectedAppTool } from "@/lib/connector-execution"
+import { createSessionRuntime } from "@/lib/connector-session"
 import { allowedAppAccounts, assertAppCapacity } from "@/lib/billing-policy"
 import { getAccountPlan } from "@/lib/usage"
 import { withSandboxLock } from "@/lib/sandbox-lock"
@@ -128,31 +128,8 @@ export async function authorizeConnector(userId: string, toolkit: string) {
 }
 
 export function createConnectorTools(userId: string) {
-  return createAppTools(userId, {
-    accounts: activeAccounts,
-    search: async (query, toolkits, signal) => {
-      const tools = await getComposio().tools.getRawComposioTools(
-        { toolkits, search: query, limit: 12 },
-        undefined,
-        { signal }
-      )
-      return tools
-        .filter((entry) => entry.toolkit && entry.inputParameters)
-        .map((entry) => ({
-          slug: entry.slug,
-          toolkit: entry.toolkit?.slug ?? "",
-          description: entry.description ?? entry.slug,
-          inputSchema: entry.inputParameters,
-        }))
-    },
-    execute: (userId, slug, input, account, signal) =>
-      executeConnectedAppTool(
-        createConnectorSession,
-        userId,
-        slug,
-        input,
-        account,
-        signal
-      ),
-  })
+  return createAppTools(
+    userId,
+    createSessionRuntime(userId, activeAccounts, createConnectorSession)
+  )
 }
