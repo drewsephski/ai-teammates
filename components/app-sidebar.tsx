@@ -3,6 +3,8 @@ import { GaugeIcon, LayoutGridIcon, CreditCardIcon } from "lucide-react"
 
 import { ChatAvatar } from "@/components/chat-avatar"
 import { ChatMenuButton } from "@/components/chat-menu-button"
+import { reorderPinnedBots } from "@/actions/bot"
+import { SidebarPinnedBots } from "@/components/sidebar-pinned-bots"
 import { CreateMenu } from "@/components/create-menu"
 import { ConnectorMarketplace } from "@/components/connector-marketplace"
 import { GroupChatAvatar } from "@/components/group-chat-avatar"
@@ -30,12 +32,16 @@ import { chatSearchContent } from "@/lib/chat-search"
 function SidebarChatAvatar({ chat }: { chat: ChatWithBots }) {
   return chat.kind === "group" ? (
     <GroupChatAvatar
+      interactive
       seeds={chat.bots.map((bot) => bot.avatar)}
+      identities={chat.bots.map((bot) => bot.id)}
       className="group-data-[collapsible=icon]:size-4"
     />
   ) : (
     <ChatAvatar
+      interactive
       seed={chat.bots[0].avatar}
+      identity={chat.bots[0].id}
       className="group-data-[collapsible=icon]:size-4"
     />
   )
@@ -45,7 +51,11 @@ export async function AppSidebar() {
   const [chats, bots] = await Promise.all([getChats(), getBots()])
   const pinned = bots
     .filter((bot) => bot.pinnedAt)
-    .sort((a, b) => a.pinnedAt!.getTime() - b.pinnedAt!.getTime())
+    .sort(
+      (a, b) =>
+        a.pinnedAt!.getTime() - b.pinnedAt!.getTime() ||
+        a.id.localeCompare(b.id)
+    )
     .flatMap((bot) => {
       const chat = chats.find(
         (chat) => chat.kind === "direct" && chat.bots[0].id === bot.id
@@ -117,9 +127,15 @@ export async function AppSidebar() {
           {pinned.length > 0 && (
             <SidebarGroup aria-label="Pinned bots" className="px-3">
               <SidebarGroupContent className="@container">
-                <SidebarMenu className="grid grid-cols-2 gap-1 group-data-[collapsible=icon]:grid-cols-1 @[220px]:grid-cols-3">
-                  {pinned.map(({ bot, chat, chatIds }) => (
-                    <SidebarMenuItem key={bot.id}>
+                <SidebarPinnedBots
+                  version={pinned
+                    .map(({ bot }) => `${bot.id}:${bot.pinnedAt!.getTime()}`)
+                    .join(",")}
+                  saveOrder={reorderPinnedBots}
+                  items={pinned.map(({ bot, chat, chatIds }) => ({
+                    id: bot.id,
+                    name: bot.name,
+                    content: (
                       <ChatMenuButton
                         chatId={chat.id}
                         tooltip={bot.name}
@@ -129,6 +145,8 @@ export async function AppSidebar() {
                       >
                         <ChatAvatar
                           seed={bot.avatar}
+                          identity={bot.id}
+                          interactive
                           className="size-12 group-data-[collapsible=icon]:size-4"
                         />
                         <span className="w-full truncate text-center text-xs font-medium group-data-[collapsible=icon]:hidden">
@@ -140,9 +158,9 @@ export async function AppSidebar() {
                           </span>
                         )}
                       </ChatMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
+                    ),
+                  }))}
+                />
               </SidebarGroupContent>
             </SidebarGroup>
           )}

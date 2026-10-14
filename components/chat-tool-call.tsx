@@ -1,6 +1,7 @@
 "use client"
 
 import { CodeBlock } from "@/components/ai-elements/code-block"
+import { MessageResponse } from "@/components/ai-elements/message"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Image } from "@/components/ai-elements/image"
@@ -81,6 +82,11 @@ const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
     "Creating group chat",
     "Created group chat",
   ],
+  "tool-consultTeammate": [
+    "Consult teammate",
+    "Consulting teammate",
+    "Teammate contributed",
+  ],
   "tool-delegateToTeammate": [
     "Hand over task",
     "Handing over task",
@@ -127,6 +133,7 @@ const toolIcons: Record<ToolPart["type"], LucideIcon> = {
   "tool-createTeammate": UsersRoundIcon,
   "tool-createGroupChat": UsersRoundIcon,
   "tool-delegateToTeammate": UsersRoundIcon,
+  "tool-consultTeammate": UsersRoundIcon,
   "tool-searchAppTools": FolderSearchIcon,
   "tool-getAppToolSchema": FileTextIcon,
   "tool-executeAppTool": ArrowDownUpIcon,
@@ -228,6 +235,10 @@ function toolSummary(part: ToolPart): string | undefined {
     case "tool-createTeammate":
     case "tool-createGroupChat":
       return preview(part.input?.name)
+    case "tool-consultTeammate":
+      return part.state === "output-available"
+        ? `${part.output.name} contributed`
+        : preview(part.input?.prompt)
     case "tool-delegateToTeammate":
       return preview(part.input?.prompt)
     case "tool-searchAppTools":
@@ -239,6 +250,21 @@ function toolSummary(part: ToolPart): string | undefined {
 }
 
 export function ToolCall({ part }: { part: ToolPart }) {
+  if (
+    part.type === "tool-consultTeammate" &&
+    part.state === "output-available"
+  ) {
+    return (
+      <div data-slot="teammate-contribution" className="min-w-0 space-y-1">
+        <p className="px-3 text-xs font-medium break-words text-muted-foreground">
+          {part.output.name}
+        </p>
+        <MessageResponse className="rounded-xl bg-muted/30 px-3 py-2">
+          {part.output.answer}
+        </MessageResponse>
+      </div>
+    )
+  }
   if (
     (part.type === "tool-createTeammate" ||
       part.type === "tool-createGroupChat" ||

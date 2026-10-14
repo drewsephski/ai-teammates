@@ -323,7 +323,12 @@ export function createSandboxTools(
 export type SandboxTools = ReturnType<typeof createSandboxTools>
 // A reply carries the bot that started it and a group chat's message the bot it
 // was sent to, so the chat can show who answered whom
-export type ChatMessageMetadata = { botId?: string; questionId?: string }
+export type ChatMessageMetadata = {
+  botId?: string
+  questionId?: string
+  mentions?: import("@/lib/composer").BotMention[]
+  displayPrompt?: string
+}
 export type ChatDataParts = {
   messageSeen: { messageId: string; seenAt: string }
   followUps: {
@@ -338,6 +343,7 @@ export type ChatUIMessage = UIMessage<
     SandboxTools &
       HandoffTools &
       import("@/lib/team-tools").TeamTools &
+      import("@/lib/consultation-tool").ConsultationTools &
       import("@/lib/bot-setup-tools").BotSetupTools &
       import("@/lib/composio").ConnectorTools &
       import("@/lib/web-tools").WebTools

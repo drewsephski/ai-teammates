@@ -1,7 +1,6 @@
 import { memo } from "react"
 
-// Browser layout, dimensions and phase tables transcribed from the source's
-// 661069 feature module and 113233 miniature-browser primitives.
+// Miniature app screens share the card playback clock and cursor coordinates.
 export interface SupportState {
   view: string
   emailChars: number
@@ -45,7 +44,7 @@ function Caret() {
     />
   )
 }
-function MiniWindowChrome() {
+function MiniWindowChrome({ title }: { title: string }) {
   return (
     <div
       className="flex h-[11px] shrink-0 items-center gap-[2px] px-[4px]"
@@ -58,10 +57,11 @@ function MiniWindowChrome() {
           style={{ backgroundColor: LINE, opacity: 0.15 }}
         />
       ))}
+      <span className="ml-2 truncate text-[4px] text-white/45">{title}</span>
     </div>
   )
 }
-const SUPPORT_EMAIL = "drew@acme.co",
+const SUPPORT_EMAIL = "hello@studio.co",
   QUEUE_MENU_WIDTHS = [44, 58, 36],
   SUPPORT_SIDEBAR = [
     [64, 46, 72],
@@ -69,18 +69,18 @@ const SUPPORT_EMAIL = "drew@acme.co",
   ],
   QUEUE_TICKETS = [
     [
-      { subject: 46, urgent: !0 },
-      { subject: 33, urgent: !1 },
-      { subject: 52, urgent: !1 },
-      { subject: 28, urgent: !0 },
-      { subject: 41, urgent: !1 },
+      { subject: "Account access", urgent: !0 },
+      { subject: "Billing question", urgent: !1 },
+      { subject: "Getting started", urgent: !1 },
+      { subject: "Team invite", urgent: !0 },
+      { subject: "Plan change", urgent: !1 },
     ],
     [
-      { subject: 38, urgent: !0 },
-      { subject: 55, urgent: !0 },
-      { subject: 31, urgent: !1 },
-      { subject: 47, urgent: !1 },
-      { subject: 26, urgent: !0 },
+      { subject: "Workspace access", urgent: !0 },
+      { subject: "Seat upgrade", urgent: !0 },
+      { subject: "Quick question", urgent: !1 },
+      { subject: "Weekly recap", urgent: !1 },
+      { subject: "Welcome aboard", urgent: !0 },
     ],
   ],
   MACRO_WIDTHS = [92, 84, 61],
@@ -155,7 +155,9 @@ function LoginScreen({ screen: e }: { screen: SupportState }) {
                   style={{ backgroundColor: LINE, opacity: 0.22 }}
                 />
               }
-              {<Bar width="34%" opacity={0.18} />}
+              <span className="text-[6px] font-medium text-white/70">
+                Studio help desk
+              </span>
             </div>
           }
           {
@@ -244,7 +246,7 @@ function TicketRow({
   open: r,
 }: {
   target?: string
-  subject: number
+  subject: string
   urgent: boolean
   open: boolean
 }) {
@@ -265,7 +267,7 @@ function TicketRow({
           style={{ backgroundColor: LINE, opacity: s ? 0.32 : 0.12 }}
         />
       }
-      {<Bar width={`${t}%`} opacity={r ? 0.2 : 0.12} />}
+      <span className="min-w-0 truncate text-[5px] text-white/60">{t}</span>
       {
         <span
           aria-hidden={!0}
@@ -451,7 +453,7 @@ function QueueScreen({ screen: e }: { screen: SupportState }) {
 function SupportScreen({ screen: e }: { screen: SupportState }) {
   return (
     <div className="flex h-full w-full flex-col">
-      {<MiniWindowChrome />}
+      <MiniWindowChrome title="Studio · Help desk" />
       {
         <div
           aria-hidden={!0}
@@ -557,8 +559,8 @@ const SUPPORT_TIMELINE = [
   SUPPORT_FINAL = SUPPORT_TIMELINE[SUPPORT_TIMELINE.length - 1].value
 
 const CHART_HEIGHTS = [
-    [38, 52, 44, 61, 49, 72, 58, 80, 66, 91],
-    [64, 47, 78, 55, 86, 62, 94, 71, 83, 99],
+    [30, 46, 39, 57, 52, 66, 61, 75, 71, 88],
+    [45, 54, 48, 70, 62, 78, 72, 87, 80, 96],
   ],
   DASHBOARD_SIDEBAR = [
     [62, 48, 70],
@@ -566,9 +568,9 @@ const CHART_HEIGHTS = [
   ],
   RANGE_MENU_WIDTHS = [52, 64, 43],
   DASHBOARD_METRICS = [
-    { label: 46, value: 62 },
-    { label: 38, value: 50 },
-    { label: 52, value: 44 },
+    { label: "Visitors", value: "2,840" },
+    { label: "Signups", value: "186" },
+    { label: "Activation", value: "72%" },
   ],
   DASHBOARD_INITIAL: DashboardState = {
     range: 0,
@@ -605,7 +607,7 @@ function DashboardScreen({ screen: e }: { screen: DashboardState }) {
   const t = CHART_HEIGHTS[e.range] ?? CHART_HEIGHTS[0]
   return (
     <div className="flex h-full w-full flex-col">
-      {<MiniWindowChrome />}
+      <MiniWindowChrome title="Studio · Weekly overview" />
       {
         <div
           aria-hidden={!0}
@@ -645,7 +647,9 @@ function DashboardScreen({ screen: e }: { screen: DashboardState }) {
             <div className="flex min-w-0 flex-1 flex-col gap-[7px] px-[8px] py-[7px]">
               {
                 <div className="relative flex items-center gap-[5px]">
-                  {<Bar width="26%" opacity={0.16} />}
+                  <span className="text-[5px] font-medium text-white/70">
+                    Friday recap
+                  </span>
                   {
                     <div className="relative ml-auto">
                       {
@@ -656,7 +660,9 @@ function DashboardScreen({ screen: e }: { screen: DashboardState }) {
                             backgroundColor: `color-mix(in srgb, ${LINE} 4%, transparent)`,
                           }}
                         >
-                          {<Bar width="18px" opacity={0.18} />}
+                          <span className="text-[4px] text-white/60">
+                            {e.range ? "This week" : "Last week"}
+                          </span>
                           {
                             <span
                               aria-hidden={!0}
@@ -712,8 +718,12 @@ function DashboardScreen({ screen: e }: { screen: DashboardState }) {
                       }}
                       key={t}
                     >
-                      {<Bar width={`${e.label}%`} opacity={0.09} />}
-                      {<Bar width={`${e.value}%`} opacity={0.2} />}
+                      <span className="text-[4px] text-white/45">
+                        {e.label}
+                      </span>
+                      <span className="text-[7px] font-medium text-white/80">
+                        {e.value}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -731,8 +741,8 @@ function DashboardScreen({ screen: e }: { screen: DashboardState }) {
                       className="flex-1 rounded-t-[1px] transition-[height] duration-500 ease-out"
                       style={{
                         height: `${e}%`,
-                        backgroundColor: LINE,
-                        opacity: 0.14 + (t % 3) * 0.03,
+                        backgroundColor: t === 9 ? "#b5a7fc" : LINE,
+                        opacity: t === 9 ? 0.75 : 0.14 + (t % 3) * 0.03,
                       }}
                       key={t}
                     />

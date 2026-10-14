@@ -9,6 +9,7 @@ import {
   type CSSProperties,
 } from "react"
 import { motion, useReducedMotion } from "motion/react"
+import { ArrowRightIcon, CheckIcon, LoaderCircleIcon } from "lucide-react"
 import { BotMark } from "./bot-mark"
 import {
   SupportScreen,
@@ -40,11 +41,11 @@ const SCENE_FRAME_TIMES = {
       CYCLE_MS,
     ]),
   ].sort((a, b) => a - b),
-  memory: [520, 1040, 9000, CYCLE_MS],
-  collaboration: [900, 3200, 5500, 7800, 9000, CYCLE_MS],
+  memory: [700, 2200, 9000, CYCLE_MS],
+  collaboration: [900, 2900, 4900, 6900, 7800, 9000, CYCLE_MS],
 }
 
-/** Source cards run for 9000ms, fade for 300ms, then replay. */
+/** Pause offscreen; hold the result before fading and replaying. */
 function usePlayback(
   ref: RefObject<HTMLElement | null>,
   frameTimes: readonly number[]
@@ -238,9 +239,9 @@ function Cursor({
     >
       <span className={styles.swap}>
         <span data-hidden={!bot || undefined}>
-          <CursorArrow fill="#eb4699" />
+          <CursorArrow fill="#50b6a3" />
           <span className={styles.cursorAvatar}>
-            <BotMark color="#eb4699" />
+            <BotMark color="#50b6a3" active={false} />
           </span>
         </span>
         <span data-hidden={bot || undefined}>
@@ -263,7 +264,7 @@ function SupportIllustration(playback: Playback) {
   return (
     <div className={styles.computer}>
       <div className="flex items-start gap-2">
-        <span className={styles.computerTitle}>Computer</span>
+        <span className={styles.computerTitle}>Cloud computer</span>
         <span className="flex-1" />
         <span className={`${styles.swap} ${styles.badgeSwap}`}>
           <span data-hidden={value.status !== "handed-over" || undefined}>
@@ -274,13 +275,14 @@ function SupportIllustration(playback: Playback) {
           </span>
           <span data-hidden={value.status !== "working" || undefined}>
             <span className={styles.badge}>
-              <span className={styles.spinner}></span>Working
+              <LoaderCircleIcon className={styles.spinner} />
+              Working
             </span>
           </span>
         </span>
       </div>
       <p className="mt-0.5">
-        Sign in to Zendesk so I can work the support queue.
+        Sign in to your help desk. I’ll draft the replies.
       </p>
       <div className={`${styles.handoverScreen} mt-2.5`}>
         <div className={styles.take} data-dimmed={playback.dimmed || undefined}>
@@ -322,7 +324,7 @@ function RecordingIllustration(playback: Playback) {
       <div className={styles.recordingBar}>
         <div data-hidden={!value.recording || undefined}>
           <span className={styles.recordingLabel}>
-            Weekly Reporting is watching and learning
+            Krafty is learning your Friday recap
           </span>
           <span className={styles.recordingTimer}>
             <span className={styles.recordingDot} />
@@ -337,7 +339,7 @@ function RecordingIllustration(playback: Playback) {
             data-pressed={value.pressed || undefined}
           >
             <span className={styles.recordDot} />
-            Teach a task
+            Show Krafty
           </span>
         </div>
       </div>
@@ -353,15 +355,15 @@ function RecordingIllustration(playback: Playback) {
   )
 }
 const MEMORY_MESSAGES = [
-  "Acme replied on pricing, same thread as last quarter. I already had the context, so I answered without waiting on you.",
-  "Noted for next time: they only sign annual, and Dana is the one who approves.",
+  "Keep launch updates short. Lead with what shipped, then what’s next.",
+  "Got it. I’ll use that format for your next recap.",
 ]
 function MemoryIllustration(playback: Playback) {
   const count = playback.instant
     ? 3
-    : playback.time < 520
+    : playback.time < 700
       ? 1
-      : playback.time < 1040
+      : playback.time < 2200
         ? 2
         : 3
   return (
@@ -375,8 +377,12 @@ function MemoryIllustration(playback: Playback) {
         key={playback.run}
       >
         <div className="flex flex-col justify-center gap-1 px-3 py-2">
-          {MEMORY_MESSAGES.slice(0, count).map((message) => (
-            <div className={styles.entry} key={message}>
+          {MEMORY_MESSAGES.slice(0, count).map((message, index) => (
+            <div
+              className={styles.entry}
+              data-from={index === 0 ? "you" : "bot"}
+              key={message}
+            >
               <div className="flex max-w-[min(560px,92%)] flex-col items-start">
                 <p className={styles.bubble}>{message}</p>
               </div>
@@ -385,10 +391,10 @@ function MemoryIllustration(playback: Playback) {
           {count === 3 && (
             <div className={`${styles.entry} mt-3`}>
               <div className={styles.memoryReceipt}>
-                Updated memory for{" "}
+                <CheckIcon size={12} /> Remembered by{" "}
                 <span className={styles.memoryPill}>
-                  <BotMark color="#885cf5" />
-                  Account Manager
+                  <BotMark color="#50b6a3" active={false} />
+                  Krafty
                 </span>
               </div>
             </div>
@@ -401,40 +407,50 @@ function MemoryIllustration(playback: Playback) {
 const TEAMMATES = [
   {
     color: "#54b9a6",
-    label: "Asking Research",
+    label: "Researching the launch",
+    result: "Research gathered",
+    shape: "blob",
     background: "#012f35",
     ink: "#4ad8ec",
   },
   {
     color: "#885cf5",
-    label: "Looping in Comms",
+    label: "Writing the brief",
+    result: "Brief drafted",
+    shape: "gem",
     background: "#251f41",
     ink: "#b6b3f9",
   },
   {
-    color: "#ea4045",
-    label: "Sending to Chief",
-    background: "#4e071c",
-    ink: "#ff99a8",
+    color: "#3c82f6",
+    label: "Checking the details",
+    result: "Details checked",
+    shape: "wedge",
+    background: "#002843",
+    ink: "#7fc3ff",
   },
   {
     color: "#f19d38",
-    label: "Pinging Travel",
+    label: "Preparing your recap",
+    result: "Ready for your review",
+    shape: "blob",
     background: "#3b2703",
     ink: "#f8b956",
   },
-]
+] as const
 function CollaborationPill({
   index,
   activeIndex,
   open,
   active,
+  completed,
   instant,
 }: {
   index: number
   activeIndex: number
   open: boolean
   active: boolean
+  completed: boolean
   instant: boolean
 }) {
   const teammate = TEAMMATES[index]
@@ -487,6 +503,7 @@ function CollaborationPill({
       >
         <BotMark
           color={teammate.color}
+          shape={teammate.shape}
           active={active}
           state={active ? "thinking" : "idle"}
         />
@@ -514,34 +531,29 @@ function CollaborationPill({
                 : { duration: 0.12, ease: EASE }
           }
         >
-          {teammate.label}…
+          {completed ? teammate.result : `${teammate.label}…`}
         </motion.span>
       </motion.div>
     </motion.li>
   )
 }
 function CollaborationIllustration(playback: Playback) {
-  const [open, setOpen] = useState(0)
-  const previousStep = useRef(-1)
-  const step = playback.instant
-    ? -1
-    : playback.time < 900
-      ? -1
-      : Math.floor((playback.time - 900) / 2300)
-  useEffect(() => {
-    if (step === previousStep.current) return
-    previousStep.current = step
-    const timer = window.setTimeout(() => {
-      if (step < 0) setOpen(0)
-      else setOpen((value) => (value + 1 + Math.floor(Math.random() * 3)) % 4)
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [step])
+  const completed = playback.instant || playback.time >= 7800
+  const open = playback.instant
+    ? TEAMMATES.length - 1
+    : Math.min(
+        TEAMMATES.length - 1,
+        Math.max(0, Math.floor((playback.time - 900) / 2000))
+      )
   return (
     <div
       className={`${styles.take} ${styles.collaboration}`}
       data-dimmed={playback.dimmed || undefined}
     >
+      <div className={styles.teamBrief}>
+        <span className={styles.teamEyebrow}>Launch team</span>
+        <span>One brief. Four teammates.</span>
+      </div>
       <ul className={styles.avatarRow} key={playback.run}>
         {TEAMMATES.map((teammate, index) => (
           <CollaborationPill
@@ -549,11 +561,19 @@ function CollaborationIllustration(playback: Playback) {
             index={index}
             activeIndex={open}
             open={index === open}
-            active={playback.playing && index === open}
+            active={playback.playing && !completed && index === open}
+            completed={completed}
             instant={playback.instant}
           />
         ))}
       </ul>
+      <div
+        className={styles.teamOutcome}
+        data-complete={completed || undefined}
+      >
+        {completed ? <CheckIcon size={13} /> : <ArrowRightIcon size={13} />}
+        {completed ? "Your launch brief is ready" : "Passing the work forward"}
+      </div>
     </div>
   )
 }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { CheckIcon, Grid2X2Icon, RefreshCwIcon, SearchIcon } from "lucide-react"
 import {
   connectApp,
+  completeAppConnection,
   disconnectApp,
   listConnectorApps,
 } from "@/actions/connectors"
@@ -47,17 +48,61 @@ import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/toast"
 import { FREE_APP_LIMIT_ERROR } from "@/lib/billing-policy"
+import type { ConnectorCallback } from "@/lib/connector-callback"
 
 export function ConnectorMarketplace({
   trigger,
   children,
   initialSearch = "",
+  connectionCallback,
 }: {
   trigger?: React.ReactElement
   children?: React.ReactNode
   initialSearch?: string
+  connectionCallback?: ConnectorCallback
 } = {}) {
-  const [open, setOpen] = useState(false)
+  const router = useRouter()
+  const [open, setOpen] = useState(!!connectionCallback)
+  const [revision, setRevision] = useState(0)
+  const handledCallback = useRef(false)
+
+  useEffect(() => {
+    if (!connectionCallback || handledCallback.current) return
+    handledCallback.current = true
+    // Remove provider parameters so refresh/back navigation won't repeat a toast.
+    const url = new URL(window.location.href)
+    for (const key of [
+      "apps",
+      "connection_state",
+      "status",
+      "connected_account_id",
+    ])
+      url.searchParams.delete(key)
+    window.history.replaceState(null, "", url.href)
+    void (async () => {
+      try {
+        const connected = await completeAppConnection(connectionCallback)
+        toast.add({
+          type: connected ? "success" : "error",
+          title: connected
+            ? "Successfully connected"
+            : "Connection not completed",
+          ...(!connected && {
+            description: "Please try connecting the app again.",
+          }),
+        })
+        setRevision((value) => value + 1)
+        router.refresh()
+      } catch (error) {
+        toast.add({
+          type: "error",
+          title: "Couldn't verify the connection",
+          description:
+            error instanceof Error ? error.message : "Please refresh Apps.",
+        })
+      }
+    })()
+  }, [connectionCallback, router])
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
@@ -81,13 +126,24 @@ export function ConnectorMarketplace({
             Connect the tools your teammates need to get work done.
           </DialogDescription>
         </DialogHeader>
-        {open && <MarketplaceContent initialSearch={initialSearch} />}
+        {open && (
+          <MarketplaceContent
+            initialSearch={initialSearch}
+            refreshKey={revision}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )
 }
 
-function MarketplaceContent({ initialSearch }: { initialSearch: string }) {
+function MarketplaceContent({
+  initialSearch,
+  refreshKey,
+}: {
+  initialSearch: string
+  refreshKey: number
+}) {
   const router = useRouter()
   const generation = useRef(0)
   const [search, setSearch] = useState(initialSearch)
@@ -134,7 +190,7 @@ function MarketplaceContent({ initialSearch }: { initialSearch: string }) {
       generation.current += 1
       clearTimeout(timer)
     }
-  }, [search, tab, revision])
+  }, [search, tab, revision, refreshKey])
 
   useEffect(() => {
     if (!authorization) return

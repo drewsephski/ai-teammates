@@ -3,6 +3,7 @@ import { shadcn } from "@clerk/ui/themes"
 import { Geist_Mono } from "next/font/google"
 import localFont from "next/font/local"
 import type { Metadata } from "next"
+import { headers } from "next/headers"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -59,11 +60,14 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Every document must render per request so its scripts share the CSP nonce.
+  const nonce = (await headers()).get("x-nonce") ?? undefined
+
   return (
     <html
       lang="en"
@@ -78,6 +82,8 @@ export default function RootLayout({
     >
       <body>
         <ClerkProvider
+          dynamic
+          nonce={nonce}
           signInUrl="/sign-in"
           signUpUrl="/sign-up"
           signInFallbackRedirectUrl="/workspace"
@@ -119,7 +125,7 @@ export default function RootLayout({
             },
           }}
         >
-          <ThemeProvider>
+          <ThemeProvider nonce={nonce}>
             <TooltipProvider>{children}</TooltipProvider>
             <Toaster />
           </ThemeProvider>

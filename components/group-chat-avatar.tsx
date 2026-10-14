@@ -1,6 +1,7 @@
 import { cn } from "cn"
 
 import { ChatAvatar } from "@/components/chat-avatar"
+import type { AvatarState } from "@/lib/avatar-state"
 
 const maxVisible = 3
 
@@ -31,11 +32,21 @@ const layouts: Record<number, string[]> = {
 function GroupChatAvatar({
   seeds,
   className,
+  states = [],
+  interactive = false,
+  identities = [],
 }: {
   seeds: string[]
   className?: string
+  states?: AvatarState[]
+  interactive?: boolean
+  identities?: string[]
 }) {
-  const visible = seeds.slice(0, maxVisible)
+  const activeIndex = states.findIndex((state) => state !== "idle")
+  const indexes = seeds.slice(0, maxVisible).map((_, index) => index)
+  if (activeIndex >= maxVisible && activeIndex < seeds.length)
+    indexes[maxVisible - 1] = activeIndex
+  const visible = indexes.map((index) => seeds[index])
   const hidden = seeds.length - visible.length
   const layout = layouts[visible.length + (hidden > 0 ? 1 : 0)]
 
@@ -48,6 +59,9 @@ function GroupChatAvatar({
         <ChatAvatar
           key={`${seed}-${i}`}
           seed={seed}
+          identity={identities[indexes[i]]}
+          state={states[indexes[i]]}
+          interactive={interactive}
           className={cn("absolute", layout[i])}
         />
       ))}

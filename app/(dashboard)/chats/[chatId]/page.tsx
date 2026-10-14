@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server"
 
 import { Chat } from "@/components/chat"
 import { ChatHeader } from "@/components/chat-header"
+import { ChatActivityProvider } from "@/components/chat-activity-provider"
 import {
   BotSettingsPanel,
   BotSettingsProvider,
@@ -23,49 +24,70 @@ export default async function Page({
   const chat = await getChat(chatId)
   if (!chat) notFound()
 
+  const bots = await getBots()
+  const mentionBots = bots.map(({ id, name, avatar, job }) => ({
+    id,
+    name,
+    avatar,
+    job,
+  }))
+
   // A group has several bots and so no single desktop to show
   if (chat.kind === "group") {
-    const bots = await getBots()
-
     return (
-      <div className="flex h-svh flex-col">
-        <ChatHeader
-          chat={chat}
-          bots={bots.map(({ id, name, avatar }) => ({ id, name, avatar }))}
-        />
-        <Chat
-          chatId={chat.id}
-          name={chat.name ?? "your teammates"}
-          bots={chat.bots.map(({ id, name, avatar }) => ({ id, name, avatar }))}
-        />
-      </div>
+      <ChatActivityProvider key={chat.id}>
+        <div className="chat-surface flex h-svh flex-col">
+          <ChatHeader
+            chat={chat}
+            bots={bots.map(({ id, name, avatar }) => ({ id, name, avatar }))}
+          />
+          <Chat
+            chatId={chat.id}
+            mentionBots={mentionBots}
+            name={chat.name ?? "your teammates"}
+            bots={chat.bots.map(({ id, name, avatar }) => ({
+              id,
+              name,
+              avatar,
+            }))}
+          />
+        </div>
+      </ChatActivityProvider>
     )
   }
 
   return (
-    <DesktopPanelProvider key={chat.id} chatId={chat.id}>
-      <BotSettingsProvider>
-        {/* The group sizes itself to its parent, so the viewport height goes here */}
-        <div className="chat-surface h-svh">
-          <ResizablePanelGroup orientation="horizontal">
-            <ResizablePanel id="chat" minSize="30%">
-              <div className="flex h-full flex-col">
-                <ChatHeader chat={chat} />
-                <Chat
-                  chatId={chat.id}
-                  name={chat.name ?? chat.bots[0].name}
-                  botId={chat.bots[0].id}
-                  setup={
-                    !chat.bots[0].setupComplete || !chat.lastMessagePreview
-                  }
-                />
-              </div>
-            </ResizablePanel>
-            <DesktopPanel name={chat.bots[0].name} />
-            <BotSettingsPanel bot={chat.bots[0]} />
-          </ResizablePanelGroup>
-        </div>
-      </BotSettingsProvider>
-    </DesktopPanelProvider>
+    <ChatActivityProvider key={chat.id}>
+      <DesktopPanelProvider key={chat.id} chatId={chat.id}>
+        <BotSettingsProvider>
+          {/* The group sizes itself to its parent, so the viewport height goes here */}
+          <div className="chat-surface h-svh">
+            <ResizablePanelGroup orientation="horizontal">
+              <ResizablePanel id="chat" minSize="30%">
+                <div className="flex h-full flex-col">
+                  <ChatHeader chat={chat} />
+                  <Chat
+                    chatId={chat.id}
+                    mentionBots={mentionBots}
+                    name={chat.name ?? chat.bots[0].name}
+                    botId={chat.bots[0].id}
+                    directBot={{
+                      id: chat.bots[0].id,
+                      name: chat.bots[0].name,
+                      avatar: chat.bots[0].avatar,
+                    }}
+                    setup={
+                      !chat.bots[0].setupComplete || !chat.lastMessagePreview
+                    }
+                  />
+                </div>
+              </ResizablePanel>
+              <DesktopPanel name={chat.bots[0].name} />
+              <BotSettingsPanel bot={chat.bots[0]} />
+            </ResizablePanelGroup>
+          </div>
+        </BotSettingsProvider>
+      </DesktopPanelProvider>
+    </ChatActivityProvider>
   )
 }

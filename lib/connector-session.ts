@@ -42,7 +42,8 @@ const schemaResponse = z.object({
 export function createSessionRuntime(
   userId: string,
   accounts: ConnectorRuntime["accounts"],
-  createSession: SessionFactory
+  createSession: SessionFactory,
+  options: { readOnly?: boolean } = {}
 ): ConnectorRuntime {
   const sessions = new Map<string, Promise<Session>>()
   function sessionFor(owned: AppAccount[]) {
@@ -118,6 +119,17 @@ export function createSessionRuntime(
     },
     execute: async (owner, slug, input, account, signal) => {
       if (owner !== userId) throw new Error("Connected app owner mismatch")
+      function marksRead(value: unknown): boolean {
+        if (!value || typeof value !== "object") return false
+        return Object.entries(value).some(
+          ([key, nested]) =>
+            (/^mark(?:as)?(?:read|seen)$/i.test(key.replace(/_/g, "")) &&
+              (nested === true || nested === "true" || nested === 1)) ||
+            marksRead(nested)
+        )
+      }
+      if (options.readOnly && marksRead(input))
+        throw new Error("Read-only discovery cannot mark records as read")
       const owned = await accounts(userId)
       if (owned.find((a) => a.toolkit === account.toolkit)?.id !== account.id)
         throw new Error("Connected app account is no longer available")

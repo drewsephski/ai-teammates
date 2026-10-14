@@ -13,7 +13,6 @@ import {
 import { Progress } from "@/components/ui/progress"
 import { AppPageHeader } from "@/components/app-page-header"
 import { getUsage } from "@/lib/usage"
-import { getChatGPTStatus } from "@/lib/chatgpt-connection"
 import { ChatGPTPlanCard } from "@/components/chatgpt-plan-card"
 import { chatGPTAuthMessages } from "@/components/chatgpt-auth-option"
 
@@ -63,11 +62,7 @@ export default async function Page({
 }) {
   const { userId } = await auth.protect()
 
-  const [usage, chatgpt, params] = await Promise.all([
-    getUsage(userId),
-    getChatGPTStatus(userId),
-    searchParams,
-  ])
+  const [usage, params] = await Promise.all([getUsage(userId), searchParams])
 
   const { period, used, limits } = usage
 
@@ -104,10 +99,9 @@ export default async function Page({
           )}
           {params.chatgpt === "connected" && (
             <p role="status" className="text-sm">
-              ChatGPT account connected. Review your AI preference below.
+              ChatGPT account connected.
             </p>
           )}
-          <ChatGPTPlanCard status={chatgpt} />
           <UsageMeter
             title="AI usage"
             description="Krafty-funded model replies and web searches. ChatGPT subscription-backed model usage is excluded."
@@ -133,6 +127,7 @@ export default async function Page({
             See paid plans
           </Link>
         )}
+        <ChatGPTPlanCard />
       </div>
     </section>
   )

@@ -1,17 +1,25 @@
 import * as Sentry from "@sentry/node"
-import { metadata } from "@trigger.dev/sdk"
+import { metadata, sessions } from "@trigger.dev/sdk"
 import { chat } from "@trigger.dev/sdk/ai"
 import { isStepCount } from "ai"
-import { asc, eq } from "drizzle-orm"
+import { and, asc, eq, inArray } from "drizzle-orm"
 import { z } from "zod"
 
 import { db } from "@/db"
-import { chatMembers, chats } from "@/db/schema"
+import { bots as botTable, chatMembers, chats } from "@/db/schema"
 import { USAGE_LIMIT_ERROR } from "@/lib/billing"
 import { createHandoffTool, type Handoff } from "@/lib/handoff-tool"
 import { chatModel, chatModelCost } from "@/lib/model"
 import { createSandboxTools, type ChatUIMessage } from "@/lib/sandbox-tools"
 import { getUsage, recordUsage, type Usage } from "@/lib/usage"
+import { createTeammateConsultation } from "@/lib/teammate-consultation"
+import {
+  composerInstructions,
+  mentionsSchema,
+  validateMentionRanges,
+  resolveMentionedBots,
+  type BotMention,
+} from "@/lib/composer"
 import { createDelegationTools } from "@/lib/team-delegation"
 import { createConnectorTools } from "@/lib/composio"
 import { createBotSetupTools, botSetupMessageId } from "@/lib/bot-setup-tools"
@@ -40,6 +48,7 @@ const clientDataSchema = z
   .object({
     // The bot a group chat's message is addressed to
     botId: z.string().optional(),
+    mentions: mentionsSchema.optional(),
   })
   .optional()
 
@@ -67,9 +76,12 @@ async function getChatBots(chatId: string, botId?: string) {
 const turnModelUsage = chat.local<{
   cost: number
   webCost: number
+  consultationCost: number
   messageId: string
   usageKey: string
   chatgpt: boolean
+  composerText: string
+  mentions: BotMention[]
   followUps?: { signal: AbortSignal }
 }>({
   id: "chat-turn-model-cost",
@@ -98,20 +110,31 @@ export const chatAgent = chat
       turnModelUsage.init({
         cost: 0,
         webCost: 0,
+        consultationCost: 0,
         messageId: "",
         usageKey: "",
         chatgpt: false,
+        composerText: "",
+        mentions: [],
       })
     },
     onTurnStart: ({ uiMessages, runId, turn }) => {
       turnModelUsage.usageKey = `ai:${runId}:${turn}`
       turnModelUsage.cost = 0
       turnModelUsage.webCost = 0
+      turnModelUsage.consultationCost = 0
       turnModelUsage.chatgpt = false
       turnModelUsage.followUps = undefined
       const latest = uiMessages.findLast((message) => message.role === "user")
       if (!latest) throw new Error("No task to delegate")
       turnModelUsage.messageId = latest.id
+      turnModelUsage.composerText = latest.parts
+        .flatMap((part) => (part.type === "text" ? [part.text] : []))
+        .join("\n")
+      turnModelUsage.mentions = validateMentionRanges(
+        turnModelUsage.composerText,
+        latest.metadata?.mentions
+      )
     },
     // Declared here so screenshots stay images when earlier turns are replayed
     tools: async ({ chatId, clientData }) => {
@@ -156,8 +179,33 @@ export const chatAgent = chat
         sourceName: bot.name,
         messageId: () => turnModelUsage.messageId,
       })
+      const consultationTools = createTeammateConsultation({
+        userId,
+        chatId,
+        sourceBotId: bot.id,
+        usageKey: () => turnModelUsage.usageKey,
+        unrecordedCost: () => turnModelUsage.cost,
+        onCost: (cost) => {
+          turnModelUsage.consultationCost += cost
+        },
+      })
+      const sourceConfig = (await sessions.retrieve(chatId)).metadata?.forYou
+      const source =
+        sourceConfig === undefined
+          ? undefined
+          : z
+              .object({
+                toolkit: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,99}$/),
+                accountId: z.string().min(1).max(200),
+              })
+              .parse(sourceConfig)
       const connectorTools = process.env.COMPOSIO_API_KEY
-        ? createConnectorTools(userId)
+        ? createConnectorTools(
+            userId,
+            source
+              ? { accountBindings: { [source.toolkit]: source.accountId } }
+              : {}
+          )
         : {}
       const webTools = process.env.TAVILY_API_KEY?.trim()
         ? createWebTools(
@@ -192,6 +240,7 @@ export const chatAgent = chat
       const sharedTools = {
         ...sandboxTools,
         ...teamTools,
+        ...consultationTools,
         ...connectorTools,
         ...webTools,
         ...setupTools,
@@ -379,6 +428,7 @@ export const chatAgent = chat
           // Millionths of a dollar, as in the usage ledger
           "usage.cost": turnModelUsage.cost,
           "usage.web_cost": turnModelUsage.webCost,
+          "usage.consultation_cost": turnModelUsage.consultationCost,
         }),
       })
 
@@ -401,6 +451,23 @@ export const chatAgent = chat
       } = await getChatBots(chatId, clientData?.botId)
       const group = row.kind === "group" ? { chat: row, bots } : undefined
       metadata.set("botId", bot.id)
+      const mentioned = await resolveMentionedBots(
+        turnModelUsage.composerText,
+        turnModelUsage.mentions,
+        (ids) =>
+          db
+            .select({ id: botTable.id, name: botTable.name, job: botTable.job })
+            .from(botTable)
+            .where(
+              and(eq(botTable.userId, row.userId), inArray(botTable.id, ids))
+            )
+      )
+      const composerContext = composerInstructions(
+        turnModelUsage.composerText,
+        mentioned,
+        bot.id,
+        turnModelUsage.mentions
+      )
 
       // Every turn, as a session outlives the plan it was started on
       const usage = await getUsage(row.userId)
@@ -451,13 +518,18 @@ export const chatAgent = chat
           model: subscriptionModel ?? chatModel(messages),
           maxRetries: chatgptSelected ? 0 : undefined,
           // The managed streamText takes the prompt as `system` on every AI SDK version
-          system: buildChatInstructions(
-            bot,
-            group,
-            appToolsAvailable,
-            usage.tier === "paid",
-            webToolsAvailable
-          ),
+          system: [
+            buildChatInstructions(
+              bot,
+              group,
+              appToolsAvailable,
+              usage.tier === "paid",
+              webToolsAvailable
+            ),
+            composerContext,
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
           messages,
           tools,
           // After a handoff the rest of the turn is the other bot's to answer
@@ -481,13 +553,18 @@ export const chatAgent = chat
             return {
               model: subscriptionModel ?? chatModel(messages),
               ...(updated && {
-                instructions: buildChatInstructions(
-                  updated,
-                  group,
-                  appToolsAvailable,
-                  usage.tier === "paid",
-                  webToolsAvailable
-                ),
+                instructions: [
+                  buildChatInstructions(
+                    updated,
+                    group,
+                    appToolsAvailable,
+                    usage.tier === "paid",
+                    webToolsAvailable
+                  ),
+                  composerContext,
+                ]
+                  .filter(Boolean)
+                  .join("\n\n"),
               }),
             }
           },
@@ -516,7 +593,9 @@ export const chatAgent = chat
             // A long turn ends once it has spent what was left
             () =>
               !chatgptSelected &&
-              turnModelUsage.cost + turnModelUsage.webCost >=
+              turnModelUsage.cost +
+                turnModelUsage.webCost +
+                turnModelUsage.consultationCost >=
                 usage.remaining.ai,
           ],
           abortSignal: signal,

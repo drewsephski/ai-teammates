@@ -7,17 +7,41 @@ import { WorkspaceBots } from "@/components/workspace-bots"
 import { WorkspacePresets } from "@/components/workspace-presets"
 import { WorkspaceRefresh } from "@/components/workspace-refresh"
 import { getWorkspaceBots } from "@/queries/workspace"
+import { getWorkspaceApps } from "@/queries/workspace-apps"
+import { WorkspaceApps } from "@/components/workspace-apps"
+import { WorkspaceForYou } from "@/components/workspace-for-you"
 
 export default async function WorkspacePage({
   searchParams,
 }: {
-  searchParams: Promise<{ role?: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   await auth.protect()
 
-  const { role } = await searchParams
+  const params = await searchParams
+  const { role } = params
+  const connectionCallback =
+    params.apps === "connect"
+      ? {
+          state:
+            typeof params.connection_state === "string"
+              ? params.connection_state
+              : "",
+          status:
+            params.status === "success"
+              ? ("success" as const)
+              : ("failed" as const),
+          accountId:
+            typeof params.connected_account_id === "string"
+              ? params.connected_account_id
+              : "",
+        }
+      : undefined
   const preset = botPresets.find((preset) => preset.id === role)
-  const bots = await getWorkspaceBots()
+  const [bots, connections] = await Promise.all([
+    getWorkspaceBots(),
+    getWorkspaceApps(),
+  ])
 
   return (
     <section className="flex min-h-svh flex-col">
@@ -29,6 +53,24 @@ export default async function WorkspacePage({
       <WorkspaceRefresh />
       <div className="mx-auto w-full max-w-4xl space-y-10 px-4 py-8 sm:px-6 sm:py-10">
         <WorkspaceBots bots={bots} />
+        <div className="flex justify-center">
+          <CreateBotButton size="lg">Create bot</CreateBotButton>
+        </div>
+        <WorkspaceForYou
+          apps={connections.apps.map(({ slug, name, accountId }) => ({
+            slug,
+            name,
+            accountId,
+          }))}
+          botIds={bots
+            .filter((bot) => bot.activity !== "setup")
+            .map((bot) => bot.id)}
+          appsUnavailable={connections.unavailable}
+        />
+        <WorkspaceApps
+          {...connections}
+          connectionCallback={connectionCallback}
+        />
         <WorkspacePresets presetId={preset?.id} />
       </div>
     </section>

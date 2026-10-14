@@ -7,12 +7,30 @@ import type { WorkspaceBot } from "../lib/workspace-activity"
 
 afterEach(cleanup)
 
+Object.defineProperty(globalThis, "self", { configurable: true, value: window })
+Object.defineProperty(globalThis, "IntersectionObserver", {
+  configurable: true,
+  value: class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+})
+Object.defineProperty(window, "matchMedia", {
+  configurable: true,
+  value: () => ({
+    matches: false,
+    addEventListener() {},
+    removeEventListener() {},
+  }),
+})
+
 const bots: WorkspaceBot[] = [
   {
     id: "scout",
     name: "Scout",
     job: "Research assistant",
-    avatar: "test",
+    avatar: "blob:egg:0",
     chatId: "research",
     activity: "working",
   },
@@ -20,7 +38,7 @@ const bots: WorkspaceBot[] = [
     id: "quill",
     name: "Quill",
     job: "Writing editor",
-    avatar: "test",
+    avatar: "blob:egg:0",
     chatId: "writing",
     activity: "ready",
   },
@@ -29,7 +47,7 @@ const bots: WorkspaceBot[] = [
 test("workspace lists actual bots and running filter keeps chat navigation intact", () => {
   const view = render(<WorkspaceBots bots={bots} />)
   assert.equal(view.getAllByRole("link").length, 2)
-  fireEvent.click(view.getByRole("button", { name: "Running 1" }))
+  fireEvent.click(view.getByRole("button", { name: /^Running/ }))
   assert.equal(view.getAllByRole("link").length, 1)
   assert.equal(
     view.getByRole("link", { name: "Open Scout" }).getAttribute("href"),

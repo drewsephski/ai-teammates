@@ -3,14 +3,11 @@
 import { useChat } from "@ai-sdk/react"
 import * as Sentry from "@sentry/nextjs"
 import type { TriggerChatTransport } from "@trigger.dev/sdk/chat"
-import {
-  useLoadTranscript,
-  useTriggerChatTransport,
-} from "@trigger.dev/sdk/chat/react"
+import { useTriggerChatTransport } from "@trigger.dev/sdk/chat/react"
 import { isToolUIPart } from "ai"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowUpIcon, SquareIcon } from "lucide-react"
+import { ArrowUpIcon, SquareIcon, UsersRoundIcon } from "lucide-react"
 import { toast } from "@/components/ui/toast"
 
 import {
@@ -19,7 +16,16 @@ import {
   startChatSession,
 } from "@/actions/chat"
 
+import { ChatComposer } from "@/components/chat-composer"
+import type { BotMention, MentionBot } from "@/lib/composer"
 import { ChatAvatar } from "@/components/chat-avatar"
+import { usePublishChatActivity } from "@/components/chat-activity-provider"
+import {
+  chatActivity,
+  chatAuthorSections,
+  type ChatActivity,
+} from "@/lib/chat-activity"
+import { avatarStatusLabels } from "@/lib/avatar-state"
 import {
   Conversation,
   ConversationContent,
@@ -32,7 +38,6 @@ import {
   MessageResponse,
 } from "@/components/ai-elements/message"
 import {
-  PromptInput,
   PromptInputProvider,
   PromptInputFooter,
   type PromptInputMessage,
@@ -42,7 +47,6 @@ import {
   PromptInputSelectTrigger,
   PromptInputSelectValue,
   PromptInputSubmit,
-  PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input"
 import { ToolCall } from "@/components/chat-tool-call"
@@ -53,7 +57,7 @@ import { Button } from "@/components/ui/button"
 import { botSetupMessageId } from "@/lib/bot-setup-tools"
 import { cn } from "@/lib/utils"
 import { BotMark } from "@/components/landing/bot/bot-mark"
-import { TextShimmer } from "@/components/ai-elements/shimmer"
+import { Spiral } from "@/components/ui/spiral"
 import { isChatThinking } from "@/lib/chat-thinking"
 import { seenMessageIds } from "@/lib/chat-receipts"
 import { Badge } from "@/components/ui/badge"
@@ -65,58 +69,31 @@ import {
   CHATGPT_REQUEST_ERROR,
 } from "@/lib/chatgpt-policy"
 import { usePaywall } from "@/hooks/use-paywall"
+import { useChatSession } from "@/hooks/use-chat-session"
+import { useResumeChatStream } from "@/hooks/use-resume-chat-stream"
+import { navigationChatTransport } from "@/lib/chat-transport"
 import type { ChatUIMessage } from "@/lib/sandbox-tools"
 import type { chatAgent } from "@/trigger/chat"
 
 type ChatBot = Pick<Bot, "id" | "name" | "avatar">
 
-function ChatThinking({ delay = 0 }: { delay?: number }) {
-  const [visible, setVisible] = useState(delay === 0)
-  useEffect(() => {
-    if (delay === 0) return
-    const timer = setTimeout(() => setVisible(true), delay)
-    return () => clearTimeout(timer)
-  }, [delay])
-
-  if (!visible) return null
-
+function ChatLoading() {
   return (
-    <div role="status" className="text-sm text-muted-foreground">
-      <TextShimmer
-        baseColor="var(--muted-foreground)"
-        shimmerColor="var(--foreground)"
-      >
-        Thinking…
-      </TextShimmer>
+    <div
+      role="status"
+      aria-busy="true"
+      className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center"
+    >
+      <Spiral
+        role="presentation"
+        aria-hidden="true"
+        className="size-12 text-muted-foreground"
+      />
+      <p className="text-sm text-muted-foreground">
+        Opening your conversation…
+      </p>
     </div>
   )
-}
-
-// A reply is one message even when a handoff changes who is writing it, so it
-// is cut at each handoff and every stretch gets its own author. Only a group
-// chat passes bots, so only its replies get a face.
-function splitByAuthor(message: ChatUIMessage, bots: ChatBot[]) {
-  const findBot = (botId?: string) => bots.find((bot) => bot.id === botId)
-
-  let section = {
-    author:
-      message.role === "assistant"
-        ? findBot(message.metadata?.botId)
-        : undefined,
-    parts: [] as ChatUIMessage["parts"],
-  }
-  const sections = [section]
-
-  for (const part of message.parts) {
-    section.parts.push(part)
-
-    if (part.type === "tool-handoff" && part.state === "output-available") {
-      section = { author: findBot(part.output.botId), parts: [] }
-      sections.push(section)
-    }
-  }
-
-  return sections
 }
 
 // `bots` are a group chat's members to pick from; a direct chat passes none
@@ -126,12 +103,16 @@ function Chat({
   bots,
   setup = false,
   botId,
+  directBot,
+  mentionBots = [],
 }: {
   chatId: string
   name: string
   bots?: ChatBot[]
   setup?: boolean
   botId?: string
+  directBot?: ChatBot
+  mentionBots?: MentionBot[]
 }) {
   const transport = useTriggerChatTransport<typeof chatAgent>({
     task: "chat",
@@ -139,57 +120,24 @@ function Chat({
     startSession: ({ chatId, clientData }) =>
       startChatSession({ chatId, clientData }),
   })
-  const [startup, setStartup] = useState<{ chatId: string; error?: string }>()
   const [attempt, setAttempt] = useState(0)
-  useEffect(() => {
-    if (!setup) return
-    let current = true
-    transport
-      .preload(chatId)
-      .then(() => {
-        // The SDK assumes a preloaded session is idle. Our server starts its
-        // opening turn immediately, so let the server decide when it is settled.
-        const session = transport.getSession(chatId)
-        if (session) {
-          const resumable = { ...session }
-          delete resumable.isStreaming
-          transport.setSession(chatId, resumable)
-        }
-        if (current) setStartup({ chatId })
-      })
-      .catch(() => {
-        if (current)
-          setStartup({
-            chatId,
-            error: "Couldn't start your setup conversation.",
-          })
-      })
-    return () => {
-      current = false
-    }
-  }, [chatId, setup, transport, attempt])
-  const { messages, isLoading, error } = useLoadTranscript(
+  const { messages, isLoading, error } = useChatSession({
     chatId,
+    transport,
     loadTranscript,
-    {
-      transport,
-    }
-  )
+    attempt,
+  })
 
-  if (error || (setup && startup?.chatId === chatId && startup.error))
+  if (error)
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
         <p className="text-sm text-muted-foreground">
-          {error ? "Couldn't load your conversation." : startup?.error}
+          {"Couldn't load your conversation."}
         </p>
         <Button
           variant="outline"
           onClick={() => {
-            if (error) window.location.reload()
-            else {
-              setStartup(undefined)
-              setAttempt((value) => value + 1)
-            }
+            setAttempt((value) => value + 1)
           }}
         >
           Try again
@@ -198,14 +146,7 @@ function Chat({
     )
 
   // useChat only reads its initial messages on mount, so wait for the transcript
-  if (isLoading || (setup && startup?.chatId !== chatId))
-    return (
-      <Conversation>
-        <ConversationContent className="mx-auto w-full max-w-xl px-5 py-8 sm:px-8">
-          <ChatThinking />
-        </ConversationContent>
-      </Conversation>
-    )
+  if (isLoading) return <ChatLoading />
 
   return (
     <ChatMessages
@@ -215,6 +156,8 @@ function Chat({
       bots={bots}
       setup={setup}
       botId={botId}
+      directBot={directBot}
+      mentionBots={mentionBots}
       initialMessages={messages}
       transport={transport}
     />
@@ -229,6 +172,8 @@ function ChatMessages({
   transport,
   setup,
   botId: directBotId,
+  directBot,
+  mentionBots = [],
 }: {
   chatId: string
   name: string
@@ -237,9 +182,21 @@ function ChatMessages({
   transport: TriggerChatTransport
   setup: boolean
   botId?: string
+  directBot?: ChatBot
+  mentionBots?: MentionBot[]
 }) {
   const router = useRouter()
   const { checkPlan, showUsageLimit } = usePaywall()
+  const publishActivity = usePublishChatActivity()
+  const [completion, setCompletion] = useState<ChatActivity>()
+  const identities = directBot
+    ? [directBot, ...bots, ...mentionBots]
+    : [...bots, ...mentionBots]
+  const fallbackBotId = directBotId ?? bots[0]?.id
+  const chatTransport = useMemo(
+    () => navigationChatTransport(transport),
+    [transport]
+  )
   const {
     messages,
     sendMessage,
@@ -249,9 +206,20 @@ function ChatMessages({
   } = useChat<ChatUIMessage>({
     id: chatId,
     messages: initialMessages,
-    transport,
+    transport: chatTransport,
     onFinish: ({ message, isAbort, isError }) => {
       if (isAbort || isError) return
+      const finished = chatActivity([message], "ready", {
+        botIds: identities.map((bot) => bot.id),
+        fallbackBotId,
+        seen: new Set(),
+      })
+      if (
+        finished.state !== "waiting" &&
+        finished.botId &&
+        message.parts.some((part) => part.type === "text" && part.text.trim())
+      )
+        setCompletion({ ...finished, state: "complete" })
       if (
         message.parts.some(
           (part) =>
@@ -280,6 +248,7 @@ function ChatMessages({
     },
     // The agent refuses a turn once the period's allowance is spent
     onError: (error) => {
+      setCompletion(undefined)
       if (error.message === USAGE_LIMIT_ERROR) return showUsageLimit("ai")
       if (
         [
@@ -313,26 +282,13 @@ function ChatMessages({
       })
     },
   })
-  useEffect(() => {
-    if (!setup) return
-    // Automatic resume races the subscription aborted by Strict Mode cleanup.
-    // Defer one task: the simulated mount is cancelled before opening a stream.
-    const timer = setTimeout(() => {
-      const session = transport.getSession(chatId)
-      if (
-        session &&
-        !initialMessages.some((message) => message.role === "assistant")
-      )
-        transport.setSession(chatId, {
-          ...session,
-          isStreaming: true,
-          // The server submits the opening turn before any client input.
-          activeInputSeq: 0,
-        })
-      void resumeStream()
-    }, 0)
-    return () => clearTimeout(timer)
-  }, [chatId, initialMessages, resumeStream, setup, transport])
+  useResumeChatStream({
+    chatId,
+    initialMessages,
+    resumeStream,
+    setup,
+    transport,
+  })
   // The bot the next message goes to, in a group chat
   const [botId, setBotId] = useState(bots[0]?.id)
   const [setupStopped, setSetupStopped] = useState(false)
@@ -361,25 +317,79 @@ function ChatMessages({
     status === "ready" && !pendingQuestion && !setupStopped
       ? latestFollowUps(visibleMessages)
       : undefined
-  const latestUser = visibleMessages.findLast(
-    (message) => message.role === "user"
-  )
   const thinking = isChatThinking(
     visibleMessages,
     status,
     setup && !setupStopped,
     seen
   )
+  const liveActivity = chatActivity(visibleMessages, status, {
+    botIds: identities.map((bot) => bot.id),
+    fallbackBotId,
+    seen,
+    setup: setup && !setupStopped,
+  })
+  const activity =
+    liveActivity.state === "idle" &&
+    completion?.messageId === liveActivity.messageId
+      ? (completion ?? liveActivity)
+      : liveActivity
+  const activeAuthor = identities.find((bot) => bot.id === activity.botId)
+  const activeMessage = visibleMessages.find(
+    (message) => message.id === activity.messageId
+  )
+  const activeParts = activeMessage
+    ? (chatAuthorSections(activeMessage, fallbackBotId)[
+        activity.sectionIndex ?? 0
+      ]?.parts ?? [])
+    : []
+  const responseHasAvatar = activeParts.some(
+    (part) => (part.type === "text" && part.text.trim()) || isToolUIPart(part)
+  )
+  const {
+    state: activityState,
+    botId: activityBotId,
+    messageId: activityMessageId,
+    sectionIndex: activitySectionIndex,
+  } = activity
+  useEffect(() => {
+    publishActivity?.({
+      state: activityState,
+      botId: activityBotId,
+      messageId: activityMessageId,
+      sectionIndex: activitySectionIndex,
+    })
+  }, [
+    publishActivity,
+    activityState,
+    activityBotId,
+    activityMessageId,
+    activitySectionIndex,
+  ])
+  useEffect(() => () => publishActivity?.({ state: "idle" }), [publishActivity])
+  useEffect(() => {
+    if (!completion) return
+    const timer = setTimeout(() => setCompletion(undefined), 1200)
+    return () => clearTimeout(timer)
+  }, [completion])
 
-  function answerQuestion(questionId: string, answer: string) {
+  function answerQuestion(
+    questionId: string,
+    answer: string,
+    mentions: BotMention[] = []
+  ) {
     if (!checkPlan("bots")) return false
+    setCompletion(undefined)
+    const responder = activity.state === "waiting" ? activeAuthor : selectedBot
     const metadata = {
       questionId,
-      ...(selectedBot && { botId: selectedBot.id }),
+      mentions,
+      ...(responder && { botId: responder.id }),
     }
     sendMessage({ text: answer, metadata }, { metadata })
   }
   function stop() {
+    setCompletion(undefined)
     setSetupStopped(true)
     stopLocal()
     transport.stopGeneration(chatId).catch(() =>
@@ -391,17 +401,18 @@ function ChatMessages({
     )
   }
 
-  function handleSubmit(message: PromptInputMessage) {
+  function handleSubmit(message: PromptInputMessage, mentions: BotMention[]) {
     if (!message.text.trim()) return false
     // Throwing keeps the draft in the input
     if (!checkPlan("bots")) throw new Error("Upgrade required")
+    setCompletion(undefined)
     setSetupStopped(false)
     if (pendingQuestion?.type === "tool-askUser") {
-      return answerQuestion(pendingQuestion.toolCallId, message.text)
+      return answerQuestion(pendingQuestion.toolCallId, message.text, mentions)
     }
     // The agent reads this turn's metadata to decide which bot answers
     // and the message keeps it too, to show who it was for
-    const metadata = selectedBot && { botId: selectedBot.id }
+    const metadata = { ...(selectedBot && { botId: selectedBot.id }), mentions }
     sendMessage({ text: message.text, metadata }, { metadata })
   }
 
@@ -434,116 +445,195 @@ function ChatMessages({
                 ? bots.find((bot) => bot.id === message.metadata?.botId)
                 : undefined
 
-            return splitByAuthor(message, bots).map(({ author, parts }, i) => {
-              const renderedParts = parts.map((part, j) => {
-                if (part.type === "text") {
-                  if (!part.text.trim()) return null
-                  return (
-                    <MessageResponse
-                      key={`${message.id}-${i}-${j}`}
-                      // Flows the first paragraph inline, right after the tag
-                      className={cn(
-                        message.role === "assistant" &&
-                          "rounded-xl bg-muted/30 px-3 py-2",
-                        addressee && j === 0
-                          ? "inline [&>p:first-child]:inline"
-                          : message.role === "assistant" && j > 0
-                            ? "mt-2"
-                            : undefined
-                      )}
-                    >
-                      {part.text}
-                    </MessageResponse>
-                  )
-                }
-                if (part.type === "tool-askUser") {
-                  if (
-                    part.state !== "output-available" ||
-                    pendingQuestion?.type !== "tool-askUser" ||
-                    pendingQuestion.toolCallId !== part.toolCallId
-                  )
-                    return null
-                  return (
-                    <ChatQuestion
-                      key={part.toolCallId}
-                      part={part}
-                      active={
-                        pendingQuestion?.type === "tool-askUser" &&
-                        pendingQuestion.toolCallId === part.toolCallId
-                      }
-                      busy={busy}
-                      onAnswer={(answer) =>
-                        answerQuestion(part.toolCallId, answer)
-                      }
-                      onDismiss={() =>
-                        answerQuestion(
-                          part.toolCallId,
-                          "I'd prefer to explain in the chat instead of choosing an option."
-                        )
-                      }
-                    />
-                  )
-                }
-                if (part.type !== "dynamic-tool" && isToolUIPart(part)) {
-                  return <ToolCall key={part.toolCallId} part={part} />
-                }
-                return null
-              })
+            return chatAuthorSections(message, fallbackBotId).map(
+              ({ botId: authorId, parts }, i) => {
+                const contribution = parts.some(
+                  (part) =>
+                    part.type === "tool-consultTeammate" &&
+                    part.state === "output-available"
+                )
+                const author =
+                  message.role === "assistant"
+                    ? identities.find((bot) => bot.id === authorId)
+                    : undefined
+                const current =
+                  activity.messageId === message.id &&
+                  activity.sectionIndex === i &&
+                  activity.botId === author?.id
+                const renderedParts = parts.map((part, j) => {
+                  if (part.type === "text") {
+                    if (!part.text.trim()) return null
+                    return (
+                      <MessageResponse
+                        key={`${message.id}-${i}-${j}`}
+                        // Flows the first paragraph inline, right after the tag
+                        className={cn(
+                          message.role === "assistant" &&
+                            "rounded-xl bg-muted/30 px-3 py-2",
+                          addressee && j === 0
+                            ? "inline [&>p:first-child]:inline"
+                            : message.role === "assistant" && j > 0
+                              ? "mt-2"
+                              : undefined
+                        )}
+                      >
+                        {message.role === "user"
+                          ? (message.metadata?.displayPrompt ?? part.text)
+                          : part.text}
+                      </MessageResponse>
+                    )
+                  }
+                  if (part.type === "tool-askUser") {
+                    if (
+                      part.state !== "output-available" ||
+                      pendingQuestion?.type !== "tool-askUser" ||
+                      pendingQuestion.toolCallId !== part.toolCallId
+                    )
+                      return null
+                    return (
+                      <ChatQuestion
+                        key={part.toolCallId}
+                        part={part}
+                        active={
+                          pendingQuestion?.type === "tool-askUser" &&
+                          pendingQuestion.toolCallId === part.toolCallId
+                        }
+                        busy={busy}
+                        onAnswer={(answer) =>
+                          answerQuestion(part.toolCallId, answer)
+                        }
+                        onDismiss={() =>
+                          answerQuestion(
+                            part.toolCallId,
+                            "I'd prefer to explain in the chat instead of choosing an option."
+                          )
+                        }
+                      />
+                    )
+                  }
+                  if (part.type !== "dynamic-tool" && isToolUIPart(part)) {
+                    return <ToolCall key={part.toolCallId} part={part} />
+                  }
+                  return null
+                })
 
-              if (!renderedParts.some(Boolean)) return null
+                if (!renderedParts.some(Boolean)) return null
 
-              return (
-                <Message
-                  from={message.role}
-                  key={`${message.id}-${i}`}
-                  className={author && "flex-row items-start"}
-                >
-                  {author && (
-                    <ChatAvatar seed={author.avatar} className="size-6" />
-                  )}
-                  <MessageContent
+                return (
+                  <Message
+                    from={message.role}
+                    key={`${message.id}-${i}`}
                     className={
-                      message.role === "assistant" ? "w-full gap-2" : undefined
+                      author || contribution
+                        ? "flex-row items-start"
+                        : undefined
                     }
                   >
-                    {addressee ? (
-                      // One block, so the tag and the text share a line and the text wraps under it
-                      <div>
-                        <Badge
-                          variant="outline"
-                          className="mr-1.5 max-w-40 pl-1 align-top"
-                        >
-                          <ChatAvatar
-                            seed={addressee.avatar}
-                            className="size-3.5"
-                          />
-                          <span className="truncate">{addressee.name}</span>
-                        </Badge>
-                        {renderedParts}
-                      </div>
-                    ) : (
-                      renderedParts
+                    {author && (
+                      <ChatAvatar
+                        seed={author.avatar}
+                        identity={author.id}
+                        state={current ? activity.state : "idle"}
+                        className="mt-1 size-6"
+                      />
                     )}
-                  </MessageContent>
-                  {message.role === "user" && seen.has(message.id) && (
-                    <span
-                      className="pr-1 text-right text-[11px] leading-none text-muted-foreground"
-                      aria-live="polite"
+                    {!author && contribution && (
+                      <UsersRoundIcon
+                        aria-hidden="true"
+                        className="mt-1 size-6 shrink-0 text-muted-foreground"
+                      />
+                    )}
+                    <MessageContent
+                      className={
+                        message.role === "assistant"
+                          ? "w-full gap-2"
+                          : undefined
+                      }
                     >
-                      Seen
-                    </span>
-                  )}
-                </Message>
-              )
-            })
+                      {author && !contribution && (
+                        <span className="sr-only">{author.name}</span>
+                      )}
+                      {message.role === "user" &&
+                      message.metadata?.mentions?.length ? (
+                        <div className="flex flex-wrap gap-1">
+                          {[
+                            ...new Set(
+                              message.metadata.mentions.map(
+                                (mention) => mention.botId
+                              )
+                            ),
+                          ].map((id) => {
+                            const tagged = mentionBots.find(
+                              (bot) => bot.id === id
+                            )
+                            return (
+                              <Badge
+                                key={id}
+                                variant="outline"
+                                className="max-w-48"
+                              >
+                                <span className="truncate">
+                                  @{tagged?.name ?? "Deleted teammate"}
+                                </span>
+                              </Badge>
+                            )
+                          })}
+                        </div>
+                      ) : null}
+                      {addressee ? (
+                        // One block, so the tag and the text share a line and the text wraps under it
+                        <div>
+                          <Badge
+                            variant="outline"
+                            className="mr-1.5 max-w-40 pl-1 align-top"
+                          >
+                            <ChatAvatar
+                              seed={addressee.avatar}
+                              className="size-3.5"
+                            />
+                            <span className="truncate">{addressee.name}</span>
+                          </Badge>
+                          {renderedParts}
+                        </div>
+                      ) : (
+                        renderedParts
+                      )}
+                    </MessageContent>
+                    {message.role === "user" && seen.has(message.id) && (
+                      <span
+                        className="pr-1 text-right text-[11px] leading-none text-muted-foreground"
+                        aria-live="polite"
+                      >
+                        Seen
+                      </span>
+                    )}
+                  </Message>
+                )
+              }
+            )
           })}
-          {thinking && (
-            // Let Seen paint before the shimmer starts; a new prompt remounts
-            // the timer, and an early response or stop cancels it.
-            <ChatThinking
-              key={latestUser?.id ?? "setup"}
-              delay={latestUser ? 350 : 0}
-            />
+          {activity.state !== "idle" && activity.state !== "error" && (
+            // The live response owns its avatar once it has visible content.
+            <div
+              className="flex min-h-7 items-center gap-2 text-xs text-muted-foreground"
+              data-slot="chat-activity"
+              data-state={activity.state}
+            >
+              {activeAuthor && (thinking || !responseHasAvatar) && (
+                <ChatAvatar
+                  seed={activeAuthor.avatar}
+                  identity={activeAuthor.id}
+                  state={activity.state}
+                  className="size-6"
+                />
+              )}
+              <span>
+                {activeAuthor && bots.length > 0
+                  ? `${activeAuthor.name} · `
+                  : ""}
+                {avatarStatusLabels[activity.state]}
+              </span>
+            </div>
           )}
         </ConversationContent>
         <ConversationScrollButton />
@@ -563,16 +653,19 @@ function ChatMessages({
               }}
             />
           )}
-          <PromptInput onSubmit={handleSubmit}>
-            <PromptInputTextarea
-              ref={inputRef}
-              placeholder={`Message ${name}…`}
-              className={
-                selectedBot
-                  ? "min-h-14 px-3 text-base sm:text-sm"
-                  : "min-h-10 px-3 py-2.5 pr-14 text-base sm:text-sm"
-              }
-            />
+          <ChatComposer
+            onSubmit={handleSubmit}
+            bots={mentionBots}
+            memberIds={identities.map((bot) => bot.id)}
+            responderId={selectedBot?.id ?? directBotId}
+            inputRef={inputRef}
+            placeholder={`Message ${name}…`}
+            textareaClassName={
+              selectedBot
+                ? "min-h-14 px-3 text-base sm:text-sm"
+                : "min-h-10 px-3 py-2.5 pr-14 text-base sm:text-sm"
+            }
+          >
             <PromptInputFooter
               className={
                 selectedBot
@@ -590,6 +683,7 @@ function ChatMessages({
                       <PromptInputSelectValue>
                         <ChatAvatar
                           seed={selectedBot.avatar}
+                          interactive
                           className="size-5"
                         />
                         {selectedBot.name}
@@ -614,7 +708,7 @@ function ChatMessages({
                 )}
               </PromptInputSubmit>
             </PromptInputFooter>
-          </PromptInput>
+          </ChatComposer>
         </PromptInputProvider>
       </div>
     </div>

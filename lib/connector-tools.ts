@@ -241,6 +241,8 @@ export function createAppTools(userId: string, runtime: ConnectorRuntime) {
           return boundedResult({
             ...envelope,
             status,
+            toolkit: entry.toolkit,
+            accountId: account.id,
             ...(status !== "succeeded" && {
               message:
                 status === "unknown"

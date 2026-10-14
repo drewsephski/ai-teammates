@@ -3,6 +3,38 @@ import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          // The proxy adds the nonce-based script policy to page responses.
+          // Keep these protections on assets, redirects and API responses too.
+          {
+            key: "Content-Security-Policy",
+            value: "base-uri 'self'; object-src 'none'; frame-ancestors 'none'",
+          },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          ...(process.env.NODE_ENV === "production"
+            ? [
+                {
+                  key: "Strict-Transport-Security",
+                  // Limit HSTS to this HTTPS host; do not preload subdomains.
+                  value: "max-age=31536000",
+                },
+              ]
+            : []),
+        ],
+      },
+      {
+        source:
+          "/:path(sign-in|sign-up|workspace|usage|chats|pricing|auth|api)/:rest*",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      },
+    ]
+  },
 }
 
 export default withSentryConfig(nextConfig, {
