@@ -13,7 +13,7 @@ Requests go to Tavily's fixed HTTPS API, never directly to a model-supplied dest
 
 ## Research behavior
 
-System instructions tell every configured bot, including group-chat handoff recipients, to search for current/changeable facts, explicit research requests and uncertain subjects; skip browsing for stable tasks such as rewriting supplied text; read sources before quoting or relying on detailed claims; prefer primary sources; cite retrieved source URLs; and distinguish evidence from inference. Bots honor requests not to browse and treat all external content as untrusted data rather than instructions. The current UTC date is included in the prompt.
+System instructions tell every bot, including unfinished setup chats and group-chat handoff recipients, to search for current/changeable facts, explicit research requests and uncertain subjects; skip browsing for stable tasks such as rewriting supplied text; read sources before quoting or relying on detailed claims; prefer primary sources; cite retrieved source URLs; and distinguish evidence from inference. Bots honor requests not to browse and treat all external content as untrusted data rather than instructions. The current UTC date is included in the prompt.
 
 ## Cost and failure handling
 
@@ -33,6 +33,6 @@ pnpm lint
 pnpm exec tsx --env-file=.env.local scripts/verify-web-agent.ts
 ```
 
-The live script checks search and extraction, current-information search/read/citation behavior, direct reading of supplied URLs, and no browsing for a rewrite. It outputs check summaries rather than credentials or raw provider bodies. The focused tests cover malformed responses, provider errors, URL/input validation, output bounds, cancellation, timeouts, allowance enforcement, usage accounting, and parallel calls.
+The live script checks search and extraction, research during unfinished setup without saving an unapproved profile, current-information search/read/citation behavior, direct reading of supplied URLs, and no browsing for a rewrite. It outputs check summaries rather than credentials or raw provider bodies. The focused tests cover malformed responses, provider errors, URL/input validation, output bounds, cancellation, timeouts, allowance enforcement, usage accounting, and parallel calls.
 
 API references: [Search](https://docs.tavily.com/documentation/api-reference/endpoint/search), [Extract](https://docs.tavily.com/documentation/api-reference/endpoint/extract), [Credits](https://docs.tavily.com/documentation/api-credits).

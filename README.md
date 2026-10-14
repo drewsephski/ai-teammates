@@ -131,7 +131,7 @@ NEON_AI_GATEWAY_TOKEN=
 # Optional: Composio project API key for the Apps marketplace and agent tools
 COMPOSIO_API_KEY=
 
-# Tavily: server-side public web search and page reading for every configured bot
+# Tavily: server-side public web search and page reading for every bot, including unfinished setup
 TAVILY_API_KEY=
 
 # Trigger.dev: the development key and the project ref
