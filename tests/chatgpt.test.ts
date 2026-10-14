@@ -219,6 +219,15 @@ test("HTTP failures stay safe and never trigger an application-funded fallback",
 test("late subscription errors, incomplete replies and disconnected streams are failures", async () => {
   for (const raw of [
     events({
+      type: "error",
+      sequence_number: 1,
+      error: {
+        type: "rate_limit_error",
+        code: "subscription_sharing_usage_limit_exceeded",
+        message: "private diagnostics",
+      },
+    }),
+    events({
       type: "response.failed",
       sequence_number: 1,
       response: {
@@ -248,6 +257,13 @@ test("late subscription errors, incomplete replies and disconnected streams are 
     )
     assert.ok(output.includes("has not been charged"))
   }
+})
+
+test("interrupted streams use the shared safe request error", async () => {
+  const output = await new Response(
+    sanitizedChatGPTStream(streamResponse("").body!)
+  ).text()
+  assert.ok(output.includes(CHATGPT_REQUEST_ERROR))
 })
 
 test("completed SSE survives chunk boundaries without inventing an error", async () => {

@@ -221,6 +221,7 @@ async function attempt(signedIn = true) {
   attempts.push(hashChatGPTValue(state))
   assert.equal(authUrl.searchParams.get("client_id"), clientId)
   assert.equal(authUrl.searchParams.get("code_challenge_method"), "S256")
+  assert.equal(authUrl.searchParams.get("prompt"), signedIn ? "consent" : null)
   const callback = new URL("http://localhost:3000/api/chatgpt/callback")
   callback.search = new URLSearchParams({
     code: "fixture-code",

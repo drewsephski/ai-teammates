@@ -97,7 +97,7 @@ function ChatGPTPreferences({ status }: { status: ChatGPTStatus }) {
               ? "Using your ChatGPT plan"
               : "Using Krafty AI",
             description:
-              "Applies to your next reply. Requests already running keep their current provider.",
+              "Your AI preference is saved. A reply already streaming may finish.",
           })
           router.refresh()
         } catch (error) {

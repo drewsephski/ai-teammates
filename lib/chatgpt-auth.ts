@@ -61,6 +61,7 @@ export async function startChatGPTAuth(
     state,
     nonce,
     challenge: hashChatGPTValue(verifier),
+    reconsent: intent === "connect" && config.planUsageEnabled,
   })
   await db
     .delete(chatgptAuthAttempts)

@@ -194,13 +194,13 @@ export async function getChatGPTAccessToken(
 }
 
 export async function disconnectChatGPT(userId: string) {
-  const config = requireChatGPTConfig()
+  const config = chatGPTConfig()
   return withSandboxLock(`chatgpt:${userId}`, async () => {
     const row = await db.query.chatgptConnections.findFirst({
       where: eq(chatgptConnections.userId, userId),
     })
     let revoked = !row?.refreshToken
-    if (row?.refreshToken && row.clientId === config.clientId) {
+    if (row?.refreshToken && config && row.clientId === config.clientId) {
       try {
         const metadata = await chatGPTDiscovery()
         if (metadata.revocation_endpoint) {

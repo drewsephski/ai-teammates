@@ -147,6 +147,7 @@ export async function chatGPTAuthorizationUrl(input: {
   state: string
   nonce: string
   challenge: string
+  reconsent?: boolean
 }) {
   const config = requireChatGPTConfig()
   const metadata = await chatGPTDiscovery()
@@ -167,6 +168,7 @@ export async function chatGPTAuthorizationUrl(input: {
     nonce: input.nonce,
     code_challenge: input.challenge,
     code_challenge_method: "S256",
+    ...(input.reconsent && { prompt: "consent" }),
     ...(config.planUsageEnabled && { resource: CHATGPT_RESOURCE }),
   }).toString()
   return url

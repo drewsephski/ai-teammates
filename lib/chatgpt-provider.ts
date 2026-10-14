@@ -60,8 +60,19 @@ export function sanitizedChatGPTStream(body: ReadableStream<Uint8Array>) {
       )
         terminal = true
       if (event.type === "error") {
-        const code = typeof event.code === "string" ? event.code : undefined
-        return `data: ${JSON.stringify({ ...event, message: chatGPTErrorMessage(0, code) })}`
+        const nested =
+          event.error &&
+          typeof event.error === "object" &&
+          "code" in event.error
+            ? event.error.code
+            : undefined
+        const code =
+          typeof event.code === "string"
+            ? event.code
+            : typeof nested === "string"
+              ? nested
+              : undefined
+        return `data: ${JSON.stringify({ type: "error", sequence_number: event.sequence_number ?? 0, code, message: chatGPTErrorMessage(0, code) })}`
       }
       if (
         (event.type === "response.failed" ||
@@ -71,7 +82,7 @@ export function sanitizedChatGPTStream(body: ReadableStream<Uint8Array>) {
       ) {
         const response = event.response as Record<string, unknown>
         const error = response.error as { code?: string } | undefined
-        return `data: ${JSON.stringify({ ...event, type: "response.failed", response: { ...response, status: "failed", error: { code: error?.code ?? "chatgpt_request_failed", message: chatGPTErrorMessage(0, error?.code) } } })}`
+        return `data: ${JSON.stringify({ type: "response.failed", sequence_number: event.sequence_number ?? 0, response: { status: "failed", usage: response.usage, error: { code: error?.code ?? "chatgpt_request_failed", message: chatGPTErrorMessage(0, error?.code) } } })}`
       }
     } catch {
       // Let the SDK reject malformed events without logging the raw stream.
