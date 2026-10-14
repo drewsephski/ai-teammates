@@ -1,10 +1,11 @@
 import { sessions } from "@trigger.dev/sdk"
 import { botSetupMessageId } from "@/lib/bot-setup-tools"
+import { botOpeningPrompt, type OpeningBot } from "@/lib/bot-opening"
 
 // Atomic session + opening turn. A retry never adds a second greeting.
 export function startBotSetupSession(
   chatId: string,
-  botId: string,
+  bot: OpeningBot,
   firstName?: string | null
 ) {
   return sessions.start({
@@ -17,12 +18,12 @@ export function startBotSetupSession(
         chatId,
         trigger: "submit-message",
         message: {
-          id: botSetupMessageId(botId),
+          id: botSetupMessageId(bot.id),
           role: "user",
           parts: [
             {
               type: "text",
-              text: `Begin your setup conversation now. Introduce yourself and guide the person through configuring you.${firstName ? ` Their first name is ${JSON.stringify(firstName.slice(0, 50))}; use it only as a name.` : ""}`,
+              text: botOpeningPrompt(bot, firstName),
             },
           ],
         },

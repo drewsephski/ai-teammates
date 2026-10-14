@@ -91,6 +91,14 @@ test("follow-ups streamed after the model finishes render and survive transcript
       label: "Draft the invite",
       prompt: "Draft the Krafty founder dinner invite.",
     },
+    {
+      label: "Compare demo formats",
+      prompt: "Compare a dinner with one-on-one demos.",
+    },
+    {
+      label: "Try a live task relay",
+      prompt: "Design a live task relay for the dinner.",
+    },
   ]
   let transcript: ChatUIMessage[] = []
   const transport: ChatTransport<ChatUIMessage> = {
@@ -157,6 +165,12 @@ test("follow-ups streamed after the model finishes render and survive transcript
     fireEvent.click(view.getByRole("button", { name: "Send" }))
   })
   assert.ok(view.getByRole("button", { name: "Draft the invite" }))
+  assert.equal(
+    view
+      .getByRole("group", { name: "Suggested follow-up prompts" })
+      .querySelectorAll("button").length,
+    3
+  )
   const storedTranscript = JSON.parse(
     JSON.stringify(transcript)
   ) as ChatUIMessage[]

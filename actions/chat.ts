@@ -60,11 +60,14 @@ export async function startChatSession(
   const owned = await getChat(params.chatId)
   if (owned)
     for (const bot of owned.bots) await assertBotAccess(owned.userId, bot.id)
-  if (owned?.kind === "direct" && !owned.bots[0].setupComplete) {
+  if (
+    owned?.kind === "direct" &&
+    (!owned.bots[0].setupComplete || !owned.lastMessagePreview)
+  ) {
     const user = await currentUser()
     const session = await startBotSetupSession(
       owned.id,
-      owned.bots[0].id,
+      owned.bots[0],
       user?.firstName
     )
     return { publicAccessToken: session.publicAccessToken }

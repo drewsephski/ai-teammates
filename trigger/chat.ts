@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/node"
+import { metadata } from "@trigger.dev/sdk"
 import { chat } from "@trigger.dev/sdk/ai"
 import { isStepCount } from "ai"
 import { asc, eq } from "drizzle-orm"
@@ -227,6 +228,7 @@ export const chatAgent = chat
 
           current = target
           held.add(target.id)
+          metadata.set("botId", target.id)
           return { botId: target.id, name: target.name }
         }),
       }
@@ -398,6 +400,7 @@ export const chatAgent = chat
         bot,
       } = await getChatBots(chatId, clientData?.botId)
       const group = row.kind === "group" ? { chat: row, bots } : undefined
+      metadata.set("botId", bot.id)
 
       // Every turn, as a session outlives the plan it was started on
       const usage = await getUsage(row.userId)

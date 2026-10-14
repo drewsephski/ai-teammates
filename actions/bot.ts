@@ -66,13 +66,13 @@ export async function createBot(input: {
   const provisioned = await provisionTeammate(
     userId,
     {
-      name: "New Bot",
+      name: preset?.name ?? "New Bot",
       job: preset?.job ?? "Not configured",
       instructions: preset?.instructions ?? null,
       avatar: createBotAvatar(),
     },
     { botId: `bot_${operationId}`, chatId: `chat_${operationId}` },
-    { setup: true }
+    { setup: !preset, computer: false }
   ).catch((error: unknown) => {
     if (error instanceof Error && error.message === FREE_BOT_LIMIT_ERROR)
       return null
@@ -85,7 +85,7 @@ export async function createBot(input: {
   // Start model work while the chat shell loads; no computer is provisioned.
   try {
     const user = await currentUser()
-    await startBotSetupSession(chatId, bot.id, user?.firstName)
+    await startBotSetupSession(chatId, bot, user?.firstName)
   } catch (error) {
     // The bot exists. Its chat retries startup and shows a recoverable error.
     Sentry.captureException(error, { extra: { botId: bot.id, chatId } })

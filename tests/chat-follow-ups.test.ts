@@ -17,6 +17,10 @@ const suggestions = [
     label: "Turn it into an experiment",
     prompt: "Test Krafty's launch with five founders.",
   },
+  {
+    label: "Compare the launch formats",
+    prompt: "Compare a founder dinner with individual Krafty demos.",
+  },
 ]
 const reply: ChatUIMessage = {
   id: "reply",
@@ -53,7 +57,7 @@ test("invalid, oversized or duplicate model suggestions are not rendered", () =>
     {},
     { suggestions: [{ label: "", prompt: "Hi" }] },
     { suggestions: [{ label: "x".repeat(49), prompt: "Hi" }] },
-    { suggestions: [suggestions[0], suggestions[1], suggestions[0]] },
+    { suggestions: [...suggestions, suggestions[0]] },
   ])
     assert.deepEqual(parseFollowUps(value), [])
   assert.deepEqual(

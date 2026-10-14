@@ -102,6 +102,14 @@ test("production recommendations use GLM with low reasoning and structured outpu
   process.env.NEON_AI_GATEWAY_TOKEN = "test-token"
   const suggestions = [
     { label: "Draft the invite", prompt: "Draft a founder dinner invite." },
+    {
+      label: "Compare demo formats",
+      prompt: "Compare a dinner with one-on-one demos.",
+    },
+    {
+      label: "Try a live task relay",
+      prompt: "Design a live task relay for the dinner.",
+    },
   ]
   const fetchMock = mock.method(
     globalThis,
@@ -112,6 +120,10 @@ test("production recommendations use GLM with low reasoning and structured outpu
       assert.equal(body.reasoning_effort, "low")
       assert.equal(body.max_tokens, 1500)
       assert.equal(body.response_format.type, "json_schema")
+      assert.equal(
+        body.response_format.json_schema.schema.properties.suggestions.maxItems,
+        3
+      )
       assert.equal(body.tools, undefined)
       const chunks = [
         {

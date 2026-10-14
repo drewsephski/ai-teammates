@@ -55,7 +55,9 @@ export default async function Page({
                   chatId={chat.id}
                   name={chat.name ?? chat.bots[0].name}
                   botId={chat.bots[0].id}
-                  setup={!chat.bots[0].setupComplete}
+                  setup={
+                    !chat.bots[0].setupComplete || !chat.lastMessagePreview
+                  }
                 />
               </div>
             </ResizablePanel>

@@ -64,7 +64,7 @@ export async function provisionTeammate(
   userId: string,
   values: BotInsert,
   ids = { botId: nanoid(), chatId: nanoid() },
-  options: { setup?: boolean } = {}
+  options: { setup?: boolean; computer?: boolean } = {}
 ) {
   const data = botInsertSchema.parse(values)
   return withSandboxLock(`team:${userId}`, async () => {
@@ -78,10 +78,11 @@ export async function provisionTeammate(
       .where(eq(bots.userId, userId))
     const plan = await getAccountPlan(userId)
     assertBotCapacity(plan.tier, size.value)
-    await assertTeamAccess(userId, !options.setup)
+    const computer = !options.setup && options.computer !== false
+    await assertTeamAccess(userId, computer)
     // Conversational setup needs no computer. Provision it on the first real
     // desktop/tool request instead of delaying navigation with provider startup.
-    const sandboxId = options.setup ? null : await createBotSandbox(ids.botId)
+    const sandboxId = computer ? await createBotSandbox(ids.botId) : null
     try {
       const bot = await db.transaction(async (tx) => {
         const [bot] = await tx

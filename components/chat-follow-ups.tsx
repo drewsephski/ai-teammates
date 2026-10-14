@@ -22,7 +22,7 @@ export function ChatFollowUps({
     <div
       role="group"
       aria-label="Suggested follow-up prompts"
-      className="mb-1 flex flex-wrap items-center gap-x-2 px-1"
+      className="mb-1 flex flex-wrap items-center justify-center gap-x-2 px-1"
     >
       {suggestions.map(({ label, prompt }) => (
         <Button

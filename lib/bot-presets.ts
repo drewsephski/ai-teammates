@@ -13,6 +13,8 @@ const workflowExecutionInstructions =
 export const botPresets = [
   {
     id: "research",
+    name: "Scout",
+    summary: "Research questions and compare sources.",
     job: "Research assistant",
     label: "Research",
     icon: BookOpenIcon,
@@ -28,6 +30,8 @@ export const botPresets = [
   },
   {
     id: "code",
+    name: "Patch",
+    summary: "Review code and investigate bugs.",
     job: "Code reviewer",
     label: "Code review",
     icon: SquareCodeIcon,
@@ -43,6 +47,8 @@ export const botPresets = [
   },
   {
     id: "writing",
+    name: "Quill",
+    summary: "Write, edit, and sharpen your copy.",
     job: "Writing editor",
     label: "Writing",
     icon: FilePenLineIcon,
@@ -58,6 +64,8 @@ export const botPresets = [
   },
   {
     id: "learning",
+    name: "Sage",
+    summary: "Explain ideas and build practice exercises.",
     job: "Tutor",
     label: "Learning",
     icon: GraduationCapIcon,
@@ -73,6 +81,8 @@ export const botPresets = [
   },
   {
     id: "planning",
+    name: "Atlas",
+    summary: "Turn goals into practical next steps.",
     job: "Project planner",
     label: "Planning",
     icon: CalendarCheckIcon,
@@ -88,6 +98,8 @@ export const botPresets = [
   },
   {
     id: "data",
+    name: "Lens",
+    summary: "Analyze data and explain what matters.",
     job: "Data analyst",
     label: "Data analysis",
     icon: ChartNoAxesCombinedIcon,
