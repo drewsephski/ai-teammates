@@ -6,6 +6,11 @@
   min-height: 100vh;
   overflow-x: clip;
 }
+@media (prefers-reduced-motion: no-preference) {
+  :global(html):has(.landing) {
+    scroll-behavior: smooth;
+  }
+}
 .landing * {
   box-sizing: border-box;
 }
