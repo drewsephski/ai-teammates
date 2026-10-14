@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/krafty-wordmark.png" alt="Krafty logo" width="240" />
+<img src="public/krafty-readme.png" alt="Krafty AI teammates — plan, build, review, and ship together" width="1200" />
 
 ### The open-source alternative to Grok Bot, OpenAI Dots and Meta Muse
 
