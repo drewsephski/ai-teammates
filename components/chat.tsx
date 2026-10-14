@@ -8,7 +8,7 @@ import {
   useTriggerChatTransport,
 } from "@trigger.dev/sdk/chat/react"
 import { isToolUIPart } from "ai"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowUpIcon, SquareIcon } from "lucide-react"
 import { toast } from "@/components/ui/toast"
@@ -33,6 +33,7 @@ import {
 } from "@/components/ai-elements/message"
 import {
   PromptInput,
+  PromptInputProvider,
   PromptInputFooter,
   type PromptInputMessage,
   PromptInputSelect,
@@ -46,6 +47,8 @@ import {
 } from "@/components/ai-elements/prompt-input"
 import { ToolCall } from "@/components/chat-tool-call"
 import { ChatQuestion } from "@/components/chat-question"
+import { ChatFollowUps } from "@/components/chat-follow-ups"
+import { latestFollowUps } from "@/lib/chat-follow-ups"
 import { Button } from "@/components/ui/button"
 import { botSetupMessageId } from "@/lib/bot-setup-tools"
 import { cn } from "@/lib/utils"
@@ -333,6 +336,7 @@ function ChatMessages({
   // The bot the next message goes to, in a group chat
   const [botId, setBotId] = useState(bots[0]?.id)
   const [setupStopped, setSetupStopped] = useState(false)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   // Falls back to the first one when the picked bot is removed from the group
   const selectedBot = bots.find((bot) => bot.id === botId) ?? bots[0]
   const visibleMessages = messages.filter(
@@ -353,6 +357,10 @@ function ChatMessages({
         !answeredQuestions.has(part.toolCallId)
     )
   const busy = status === "submitted" || status === "streaming"
+  const followUps =
+    status === "ready" && !pendingQuestion && !setupStopped
+      ? latestFollowUps(visibleMessages)
+      : undefined
   const latestUser = visibleMessages.findLast(
     (message) => message.role === "user"
   )
@@ -387,6 +395,7 @@ function ChatMessages({
     if (!message.text.trim()) return false
     // Throwing keeps the draft in the input
     if (!checkPlan("bots")) throw new Error("Upgrade required")
+    setSetupStopped(false)
     if (pendingQuestion?.type === "tool-askUser") {
       return answerQuestion(pendingQuestion.toolCallId, message.text)
     }
@@ -543,57 +552,70 @@ function ChatMessages({
         data-compact={!selectedBot}
         className="chat-composer mx-auto w-full max-w-4xl px-4 pt-2 pb-5 sm:px-6"
       >
-        <PromptInput onSubmit={handleSubmit}>
-          <PromptInputTextarea
-            placeholder={`Message ${name}…`}
-            className={
-              selectedBot
-                ? "min-h-14 px-3 text-base sm:text-sm"
-                : "min-h-10 px-3 py-2.5 pr-14 text-base sm:text-sm"
-            }
-          />
-          <PromptInputFooter
-            className={
-              selectedBot
-                ? undefined
-                : "absolute top-1/2 right-2 w-auto -translate-y-1/2 justify-end p-0"
-            }
-          >
-            {selectedBot && (
-              <PromptInputTools>
-                <PromptInputSelect
-                  value={selectedBot.id}
-                  onValueChange={(value) => setBotId(value as string)}
-                >
-                  <PromptInputSelectTrigger aria-label="Bot to talk to">
-                    <PromptInputSelectValue>
-                      <ChatAvatar
-                        seed={selectedBot.avatar}
-                        className="size-5"
-                      />
-                      {selectedBot.name}
-                    </PromptInputSelectValue>
-                  </PromptInputSelectTrigger>
-                  <PromptInputSelectContent>
-                    {bots.map((bot) => (
-                      <PromptInputSelectItem key={bot.id} value={bot.id}>
-                        <ChatAvatar seed={bot.avatar} className="size-5" />
-                        {bot.name}
-                      </PromptInputSelectItem>
-                    ))}
-                  </PromptInputSelectContent>
-                </PromptInputSelect>
-              </PromptInputTools>
-            )}
-            <PromptInputSubmit status={status} onStop={stop}>
-              {busy ? (
-                <SquareIcon className="size-4" />
-              ) : (
-                <ArrowUpIcon className="size-4" />
+        <PromptInputProvider>
+          {followUps && (
+            <ChatFollowUps
+              suggestions={followUps.suggestions}
+              inputRef={inputRef}
+              onSelect={() => {
+                if (bots.some((bot) => bot.id === followUps.botId))
+                  setBotId(followUps.botId)
+              }}
+            />
+          )}
+          <PromptInput onSubmit={handleSubmit}>
+            <PromptInputTextarea
+              ref={inputRef}
+              placeholder={`Message ${name}…`}
+              className={
+                selectedBot
+                  ? "min-h-14 px-3 text-base sm:text-sm"
+                  : "min-h-10 px-3 py-2.5 pr-14 text-base sm:text-sm"
+              }
+            />
+            <PromptInputFooter
+              className={
+                selectedBot
+                  ? undefined
+                  : "absolute top-1/2 right-2 w-auto -translate-y-1/2 justify-end p-0"
+              }
+            >
+              {selectedBot && (
+                <PromptInputTools>
+                  <PromptInputSelect
+                    value={selectedBot.id}
+                    onValueChange={(value) => setBotId(value as string)}
+                  >
+                    <PromptInputSelectTrigger aria-label="Bot to talk to">
+                      <PromptInputSelectValue>
+                        <ChatAvatar
+                          seed={selectedBot.avatar}
+                          className="size-5"
+                        />
+                        {selectedBot.name}
+                      </PromptInputSelectValue>
+                    </PromptInputSelectTrigger>
+                    <PromptInputSelectContent>
+                      {bots.map((bot) => (
+                        <PromptInputSelectItem key={bot.id} value={bot.id}>
+                          <ChatAvatar seed={bot.avatar} className="size-5" />
+                          {bot.name}
+                        </PromptInputSelectItem>
+                      ))}
+                    </PromptInputSelectContent>
+                  </PromptInputSelect>
+                </PromptInputTools>
               )}
-            </PromptInputSubmit>
-          </PromptInputFooter>
-        </PromptInput>
+              <PromptInputSubmit status={status} onStop={stop}>
+                {busy ? (
+                  <SquareIcon className="size-4" />
+                ) : (
+                  <ArrowUpIcon className="size-4" />
+                )}
+              </PromptInputSubmit>
+            </PromptInputFooter>
+          </PromptInput>
+        </PromptInputProvider>
       </div>
     </div>
   )

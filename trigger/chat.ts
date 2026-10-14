@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/node"
 import { chat } from "@trigger.dev/sdk/ai"
-import { isStepCount } from "ai"
+import { isStepCount, type LanguageModel } from "ai"
 import { asc, eq } from "drizzle-orm"
 import { z } from "zod"
 
@@ -24,6 +24,8 @@ import { createTavilyClient, tavilyCost } from "@/lib/tavily"
 import { createWebTools } from "@/lib/web-tools"
 import { isChatGPTSelected } from "@/lib/chatgpt-connection"
 import { chatGPTModelForUser } from "@/lib/chatgpt-model"
+import { canSuggestFollowUps } from "@/lib/chat-follow-ups"
+import { generateChatFollowUps } from "@/lib/generate-chat-follow-ups"
 import {
   appModelCost,
   canUseAI,
@@ -67,6 +69,7 @@ const turnModelUsage = chat.local<{
   messageId: string
   usageKey: string
   chatgpt: boolean
+  followUps?: { model: LanguageModel; signal: AbortSignal }
 }>({
   id: "chat-turn-model-cost",
 })
@@ -104,6 +107,7 @@ export const chatAgent = chat
       turnModelUsage.cost = 0
       turnModelUsage.webCost = 0
       turnModelUsage.chatgpt = false
+      turnModelUsage.followUps = undefined
       const latest = uiMessages.findLast((message) => message.role === "user")
       if (!latest) throw new Error("No task to delegate")
       turnModelUsage.messageId = latest.id
@@ -227,6 +231,85 @@ export const chatAgent = chat
         }),
       }
     },
+    onBeforeTurnComplete: async ({
+      chatId,
+      responseMessage,
+      uiMessages,
+      stopped,
+      error,
+      finishReason,
+      writer,
+    }) => {
+      const config = turnModelUsage.followUps
+      if (
+        !config ||
+        stopped ||
+        error ||
+        finishReason !== "stop" ||
+        config.signal.aborted ||
+        !canSuggestFollowUps(responseMessage)
+      )
+        return
+
+      try {
+        const handoff = responseMessage?.parts.findLast(
+          (part) =>
+            part.type === "tool-handoff" && part.state === "output-available"
+        )
+        const authorId =
+          handoff?.type === "tool-handoff" &&
+          handoff.state === "output-available"
+            ? handoff.output.botId
+            : responseMessage?.metadata?.botId
+        const { chat: row, bot } = await getChatBots(chatId, authorId)
+        const plan = await getUsage(row.userId)
+        const suggest = async () => {
+          const currentUsage = await getUsage(row.userId)
+          // Leave room for this bounded auxiliary call; never spend a depleted
+          // Krafty allowance or fall back from the user's selected provider.
+          const unrecordedCost = plan.tier === "free" ? 0 : turnModelUsage.cost
+          if (
+            !turnModelUsage.chatgpt &&
+            currentUsage.remaining.ai - unrecordedCost < 10_000
+          )
+            return
+          const suggestions = await generateChatFollowUps({
+            ...config,
+            messages: uiMessages,
+            profile: `${bot.name}: ${bot.job}\n${bot.instructions ?? ""}`,
+            onUsage: async (usage) => {
+              const cost = appModelCost(turnModelUsage.chatgpt, () =>
+                chatModelCost(usage)
+              )
+              if (cost > 0)
+                await recordUsage([
+                  {
+                    userId: row.userId,
+                    kind: "ai",
+                    amount: cost,
+                    idempotencyKey: `${turnModelUsage.usageKey}:follow-ups`,
+                  },
+                ])
+            },
+          })
+          if (!suggestions.length || config.signal.aborted) return
+          writer.write({
+            type: "data-followUps",
+            id: `follow-ups:${responseMessage?.id}`,
+            data: { botId: bot.id, suggestions },
+          })
+        }
+        if (plan.tier === "free" && !turnModelUsage.chatgpt) {
+          // See the account lock in run(): both calls share the same budget.
+          await withSandboxLock(`free-ai:${row.userId}`, suggest)
+        } else await suggest()
+      } catch {
+        // Suggestions are optional. Their failure must never fail a completed reply.
+        Sentry.logger.warn("Chat follow-up suggestions unavailable", {
+          "chat.id": chatId,
+        })
+      }
+    },
     // Fires for stopped and failed turns too, which spent tokens all the same
     onTurnComplete: async ({
       chatId,
@@ -335,6 +418,10 @@ export const chatAgent = chat
       const subscriptionModel = chatgptSelected
         ? await chatGPTModelForUser(row.userId)
         : null
+      turnModelUsage.followUps = {
+        model: subscriptionModel ?? chatModel(),
+        signal,
+      }
 
       function respond(usage: Usage) {
         // Keep the conversation/session, but release this worker after the turn.

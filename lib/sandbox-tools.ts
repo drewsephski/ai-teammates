@@ -326,6 +326,10 @@ export type SandboxTools = ReturnType<typeof createSandboxTools>
 export type ChatMessageMetadata = { botId?: string; questionId?: string }
 export type ChatDataParts = {
   messageSeen: { messageId: string; seenAt: string }
+  followUps: {
+    botId: string
+    suggestions: import("@/lib/chat-follow-ups").ChatFollowUp[]
+  }
 }
 export type ChatUIMessage = UIMessage<
   ChatMessageMetadata,
