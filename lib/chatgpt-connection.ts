@@ -91,7 +91,7 @@ export async function getChatGPTStatus(userId: string) {
       !!config?.planUsageEnabled,
     needsReconnect:
       !!row &&
-      ((row.enabled && !matchesClient) ||
+      ((row.enabled && (!matchesClient || !hasChatGPTPlanGrant(row.scopes))) ||
         (hasChatGPTPlanGrant(row.scopes) &&
           !row.refreshToken &&
           (!row.expiresAt || row.expiresAt.getTime() <= Date.now() + 60_000))),
@@ -116,8 +116,8 @@ export async function getChatGPTAccessToken(
   userId: string,
   requireSelected = true
 ) {
-  const config = requireChatGPTConfig()
-  if (!config.planUsageEnabled) throw new Error(CHATGPT_RECONNECT_ERROR)
+  const config = chatGPTConfig()
+  if (!config?.planUsageEnabled) throw new Error(CHATGPT_RECONNECT_ERROR)
   return withSandboxLock(`chatgpt:${userId}`, async () => {
     const row = await db.query.chatgptConnections.findFirst({
       where: eq(chatgptConnections.userId, userId),

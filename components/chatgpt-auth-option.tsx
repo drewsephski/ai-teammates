@@ -52,7 +52,7 @@ export function ChatGPTAuthOption({
       <p className="text-center text-xs leading-relaxed text-muted-foreground">
         {config?.planUsageEnabled
           ? "Optionally use your eligible ChatGPT plan for replies without spending your Krafty AI allowance."
-          : "Connect your ChatGPT account when this sign-in option becomes available."}
+          : config ? "Sign in to Krafty with your ChatGPT account. Subscription-backed replies are not available yet." : "Connect your ChatGPT account when this sign-in option becomes available."}
       </p>
       {config && (
         <p className="text-center text-xs leading-relaxed text-muted-foreground">
