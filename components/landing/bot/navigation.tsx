@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import Image from "next/image"
+import { KraftyLogo } from "@/components/krafty-wordmark"
 import { MenuIcon, XIcon } from "lucide-react"
 import styles from "./navigation.module.css"
 
@@ -34,13 +34,7 @@ export function BotNavigation({ workspaceHref }: { workspaceHref: string }) {
     <header className={styles.header} data-scrolled={scrolled}>
       <div className={styles.bar}>
         <Link href="/" aria-label="Krafty home" className={styles.logo}>
-          <Image
-            src="/krafty-wordmark.png"
-            alt="Krafty"
-            width={90}
-            height={36}
-            preload
-          />
+          <KraftyLogo />
         </Link>
         <nav aria-label="Main navigation" className={styles.desktop}>
           {navigation.map(([label, href]) => (

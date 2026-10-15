@@ -19,13 +19,8 @@
   gap: 40px;
 }
 .logo {
-  width: 90px;
   flex-shrink: 0;
-}
-.logo img {
-  width: 90px;
-  height: auto;
-  filter: invert(1);
+  font-size: 26px;
 }
 .desktop {
   display: flex;
