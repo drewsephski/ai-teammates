@@ -7,10 +7,11 @@ import { MenuIcon, XIcon } from "lucide-react"
 import styles from "./navigation.module.css"
 
 const navigation = [
-  ["Features", "#features"],
-  ["Use cases", "#use-cases"],
-  ["How it works", "#statement"],
-  ["Pricing", "#pricing"],
+  // Root-relative so the links also work from pages other than the homepage.
+  ["Features", "/#features"],
+  ["Use cases", "/use-cases"],
+  ["How it works", "/#statement"],
+  ["Pricing", "/#pricing"],
 ] as const
 
 export function BotNavigation({ workspaceHref }: { workspaceHref: string }) {
@@ -43,18 +44,18 @@ export function BotNavigation({ workspaceHref }: { workspaceHref: string }) {
         </Link>
         <nav aria-label="Main navigation" className={styles.desktop}>
           {navigation.map(([label, href]) => (
-            <a key={href} href={href}>
+            <Link key={href} href={href}>
               {label}
-            </a>
+            </Link>
           ))}
           <Link href={workspaceHref} prefetch={false}>
             Workspace
           </Link>
         </nav>
         <div className={styles.actions}>
-          <a href="#pricing" className={styles.plans}>
+          <Link href="/#pricing" className={styles.plans}>
             View plans
-          </a>
+          </Link>
           <Link href={workspaceHref} prefetch={false} className={styles.start}>
             Open Krafty
           </Link>
@@ -77,13 +78,13 @@ export function BotNavigation({ workspaceHref }: { workspaceHref: string }) {
           className={styles.mobile}
         >
           {navigation.map(([label, href]) => (
-            <a key={href} href={href} onClick={() => setOpen(false)}>
+            <Link key={href} href={href} onClick={() => setOpen(false)}>
               {label}
-            </a>
+            </Link>
           ))}
-          <a href="#pricing" onClick={() => setOpen(false)}>
+          <Link href="/#pricing" onClick={() => setOpen(false)}>
             View plans
-          </a>
+          </Link>
           <Link href={workspaceHref} prefetch={false}>
             Open workspace
           </Link>

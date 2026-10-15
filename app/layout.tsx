@@ -10,6 +10,13 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toast"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import {
+  brandName,
+  siteDescription,
+  siteTitle,
+  siteUrl,
+  socialImage,
+} from "@/lib/marketing/site"
 
 const kraftyFont = localFont({
   src: "../public/landing/bot/display.woff2",
@@ -24,39 +31,23 @@ const fontMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://kraftybot.app"),
-  title: { default: "Krafty", template: "%s · Krafty" },
-  applicationName: "Krafty",
-  description: "AI teammates with their own personality, memory, and computer.",
+  metadataBase: new URL(siteUrl),
+  title: { default: siteTitle, template: `%s · ${brandName}` },
+  applicationName: brandName,
+  description: siteDescription,
   openGraph: {
-    title: "Krafty — AI teammates you can give real work to",
-    description:
-      "Create your team, connect your tools, and work together with persistent memory and cloud computers.",
-    siteName: "Krafty",
+    title: siteTitle,
+    description: siteDescription,
+    siteName: brandName,
     type: "website",
     locale: "en_US",
-    url: "/",
-    images: [
-      {
-        url: "/brand/krafty-social-v1.jpg",
-        width: 1200,
-        height: 630,
-        type: "image/jpeg",
-        alt: "Krafty — AI teammates you can give real work to. An ivory sculptural bot on a charcoal backdrop.",
-      },
-    ],
+    images: [{ ...socialImage, type: "image/jpeg" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Krafty — AI teammates you can give real work to",
-    description:
-      "AI teammates with their own personality, memory, and computer.",
-    images: [
-      {
-        url: "/brand/krafty-social-v1.jpg",
-        alt: "Krafty — AI teammates you can give real work to. An ivory sculptural bot on a charcoal backdrop.",
-      },
-    ],
+    title: siteTitle,
+    description: siteDescription,
+    images: [{ url: socialImage.url, alt: socialImage.alt }],
   },
 }
 

@@ -19,6 +19,14 @@ import { GetStartedButton } from "@/components/landing/bot/get-started-button"
 import { LandingPricing } from "@/components/landing/pricing"
 import { HalftoneWordmark } from "@/components/landing/halftone-wordmark-footer"
 import styles from "@/components/landing/bot/bot-landing.module.css"
+import { JsonLd } from "@/components/json-ld"
+import { homeJsonLd } from "@/lib/marketing/json-ld"
+import {
+  brandName,
+  siteDescription,
+  siteTitle,
+  socialImage,
+} from "@/lib/marketing/site"
 
 const botFont = localFont({
   src: "../public/landing/bot/display.woff2",
@@ -28,10 +36,18 @@ const botFont = localFont({
 })
 
 export const metadata: Metadata = {
-  title: "Meet Krafty Bot — AI teammates that finish the work",
-  description:
-    "AI teammates you can give real work to. Create your team, connect your tools, and work together with persistent memory and cloud computers.",
+  title: { absolute: siteTitle },
+  description: siteDescription,
   alternates: { canonical: "/" },
+  openGraph: {
+    url: "/",
+    title: siteTitle,
+    description: siteDescription,
+    siteName: brandName,
+    type: "website",
+    locale: "en_US",
+    images: [{ ...socialImage, type: "image/jpeg" }],
+  },
 }
 
 export default async function LandingPage() {
@@ -48,6 +64,7 @@ export default async function LandingPage() {
 
   return (
     <div className={`${styles.landing} ${botFont.variable}`} id="top">
+      <JsonLd data={homeJsonLd()} />
       <a className={styles.skip} href="#main">
         Skip to content
       </a>
@@ -196,16 +213,16 @@ export default async function LandingPage() {
             <span>© {new Date().getFullYear()} Krafty</span>
           </div>
           <div className={styles.footerColumn}>
-            <h3>Product</h3>
+            <p className={styles.footerHeading}>Product</p>
             <Link href={workspaceHref} prefetch={false}>
               Workspace
             </Link>
             <a href="#features">Features</a>
-            <a href="#use-cases">Use cases</a>
+            <Link href="/use-cases">Use cases</Link>
             <a href="#pricing">Pricing</a>
           </div>
           <div className={styles.footerColumn}>
-            <h3>Krafty Bot</h3>
+            <p className={styles.footerHeading}>Krafty Bot</p>
             <a href="#top">Overview</a>
             <Link href={workspaceHref} prefetch={false}>
               Your teammates
@@ -213,7 +230,7 @@ export default async function LandingPage() {
             <a href="#faqs">FAQs</a>
           </div>
           <div className={styles.footerColumn}>
-            <h3>Your account</h3>
+            <p className={styles.footerHeading}>Your account</p>
             <Link href={workspaceHref} prefetch={false}>
               Open app
             </Link>

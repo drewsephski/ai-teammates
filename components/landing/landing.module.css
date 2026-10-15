@@ -1283,3 +1283,51 @@
   --sidebar: #fafafa;
   --sidebar-foreground: #252525;
 }
+
+.staticPlans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+.staticPlan {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px;
+  border: 1px solid #333;
+  border-radius: 10px;
+  background: #202020;
+  color: white;
+}
+.staticPlan h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.staticPlanPrice {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.staticPlanPrice span {
+  margin-left: 2px;
+  color: #a1a1a1;
+  font-size: 14px;
+  font-weight: 400;
+}
+.staticPlanSummary {
+  margin: 0;
+  color: #a1a1a1;
+  font-size: 14px;
+}
+.staticPlan ul {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #a1a1a1;
+  font-size: 13px;
+  line-height: 1.5;
+  list-style: disc;
+}

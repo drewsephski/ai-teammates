@@ -311,7 +311,8 @@
   gap: 14px;
   font-size: 14px;
 }
-.footerColumn h3 {
+.footerHeading {
+  margin: 0;
   font-size: 14px;
   color: #7d8187;
   font-weight: 400;
