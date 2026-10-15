@@ -3,16 +3,21 @@ import {
   index,
   boolean,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
   text,
+  real,
   timestamp,
   uniqueIndex,
+  vector,
 } from "drizzle-orm/pg-core"
 import { createInsertSchema } from "drizzle-zod"
 import { nanoid } from "nanoid"
 import { z } from "zod"
+
+import { containsSecret } from "@/lib/memory-policy"
 
 export const bots = pgTable(
   "bots",
@@ -60,6 +65,10 @@ export const chats = pgTable(
     // Null for direct chats, which use the bot's name
     name: text(),
     lastMessagePreview: text(),
+    // "off" is a temporary chat: memory is neither read nor written
+    memoryMode: text({ enum: ["on", "off"] })
+      .notNull()
+      .default("on"),
     lastMessageAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
@@ -169,6 +178,122 @@ export const chatgptPreferenceSchema = createInsertSchema(chatgptConnections, {
   .required()
 export type ChatGPTPreference = z.infer<typeof chatgptPreferenceSchema>
 
+export const memoryKind = pgEnum("memory_kind", [
+  "profile",
+  "preference",
+  "person",
+  "project",
+  "procedure",
+  "commitment",
+  "insight",
+])
+export const memoryStatus = pgEnum("memory_status", [
+  "active",
+  "suggested",
+  "stale",
+])
+export const memorySource = pgEnum("memory_source", [
+  "explicit",
+  "extracted",
+  "user_edit",
+  "reflection",
+  "setup",
+])
+
+// What the person's teammates know about them. A row is never edited in place:
+// a change supersedes it, so the old version stays as history.
+export const memories = pgTable(
+  "memories",
+  {
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    // Clerk user ID
+    userId: text().notNull(),
+    // Null means every teammate sees it
+    botId: text().references(() => bots.id, { onDelete: "cascade" }),
+    kind: memoryKind().notNull(),
+    status: memoryStatus().notNull().default("active"),
+    // One sentence, at most 300 characters
+    content: text().notNull(),
+    embedding: vector({ dimensions: 1024 }).notNull(),
+    // 1-10, set when written
+    importance: integer().notNull(),
+    confidence: real().notNull().default(0.7),
+    // Always in the core block
+    pinned: boolean().notNull().default(false),
+    sensitivity: text({ enum: ["normal", "sensitive"] })
+      .notNull()
+      .default("normal"),
+    source: memorySource().notNull(),
+    sourceChatId: text().references(() => chats.id, { onDelete: "set null" }),
+    evidenceQuote: text(),
+    validFrom: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    // Set when superseded or expired
+    invalidAt: timestamp({ withTimezone: true }),
+    supersededById: text(),
+    // Commitments
+    dueAt: timestamp({ withTimezone: true }),
+    reinforcedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    reinforceCount: integer().notNull().default(0),
+    // Bumped when injected or recalled
+    lastUsedAt: timestamp({ withTimezone: true }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("memories_user_id_invalid_at_idx").on(table.userId, table.invalidAt),
+    index("memories_embedding_idx").using(
+      "hnsw",
+      table.embedding.op("vector_cosine_ops")
+    ),
+  ]
+)
+
+// Audit trail, and the history the memory page shows
+export const memoryEvents = pgTable(
+  "memory_events",
+  {
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    memoryId: text()
+      .notNull()
+      .references(() => memories.id, { onDelete: "cascade" }),
+    userId: text().notNull(),
+    action: text({
+      enum: ["add", "reinforce", "supersede", "edit", "expire", "confirm"],
+    }).notNull(),
+    before: text(),
+    after: text(),
+    actor: text({
+      enum: ["user", "agent", "extractor", "maintenance"],
+    }).notNull(),
+    chatId: text(),
+    runId: text(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("memory_events_memory_id_idx").on(table.memoryId)]
+)
+
+// Nightly aggregates of user_signals; filled in by later phases
+export type BehaviorAggregate = Record<string, unknown>
+
+export const userSettings = pgTable("user_settings", {
+  userId: text().primaryKey(),
+  memoryEnabled: boolean().notNull().default(true),
+  learnFromChats: boolean().notNull().default(true),
+  proactivity: text({ enum: ["off", "digest", "nudges"] })
+    .notNull()
+    .default("digest"),
+  timezone: text().notNull().default("UTC"),
+  digestHour: integer().notNull().default(8),
+  quietHours: jsonb().$type<{ start: number; end: number }>(),
+  // Null means every connected app
+  suggestionApps: text().array(),
+  behavior: jsonb().$type<BehaviorAggregate>(),
+  updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+})
+
 export const botsRelations = relations(bots, ({ many }) => ({
   memberships: many(chatMembers),
 }))
@@ -223,6 +348,7 @@ export const groupChatInsertSchema = createInsertSchema(chats, {
     id: true,
     userId: true,
     kind: true,
+    memoryMode: true,
     lastMessagePreview: true,
     lastMessageAt: true,
     createdAt: true,
@@ -237,6 +363,64 @@ export const groupChatInsertSchema = createInsertSchema(chats, {
         "Pick different bots."
       ),
   })
+
+const memoryContent = (schema: z.ZodString) =>
+  schema
+    .trim()
+    .min(1, "Write the memory.")
+    .max(300, "Keep it under 300 characters.")
+    .refine(
+      (content) => !containsSecret(content),
+      "This looks like a password, key or card number. Memories can't hold secrets."
+    )
+
+// What the memory page may change about one memory; the ID is passed apart
+export const memoryUpdateSchema = createInsertSchema(memories, {
+  content: memoryContent,
+  botId: z.string().min(1).nullable(),
+})
+  .pick({ content: true, kind: true, botId: true, pinned: true })
+  .required()
+
+const aboutField = z
+  .string()
+  .trim()
+  .max(200, "Keep it under 200 characters.")
+  .refine(
+    (value) => !containsSecret(value),
+    "This looks like a password, key or card number."
+  )
+
+// "About you": a few profile and preference memories, plus the timezone setting
+export const aboutYouSchema = createInsertSchema(userSettings, {
+  timezone: (schema) =>
+    schema
+      .trim()
+      .max(64)
+      .refine(
+        (zone) => !zone || Intl.supportedValuesOf("timeZone").includes(zone),
+        "Pick a timezone from the list."
+      ),
+})
+  .pick({ timezone: true })
+  .required()
+  .extend({
+    role: aboutField,
+    workingHours: aboutField,
+    answerStyle: aboutField,
+    about: aboutField.max(300, "Keep it under 300 characters."),
+  })
+
+export const memorySettingsSchema = createInsertSchema(userSettings)
+  .pick({ memoryEnabled: true })
+  .required()
+
+export type Memory = typeof memories.$inferSelect
+export type MemoryKind = (typeof memoryKind.enumValues)[number]
+export type MemoryUpdate = z.infer<typeof memoryUpdateSchema>
+export type AboutYou = z.infer<typeof aboutYouSchema>
+export type MemorySettings = z.infer<typeof memorySettingsSchema>
+export type UserSettings = typeof userSettings.$inferSelect
 
 export type Bot = typeof bots.$inferSelect
 export type NewBot = typeof bots.$inferInsert

@@ -46,8 +46,8 @@ export function DesktopResetDialog({ reset }: { reset: () => Promise<void> }) {
           <AlertDialogTitle>Start a new computer?</AlertDialogTitle>
           <AlertDialogDescription>
             The previous computer no longer exists. This creates an empty
-            computer. Its previous files, saved memory, and open applications
-            cannot be recovered. Your conversations stay available.
+            computer. Its previous files and open applications cannot be
+            recovered. Your conversations and memory stay available.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -1,5 +1,10 @@
 import { formatDistanceToNowStrict } from "date-fns"
-import { GaugeIcon, LayoutGridIcon, CreditCardIcon } from "lucide-react"
+import {
+  BrainIcon,
+  GaugeIcon,
+  LayoutGridIcon,
+  CreditCardIcon,
+} from "lucide-react"
 
 import { ChatAvatar } from "@/components/chat-avatar"
 import { ChatMenuButton } from "@/components/chat-menu-button"
@@ -222,6 +227,11 @@ export async function AppSidebar() {
         <SidebarMenu className="gap-1">
           <SidebarMenuItem>
             <ConnectorMarketplace />
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarNavLink href="/memory" label="Memory">
+              <BrainIcon />
+            </SidebarNavLink>
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarNavLink href="/usage" label="Usage">

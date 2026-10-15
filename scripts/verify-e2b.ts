@@ -62,7 +62,6 @@ const report: Record<string, unknown> = {
   sandboxId,
   checkedAt: new Date().toISOString(),
 }
-const note = "E2B verification: retain this memory after pause and resume."
 const content = `files survive ${botId}`
 try {
   await db.insert(bots).values({
@@ -99,7 +98,6 @@ try {
       options
     )
   )
-  await result(tools.remember.execute!({ note }, options))
   const failed = await result(
     tools.bash.execute!(
       { command: "printf expected-error >&2; exit 7", timeout: 60 },
@@ -222,10 +220,6 @@ try {
     ).content,
     content
   )
-  assert.match(
-    (await result(tools.recall.execute!({}, options))).memory,
-    /retain this memory/
-  )
   const resumed = await Sandbox.getInfo(sandboxId)
   assert.ok(resumed.startedAt > paused.startedAt)
   const client = await Sandbox.connect(sandboxId)
@@ -243,17 +237,13 @@ try {
     ).content,
     content
   )
-  assert.match(
-    (await result(tools.recall.execute!({}, options))).memory,
-    /retain this memory/
-  )
   const files = await result(
     tools.listFiles.execute!({ path: "verification" }, options)
   )
   assert.ok(files.files.some((file) => file.name === "note.txt"))
   report.explicitPauseResume = true
   report.idlePauseResume = true
-  report.filesAndMemoryIntact = true
+  report.filesIntact = true
   report.meteringRetriesIdempotent = true
   report.nonzeroCommandsPreserved = true
   console.log("Lifecycle checks passed; checking explicit reset")
@@ -281,7 +271,6 @@ try {
   assert.equal(replacements[0], replacements[1])
   assert.notEqual(sandboxId, previousId)
   assert.equal((await Sandbox.getInfo(sandboxId)).state, "paused")
-  assert.equal((await result(tools.recall.execute!({}, options))).memory, "")
   report.explicitMissingComputerReset = true
   report.concurrentResetsCreateOneComputer = true
 } finally {

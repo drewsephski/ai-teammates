@@ -16,7 +16,9 @@ import type { ChatUIMessage } from "@/lib/sandbox-tools"
 import {
   ArrowDownUpIcon,
   BookmarkPlusIcon,
+  BookmarkXIcon,
   BrainIcon,
+  PencilLineIcon,
   FilePenLineIcon,
   FileTextIcon,
   FolderSearchIcon,
@@ -58,6 +60,8 @@ const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
   "tool-listFiles": ["List files", "Listing files", "Listed files"],
   "tool-recall": ["Read memory", "Reading memory", "Read memory"],
   "tool-remember": ["Save memory", "Saving memory", "Saved memory"],
+  "tool-updateMemory": ["Update memory", "Updating memory", "Updated memory"],
+  "tool-forget": ["Forget memory", "Forgetting memory", "Forgot memory"],
   "tool-mouseClick": ["Click mouse", "Clicking mouse", "Clicked mouse"],
   "tool-mouseMove": ["Move mouse", "Moving mouse", "Moved mouse"],
   "tool-mouseDrag": ["Drag mouse", "Dragging mouse", "Dragged mouse"],
@@ -120,6 +124,8 @@ const toolIcons: Record<ToolPart["type"], LucideIcon> = {
   "tool-listFiles": FolderSearchIcon,
   "tool-recall": BrainIcon,
   "tool-remember": BookmarkPlusIcon,
+  "tool-updateMemory": PencilLineIcon,
+  "tool-forget": BookmarkXIcon,
   "tool-mouseClick": MousePointerClickIcon,
   "tool-mouseMove": MousePointerIcon,
   "tool-mouseDrag": MoveIcon,
@@ -191,13 +197,16 @@ function toolSummary(part: ToolPart): string | undefined {
     case "tool-listFiles":
       return preview(part.input?.path)
     case "tool-remember":
-      return preview(part.input?.note)
+    case "tool-updateMemory":
+      return preview(part.input?.content)
+    case "tool-forget":
+      return preview(part.input?.query) ?? "Saved memory"
     case "tool-recall":
       return part.state === "output-available"
-        ? part.output.memory.trim()
-          ? "Memory loaded"
-          : "No saved memories"
-        : "Saved memories"
+        ? part.output.memories.length
+          ? `${part.output.memories.length} found`
+          : "Nothing found"
+        : preview(part.input?.query)
     case "tool-keyboardType":
       return preview(part.input?.text)
     case "tool-keyboardPress":
@@ -428,8 +437,10 @@ function ToolCallDetails({ part }: { part: ToolPart }) {
 const resultLabels: Partial<Record<ToolPart["type"], string>> = {
   "tool-searchWeb": "Sources found",
   "tool-readWebPage": "Page content",
-  "tool-remember": "Saved note",
-  "tool-recall": "Saved memories",
+  "tool-remember": "Saved memory",
+  "tool-updateMemory": "Updated memory",
+  "tool-forget": "Forgotten",
+  "tool-recall": "Memories found",
   "tool-readFile": "File content",
   "tool-writeFile": "Saved file",
   "tool-listFiles": "Files found",
@@ -507,9 +518,16 @@ function toolResult(part: ToolPart) {
     case "tool-readFile":
       return part.output.content
     case "tool-recall":
-      return textResult(part.output.memory || "No saved memories yet.")
+      return textResult(
+        part.output.memories
+          .map((memory) => `- ${memory.content}`)
+          .join("\n") || "No matching memories."
+      )
     case "tool-remember":
+    case "tool-updateMemory":
       return textResult(part.output.remembered)
+    case "tool-forget":
+      return textResult(part.output.forgotten)
     case "tool-writeFile":
       return textResult(
         `Saved ${part.output.bytes} bytes to ${part.output.path}.`

@@ -95,7 +95,7 @@ test("follow-up context is bounded and contains prose rather than reasoning or t
           type: "tool-recall",
           toolCallId: "recall",
           state: "output-error",
-          input: {},
+          input: { query: "launch" },
           errorText: "private tool payload",
         },
         ...reply.parts,

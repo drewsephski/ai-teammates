@@ -10,15 +10,10 @@ import { and, eq } from "drizzle-orm"
 
 import { db } from "@/db"
 import { bots, sandboxSessions, usageEntries } from "@/db/schema"
-import {
-  IDLE_TIMEOUT_MS,
-  MEMORY_FILE,
-  runningSeconds,
-} from "@/lib/sandbox-policy"
+import { IDLE_TIMEOUT_MS, runningSeconds } from "@/lib/sandbox-policy"
 import { createSandboxLifecycle } from "@/lib/sandbox-lifecycle"
 import { withSandboxLock, tryWithSandboxLock } from "@/lib/sandbox-lock"
 
-export { MEMORY_FILE } from "@/lib/sandbox-policy"
 const APP = "ai-teammates"
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
@@ -113,7 +108,6 @@ export async function createBotSandbox(botId: string) {
       lifecycle: { onTimeout: "pause", autoResume: false },
       network: { allowPublicTraffic: false },
     })
-    await sandbox.files.write(MEMORY_FILE, "")
     // Creating a teammate should not keep an unused computer running.
     await sandbox.pause()
     return sandbox.sandboxId
@@ -137,10 +131,6 @@ export async function createBotSandbox(botId: string) {
     }
     throw error
   }
-}
-
-export async function readBotMemory(sandbox: Sandbox) {
-  return sandbox.files.read(MEMORY_FILE)
 }
 
 // Stream credentials are consumed only by the server's authenticated gateway.

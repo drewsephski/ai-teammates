@@ -5,8 +5,9 @@ import { bots, chatMembers, chats } from "@/db/schema"
 import { createConsultationTool } from "@/lib/consultation-tool"
 import { generateConsultation } from "@/lib/generate-consultation"
 import { followUpContext } from "@/lib/chat-follow-ups"
-import { createSandboxTools, type ChatUIMessage } from "@/lib/sandbox-tools"
-import { ensureBotComputer } from "@/lib/bot-computer"
+import type { ChatUIMessage } from "@/lib/sandbox-tools"
+import { isMemoryOn, loadMemoryContext } from "@/lib/memory"
+import { createMemoryTools } from "@/lib/memory-tools"
 import { assertBotAccess, assertTeamAccess } from "@/lib/teammates"
 import { getUsage, recordUsage } from "@/lib/usage"
 import { chatModel, chatModelCost } from "@/lib/model"
@@ -68,15 +69,17 @@ export function createTeammateConsultation(context: {
         directChat && directChat.id !== context.chatId
           ? await loadTranscript({ chatId: directChat.id })
           : undefined
-      const memoryTools = createSandboxTools(async () => {
-        signal.throwIfAborted()
-        const currentUsage = await getUsage(context.userId)
-        if (currentUsage.remaining.sandbox <= 0)
-          throw new Error(
-            "Teammate memory is unavailable: computer allowance is used up."
-          )
-        return ensureBotComputer(bot.id, context.userId)
-      })
+      // The person's shared memory, as the consulted bot would see it in its
+      // own chat. Sensitive memories never leave the conversation they came from.
+      const memoryOn = await isMemoryOn(context.userId, context.chatId)
+      const memory = memoryOn
+        ? await loadMemoryContext({
+            userId: context.userId,
+            botId: bot.id,
+            query: prompt,
+            includeSensitive: false,
+          }).catch(() => undefined)
+        : undefined
       let step = 0
       const answer = await generateConsultation({
         model: chatgpt
@@ -87,7 +90,18 @@ export function createTeammateConsultation(context: {
         recentConversation: followUpContext(
           (transcript?.messages ?? []) as ChatUIMessage[]
         ),
-        tools: bot.sandboxId ? { recall: memoryTools.recall } : {},
+        memory: memory?.block,
+        tools: memoryOn
+          ? {
+              recall: createMemoryTools({
+                userId: context.userId,
+                chatId: context.chatId,
+                getBotId: () => bot.id,
+                free: false,
+                includeSensitive: false,
+              }).recall,
+            }
+          : {},
         signal,
         beforeStep: async () => {
           const current = await getUsage(context.userId)

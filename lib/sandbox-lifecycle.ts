@@ -13,7 +13,7 @@ import {
 export class SandboxMissingError extends Error {
   constructor() {
     super(
-      "This computer no longer exists. Reset it from the screen panel to start a new, empty computer. Its previous files and memory cannot be recovered."
+      "This computer no longer exists. Reset it from the screen panel to start a new, empty computer. Its previous files cannot be recovered."
     )
     this.name = "SandboxMissingError"
   }

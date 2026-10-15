@@ -84,8 +84,8 @@ importers:
         specifier: ^1.0.3
         version: 1.0.3(react@19.2.8)
       '@trigger.dev/sdk':
-        specifier: 4.7.3
-        version: 4.7.3(ai@7.0.138(zod@4.6.7))(react@19.2.8)(zod@4.6.7)
+        specifier: 4.7.4
+        version: 4.7.4(ai@7.0.138(zod@4.6.7))(react@19.2.8)(zod@4.6.7)
       '@types/novnc__novnc':
         specifier: ^1.6.0
         version: 1.6.0
@@ -208,8 +208,8 @@ importers:
         specifier: ^16.3.3
         version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@trigger.dev/build':
-        specifier: 4.7.3
-        version: 4.7.3(typescript@5.9.3)(zod@4.6.7)
+        specifier: 4.7.4
+        version: 4.7.4(typescript@5.9.3)(zod@4.6.7)
       '@types/jsdom':
         specifier: ^30.0.0
         version: 30.0.0
@@ -2646,8 +2646,8 @@ packages:
   '@tokenlens/models@1.3.0':
     resolution: {integrity: sha512-9mx7ZGeewW4ndXAiD7AT1bbCk4OpJeortbjHHyNkgap+pMPPn1chY6R5zqe1ggXIUzZ2l8VOAKfPqOvpcrisJw==}
 
-  '@trigger.dev/build@4.7.3':
-    resolution: {integrity: sha512-HseT4sGAWt4D0tEW17dntJH+YS7RP8l3ZY0KHRuJbkdWl0nNZHHYgcOSf/7jXxvSAPknPWIpBNeMi+6D8NUJGw==}
+  '@trigger.dev/build@4.7.4':
+    resolution: {integrity: sha512-C6ET64wG4C+I6THyB8I58GMjrm2csGdlUjjZEJG9eDg3NH2v/SmpdcaNtgpKOdumS4CbINT6EcKap3wvgOkkSA==}
     engines: {node: '>=18.20.0'}
     peerDependencies:
       '@typescript/typescript6': ^6.0.0
@@ -2658,14 +2658,14 @@ packages:
       typescript:
         optional: true
 
-  '@trigger.dev/core@4.7.3':
-    resolution: {integrity: sha512-WCURVW4TsCtm40zdF1gKQvEYOia+zIoWzjk3vxdHsFZpQ0kAyXT+8UtSvCbW+WRKK8M7KGcHVDJ4pqiI662+tw==}
+  '@trigger.dev/core@4.7.4':
+    resolution: {integrity: sha512-DbiQ/yXejlTmxHx0jsbGz7ZaKw0vgmhVVJyjrK8Ys+cT0pp7xD2hDfmchM5hsfBPcjQqjmwCWeQTb9IXoxIHTg==}
     engines: {node: '>=18.20.0'}
     peerDependencies:
       zod: ^3.25.56 || ^4.0.0
 
-  '@trigger.dev/sdk@4.7.3':
-    resolution: {integrity: sha512-ixP8PNlqaBWzVh4oDDJJm7NkcxT/WwJ4a/9u+4AZerrY2iQdxOQ2QaVk6uen/lYrh//+zmSx5SaLixf0z0aLRw==}
+  '@trigger.dev/sdk@4.7.4':
+    resolution: {integrity: sha512-Eao34hnqz9NUGe2qDwTViVlKMKt1h1ZA7vtlT36Gy1YootlzCd0BWFTl0FMYqHJ+r2Q9AtT2VjBGQBMc+BECEg==}
     engines: {node: '>=18.20.0'}
     peerDependencies:
       '@ai-sdk/otel': '>=1.0.0-0 <2'
@@ -8965,10 +8965,10 @@ snapshots:
     dependencies:
       '@tokenlens/core': 1.3.0
 
-  '@trigger.dev/build@4.7.3(typescript@5.9.3)(zod@4.6.7)':
+  '@trigger.dev/build@4.7.4(typescript@5.9.3)(zod@4.6.7)':
     dependencies:
       '@prisma/config': 6.19.3
-      '@trigger.dev/core': 4.7.3(zod@4.6.7)
+      '@trigger.dev/core': 4.7.4(zod@4.6.7)
       mlly: 1.8.2
       pkg-types: 1.3.1
       tinyglobby: 0.2.17
@@ -8982,7 +8982,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@trigger.dev/core@4.7.3(zod@4.6.7)':
+  '@trigger.dev/core@4.7.4(zod@4.6.7)':
     dependencies:
       '@bugsnag/cuid': 3.2.2
       '@electric-sql/client': 1.0.14
@@ -9020,11 +9020,11 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@trigger.dev/sdk@4.7.3(ai@7.0.138(zod@4.6.7))(react@19.2.8)(zod@4.6.7)':
+  '@trigger.dev/sdk@4.7.4(ai@7.0.138(zod@4.6.7))(react@19.2.8)(zod@4.6.7)':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/semantic-conventions': 1.41.1
-      '@trigger.dev/core': 4.7.3(zod@4.6.7)
+      '@trigger.dev/core': 4.7.4(zod@4.6.7)
       uncrypto: 0.1.3
       zod: 4.6.7
     optionalDependencies:

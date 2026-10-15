@@ -11,6 +11,8 @@ import { USAGE_LIMIT_ERROR } from "@/lib/billing"
 import { createHandoffTool, type Handoff } from "@/lib/handoff-tool"
 import { chatModel, chatModelCost } from "@/lib/model"
 import { createSandboxTools, type ChatUIMessage } from "@/lib/sandbox-tools"
+import { isMemoryOn, loadMemoryContext, touchMemories } from "@/lib/memory"
+import { createMemoryTools } from "@/lib/memory-tools"
 import { getUsage, recordUsage, type Usage } from "@/lib/usage"
 import { createTeammateConsultation } from "@/lib/teammate-consultation"
 import {
@@ -237,8 +239,18 @@ export const chatAgent = chat
       const setupTools = createBotSetupTools((profile) =>
         configureBotProfile(userId, current.id, profile)
       )
+      // Every plan; none at all when memory is off or the chat is temporary
+      const memoryTools = (await isMemoryOn(userId, chatId))
+        ? createMemoryTools({
+            userId,
+            chatId,
+            getBotId: () => current.id,
+            free: plan.tier === "free",
+          })
+        : {}
       const sharedTools = {
         ...sandboxTools,
+        ...memoryTools,
         ...teamTools,
         ...consultationTools,
         ...connectorTools,
@@ -246,7 +258,7 @@ export const chatAgent = chat
         ...setupTools,
       }
       if (plan.tier === "free")
-        return { ...connectorTools, ...webTools, ...setupTools }
+        return { ...connectorTools, ...webTools, ...setupTools, ...memoryTools }
       if (kind !== "group") return sharedTools
 
       return {
@@ -487,6 +499,39 @@ export const chatAgent = chat
         signal,
       }
 
+      // The <memory> block, per answering bot: a handoff brings in that bot's
+      // own procedures. Undefined means memory is off for this chat.
+      const memoryOn = await isMemoryOn(row.userId, chatId)
+      const memoryBlocks = new Map<string, Promise<string>>()
+      const memoryFor = (botId: string) => {
+        if (!memoryOn) return Promise.resolve(undefined)
+        let block = memoryBlocks.get(botId)
+        if (!block) {
+          block = loadMemoryContext({
+            userId: row.userId,
+            botId,
+            query: turnModelUsage.composerText,
+          }).then(
+            ({ block, ids }) => {
+              chat.defer(touchMemories(ids))
+              return block
+            },
+            (error: unknown) => {
+              Sentry.logger.warn("Memory unavailable for this turn", {
+                "chat.id": chatId,
+                "bot.id": botId,
+                "error.type":
+                  error instanceof Error ? error.name : "UnknownError",
+              })
+              return "<memory>Memory could not be loaded for this turn. Call recall if you need it.</memory>"
+            }
+          )
+          memoryBlocks.set(botId, block)
+        }
+        return block
+      }
+      const memory = await memoryFor(bot.id)
+
       function respond(usage: Usage) {
         // Keep the conversation/session, but release this worker after the turn.
         // The next message boots the current deployment instead of waking an
@@ -524,7 +569,8 @@ export const chatAgent = chat
               group,
               appToolsAvailable,
               usage.tier === "paid",
-              webToolsAvailable
+              webToolsAvailable,
+              memory
             ),
             composerContext,
           ]
@@ -559,7 +605,8 @@ export const chatAgent = chat
                     group,
                     appToolsAvailable,
                     usage.tier === "paid",
-                    webToolsAvailable
+                    webToolsAvailable,
+                    await memoryFor(updated.id)
                   ),
                   composerContext,
                 ]

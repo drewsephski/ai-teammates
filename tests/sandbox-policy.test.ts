@@ -25,7 +25,7 @@ test("meter only whole running seconds and exclude time after pause", () => {
 })
 
 test("file and command paths share the desktop user's home directory", () => {
-  assert.equal(sandboxPath("MEMORY.md"), "/home/user/MEMORY.md")
+  assert.equal(sandboxPath("notes.md"), "/home/user/notes.md")
   assert.equal(sandboxPath("~/project/file.txt"), "/home/user/project/file.txt")
   assert.equal(sandboxPath("~"), "/home/user")
   assert.equal(sandboxPath("/tmp/file.txt"), "/tmp/file.txt")
