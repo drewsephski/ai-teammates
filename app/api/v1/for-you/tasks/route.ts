@@ -2,14 +2,20 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 import { apiRoute, readJson } from "@/lib/api"
-import { startForYouTask } from "@/services/for-you"
+import { startForYouItem } from "@/services/for-you"
 
-const bodySchema = z.object({ token: z.string().min(1).max(10_000) })
+// `token` is the field name older app builds send; it carries the item ID
+const bodySchema = z
+  .object({
+    itemId: z.string().min(1).max(64).optional(),
+    token: z.string().min(1).max(64).optional(),
+  })
+  .refine((body) => body.itemId ?? body.token, "itemId is required")
 
-// Accepts a suggestion's signed token and starts its chat
+// Starts a suggestion's chat; repeating it returns the same chat
 export const POST = apiRoute(async ({ userId }, request) => {
-  const { token } = bodySchema.parse(await readJson(request))
-  const result = await startForYouTask(userId, token)
+  const body = bodySchema.parse(await readJson(request))
+  const result = await startForYouItem(userId, (body.itemId ?? body.token)!)
   revalidatePath("/", "layout")
   return result
 })
