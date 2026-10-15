@@ -8,6 +8,7 @@ import { z } from "zod"
 import { db } from "@/db"
 import { bots as botTable, chatMembers, chats } from "@/db/schema"
 import { USAGE_LIMIT_ERROR } from "@/lib/billing"
+import { isModelUnavailable, MODEL_UNAVAILABLE_ERROR } from "@/lib/chat-turn"
 import { createHandoffTool, type Handoff } from "@/lib/handoff-tool"
 import { chatModel, chatModelCost } from "@/lib/model"
 import { createSandboxTools, type ChatUIMessage } from "@/lib/sandbox-tools"
@@ -88,6 +89,7 @@ export const chatAgent = chat
     id: "chat",
     uiMessageStreamOptions: {
       onError: (error) => {
+        if (isModelUnavailable(error)) return MODEL_UNAVAILABLE_ERROR
         const message = error instanceof Error ? error.message : ""
         return [
           USAGE_LIMIT_ERROR,

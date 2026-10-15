@@ -65,6 +65,7 @@ import { seenMessageIds } from "@/lib/chat-receipts"
 import { Badge } from "@/components/ui/badge"
 import type { Bot } from "@/db/schema"
 import { USAGE_LIMIT_ERROR } from "@/lib/billing"
+import { MODEL_UNAVAILABLE_ERROR } from "@/lib/chat-turn"
 import {
   CHATGPT_LIMIT_ERROR,
   CHATGPT_RECONNECT_ERROR,
@@ -273,6 +274,15 @@ function ChatMessages({
             children: "Manage ChatGPT",
             onClick: () => router.push("/usage#chatgpt-plan"),
           },
+        })
+        return
+      }
+
+      if (error.message === MODEL_UNAVAILABLE_ERROR) {
+        toast.add({
+          type: "error",
+          title: "AI model busy",
+          description: error.message,
         })
         return
       }

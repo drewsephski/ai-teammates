@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs"
-import { auth } from "@trigger.dev/sdk"
+import { ApiError as TriggerApiError, auth, runs, sessions } from "@trigger.dev/sdk"
 import {
   chat,
   defaultStorage,
@@ -17,6 +17,7 @@ import {
   type GroupChatInsert,
 } from "@/db/schema"
 import type { Feature } from "@/lib/billing"
+import { chatTurnState } from "@/lib/chat-turn"
 import { getBotSandboxInfo, pauseBotSandbox, resetBotSandbox } from "@/lib/e2b"
 import { SandboxMissingError } from "@/lib/sandbox-lifecycle"
 import type { ChatUIMessage } from "@/lib/sandbox-tools"
@@ -165,6 +166,28 @@ export async function mintChatAccessToken(caller: Caller, chatId: string) {
     scopes: { read: { sessions: chatId }, write: { sessions: chatId } },
     expirationTime: "1h",
   })
+}
+
+// What the chat's agent run is doing, for a client waiting on a reply that
+// hasn't started streaming. Session tokens can't read run status, so the
+// server reads it for the chat's owner: "queued" means no worker has picked
+// the turn up yet, "pending_version" that it waits for a deployment.
+export async function getChatTurnStatus(userId: string, chatId: string) {
+  await ownedChat(userId, chatId)
+
+  let runId: string | null | undefined
+  try {
+    runId = (await sessions.retrieve(chatId)).currentRunId
+  } catch (error) {
+    // No session yet: the first message will start one
+    if (error instanceof TriggerApiError && error.status === 404)
+      return { state: chatTurnState(undefined) }
+    throw error
+  }
+  if (!runId) return { state: chatTurnState(undefined) }
+
+  const run = await runs.retrieve(runId)
+  return { state: chatTurnState(run.status), runId }
 }
 
 export async function loadTranscript(userId: string, chatId: string) {
