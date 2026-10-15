@@ -18,12 +18,28 @@ function tick(time: number) {
   if (frames.size && !document.hidden) frameId = requestAnimationFrame(tick)
 }
 
+// A finger only counts while it is down, since touch screens have no hover.
+let touching = false
+
 function move(event: PointerEvent) {
-  if (event.pointerType !== "touch")
+  if (event.pointerType !== "touch" || touching)
     pointer = { x: event.clientX, y: event.clientY }
 }
 
+function press(event: PointerEvent) {
+  if (event.pointerType !== "touch") return
+  touching = true
+  pointer = { x: event.clientX, y: event.clientY }
+}
+
+function release(event: PointerEvent) {
+  if (event.pointerType !== "touch") return
+  touching = false
+  pointer = null
+}
+
 function leave() {
+  touching = false
   pointer = null
 }
 
@@ -38,6 +54,9 @@ function visibility() {
 export function subscribeCharacterFrame(frame: Frame) {
   if (!frames.size) {
     window.addEventListener("pointermove", move, { passive: true })
+    window.addEventListener("pointerdown", press, { passive: true })
+    window.addEventListener("pointerup", release, { passive: true })
+    window.addEventListener("pointercancel", release, { passive: true })
     window.addEventListener("blur", leave)
     document.documentElement.addEventListener("pointerleave", leave)
     document.addEventListener("visibilitychange", visibility)
@@ -51,7 +70,11 @@ export function subscribeCharacterFrame(frame: Frame) {
     frameId = 0
     previousTime = null
     pointer = null
+    touching = false
     window.removeEventListener("pointermove", move)
+    window.removeEventListener("pointerdown", press)
+    window.removeEventListener("pointerup", release)
+    window.removeEventListener("pointercancel", release)
     window.removeEventListener("blur", leave)
     document.documentElement.removeEventListener("pointerleave", leave)
     document.removeEventListener("visibilitychange", visibility)
