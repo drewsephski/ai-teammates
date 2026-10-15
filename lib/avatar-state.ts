@@ -19,6 +19,11 @@ export const avatarStatusLabels: Record<AvatarState, string> = {
   error: "Reply unavailable",
 }
 
+// The bot is busy and the person is waiting: these labels shimmer
+export function avatarStatusInProgress(state: AvatarState) {
+  return ["queued", "thinking", "working", "responding"].includes(state)
+}
+
 export function avatarIsAnimated(state: AvatarState) {
   return ["thinking", "working", "responding", "complete"].includes(state)
 }

@@ -22,6 +22,7 @@ import { isValidElement } from "react"
 import { AnimatedArrow } from "@/components/ui/animated-arrow"
 
 import { CodeBlock } from "./code-block"
+import { Shimmer } from "./shimmer"
 
 export type ToolProps = ComponentProps<typeof Collapsible>
 
@@ -92,7 +93,13 @@ export const getStatusBadge = (status: ToolPart["state"]) => (
           : undefined
       }
     >
-      {statusLabels[status]}
+      {status === "input-streaming" || status === "input-available" ? (
+        <Shimmer as="span" duration={1.6}>
+          {statusLabels[status]}
+        </Shimmer>
+      ) : (
+        statusLabels[status]
+      )}
     </span>
   </span>
 )

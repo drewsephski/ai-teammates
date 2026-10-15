@@ -18,6 +18,7 @@ import {
 
 import { ChatComposer } from "@/components/chat-composer"
 import type { BotMention, MentionBot } from "@/lib/composer"
+import { Shimmer } from "@/components/ai-elements/shimmer"
 import { ChatAvatar } from "@/components/chat-avatar"
 import { usePublishChatActivity } from "@/components/chat-activity-provider"
 import {
@@ -25,7 +26,10 @@ import {
   chatAuthorSections,
   type ChatActivity,
 } from "@/lib/chat-activity"
-import { avatarStatusLabels } from "@/lib/avatar-state"
+import {
+  avatarStatusInProgress,
+  avatarStatusLabels,
+} from "@/lib/avatar-state"
 import {
   Conversation,
   ConversationContent,
@@ -656,7 +660,13 @@ function ChatMessages({
                 {activeAuthor && bots.length > 0
                   ? `${activeAuthor.name} · `
                   : ""}
-                {avatarStatusLabels[activity.state]}
+                {avatarStatusInProgress(activity.state) ? (
+                  <Shimmer as="span" duration={1.6}>
+                    {avatarStatusLabels[activity.state]}
+                  </Shimmer>
+                ) : (
+                  avatarStatusLabels[activity.state]
+                )}
               </span>
             </div>
           )}
