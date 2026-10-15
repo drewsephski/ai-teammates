@@ -15,7 +15,14 @@ import {
   FieldSet,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
@@ -38,6 +45,8 @@ const textFields = [
     placeholder: "Short bullet points, no small talk",
   },
 ] as const
+
+const formatZone = (zone: string) => zone.replaceAll("_", " ")
 
 export function AboutYouForm({
   values,
@@ -101,19 +110,33 @@ export function AboutYouForm({
               <Field data-invalid={fieldState.invalid}>
                 <FieldLabel htmlFor="about-timezone">Timezone</FieldLabel>
                 <div className="flex flex-wrap items-center gap-2">
-                  <NativeSelect
-                    {...field}
-                    id="about-timezone"
-                    className="w-full sm:w-72"
-                    aria-invalid={fieldState.invalid}
+                  <Combobox
+                    items={timezones}
+                    value={field.value || null}
+                    onValueChange={(zone) => field.onChange(zone ?? "")}
+                    itemToStringLabel={formatZone}
                   >
-                    <NativeSelectOption value="">Not set</NativeSelectOption>
-                    {timezones.map((zone) => (
-                      <NativeSelectOption key={zone} value={zone}>
-                        {zone.replaceAll("_", " ")}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
+                    <ComboboxInput
+                      ref={field.ref}
+                      id="about-timezone"
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      className="w-full sm:w-72"
+                      placeholder="Not set"
+                      showClear={Boolean(field.value)}
+                      aria-invalid={fieldState.invalid}
+                    />
+                    <ComboboxContent>
+                      <ComboboxEmpty>No matching timezone</ComboboxEmpty>
+                      <ComboboxList>
+                        {(zone: string) => (
+                          <ComboboxItem key={zone} value={zone}>
+                            {formatZone(zone)}
+                          </ComboboxItem>
+                        )}
+                      </ComboboxList>
+                    </ComboboxContent>
+                  </Combobox>
                   <Button
                     type="button"
                     variant="ghost"

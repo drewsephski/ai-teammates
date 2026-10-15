@@ -15,7 +15,7 @@ import {
 } from "@/components/sidebar-reorderable-items"
 import { reorderSidebarConversations } from "@/actions/sidebar"
 import { getSidebarConversationOrder } from "@/queries/sidebar"
-import { applySidebarOrder } from "@/lib/sidebar-order"
+import { sidebarSections } from "@/lib/sidebar-order"
 import { CreateMenu } from "@/components/create-menu"
 import { ConnectorMarketplace } from "@/components/connector-marketplace"
 import { GroupChatAvatar } from "@/components/group-chat-avatar"
@@ -63,33 +63,9 @@ export async function AppSidebar() {
     getBots(),
     getSidebarConversationOrder(),
   ])
-  const pinned = bots
-    .filter((bot) => bot.pinnedAt)
-    .sort(
-      (a, b) =>
-        a.pinnedAt!.getTime() - b.pinnedAt!.getTime() ||
-        a.id.localeCompare(b.id)
-    )
-    .flatMap((bot) => {
-      const chat = chats.find(
-        (chat) => chat.kind === "direct" && chat.bots[0].id === bot.id
-      )
-      return chat
-        ? [
-            {
-              bot,
-              chat,
-              chatIds: chats
-                .filter(
-                  (chat) => chat.kind === "direct" && chat.bots[0].id === bot.id
-                )
-                .map((chat) => chat.id),
-            },
-          ]
-        : []
-    })
-  const unpinnedChats = applySidebarOrder(
-    chats.filter((chat) => chat.kind !== "direct" || !chat.bots[0].pinnedAt),
+  const { pinned, conversations: unpinnedChats } = sidebarSections(
+    chats,
+    bots,
     conversationOrder
   )
 

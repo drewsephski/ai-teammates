@@ -26,7 +26,13 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
@@ -93,18 +99,29 @@ function MemoryEditForm({
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid}>
               <FieldLabel htmlFor="memory-kind">Kind</FieldLabel>
-              <NativeSelect
-                {...field}
-                id="memory-kind"
-                className="w-full"
-                aria-invalid={fieldState.invalid}
+              <Select
+                items={memoryKindLabels}
+                name={field.name}
+                inputRef={field.ref}
+                value={field.value}
+                onValueChange={field.onChange}
               >
-                {memoryKinds.map((kind) => (
-                  <NativeSelectOption key={kind} value={kind}>
-                    {memoryKindLabels[kind]}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
+                <SelectTrigger
+                  id="memory-kind"
+                  className="w-full"
+                  onBlur={field.onBlur}
+                  aria-invalid={fieldState.invalid}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {memoryKinds.map((kind) => (
+                    <SelectItem key={kind} value={kind}>
+                      {memoryKindLabels[kind]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <FieldError errors={[fieldState.error]} />
             </Field>
           )}
@@ -115,23 +132,36 @@ function MemoryEditForm({
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid}>
               <FieldLabel htmlFor="memory-scope">Who knows it</FieldLabel>
-              <NativeSelect
-                id="memory-scope"
-                className="w-full"
+              <Select
+                items={[
+                  { value: null, label: "All teammates" },
+                  ...teammates.map((bot) => ({
+                    value: bot.id,
+                    label: `Only ${bot.name}`,
+                  })),
+                ]}
                 name={field.name}
-                ref={field.ref}
-                onBlur={field.onBlur}
-                value={field.value ?? ""}
-                onChange={(event) => field.onChange(event.target.value || null)}
-                aria-invalid={fieldState.invalid}
+                inputRef={field.ref}
+                value={field.value ?? null}
+                onValueChange={field.onChange}
               >
-                <NativeSelectOption value="">All teammates</NativeSelectOption>
-                {teammates.map((bot) => (
-                  <NativeSelectOption key={bot.id} value={bot.id}>
-                    Only {bot.name}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
+                <SelectTrigger
+                  id="memory-scope"
+                  className="w-full"
+                  onBlur={field.onBlur}
+                  aria-invalid={fieldState.invalid}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={null}>All teammates</SelectItem>
+                  {teammates.map((bot) => (
+                    <SelectItem key={bot.id} value={bot.id}>
+                      Only {bot.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <FieldError errors={[fieldState.error]} />
             </Field>
           )}

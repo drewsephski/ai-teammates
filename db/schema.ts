@@ -170,6 +170,21 @@ export const chatgptAuthAttempts = pgTable(
   (table) => [index("chatgpt_auth_expiry_idx").on(table.expiresAt)]
 )
 
+// A native app's pending app connection. The web keeps this in a cookie; the
+// native app has no browser cookie, so the attempt is bound to the user here.
+export const connectorAuthAttempts = pgTable(
+  "connector_auth_attempts",
+  {
+    state: text().primaryKey(),
+    userId: text().notNull(),
+    accountId: text().notNull(),
+    toolkit: text().notNull(),
+    returnUrl: text().notNull(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [index("connector_auth_expiry_idx").on(table.expiresAt)]
+)
+
 export const chatgptPreferenceSchema = createInsertSchema(chatgptConnections, {
   enabled: z.boolean(),
   model: z.string().trim().min(1).max(200).nullable(),

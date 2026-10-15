@@ -17,7 +17,7 @@ import { getUsage, recordUsage, type Usage } from "@/lib/usage"
 import { createTeammateConsultation } from "@/lib/teammate-consultation"
 import {
   composerInstructions,
-  mentionsSchema,
+  chatClientDataSchema,
   validateMentionRanges,
   resolveMentionedBots,
   type BotMention,
@@ -44,15 +44,6 @@ import {
   CHATGPT_RECONNECT_ERROR,
   CHATGPT_REQUEST_ERROR,
 } from "@/lib/chatgpt-policy"
-
-// Sent with each message. Missing in direct chats, and when the session starts.
-const clientDataSchema = z
-  .object({
-    // The bot a group chat's message is addressed to
-    botId: z.string().optional(),
-    mentions: mentionsSchema.optional(),
-  })
-  .optional()
 
 // A chat's bots and the one answering this turn. No session here: the chat's
 // owner was checked when the session started. botId comes from the browser, so
@@ -92,7 +83,7 @@ const turnModelUsage = chat.local<{
 // The transcript is kept per chatId by the agent's default transcript storage
 export const chatAgent = chat
   .withUIMessage<ChatUIMessage>()
-  .withClientData({ schema: clientDataSchema })
+  .withClientData({ schema: chatClientDataSchema })
   .agent({
     id: "chat",
     uiMessageStreamOptions: {

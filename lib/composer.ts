@@ -59,6 +59,15 @@ export const mentionSchema = z.object({
 })
 export const mentionsSchema = z.array(mentionSchema).max(5)
 export type BotMention = z.infer<typeof mentionSchema>
+
+// Sent with each message. Missing in direct chats, and when the session starts.
+export const chatClientDataSchema = z
+  .object({
+    // The bot a group chat's message is addressed to
+    botId: z.string().optional(),
+    mentions: mentionsSchema.optional(),
+  })
+  .optional()
 export type MentionBot = {
   id: string
   name: string

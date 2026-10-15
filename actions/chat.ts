@@ -1,271 +1,68 @@
 "use server"
 
-import { auth as clerkAuth, currentUser } from "@clerk/nextjs/server"
-import * as Sentry from "@sentry/nextjs"
-import { auth } from "@trigger.dev/sdk"
-import {
-  chat,
-  defaultStorage,
-  type ChatStartSessionParams,
-} from "@trigger.dev/sdk/ai"
-import { and, eq, inArray, notInArray } from "drizzle-orm"
+import { auth, currentUser } from "@clerk/nextjs/server"
+import type { ChatStartSessionParams } from "@trigger.dev/sdk/ai"
 import { revalidatePath } from "next/cache"
 
-import { db } from "@/db"
-import {
-  bots,
-  chatMembers,
-  chats,
-  groupChatInsertSchema,
-  type GroupChatInsert,
-} from "@/db/schema"
-import type { Feature } from "@/lib/billing"
-import { getBotSandboxInfo, pauseBotSandbox, resetBotSandbox } from "@/lib/e2b"
-import { SandboxMissingError } from "@/lib/sandbox-lifecycle"
-import type { ChatUIMessage } from "@/lib/sandbox-tools"
-import { getUsage } from "@/lib/usage"
-import { assertBotAccess, provisionGroup } from "@/lib/teammates"
-import { getChat } from "@/queries/chats"
+import type { GroupChatInsert } from "@/db/schema"
 import type { chatAgent } from "@/trigger/chat"
-import { startBotSetupSession } from "@/lib/bot-setup-session"
-import { ensureBotComputer } from "@/lib/bot-computer"
+import * as service from "@/services/chats"
 
-const startSession = chat.createStartSessionAction<typeof chatAgent>("chat")
-const loadStoredTranscript = chat.createLoadTranscriptAction(defaultStorage)
-
-// chatId comes from the browser; only the chat's owner may touch its session
-async function assertChatOwner(chatId: string) {
-  const chat = await getChat(chatId)
-  if (!chat) throw new Error("Chat not found")
-}
-
-// Billable actions are for plans that include the feature
-async function assertFeature(feature: Feature) {
-  const { has, userId } = await clerkAuth()
-  if (!has({ feature })) {
-    Sentry.logger.warn("Paid feature blocked: upgrade required", {
-      "billing.feature": feature,
-      ...(userId && { "user.id": userId }),
-    })
-    throw new Error("Upgrade required")
-  }
+async function caller() {
+  const { isAuthenticated, userId, has } = await auth()
+  if (!isAuthenticated) throw new Error("Unauthorized")
+  return { userId, has }
 }
 
 export async function startChatSession(
   params: ChatStartSessionParams<typeof chatAgent>
 ) {
-  await assertFeature("bots")
-  await assertChatOwner(params.chatId)
-
-  const owned = await getChat(params.chatId)
-  if (owned)
-    for (const bot of owned.bots) await assertBotAccess(owned.userId, bot.id)
-  if (
-    owned?.kind === "direct" &&
-    (!owned.bots[0].setupComplete || !owned.lastMessagePreview)
-  ) {
-    const user = await currentUser()
-    const session = await startBotSetupSession(
-      owned.id,
-      owned.bots[0],
-      user?.firstName
-    )
-    return { publicAccessToken: session.publicAccessToken }
-  }
-
-  // The browser may choose an addressee, never task config or session metadata.
-  const session = await startSession({
-    chatId: params.chatId,
-    clientData: params.clientData,
-  })
-
-  Sentry.logger.info("Chat session started", { "chat.id": params.chatId })
-
-  return session
+  return service.startChatSession(
+    await caller(),
+    params,
+    async () => (await currentUser())?.firstName
+  )
 }
 
 export async function mintChatAccessToken(chatId: string) {
-  // Sending needs a token, so a session started on a paid plan ends with it
-  await assertFeature("bots")
-  await assertChatOwner(chatId)
-
-  const owned = await getChat(chatId)
-  if (owned)
-    for (const bot of owned.bots) await assertBotAccess(owned.userId, bot.id)
-
-  return auth.createPublicToken({
-    scopes: { read: { sessions: chatId }, write: { sessions: chatId } },
-    expirationTime: "1h",
-  })
+  return service.mintChatAccessToken(await caller(), chatId)
 }
 
 export async function loadTranscript(params: { chatId: string }) {
-  await assertChatOwner(params.chatId)
-
-  const transcript = await loadStoredTranscript(params)
-
-  // Stored untyped, but only this agent ever writes it
-  return { ...transcript, messages: transcript.messages as ChatUIMessage[] }
+  const { userId } = await caller()
+  return service.loadTranscript(userId, params.chatId)
 }
 
 export async function getDesktopUrl(chatId: string) {
-  const { isAuthenticated } = await clerkAuth()
-  if (!isAuthenticated) throw new Error("Unauthorized")
-  await assertFeature("sandboxes")
-
-  const chat = await getChat(chatId)
-  // Only a direct chat has one desktop to show
-  if (!chat || chat.kind !== "direct") throw new Error("Chat not found")
-
-  // Showing the desktop starts the sandbox
-  const usage = await getUsage(chat.userId)
-  if (!usage || usage.remaining.sandbox <= 0) {
-    Sentry.logger.warn("Desktop blocked: usage limit reached", {
-      "user.id": chat.userId,
-      "chat.id": chatId,
-      "usage.kind": "sandbox",
-    })
-    throw new Error("Usage limit reached")
-  }
-
-  // The gateway authenticates again and keeps provider tokens server-side.
-  try {
-    await getBotSandboxInfo(
-      await ensureBotComputer(chat.bots[0].id, chat.userId)
-    )
-  } catch (error) {
-    if (error instanceof SandboxMissingError) return { missing: true as const }
-    throw error
-  }
-  return {
-    missing: false as const,
-    url: `/api/chats/${encodeURIComponent(chatId)}/desktop`,
-  }
+  return service.getDesktopUrl(await caller(), chatId)
 }
 
 export async function resetDesktop(chatId: string) {
-  const { isAuthenticated, userId } = await clerkAuth()
-  if (!isAuthenticated) throw new Error("Unauthorized")
-  await assertFeature("sandboxes")
-  const chat = await getChat(chatId)
-  if (!chat || chat.kind !== "direct") throw new Error("Chat not found")
-  const usage = await getUsage(userId)
-  if (!usage || usage.remaining.sandbox <= 0)
-    throw new Error("Usage limit reached")
-  const bot = chat.bots[0]
-  if (!bot.sandboxId) {
-    await ensureBotComputer(bot.id, userId)
-    return
-  }
-  await resetBotSandbox(bot.id, userId, bot.sandboxId)
+  await service.resetDesktop(await caller(), chatId)
   revalidatePath("/", "layout")
 }
 
 export async function pauseDesktop(chatId: string) {
-  const { isAuthenticated } = await clerkAuth()
-  if (!isAuthenticated) throw new Error("Unauthorized")
-  const chat = await getChat(chatId)
-  if (!chat || chat.kind !== "direct") throw new Error("Chat not found")
-  if (chat.bots[0].sandboxId) await pauseBotSandbox(chat.bots[0].sandboxId)
+  const { userId } = await caller()
+  await service.pauseDesktop(userId, chatId)
 }
 
 export async function createGroupChat(values: GroupChatInsert) {
-  const { isAuthenticated, userId } = await clerkAuth()
-  if (!isAuthenticated) throw new Error("Unauthorized")
-
-  const chat = await provisionGroup(userId, values)
-
+  const { userId } = await caller()
+  const chat = await service.createGroupChat(userId, values)
   revalidatePath("/", "layout")
-
-  Sentry.logger.info("Group chat created", {
-    "user.id": userId,
-    "chat.id": chat.id,
-    "chat.bot_count": values.botIds.length,
-  })
-
   return chat
 }
 
 export async function updateGroupChat(chatId: string, values: GroupChatInsert) {
-  const { isAuthenticated, userId } = await clerkAuth()
-  if (!isAuthenticated) throw new Error("Unauthorized")
-
-  const data = groupChatInsertSchema.parse(values)
-  const botIds = [...new Set(data.botIds)]
-
-  // The IDs come from the browser; every one must be a bot of this user
-  const owned = await db
-    .select({ id: bots.id })
-    .from(bots)
-    .where(and(eq(bots.userId, userId), inArray(bots.id, botIds)))
-  if (botIds.length < 2 || owned.length !== botIds.length) {
-    throw new Error("Bot not found")
-  }
-
-  const chat = await db.transaction(async (tx) => {
-    const [chat] = await tx
-      .update(chats)
-      .set({ name: data.name })
-      .where(
-        and(
-          eq(chats.id, chatId),
-          eq(chats.userId, userId),
-          eq(chats.kind, "group")
-        )
-      )
-      .returning()
-    if (!chat) throw new Error("Chat not found")
-
-    await tx
-      .delete(chatMembers)
-      .where(
-        and(
-          eq(chatMembers.chatId, chatId),
-          notInArray(chatMembers.botId, botIds)
-        )
-      )
-
-    // Bots that stay keep the row they joined with, and so their place
-    await tx
-      .insert(chatMembers)
-      .values(botIds.map((botId) => ({ chatId, botId })))
-      .onConflictDoNothing()
-
-    return chat
-  })
-
+  const { userId } = await caller()
+  const chat = await service.updateGroupChat(userId, chatId, values)
   revalidatePath("/", "layout")
-
-  Sentry.logger.info("Group chat updated", {
-    "user.id": userId,
-    "chat.id": chat.id,
-    "chat.bot_count": botIds.length,
-  })
-
   return chat
 }
 
 export async function deleteGroupChat(chatId: string) {
-  const { isAuthenticated, userId } = await clerkAuth()
-  if (!isAuthenticated) throw new Error("Unauthorized")
-
-  // Memberships go with the chat; the bots stay
-  const [chat] = await db
-    .delete(chats)
-    .where(
-      and(
-        eq(chats.id, chatId),
-        eq(chats.userId, userId),
-        eq(chats.kind, "group")
-      )
-    )
-    .returning({ id: chats.id })
-  if (!chat) throw new Error("Chat not found")
-
+  const { userId } = await caller()
+  await service.deleteGroupChat(userId, chatId)
   revalidatePath("/", "layout")
-
-  Sentry.logger.info("Group chat deleted", {
-    "user.id": userId,
-    "chat.id": chat.id,
-  })
 }

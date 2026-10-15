@@ -1,64 +1,16 @@
 import { auth } from "@clerk/nextjs/server"
-import { and, desc, eq, isNull } from "drizzle-orm"
 
 import { AppPageHeader } from "@/components/app-page-header"
 import { AboutYouForm } from "@/components/memory/about-you-form"
 import { MemoryList } from "@/components/memory/memory-list"
 import { MemorySettingsForm } from "@/components/memory/memory-settings-form"
-import { db } from "@/db"
-import { bots, memories, type AboutYou } from "@/db/schema"
-import { getUserSettings } from "@/lib/memory"
-import { readAboutYou } from "@/lib/memory-policy"
+import { getMemoryOverview } from "@/services/memory"
 
 export default async function Page() {
   const { userId } = await auth.protect()
 
-  const [settings, rows, teammates] = await Promise.all([
-    getUserSettings(userId),
-    db
-      .select({
-        id: memories.id,
-        kind: memories.kind,
-        content: memories.content,
-        botId: memories.botId,
-        pinned: memories.pinned,
-        source: memories.source,
-        sourceChatId: memories.sourceChatId,
-        createdAt: memories.createdAt,
-      })
-      .from(memories)
-      .where(
-        and(
-          eq(memories.userId, userId),
-          eq(memories.status, "active"),
-          isNull(memories.invalidAt)
-        )
-      )
-      .orderBy(desc(memories.pinned), desc(memories.createdAt)),
-    db
-      .select({ id: bots.id, name: bots.name })
-      .from(bots)
-      .where(eq(bots.userId, userId))
-      .orderBy(bots.createdAt),
-  ])
-
-  // The About you fields live in the same store; show them in their own form
-  const about: AboutYou = {
-    timezone: settings.timezone === "UTC" ? "" : settings.timezone,
-    role: "",
-    workingHours: "",
-    answerStyle: "",
-    about: "",
-  }
-  const listed = rows.filter((row) => {
-    const field =
-      row.source === "user_edit" && row.botId === null
-        ? readAboutYou(row.content)
-        : undefined
-    if (!field) return true
-    if (field.key !== "timezone") about[field.key] = field.value
-    return false
-  })
+  const { memoryEnabled, about, memories, teammates } =
+    await getMemoryOverview(userId)
 
   return (
     <section>
@@ -74,12 +26,12 @@ export default async function Page() {
             here.
           </p>
         </div>
-        <MemorySettingsForm memoryEnabled={settings.memoryEnabled} />
+        <MemorySettingsForm memoryEnabled={memoryEnabled} />
         <AboutYouForm
           values={about}
           timezones={Intl.supportedValuesOf("timeZone")}
         />
-        <MemoryList memories={listed} teammates={teammates} />
+        <MemoryList memories={memories} teammates={teammates} />
       </div>
     </section>
   )

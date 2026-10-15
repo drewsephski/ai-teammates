@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm"
 import { WebSocket, WebSocketServer, createWebSocketStream } from "ws"
 
 import { ensureBotComputer } from "@/lib/bot-computer"
+import { desktopAuth } from "@/lib/desktop-gateway-auth"
 import { db } from "@/db"
 import { bots, chatMembers, chats } from "@/db/schema"
 import { getBotDesktopConnection, renewBotDesktop } from "@/lib/e2b"
@@ -29,19 +30,16 @@ export async function upgradeDesktop(
     const protocol =
       request.headers["x-forwarded-proto"] === "https" ? "https" : "http"
     const origin = `${protocol}://${request.headers.host}`
-    // Browser WebSockets carry cookies. Reject cross-origin attempts before auth.
-    if (request.headers.origin !== origin) return reject(403)
     const url = new URL(request.url!, origin)
+    // Browser WebSockets carry cookies, so cross-origin attempts are rejected
+    // before auth; native apps without an Origin must bring a bearer token.
+    const credentials = desktopAuth(request.headers, url, origin)
+    if (!credentials.ok) return reject(credentials.status)
     const match = /^\/api\/chats\/([^/]+)\/desktop$/.exec(url.pathname)
     if (!match) return reject(404)
-    const headers = new Headers()
-    for (const [name, value] of Object.entries(request.headers)) {
-      if (value)
-        headers.set(name, Array.isArray(value) ? value.join(", ") : value)
-    }
     const session = await clerk.authenticateRequest(
-      new Request(url, { headers }),
-      { authorizedParties: [origin] }
+      new Request(url, { headers: credentials.headers }),
+      { authorizedParties: credentials.authorizedParties }
     )
     const auth = session.toAuth()
     if (!auth?.userId) return reject(401)
