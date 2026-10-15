@@ -17,6 +17,7 @@ import {
   type GroupChatInsert,
 } from "@/db/schema"
 import type { Feature } from "@/lib/billing"
+import { delegationSourceId } from "@/lib/chat-origin"
 import { chatTurnState } from "@/lib/chat-turn"
 import { getBotSandboxInfo, pauseBotSandbox, resetBotSandbox } from "@/lib/e2b"
 import { SandboxMissingError } from "@/lib/sandbox-lifecycle"
@@ -188,6 +189,27 @@ export async function getChatTurnStatus(userId: string, chatId: string) {
 
   const run = await runs.retrieve(runId)
   return { state: chatTurnState(run.status), runId }
+}
+
+// The chat a delegated chat came from, when both are this user's. A source
+// that was deleted or belongs to someone else is never revealed.
+export async function getChatOrigin(userId: string, chatId: string) {
+  await ownedChat(userId, chatId)
+  let metadata: unknown
+  try {
+    metadata = (await sessions.retrieve(chatId)).metadata
+  } catch (error) {
+    if (error instanceof TriggerApiError && error.status === 404) return null
+    throw error
+  }
+  const sourceId = delegationSourceId(metadata, chatId)
+  if (!sourceId) return null
+  const source = await findChat(userId, sourceId)
+  if (!source) return null
+  return {
+    chatId: source.id,
+    name: source.name ?? source.bots[0]?.name ?? "Teammate",
+  }
 }
 
 export async function loadTranscript(userId: string, chatId: string) {

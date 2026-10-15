@@ -1,6 +1,6 @@
 import { usageKind, type UsageKind } from "@/db/schema"
 import { getUsage } from "@/lib/usage"
-import { isChatGPTSelected } from "@/lib/chatgpt-connection"
+import { getChatGPTStatus, isChatGPTSelected } from "@/lib/chatgpt-connection"
 
 // Whether the user's billing period has any of this allowance left
 export async function hasUsageLeft(userId: string, kind: UsageKind) {
@@ -13,9 +13,9 @@ export async function hasUsageLeft(userId: string, kind: UsageKind) {
 
 // The usage page's numbers: plan, period, and what is used and left
 export async function getUsageSummary(userId: string) {
-  const [usage, chatGPTSelected] = await Promise.all([
+  const [usage, chatGPT] = await Promise.all([
     getUsage(userId),
-    isChatGPTSelected(userId),
+    getChatGPTStatus(userId),
   ])
   return {
     tier: usage.tier,
@@ -23,6 +23,13 @@ export async function getUsageSummary(userId: string) {
     limits: usage.limits,
     used: usage.used,
     remaining: usage.remaining,
-    chatGPTSelected,
+    chatGPTSelected: chatGPT.enabled,
+    // What the server can do with ChatGPT, so apps never offer more than it
+    // supports: sign-in (available) and plan-backed replies (planAvailable)
+    chatGPT: {
+      available: chatGPT.available,
+      planAvailable: chatGPT.planAvailable,
+      needsReconnect: chatGPT.needsReconnect,
+    },
   }
 }
