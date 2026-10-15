@@ -38,6 +38,14 @@ function release(event: PointerEvent) {
   pointer = null
 }
 
+// Presses are tracked before any character animates, because the press that
+// wakes an avatar reaches the window before its frame subscribes.
+if (typeof window !== "undefined") {
+  window.addEventListener("pointerdown", press, { passive: true })
+  window.addEventListener("pointerup", release, { passive: true })
+  window.addEventListener("pointercancel", release, { passive: true })
+}
+
 function leave() {
   touching = false
   pointer = null
@@ -54,9 +62,6 @@ function visibility() {
 export function subscribeCharacterFrame(frame: Frame) {
   if (!frames.size) {
     window.addEventListener("pointermove", move, { passive: true })
-    window.addEventListener("pointerdown", press, { passive: true })
-    window.addEventListener("pointerup", release, { passive: true })
-    window.addEventListener("pointercancel", release, { passive: true })
     window.addEventListener("blur", leave)
     document.documentElement.addEventListener("pointerleave", leave)
     document.addEventListener("visibilitychange", visibility)
@@ -70,11 +75,7 @@ export function subscribeCharacterFrame(frame: Frame) {
     frameId = 0
     previousTime = null
     pointer = null
-    touching = false
     window.removeEventListener("pointermove", move)
-    window.removeEventListener("pointerdown", press)
-    window.removeEventListener("pointerup", release)
-    window.removeEventListener("pointercancel", release)
     window.removeEventListener("blur", leave)
     document.documentElement.removeEventListener("pointerleave", leave)
     document.removeEventListener("visibilitychange", visibility)
