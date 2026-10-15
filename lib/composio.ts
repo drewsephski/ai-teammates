@@ -135,6 +135,18 @@ export async function authorizeConnector(
   })
 }
 
+// Read-only runtime over an already-loaded account list, for background reads
+// that call known tools directly instead of through model tool calls.
+export function createReadOnlyRuntime(userId: string, accounts: AppAccount[]) {
+  return createSessionRuntime(
+    userId,
+    async () => accounts,
+    (owner, toolkits, bindings) =>
+      createConnectorSession(owner, toolkits, bindings, { readOnly: true }),
+    { readOnly: true }
+  )
+}
+
 export function createConnectorTools(
   userId: string,
   options: { readOnly?: boolean; accountBindings?: Record<string, string> } = {}

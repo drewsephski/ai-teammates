@@ -2,19 +2,47 @@
 
 import { auth } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
+import { z } from "zod"
 
 import * as service from "@/services/for-you"
 
-export async function getForYouSuggestion(): Promise<service.ForYouSuggestion> {
+const itemIdSchema = z.string().min(1).max(64)
+const feedbackSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("dismiss"),
+    reason: z.enum(["not_relevant", "done", "wrong_bot"]),
+  }),
+  z.object({ type: z.literal("snooze") }),
+])
+
+export async function refreshForYou(
+  force = false
+): Promise<service.ForYouState> {
   const { isAuthenticated, userId, has } = await auth()
   if (!isAuthenticated) throw new Error("Unauthorized")
-  return service.getForYouSuggestion({ userId, has })
+  return service.refreshForYou({ userId, has }, { force: force === true })
 }
 
-export async function startForYouTask(token: string) {
+export async function startForYouItem(itemId: string) {
   const { isAuthenticated, userId } = await auth()
   if (!isAuthenticated) throw new Error("Unauthorized")
-  const result = await service.startForYouTask(userId, token)
+  const result = await service.startForYouItem(
+    userId,
+    itemIdSchema.parse(itemId)
+  )
   revalidatePath("/", "layout")
   return result
+}
+
+export async function updateForYouItem(
+  itemId: string,
+  action: z.infer<typeof feedbackSchema>
+) {
+  const { isAuthenticated, userId } = await auth()
+  if (!isAuthenticated) throw new Error("Unauthorized")
+  await service.updateForYouItem(
+    userId,
+    itemIdSchema.parse(itemId),
+    feedbackSchema.parse(action)
+  )
 }

@@ -10,6 +10,7 @@ import { getWorkspaceBots } from "@/queries/workspace"
 import { getWorkspaceApps } from "@/queries/workspace-apps"
 import { WorkspaceApps } from "@/components/workspace-apps"
 import { WorkspaceForYou } from "@/components/workspace-for-you"
+import { getWorkspaceForYou } from "@/queries/for-you"
 
 export default async function WorkspacePage({
   searchParams,
@@ -38,9 +39,10 @@ export default async function WorkspacePage({
         }
       : undefined
   const preset = botPresets.find((preset) => preset.id === role)
-  const [bots, connections] = await Promise.all([
+  const [bots, connections, forYou] = await Promise.all([
     getWorkspaceBots(),
     getWorkspaceApps(),
+    getWorkspaceForYou(),
   ])
 
   return (
@@ -57,14 +59,9 @@ export default async function WorkspacePage({
           <CreateBotButton size="lg">Create bot</CreateBotButton>
         </div>
         <WorkspaceForYou
-          apps={connections.apps.map(({ slug, name, accountId }) => ({
-            slug,
-            name,
-            accountId,
-          }))}
-          botIds={bots
-            .filter((bot) => bot.activity !== "setup")
-            .map((bot) => bot.id)}
+          initial={forYou}
+          apps={connections.apps.map(({ slug, name }) => ({ slug, name }))}
+          hasBots={bots.some((bot) => bot.activity !== "setup")}
           appsUnavailable={connections.unavailable}
         />
         <WorkspaceApps

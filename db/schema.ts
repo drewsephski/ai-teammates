@@ -309,6 +309,88 @@ export const userSettings = pgTable("user_settings", {
   updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 })
 
+export const forYouCategory = pgEnum("for_you_category", [
+  "reply",
+  "meeting_prep",
+  "review",
+  "issue",
+  "doc_followup",
+  "commitment",
+  "other",
+])
+export const forYouUrgency = pgEnum("for_you_urgency", [
+  "today",
+  "this_week",
+  "later",
+])
+export const forYouState = pgEnum("for_you_state", [
+  "new",
+  "started",
+  "dismissed",
+  "snoozed",
+])
+
+// Suggested tasks found in the person's connected apps and memory. Rows the
+// person acted on stay, so the same record is never suggested twice.
+export const forYouItems = pgTable(
+  "for_you_items",
+  {
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    // Clerk user ID
+    userId: text().notNull(),
+    botId: text()
+      .notNull()
+      .references(() => bots.id, { onDelete: "cascade" }),
+    // `${toolkit}:${sourceId}`, or `memory:${memoryId}` for a commitment
+    fingerprint: text().notNull(),
+    title: text().notNull(),
+    // Why this is worth doing, shown on the card
+    reason: text().notNull(),
+    prompt: text().notNull(),
+    category: forYouCategory().notNull(),
+    urgency: forYouUrgency().notNull(),
+    score: real().notNull(),
+    // Null for memory-sourced items
+    toolkit: text(),
+    accountId: text(),
+    sourceId: text().notNull(),
+    // Verbatim text from the record or the person's own words
+    sourceQuote: text().notNull(),
+    // "Email from Dana Kim", "Meeting tomorrow 10:00"
+    sourceLabel: text().notNull(),
+    sourceUrl: text(),
+    state: forYouState().notNull().default("new"),
+    dismissReason: text({ enum: ["not_relevant", "done", "wrong_bot"] }),
+    snoozedUntil: timestamp({ withTimezone: true }),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    chatId: text(),
+    actedAt: timestamp({ withTimezone: true }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("for_you_items_user_fingerprint_idx").on(
+      table.userId,
+      table.fingerprint
+    ),
+    index("for_you_items_user_state_idx").on(table.userId, table.state),
+  ]
+)
+
+// The latest scan per person: drives staleness, "Checked Gmail · 5m ago", and
+// keeps two tabs from scanning at once.
+export const forYouScans = pgTable("for_you_scans", {
+  userId: text().primaryKey(),
+  status: text({ enum: ["running", "done", "failed"] }).notNull(),
+  // Apps read successfully, and apps that failed, in the latest scan
+  checked: text().array().notNull().default([]),
+  failed: text().array().notNull().default([]),
+  error: text(),
+  startedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp({ withTimezone: true }),
+})
+
 export const botsRelations = relations(bots, ({ many }) => ({
   memberships: many(chatMembers),
 }))
@@ -449,3 +531,6 @@ export type UsageKind = (typeof usageKind.enumValues)[number]
 export type NewUsageEntry = typeof usageEntries.$inferInsert
 export type ChatMember = typeof chatMembers.$inferSelect
 export type NewChatMember = typeof chatMembers.$inferInsert
+export type ForYouItem = typeof forYouItems.$inferSelect
+export type ForYouCategory = (typeof forYouCategory.enumValues)[number]
+export type ForYouUrgency = (typeof forYouUrgency.enumValues)[number]
