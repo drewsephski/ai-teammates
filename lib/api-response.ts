@@ -1,6 +1,7 @@
 import { ZodError } from "zod"
 
 import {
+  ACTIVE_PLAN_ERROR,
   FREE_APP_LIMIT_ERROR,
   FREE_BOT_LIMIT_ERROR,
 } from "@/lib/billing-policy"
@@ -67,6 +68,8 @@ export function apiErrorResponse(error: unknown): {
   if (/ not found$/i.test(message)) return fail(404, "not_found", message)
   if (
     message === "Conversations changed. Try again." ||
+    message === "Pinned bots changed. Try again." ||
+    message === ACTIVE_PLAN_ERROR ||
     message === "That memory was changed at the same time."
   )
     return fail(409, "conflict", message)

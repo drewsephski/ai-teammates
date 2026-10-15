@@ -2,6 +2,9 @@ export const MAX_TEAMMATES = 50
 export type PlanTier = "free" | "paid"
 export const FREE_BOT_LIMIT_ERROR =
   "The free plan includes one bot. Upgrade to add more teammates."
+// Account deletion waits for a paid web subscription to be cancelled
+export const ACTIVE_PLAN_ERROR =
+  "Cancel your paid plan on kraftybot.app before deleting your account."
 export const FREE_APP_LIMIT_ERROR =
   "The free plan includes one connected app. Disconnect your current app or upgrade to connect another."
 

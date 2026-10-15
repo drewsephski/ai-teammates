@@ -13,8 +13,14 @@ import {
 import { publicBot, publicChat, publicPreset } from "../lib/api-shapes"
 import { botPresets } from "../lib/bot-presets"
 import { desktopAuth } from "../lib/desktop-gateway-auth"
+import {
+  createDesktopTicket,
+  DESKTOP_TICKET_TTL_MS,
+  TicketReplayGuard,
+  verifyDesktopTicket,
+} from "../lib/desktop-ticket"
 import { sidebarSections } from "../lib/sidebar-order"
-import { FREE_BOT_LIMIT_ERROR } from "../lib/billing-policy"
+import { ACTIVE_PLAN_ERROR, FREE_BOT_LIMIT_ERROR } from "../lib/billing-policy"
 import type { Bot, Chat } from "../db/schema"
 
 const bot = (id: string, pinnedAt: Date | null = null): Bot => ({
@@ -68,6 +74,7 @@ test("service errors map to stable codes and statuses without leaking internals"
     [new Error("Chat not found"), 404, "not_found"],
     [new Error("Bot not found"), 404, "not_found"],
     [new Error("Conversations changed. Try again."), 409, "conflict"],
+    [new Error("Pinned bots changed. Try again."), 409, "conflict"],
     [new Error("This recommendation expired. Refresh For you."), 409, "stale"],
     [new SyntaxError("Unexpected token"), 400, "invalid_request"],
     [z.object({ a: z.string() }).safeParse({}).error, 400, "invalid_request"],
@@ -179,13 +186,13 @@ test("desktop upgrades from browsers stay same-origin and cookie-authenticated",
     url,
     origin
   )
-  assert.equal(browser.ok, true)
-  if (!browser.ok) return
+  assert.equal(browser.ok && browser.kind, "clerk")
+  if (!browser.ok || browser.kind !== "clerk") return
   assert.deepEqual(browser.authorizedParties, [origin])
   assert.equal(browser.headers.get("cookie"), "__session=jwt")
 })
 
-test("desktop upgrades from native apps need a bearer token and ignore cookies", () => {
+test("desktop upgrades from native apps need a bearer header or a ticket, never a session token in the URL", () => {
   const origin = "https://kraftybot.app"
   const url = new URL("/api/chats/c/desktop", origin)
   assert.deepEqual(desktopAuth({ cookie: "__session=jwt" }, url, origin), {
@@ -197,21 +204,77 @@ test("desktop upgrades from native apps need a bearer token and ignore cookies",
     url,
     origin
   )
-  assert.equal(header.ok, true)
-  if (!header.ok) return
+  assert.equal(header.ok && header.kind, "clerk")
+  if (!header.ok || header.kind !== "clerk") return
   assert.equal(header.headers.get("authorization"), "Bearer native.jwt")
   assert.equal(header.headers.get("cookie"), null)
   assert.equal(header.authorizedParties, undefined)
 
-  const query = desktopAuth(
-    {},
-    new URL("/api/chats/c/desktop?token=query.jwt", origin),
+  // The old ?token= form is ignored, so a session JWT in a URL opens nothing
+  assert.deepEqual(
+    desktopAuth(
+      {},
+      new URL("/api/chats/c/desktop?token=query.jwt", origin),
+      origin
+    ),
+    { ok: false, status: 401 }
+  )
+
+  // A ticket is the whole credential: cookies are not read, any Origin works
+  const ticket = desktopAuth(
+    { origin: "null", cookie: "__session=jwt" },
+    new URL("/api/chats/c/desktop?ticket=abc.def", origin),
     origin
   )
-  assert.equal(
-    query.ok && query.headers.get("authorization"),
-    "Bearer query.jwt"
+  assert.deepEqual(ticket, { ok: true, kind: "ticket", ticket: "abc.def" })
+  assert.deepEqual(
+    desktopAuth({}, new URL("/api/chats/c/desktop?ticket=", origin), origin),
+    { ok: false, status: 401 }
   )
+})
+
+test("desktop tickets open one chat once, for one minute, for the user they name", () => {
+  const secret = "sk_test_secret"
+  const now = Date.UTC(2026, 9, 15)
+  const issue = () =>
+    createDesktopTicket({ userId: "user_a", chatId: "chat_a" }, secret, now)
+
+  const { ticket, expiresAt } = issue()
+  assert.equal(expiresAt, now + DESKTOP_TICKET_TTL_MS)
+  const guard = new TicketReplayGuard()
+  assert.deepEqual(verifyDesktopTicket(ticket, "chat_a", secret, guard, now), {
+    userId: "user_a",
+  })
+  // Single use
+  assert.equal(verifyDesktopTicket(ticket, "chat_a", secret, guard, now), null)
+
+  // Another chat, another key, after expiry, or tampered: rejected
+  const fresh = () => new TicketReplayGuard()
+  assert.equal(verifyDesktopTicket(issue().ticket, "chat_b", secret, fresh(), now), null)
+  assert.equal(verifyDesktopTicket(issue().ticket, "chat_a", "other", fresh(), now), null)
+  assert.equal(
+    verifyDesktopTicket(issue().ticket, "chat_a", secret, fresh(), expiresAt),
+    null
+  )
+  const [body, signature] = issue().ticket.split(".")
+  const forged = Buffer.from(
+    JSON.stringify({
+      ...JSON.parse(Buffer.from(body, "base64url").toString()),
+      u: "user_b",
+    })
+  ).toString("base64url")
+  assert.equal(
+    verifyDesktopTicket(`${forged}.${signature}`, "chat_a", secret, fresh(), now),
+    null
+  )
+  for (const junk of ["", "a", "a.b.c", "....", `${body}.`])
+    assert.equal(verifyDesktopTicket(junk, "chat_a", secret, fresh(), now), null)
+  // A Clerk session JWT is not a ticket
+  assert.equal(
+    verifyDesktopTicket("eyJhbGciOi.eyJzdWIiOi.c2ln", "chat_a", secret, fresh(), now),
+    null
+  )
+  assert.throws(() => createDesktopTicket({ userId: "u", chatId: "c" }, ""))
 })
 
 const jsonRequest = (body: BodyInit, headers: Record<string, string> = {}) =>
@@ -310,5 +373,13 @@ test("desktop socket URLs use the public host and the forwarded scheme", () => {
   assert.equal(
     desktopSocketUrl(new Headers({ host: "localhost:3000" }), path),
     "ws://localhost:3000/api/chats/chat%201/desktop"
+  )
+})
+
+test("account deletion waits for a paid plan to be cancelled, as a conflict", () => {
+  const response = apiErrorResponse(new Error(ACTIVE_PLAN_ERROR))
+  assert.deepEqual(
+    [response.status, response.body.error.code, response.expected],
+    [409, "conflict", true]
   )
 })

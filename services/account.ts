@@ -1,0 +1,97 @@
+import { createClerkClient } from "@clerk/backend"
+import { eq } from "drizzle-orm"
+
+import { db } from "@/db"
+import {
+  bots,
+  chatgptConnections,
+  chats,
+  connectorAuthAttempts,
+  memories,
+  memoryEvents,
+  sidebarPreferences,
+  userSettings,
+} from "@/db/schema"
+import { ACTIVE_PLAN_ERROR } from "@/lib/billing-policy"
+import { disconnectChatGPT } from "@/lib/chatgpt-connection"
+import { getComposio } from "@/lib/composio"
+import { getAccountPlan } from "@/lib/usage"
+import { deleteBot } from "@/services/bots"
+
+type Steps = {
+  plan: (userId: string) => Promise<{ tier: string }>
+  deleteBot: (userId: string, botId: string) => Promise<void>
+  disconnectChatGPT: (userId: string) => Promise<unknown>
+  disconnectApps: (userId: string) => Promise<void>
+  deleteUser: (userId: string) => Promise<unknown>
+}
+
+// Revokes every connected app account the provider holds for this user
+async function disconnectApps(userId: string) {
+  if (!process.env.COMPOSIO_API_KEY) return
+  const client = getComposio()
+  for (;;) {
+    // Deleted accounts drop out of the list, so always read the first page
+    const page = await client.connectedAccounts.list({
+      userIds: [userId],
+      limit: 100,
+    })
+    if (page.items.length === 0) return
+    for (const account of page.items)
+      await client.connectedAccounts.delete(account.id)
+  }
+}
+
+const clerk = () =>
+  createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
+
+const providerSteps: Steps = {
+  plan: getAccountPlan,
+  deleteBot,
+  disconnectChatGPT,
+  disconnectApps,
+  deleteUser: (userId) => clerk().users.deleteUser(userId),
+}
+
+// Deletes the account and what it owns: computers and bots, chats, memories,
+// settings and app and ChatGPT connections, then the Clerk user, which ends
+// every session. Each step can run again, so a failure part-way is retried by
+// asking again. Usage and sandbox metering rows are kept, keyed by the now
+// unused user ID, as the billing record. Conversation transcripts stored with
+// Trigger.dev sessions are not removed here.
+export async function deleteAccount(userId: string, steps = providerSteps) {
+  // A paid web subscription is billed by Stripe; deleting the user here
+  // would leave it running with no account to manage it from
+  if ((await steps.plan(userId)).tier !== "free")
+    throw new Error(ACTIVE_PLAN_ERROR)
+
+  // Computers first: a bot whose sandbox can't be deleted stays, and so does
+  // everything else, until the retry
+  const owned = await db
+    .select({ id: bots.id })
+    .from(bots)
+    .where(eq(bots.userId, userId))
+  for (const bot of owned) await steps.deleteBot(userId, bot.id)
+
+  await steps.disconnectChatGPT(userId)
+  await steps.disconnectApps(userId)
+
+  await db.transaction(async (tx) => {
+    // Group chats; direct chats went with their bots, members cascade
+    await tx.delete(chats).where(eq(chats.userId, userId))
+    await tx.delete(memoryEvents).where(eq(memoryEvents.userId, userId))
+    await tx.delete(memories).where(eq(memories.userId, userId))
+    await tx.delete(userSettings).where(eq(userSettings.userId, userId))
+    await tx
+      .delete(sidebarPreferences)
+      .where(eq(sidebarPreferences.userId, userId))
+    await tx
+      .delete(connectorAuthAttempts)
+      .where(eq(connectorAuthAttempts.userId, userId))
+    await tx
+      .delete(chatgptConnections)
+      .where(eq(chatgptConnections.userId, userId))
+  })
+
+  await steps.deleteUser(userId)
+}

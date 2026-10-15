@@ -6,6 +6,7 @@ import { WebSocket, WebSocketServer, createWebSocketStream } from "ws"
 
 import { ensureBotComputer } from "@/lib/bot-computer"
 import { desktopAuth } from "@/lib/desktop-gateway-auth"
+import { TicketReplayGuard, verifyDesktopTicket } from "@/lib/desktop-ticket"
 import { db } from "@/db"
 import { bots, chatMembers, chats } from "@/db/schema"
 import { getBotDesktopConnection, renewBotDesktop } from "@/lib/e2b"
@@ -16,6 +17,32 @@ const clerk = createClerkClient({
   publishableKey: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
 })
 const sockets = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 })
+const usedTickets = new TicketReplayGuard()
+
+// Who is connecting. A ticket was minted by POST /api/v1/chats/:id/desktop,
+// which already checked the sandboxes feature for this user a minute ago.
+async function desktopUser(
+  credentials: Exclude<ReturnType<typeof desktopAuth>, { ok: false }>,
+  url: URL,
+  chatId: string
+) {
+  if (credentials.kind === "ticket") {
+    const holder = verifyDesktopTicket(
+      credentials.ticket,
+      chatId,
+      process.env.CLERK_SECRET_KEY ?? "",
+      usedTickets
+    )
+    return holder ? { userId: holder.userId, sandboxes: true } : null
+  }
+  const session = await clerk.authenticateRequest(
+    new Request(url, { headers: credentials.headers }),
+    { authorizedParties: credentials.authorizedParties }
+  )
+  const auth = session.toAuth()
+  if (!auth?.userId) return null
+  return { userId: auth.userId, sandboxes: auth.has({ feature: "sandboxes" }) }
+}
 
 export async function upgradeDesktop(
   request: IncomingMessage,
@@ -37,13 +64,10 @@ export async function upgradeDesktop(
     if (!credentials.ok) return reject(credentials.status)
     const match = /^\/api\/chats\/([^/]+)\/desktop$/.exec(url.pathname)
     if (!match) return reject(404)
-    const session = await clerk.authenticateRequest(
-      new Request(url, { headers: credentials.headers }),
-      { authorizedParties: credentials.authorizedParties }
-    )
-    const auth = session.toAuth()
-    if (!auth?.userId) return reject(401)
-    if (!auth.has({ feature: "sandboxes" })) return reject(403)
+    const chatId = decodeURIComponent(match[1])
+    const auth = await desktopUser(credentials, url, chatId)
+    if (!auth) return reject(401)
+    if (!auth.sandboxes) return reject(403)
     const [bot] = await db
       .select({ id: bots.id, sandboxId: bots.sandboxId })
       .from(chats)
@@ -51,7 +75,7 @@ export async function upgradeDesktop(
       .innerJoin(bots, eq(bots.id, chatMembers.botId))
       .where(
         and(
-          eq(chats.id, decodeURIComponent(match[1])),
+          eq(chats.id, chatId),
           eq(chats.userId, auth.userId),
           eq(bots.userId, auth.userId),
           eq(chats.kind, "direct")
@@ -97,7 +121,7 @@ export async function upgradeDesktop(
           try {
             // Renew only a still-running session; a manual/session-limit pause
             // disconnects the viewer and requires an explicit Resume.
-            const remaining = await getUsage(auth.userId!)
+            const remaining = await getUsage(auth.userId)
             if (!remaining || remaining.remaining.sandbox <= 0) return cleanup()
             await renewBotDesktop(sandboxId, connection.startedAt)
           } catch {
