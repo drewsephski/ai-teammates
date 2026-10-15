@@ -56,10 +56,14 @@ function ChatAvatar({
   const [interaction, setInteraction] = useState<CharacterState>()
   const [visible, setVisible] = useState(false)
   const [motionAllowed, setMotionAllowed] = useState(false)
+  const [canHover, setCanHover] = useState(true)
   const blob = parseBotAvatar(seed)
   const native = !!blob
   const reaction = interaction ?? (engaged ? "curious" : undefined)
-  const active = avatarIsAnimated(state) || (state === "idle" && !!reaction)
+  // Without hover to wake them, interactive identities idle with ambient life.
+  const ambient = interactive && !canHover
+  const active =
+    avatarIsAnimated(state) || (state === "idle" && (!!reaction || ambient))
   const expression =
     state === "idle" && reaction ? reaction : expressions[state]
 
@@ -83,6 +87,15 @@ function ChatAvatar({
   }, [active, native])
 
   useEffect(() => {
+    if (!interactive) return
+    const media = window.matchMedia("(hover: hover)")
+    const sync = () => setCanHover(media.matches)
+    sync()
+    media.addEventListener("change", sync)
+    return () => media.removeEventListener("change", sync)
+  }, [interactive])
+
+  useEffect(() => {
     const avatar = element.current
     if (!avatar || !interactive) return
     const target =
@@ -99,23 +112,39 @@ function ChatAvatar({
       setInteraction("happy")
       timer = setTimeout(leave, 700)
     }
+    // A touch press stands in for hover, and lifting the finger acknowledges it.
+    const press = (event: Event) => {
+      if ((event as PointerEvent).pointerType !== "touch") return acknowledge()
+      clearTimeout(timer)
+      setInteraction("curious")
+    }
+    const release = (event: Event) => {
+      if ((event as PointerEvent).pointerType === "touch") acknowledge()
+    }
+    const pointerLeave = (event: Event) => {
+      if ((event as PointerEvent).pointerType !== "touch") leave()
+    }
     const keydown = (event: Event) => {
       const key = (event as KeyboardEvent).key
       if (key === "Enter" || key === " ") acknowledge()
     }
     target.addEventListener("pointerenter", enter)
-    target.addEventListener("pointerleave", leave)
+    target.addEventListener("pointerleave", pointerLeave)
     target.addEventListener("focusin", focus)
     target.addEventListener("focusout", leave)
-    target.addEventListener("pointerdown", acknowledge)
+    target.addEventListener("pointerdown", press)
+    target.addEventListener("pointerup", release)
+    target.addEventListener("pointercancel", leave)
     target.addEventListener("keydown", keydown)
     return () => {
       clearTimeout(timer)
       target.removeEventListener("pointerenter", enter)
-      target.removeEventListener("pointerleave", leave)
+      target.removeEventListener("pointerleave", pointerLeave)
       target.removeEventListener("focusin", focus)
       target.removeEventListener("focusout", leave)
-      target.removeEventListener("pointerdown", acknowledge)
+      target.removeEventListener("pointerdown", press)
+      target.removeEventListener("pointerup", release)
+      target.removeEventListener("pointercancel", leave)
       target.removeEventListener("keydown", keydown)
     }
   }, [interactive])

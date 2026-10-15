@@ -100,6 +100,24 @@ test("Gaze uses explicit slow animation without changing identity and stops for 
   assert.match(gazeSvg(view.container), /animation-slowest-/)
 })
 
+test("a touch press stands in for hover and survives the touch's own pointerleave", () => {
+  const view = render(
+    <button>
+      <ChatAvatar seed={seed} interactive />
+    </button>
+  )
+  const button = view.getByRole("button")
+  const svg = () => view.container.querySelector("svg")
+  fireEvent.pointerDown(button, { pointerType: "touch" })
+  assert.equal(svg()?.getAttribute("data-state"), "curious")
+  fireEvent.pointerUp(button, { pointerType: "touch" })
+  fireEvent.pointerLeave(button, { pointerType: "touch" })
+  assert.equal(svg()?.getAttribute("data-state"), "happy")
+  fireEvent.pointerDown(button, { pointerType: "touch" })
+  fireEvent.pointerCancel(button, { pointerType: "touch" })
+  assert.equal(svg()?.getAttribute("data-state"), "idle")
+})
+
 test("interactive identities respond to their control's hover and keyboard focus", () => {
   const view = render(
     <button>
