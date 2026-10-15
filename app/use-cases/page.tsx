@@ -5,9 +5,10 @@ import localFont from "next/font/local"
 import { auth } from "@clerk/nextjs/server"
 
 import { BotNavigation } from "@/components/landing/bot/navigation"
-import { roles } from "@/components/landing/bot/role-showcase-data"
 import styles from "@/components/landing/bot/bot-landing.module.css"
 import page from "./use-cases.module.css"
+import { CopyPrompt } from "./copy-prompt"
+import { useCases } from "./use-cases-data"
 import { brandName, productName, siteUrl } from "@/lib/marketing/site"
 import { JsonLd } from "@/components/json-ld"
 
@@ -20,7 +21,7 @@ const botFont = localFont({
 
 const title = "AI teammate use cases: sales, ops, engineering"
 const description =
-  "Eight jobs you can give a Krafty Bot today: outbound sales, recruiting, paid media, expenses, performance, bug repro, account health, and chief of staff."
+  "Nine jobs you can give a Krafty Bot today, each with a prompt to copy: outbound sales, recruiting, paid media, expenses, performance, bug repro, account health, chief of staff, and support triage."
 
 export const metadata: Metadata = {
   title,
@@ -51,7 +52,7 @@ export default async function UseCasesPage() {
           "@type": "ItemList",
           name: `${productName} use cases`,
           url: `${siteUrl}/use-cases`,
-          itemListElement: roles.map((role, index) => ({
+          itemListElement: useCases.map((role, index) => ({
             "@type": "ListItem",
             position: index + 1,
             name: role.name,
@@ -69,7 +70,8 @@ export default async function UseCasesPage() {
           <p>
             {productName} teammates sign in to your tools, work on their own
             cloud computer, and come back with finished work for you to review.
-            Here are the roles people start with.
+            Here are the roles people start with, each with a prompt you can
+            paste into a new Bot.
           </p>
           <div className={styles.actions}>
             <Link href={startHref} prefetch={false} className={styles.button}>
@@ -81,7 +83,7 @@ export default async function UseCasesPage() {
           </div>
         </header>
         <ul className={page.grid}>
-          {roles.map((role) => (
+          {useCases.map((role) => (
             <li
               key={role.id}
               id={role.id}
@@ -90,6 +92,7 @@ export default async function UseCasesPage() {
             >
               <h2>{role.name}</h2>
               <p>{role.description}</p>
+              <CopyPrompt prompt={role.prompt} />
             </li>
           ))}
         </ul>

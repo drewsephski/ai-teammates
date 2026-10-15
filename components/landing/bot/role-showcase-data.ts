@@ -9,7 +9,7 @@ export const roles = [
     pill: "#4ad8ec",
     pillBackground: "#012f35",
     description:
-      "Generate pipeline overnight. Researches accounts, scores contacts with intent, drafts email and LinkedIn in your voice, and leaves a review list for you to approve.",
+      "Generate pipeline overnight. Researches accounts, scores contacts on intent, drafts email and LinkedIn in your voice, and leaves a review list for you to approve each morning.",
   },
   {
     id: "talent-scout",
@@ -19,7 +19,7 @@ export const roles = [
     pill: "#b6b3f9",
     pillBackground: "#251f41",
     description:
-      "Keep your talent pipeline moving. Runs screen-to-offer: sources, drafts outreach in your voice, skips profiles already in the ATS, and handles scheduling once you approve.",
+      "Keep your talent pipeline moving. Sources candidates, drafts outreach in your voice, skips anyone already in the ATS, and handles interview scheduling once you approve.",
   },
   {
     id: "paid-media",
@@ -29,7 +29,7 @@ export const roles = [
     pill: "#f6a0d5",
     pillBackground: "#480c34",
     description:
-      "Pulls live channel and campaign data, sends recommended reallocations against your monthly budget, and holds bids for your approval before making adjustments.",
+      "Protect your ad budget. Pulls live channel and campaign data every day, recommends reallocations against your monthly plan, and holds every bid change until you approve it.",
   },
   {
     id: "expense-manager",
@@ -39,7 +39,7 @@ export const roles = [
     pill: "#6dd998",
     pillBackground: "#012f12",
     description:
-      "Stay on top of money. Builds the weekly summary from your expense manager and sheets, logs new receipts from email, and nudges owners on missing categories before weekly review.",
+      "Stay on top of money. Builds the weekly summary from your expense tool and sheets, files receipts from email, and nudges owners on missing categories before review.",
   },
   {
     id: "product-performance",
@@ -59,7 +59,7 @@ export const roles = [
     pill: "#ff99a8",
     pillBackground: "#4e071c",
     description:
-      "Give engineers reports they can trust. Catches the thread, clicks the same path in staging, captures the failure, and drops a repro pack (steps, screenshots, network notes).",
+      "Give engineers reports they can trust. Catches the support thread, clicks the same path in staging, captures the failure, and drops a repro pack with steps and screenshots.",
   },
   {
     id: "account-health",
@@ -69,7 +69,7 @@ export const roles = [
     pill: "#7fc3ff",
     pillBackground: "#002843",
     description:
-      "See risk and expansion before the QBR. Reads usage and signals across your book and turns portfolio noise into a clear watch list.",
+      "See risk and expansion before the QBR. Reads usage, CRM, and support signals across your book and turns portfolio noise into a ranked watch list with next steps.",
   },
   {
     id: "chief-of-staff",
@@ -79,7 +79,7 @@ export const roles = [
     pill: "#ffa782",
     pillBackground: "#481800",
     description:
-      "Your always-on assistant. Scans Slack, email, calendar, and meeting notes and surfaces what's new and what maps to your priorities. Helps follow up on dropped threads, coordinate schedules, and update deliverables.",
+      "Your always-on assistant. Scans Slack, email, calendar, and meeting notes, surfaces what maps to your priorities, and follows up on dropped threads before they go cold.",
   },
 ]
 

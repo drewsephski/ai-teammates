@@ -62,3 +62,67 @@
 .footer a:hover {
   color: #fff;
 }
+.prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: auto 0 0;
+  padding: 12px 14px 14px;
+  border: 1px solid #222;
+  border-radius: 8px;
+  background: #0b0b0b;
+}
+.prompt figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--role-color);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.prompt blockquote {
+  margin: 0;
+  color: #8a8a8a;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid #2e2e2e;
+  border-radius: 6px;
+  background: #161616;
+  color: #d4d4d4;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+  transition:
+    background 150ms,
+    border-color 150ms,
+    color 150ms;
+}
+.copy svg {
+  width: 12px;
+  height: 12px;
+}
+.copy:hover {
+  border-color: #3d3d3d;
+  background: #1f1f1f;
+  color: #fff;
+}
+.copy:focus-visible {
+  outline: 2px solid var(--role-color);
+  outline-offset: 2px;
+}
+.copy[data-copied] {
+  border-color: var(--role-color);
+  color: var(--role-color);
+}
