@@ -4,7 +4,7 @@ import { planLimits } from "@/lib/billing-policy"
 export const faqs = [
   [
     "How is Krafty Bot different from AI assistants?",
-    "Bots have their own computer, so they can work inside your apps and tools. They also run in parallel, even when your browser is closed.",
+    "Bots have a cloud computer, so they work inside your apps and tools instead of only answering questions. Several can run at once, and they keep going after you close your browser.",
   ],
   [
     "Who is Krafty Bot available for today?",
@@ -20,14 +20,14 @@ export const faqs = [
   ],
   [
     "Do Bots share one computer?",
-    "Each Krafty Bot has its own persistent cloud computer. Its files, memory, and applications survive when the computer pauses. Bots can collaborate through shared conversations and handoffs.",
+    "Yes. All the Bots on your account share one persistent cloud computer, so files and browser sign-ins carry over from one Bot to the next. Its files and applications survive when the computer pauses. Bots also work together through group conversations and handoffs.",
   ],
   [
     "Can Bots keep working when I close my browser?",
-    "Active chat tasks run independently of your browser. Computers pause when idle and resume when needed. Tasks are subject to your usage allowance, step limits, and provider availability.",
+    "Yes. A chat task keeps running after you close the tab. The computer pauses when idle and resumes when a Bot needs it. A task can still stop early if you reach your usage allowance or step limit, or if a provider is down.",
   ],
   [
     "Do Bots remember everything?",
-    "Bots can save notes to their memory and recall them across chats. Ask them to remember what matters. Saved memory is separate from conversation history; every message is not automatically remembered.",
+    "Not automatically. Bots save notes to their memory and can recall them in any chat, so tell them what is worth remembering. Memory is separate from chat history.",
   ],
 ] as const

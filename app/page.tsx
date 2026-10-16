@@ -90,8 +90,8 @@ export default async function LandingPage() {
             Bot
           </h1>
           <p className={styles.heroCopy}>
-            AI teammates you can give real work to. Bots can sign in to your
-            tools, use them just like you do, and come back with finished work.
+            AI teammates you can give real work to. Bots sign in to your tools,
+            use them the way you do, and bring back finished work.
           </p>
           <div className={styles.actions}>
             <GetStartedButton href={startHref} />
@@ -134,7 +134,7 @@ export default async function LandingPage() {
         >
           <div className={styles.splitCopy}>
             <h2 id="access-title">Open Krafty Bot</h2>
-            <p>One team, wherever you are — on your desk and in your pocket.</p>
+            <p>The same team on your laptop and your phone.</p>
           </div>
           <div className={styles.accessCards}>
             <Link
@@ -168,8 +168,8 @@ export default async function LandingPage() {
         >
           <h2 id="explore-title">Make Krafty Bot your own</h2>
           <p>
-            Give each teammate a role. Bring them into the work you do every
-            day.
+            Give each teammate a role and bring them into the work you already
+            do every day.
           </p>
           <Link
             href={workspaceHref}
@@ -192,7 +192,7 @@ export default async function LandingPage() {
           aria-labelledby="get-started-title"
         >
           <h2 id="get-started-title">Meet your first Bot</h2>
-          <p>An AI teammate you can trust to get work done</p>
+          <p>Start free and give it something real to do</p>
           <div className={styles.actions}>
             <Link href={startHref} prefetch={false} className={styles.button}>
               Get started

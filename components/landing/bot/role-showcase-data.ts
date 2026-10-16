@@ -9,7 +9,7 @@ export const roles = [
     pill: "#4ad8ec",
     pillBackground: "#012f35",
     description:
-      "Generate pipeline overnight. Researches accounts, scores contacts on intent, drafts email and LinkedIn in your voice, and leaves a review list for you to approve each morning.",
+      "Generate pipeline overnight. Researches accounts, scores contacts by intent, drafts email and LinkedIn in your voice, and leaves a review list for you to approve each morning.",
   },
   {
     id: "talent-scout",
@@ -39,7 +39,7 @@ export const roles = [
     pill: "#6dd998",
     pillBackground: "#012f12",
     description:
-      "Stay on top of money. Builds the weekly summary from your expense tool and sheets, files receipts from email, and nudges owners on missing categories before review.",
+      "Close the week with clean books. Builds the weekly summary from your expense tool and sheets, files receipts from email, and nudges owners on missing categories before review.",
   },
   {
     id: "product-performance",
@@ -49,7 +49,7 @@ export const roles = [
     pill: "#ff99a8",
     pillBackground: "#4e071c",
     description:
-      "Get a clear view of the metrics that matter. Logs into observability tools, walks the flamegraphs, and comes back with hotspots plus a short writeup with screenshots.",
+      "Know what slowed down and why. Logs into observability tools, reads the flamegraphs, and comes back with the hot spots and a short writeup with screenshots.",
   },
   {
     id: "bug-reproduction",
@@ -59,7 +59,7 @@ export const roles = [
     pill: "#ff99a8",
     pillBackground: "#4e071c",
     description:
-      "Give engineers reports they can trust. Catches the support thread, clicks the same path in staging, captures the failure, and drops a repro pack with steps and screenshots.",
+      "Hand engineers bugs they can reproduce. Picks up the support thread, clicks the same path in staging, captures the failure, and drops a repro pack with steps and screenshots.",
   },
   {
     id: "account-health",
@@ -69,7 +69,7 @@ export const roles = [
     pill: "#7fc3ff",
     pillBackground: "#002843",
     description:
-      "See risk and expansion before the QBR. Reads usage, CRM, and support signals across your book and turns portfolio noise into a ranked watch list with next steps.",
+      "See risk and expansion before the QBR. Reads usage, CRM, and support signals across your book and ranks the accounts that need attention, with next steps.",
   },
   {
     id: "chief-of-staff",
@@ -79,7 +79,7 @@ export const roles = [
     pill: "#ffa782",
     pillBackground: "#481800",
     description:
-      "Your always-on assistant. Scans Slack, email, calendar, and meeting notes, surfaces what maps to your priorities, and follows up on dropped threads before they go cold.",
+      "Keep your week from slipping. Scans Slack, email, calendar, and meeting notes, flags what matches your priorities, and follows up on dropped threads before they go cold.",
   },
 ]
 

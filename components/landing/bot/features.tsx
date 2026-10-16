@@ -14,10 +14,9 @@ export function BotFeatures() {
           <div className={styles.statementCopy}>
             <h2 id="statement-title">Message Bots like teammates</h2>
             <p>
-              Give tasks to Bots like you would a teammate on desktop or iOS.
-              Your AI teammates take projects from start to end, keep context on
-              how you work and get smarter over time, and come back when your
-              approval is needed.
+              Hand a Bot a task the way you would a coworker, on desktop or iOS.
+              It takes the project from start to finish, learns how you like
+              things done, and checks in when it needs your approval.
             </p>
           </div>
           <div className={styles.statementPop}>
@@ -37,22 +36,21 @@ export function BotFeatures() {
         <div className={styles.heading}>
           <h2 id="features-title">Work with many Bots at once</h2>
           <p>
-            Create a Bot, give it a task, and add another when the work
-            grows—one on a project, one on outbound, one on systems. AI
-            teammates work in parallel, collaborate where it makes sense, and
-            keep working 24/7.
+            Start with one Bot and add another when the work grows, say one on
+            outbound and one on a launch. They run at the same time, pass work
+            to each other when it helps, and keep going after you log off.
           </p>
         </div>
         <div className={styles.grid}>
           <FeatureCard
             scene="support"
             title="Krafty Bot works where you work"
-            body="Log Krafty Bot in once. It uses your apps and websites just like you would, including the tools that are harder to navigate."
+            body="Sign Krafty Bot in once and it uses your apps and websites the way you do, including the ones that are a pain to click through."
           />
           <FeatureCard
             scene="recording"
             title="Show a Bot how it’s done"
-            body="Ask a Bot to follow along as you complete a workflow once. It saves it as a routine and runs it on its own next time."
+            body="Walk a Bot through a workflow once. It saves the steps as a routine and runs them by itself next time."
           />
           <FeatureCard
             scene="memory"
@@ -62,7 +60,7 @@ export function BotFeatures() {
           <FeatureCard
             scene="collaboration"
             title="Connect the Bots"
-            body="Put a few Bots in the same thread and they pass work between themselves. You watch them take action instead of approving every step."
+            body="Put a few Bots in one thread and they pass the work between themselves. You can follow along without approving every step."
           />
         </div>
       </section>
