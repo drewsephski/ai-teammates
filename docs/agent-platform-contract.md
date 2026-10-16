@@ -14,12 +14,12 @@ Written 2026-10-16 at `3c17546` (Phase 0). The mobile session builds from this f
 
 The mobile session reads this table. `planned` means the shapes below may still change. `server ready` means they are frozen and the server implements them. `shipped` means production runs it (Railway and the Trigger.dev worker are deployed).
 
-| Phase | Scope                                                                                                                                     | Status  |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| 1     | `findApps`, connect card (`askUser.appConnection`), connection attempts with `chatId`/`questionId`/`botId`, wake on connect               | planned |
-| 2     | One computer per account, turn lease, `inUseBy`, desktop in group chats                                                                   | planned |
-| 3     | Free computer allowance, `requestComputerApproval`, `commits`, `approvals.kind`, `computerLogin.reason`                                   | planned |
-| 4     | Workflows (routes, tools, routine link), app preferences (proactive opt-out, work apps), attachments (computer upload plus inline images) | planned |
+| Phase | Scope                                                                                                                                     | Status       |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| 1     | `findApps`, connect card (`askUser.appConnection`), connection attempts with `chatId`/`questionId`/`botId`, wake on connect               | server ready |
+| 2     | One computer per account, turn lease, `inUseBy`, desktop in group chats                                                                   | planned      |
+| 3     | Free computer allowance, `requestComputerApproval`, `commits`, `approvals.kind`, `computerLogin.reason`                                   | planned      |
+| 4     | Workflows (routes, tools, routine link), app preferences (proactive opt-out, work apps), attachments (computer upload plus inline images) | planned      |
 
 ## Message ID prefixes
 

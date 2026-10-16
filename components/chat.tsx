@@ -170,7 +170,6 @@ function Chat({
       notice={notice}
       initialMessages={messages}
       transport={transport}
-      onReload={() => setAttempt((value) => value + 1)}
     />
   )
 }
@@ -186,7 +185,6 @@ function ChatMessages({
   directBot,
   mentionBots = [],
   notice,
-  onReload,
 }: {
   chatId: string
   name: string
@@ -198,7 +196,6 @@ function ChatMessages({
   directBot?: ChatBot
   mentionBots?: MentionBot[]
   notice?: React.ReactNode
-  onReload: () => void
 }) {
   const router = useRouter()
   const { checkPlan, showUsageLimit } = usePaywall()
@@ -324,11 +321,16 @@ function ChatMessages({
     (message) => !directBotId || message.id !== botSetupMessageId(directBotId)
   )
   const seen = seenMessageIds(messages)
-  const answeredQuestions = new Set(
-    visibleMessages
+  // Connect cards the server answered by waking the bot. Its connect_ message
+  // never reaches this tab, so the card would otherwise stay pending and the
+  // next composer message would go out as its answer.
+  const [settledQuestions, setSettledQuestions] = useState<string[]>([])
+  const answeredQuestions = new Set([
+    ...visibleMessages
       .filter((message) => message.role === "user")
-      .map((message) => message.metadata?.questionId)
-  )
+      .map((message) => message.metadata?.questionId),
+    ...settledQuestions,
+  ])
   const pendingQuestion = visibleMessages
     .flatMap((message) => message.parts)
     .findLast(
@@ -532,15 +534,27 @@ function ChatMessages({
                             (message) => message.role === "assistant"
                           ).length
                         }
-                        onResume={(inputSeq) =>
+                        onResume={(inputSeq) => {
+                          setSettledQuestions((ids) => [
+                            ...ids,
+                            part.toolCallId,
+                          ])
                           resumeAfterWake({
                             inputSeq,
                             chatId,
                             transport,
                             resume: () => void resumeStream(),
-                            reload: onReload,
+                            // Without the input seq a resume could replay the
+                            // previous turn's end, so ask for a refresh
+                            fallback: () =>
+                              toast.add({
+                                type: "success",
+                                title: "App connected",
+                                description:
+                                  "Refresh the page to see your bot's reply.",
+                              }),
                           })
-                        }
+                        }}
                         botId={
                           message.metadata?.botId ??
                           directBotId ??

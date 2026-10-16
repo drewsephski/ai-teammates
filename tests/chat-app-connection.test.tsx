@@ -239,7 +239,7 @@ test("a failure shows an error and keeps Connect", async () => {
   assert.ok(view.getByRole("button", { name: "Connect" }))
 })
 
-test("a woken turn is resumed from its input sequence, else the transcript reloads", () => {
+test("a woken turn is resumed from its input sequence, else the person is asked to refresh", () => {
   const calls: unknown[] = []
   const transport = {
     getSession: () => ({ isStreaming: false, token: "t" }) as never,
@@ -250,7 +250,7 @@ test("a woken turn is resumed from its input sequence, else the transcript reloa
     chatId: "c",
     transport,
     resume: () => void calls.push("resume"),
-    reload: () => void calls.push("reload"),
+    fallback: () => void calls.push("fallback"),
   })
   assert.deepEqual(calls, [
     ["set", "c", { isStreaming: true, token: "t", activeInputSeq: 4 }],
@@ -261,11 +261,8 @@ test("a woken turn is resumed from its input sequence, else the transcript reloa
     chatId: "c",
     transport,
     resume: () => void later.push("resume"),
-    reload: () => void later.push("reload"),
-    schedule: (callback, delay) => {
-      later.push(["delay", delay])
-      callback()
-    },
+    fallback: () => void later.push("fallback"),
   })
-  assert.deepEqual(later, [["delay", 1500], "reload"])
+  // Without the sequence nothing resumes: it could replay the last turn's end
+  assert.deepEqual(later, ["fallback"])
 })

@@ -63,17 +63,15 @@ type SessionState = { isStreaming?: boolean; activeInputSeq?: number }
 /**
  * Attaches the chat to the turn the server started after a connection. The web
  * transport isn't watching, so it must be told a turn is streaming and which
- * input started it before resumeStream will subscribe. Without the sequence,
- * reload the transcript after a short wait instead.
+ * input started it before resumeStream will subscribe. Without the sequence a
+ * resume could pick up the previous turn's end, so `fallback` runs instead.
  */
 export function resumeAfterWake({
   inputSeq,
   chatId,
   transport,
   resume,
-  reload,
-  reloadDelay = 1500,
-  schedule = setTimeout,
+  fallback,
 }: {
   inputSeq?: number
   chatId: string
@@ -82,12 +80,10 @@ export function resumeAfterWake({
     setSession(chatId: string, session: never): void
   }
   resume: () => void
-  reload: () => void
-  reloadDelay?: number
-  schedule?: (callback: () => void, delay: number) => unknown
+  fallback: () => void
 }) {
   if (inputSeq === undefined) {
-    schedule(reload, reloadDelay)
+    fallback()
     return
   }
   const session = transport.getSession(chatId)
