@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-14T17:47:13.466904Z",
+  "generatedAt": "2026-10-16T04:49:38.633431+00:00",
   "title": "Design System: Krafty application",
   "extensions": {
     "colorMeta": {
@@ -769,6 +769,13 @@
       "description": "Single-line starting height with a circular submit control vertically centered on the right.",
       "html": "<div class=\"ds-composer\"><textarea class=\"ds-composer-field\" rows=\"1\" aria-label=\"Message teammate\" placeholder=\"Message teammate…\"></textarea><button class=\"ds-composer-send\" aria-label=\"Send message\"><svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 19V5m-7 7 7-7 7 7\"/></svg></button></div>",
       "css": ".ds-composer{font-family:var(--font-sans,Arial,sans-serif);font-size:14px;line-height:20px;letter-spacing:-.01em;position:relative;max-width:896px;border:1px solid var(--input,#ffffff24);border-radius:24px;background:var(--muted,#2b2b2b);color:var(--foreground,#f2f2f2);transition:border-color 180ms ease-out,box-shadow 180ms ease-out;} .ds-composer-field{box-sizing:border-box;font-family:var(--font-sans,Arial,sans-serif);font-size:14px;line-height:20px;letter-spacing:-.01em;display:block;width:100%;min-height:40px;padding:10px 56px 10px 12px;resize:none;field-sizing:content;background:transparent;border:0;color:inherit;} .ds-composer-field::placeholder{color:var(--muted-foreground,#a6a6a6);} .ds-composer-field:focus-visible{outline:none;} .ds-composer:focus-within{border-color:var(--ring,#bcbcbc);box-shadow:0 0 0 3px color-mix(in oklch,var(--ring,#bcbcbc) 50%,transparent);} .ds-composer-send{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid transparent;border-radius:50%;background:var(--primary,#f5f5f5);color:var(--primary-foreground,#161615);cursor:pointer;} .ds-composer-send:hover{background:color-mix(in oklch,var(--primary,#f5f5f5) 80%,transparent);} .ds-composer-send:focus-visible{outline:none;border-color:var(--ring,#bcbcbc);box-shadow:0 0 0 3px color-mix(in oklch,var(--ring,#bcbcbc) 50%,transparent);} .ds-composer-send:active{transform:translateY(calc(-50% + 1px));} @media(max-width:639px){.ds-composer-field{font-size:16px;}} @media(prefers-reduced-motion:reduce){.ds-composer{transition:none;}}"
+    },
+    {
+      "name": "Computer sign-in card",
+      "kind": "card",
+      "description": "An unanswered askUser login request. Open sign-in enters the authenticated computer viewer; confirmation resumes the task after screen verification. No credentials are entered in chat.",
+      "html": "<section class=\"ds-login\"><strong>Sign in to ESPN Fantasy</strong><small>fantasy.espn.com</small><p>Sign in on my computer, then I’ll continue. Keep passwords and codes out of chat.</p><div><button>Open sign-in</button><button class=\"ds-login-secondary\">I’m signed in</button></div></section>",
+      "css": ".ds-login{max-width:384px;padding:12px;border-radius:var(--radius-xl,1.225rem);background:color-mix(in oklch,var(--muted,#2b2b2b) 40%,transparent);color:var(--foreground,#f2f2f2);font-family:var(--font-sans,Arial,sans-serif);font-size:14px;line-height:20px}.ds-login strong{font-weight:500}.ds-login small{display:block;margin-top:4px}.ds-login small,.ds-login p{font-size:12px;line-height:16px;color:var(--muted-foreground,#a6a6a6)}.ds-login p{margin:4px 0 12px}.ds-login div{display:flex;flex-wrap:wrap;gap:8px}.ds-login button{border-radius:9999px;padding:4px 12px;min-height:32px;border:1px solid transparent;background:var(--primary,#f5f5f5);color:var(--primary-foreground,#161615);font:inherit}.ds-login button.ds-login-secondary{background:transparent;color:inherit;border-color:var(--border,#ffffff14)}.ds-login button:focus-visible{outline:2px solid var(--ring,#bcbcbc);outline-offset:2px}"
     }
   ],
   "narrative": {
@@ -796,6 +803,11 @@
         "name": "The tonal depth rule",
         "body": "Use surface tone and quiet borders for ordinary workspace depth. Reserve ambient shadow for floating overlays rather than adding lift to every card.",
         "section": "elevation"
+      },
+      {
+        "name": "Computer sign-in",
+        "body": "Browser authentication uses a compact muted card in the existing conversation column, showing the service, its domain, one short instruction, Open sign-in, and I’m signed in. Cancel is an accessible icon action. Open sign-in opens the existing live computer in an interactive full-screen view on desktop and phones; credentials never go through chat. Opening or closing the viewer does not resume the agent. The person confirms completion in chat, and the agent checks the screen before continuing. Login cards use the existing question lifecycle and suppress follow-up suggestions while unanswered. Older app builds retain the question and choices fallback. The computer remains subject to its plan and usage limits.",
+        "section": "components"
       }
     ],
     "dos": [

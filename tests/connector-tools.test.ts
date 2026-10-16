@@ -46,6 +46,8 @@ test("no connections means no discovery request and no external execution", asyn
   )
   assert.equal(contacted, false)
   assert.match(String(result), /No apps connected/)
+  assert.deepEqual(JSON.parse(String(result)).connectedApps, [])
+  assert.match(String(result), /official website/)
   assert.match(
     String(
       await tools.executeAppTool.execute!(
@@ -80,6 +82,8 @@ test("discovery filters provider results even if the provider ignores its scope"
   )
   assert.match(String(result), /GITHUB_GET_ISSUE/)
   assert.doesNotMatch(String(result), /GMAIL_FETCH_EMAILS/)
+  assert.deepEqual(JSON.parse(String(result)).connectedApps, ["github"])
+  assert.doesNotMatch(String(result), /alice-github/)
   assert.match(
     String(
       await tools.executeAppTool.execute!(

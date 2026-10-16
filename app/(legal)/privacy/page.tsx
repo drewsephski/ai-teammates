@@ -11,13 +11,13 @@ export default function PrivacyPage() {
   return (
     <article>
       <h1>Privacy policy</h1>
-      <p>Last updated: October 13, 2026</p>
+      <p>Last updated: October 15, 2026</p>
       <p>
         Krafty provides AI teammates, connected tools, and cloud computers. This
-        policy describes how information is handled when you use kraftybot.app.
-        Krafty is operated by Drew Sepeczi. For privacy questions or requests,
-        contact <a href="mailto:drewsepeczi@gmail.com">drewsepeczi@gmail.com</a>
-        .
+        policy describes how information is handled when you use kraftybot.app
+        and the Krafty mobile app. Krafty is operated by Drew Sepeczi. For
+        privacy questions or requests, contact{" "}
+        <a href="mailto:drewsepeczi@gmail.com">drewsepeczi@gmail.com</a>.
       </p>
 
       <h2>Information we collect</h2>
@@ -26,7 +26,9 @@ export default function PrivacyPage() {
           Account information, including your email address, account identifier,
           and profile information provided when you sign up. Google sign-in
           provides basic identity information such as your name, email address,
-          and profile picture.
+          and profile picture. Sign in with Apple may provide your name and
+          email address, including an Apple relay address if you hide your
+          email.
         </li>
         <li>
           Content you provide or create, including messages, bot names and
@@ -83,6 +85,15 @@ export default function PrivacyPage() {
         submitting information you are not authorized to share.
       </p>
       <p>
+        The mobile app asks for permission before enabling AI features. You can
+        withdraw that permission under Account, then AI data sharing.
+        Withdrawing permission prevents new AI activity from that app
+        installation. It does not cancel work already running, change
+        permissions on other devices, or delete information already processed.
+        When your account uses your connected ChatGPT plan, OpenAI processes the
+        conversation through that connection.
+      </p>
+      <p>
         We do not sell your personal information. We may disclose information
         when required by law, to protect users or the service, or as part of a
         transfer of the business, subject to applicable requirements.
@@ -95,13 +106,22 @@ export default function PrivacyPage() {
         may prevent sign-in or other features from working.
       </p>
 
+      <p>
+        The mobile app uses secure device storage for sign-in tokens and your
+        AI-processing permission. App updates may use an installation identifier
+        to deliver compatible software updates. The app does not display
+        advertisements or use this information for cross-app advertising
+        tracking.
+      </p>
+
       <h2>Retention and deletion</h2>
       <p>
         Workspace content, saved memories, and cloud computer files may persist
         between sessions to support ongoing work. Logging out or disconnecting
         an integration does not by itself delete existing conversations, files,
         or memories. You can use available bot and conversation deletion
-        controls and request account or data deletion by contacting us.
+        controls. On iPhone, Account includes a Delete account control. You can
+        also request account or data deletion by contacting us.
       </p>
       <p>
         We retain information as needed to provide the service and meet

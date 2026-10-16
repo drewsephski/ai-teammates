@@ -43,6 +43,7 @@ test("generation supports streaming-only models, bills usage and supplies person
   const result = await generateChatFollowUps({
     model,
     profile: "Launch partner: Drew prefers small, personal launches.",
+    capabilities: { computer: true, connectedApps: false, webSearch: true },
     messages: [
       {
         id: "reply",
@@ -63,6 +64,8 @@ test("generation supports streaming-only models, bills usage and supplies person
   const options = model.doStreamCalls[0]
   assert.equal(options.maxOutputTokens, 1500)
   assert.ok(!options.tools?.length)
+  assert.match(JSON.stringify(options.prompt), /computer/)
+  assert.match(JSON.stringify(options.prompt), /carry through autonomously/)
   assert.match(
     JSON.stringify(options.prompt),
     /Drew prefers small|five founders/

@@ -90,13 +90,40 @@ test("missing worker configuration remains explicit during setup", () => {
 test("authentication guidance uses connected apps and only offers browser sign-in when the computer is available", () => {
   const paid = buildChatInstructions(bot, undefined, true, true, true)
   assert.match(paid, /prompt the person to authenticate through Apps/)
-  assert.match(paid, /open Desktop and sign in themselves/)
+  assert.match(paid, /use askUser with computerLogin/)
+  assert.match(paid, /resume the original task/)
   assert.match(paid, /Pause at login, MFA, or a CAPTCHA/)
   assert.match(paid, /An app connection does not sign the desktop browser in/)
   const free = buildChatInstructions(bot, undefined, true, false, true)
   assert.match(free, /prompt the person to authenticate through Apps/)
   assert.match(free, /do not offer a live Desktop on the free plan/)
-  assert.doesNotMatch(free, /open Desktop and sign in themselves/)
+  assert.doesNotMatch(free, /use askUser with computerLogin/)
+})
+
+test("complex website work is owned through discovery, computer fallback and verification", () => {
+  for (const connected of [true, false]) {
+    const instructions = buildChatInstructions(
+      bot,
+      undefined,
+      connected,
+      true,
+      true
+    )
+    assert.match(instructions, /Own the task from start to verified result/)
+    assert.match(instructions, /do not ask the person to paste a roster/)
+    assert.match(instructions, /call viewScreen first/)
+    assert.match(instructions, /stop all computer actions and wait/)
+    assert.match(instructions, /Read-only review does not authorize trades/)
+    assert.match(instructions, /under 80 words/)
+  }
+  const group = buildChatInstructions(
+    bot,
+    { chat: { name: "Team" }, bots: [bot] },
+    true,
+    true,
+    true
+  )
+  assert.match(group, /do not emit a computerLogin card here/)
 })
 
 test("saved profiles and group handoffs retain role and capability guidance", () => {

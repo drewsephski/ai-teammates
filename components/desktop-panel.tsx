@@ -34,6 +34,9 @@ type DesktopStatus =
 
 type DesktopPanelContextValue = {
   open: boolean
+  openForLogin: () => Promise<void>
+  fullscreen: boolean
+  setFullscreen: (open: boolean) => void
   toggle: () => void
   close: () => void
   status: DesktopStatus
@@ -48,6 +51,10 @@ type DesktopPanelContextValue = {
 
 const DesktopPanelContext =
   React.createContext<DesktopPanelContextValue | null>(null)
+
+export function useOptionalDesktopPanel() {
+  return React.useContext(DesktopPanelContext)
+}
 
 function useDesktopPanel() {
   const context = React.useContext(DesktopPanelContext)
@@ -67,6 +74,7 @@ function DesktopPanelProvider({
   children: React.ReactNode
 }) {
   const [open, setOpen] = React.useState(false)
+  const [fullscreen, setFullscreen] = React.useState(false)
   const [status, setStatus] = React.useState<DesktopStatus>("idle")
   const { checkPlan, checkUsage } = usePaywall()
 
@@ -150,17 +158,26 @@ function DesktopPanelProvider({
     disconnect()
     setStatus("idle")
     setOpen(false)
+    setFullscreen(false)
   }, [disconnect])
 
   const toggle = React.useCallback(async () => {
-    if (open) return close()
+    if (open) {
+      close()
+      return false
+    }
     const request = ++toggleRequestRef.current
     // Showing the desktop starts the sandbox
-    if (!checkPlan("sandboxes") || !(await checkUsage("sandbox"))) return
-    if (request !== toggleRequestRef.current) return
+    if (!checkPlan("sandboxes") || !(await checkUsage("sandbox"))) return false
+    if (request !== toggleRequestRef.current) return false
     if (status !== "connected" && status !== "connecting") connect()
     setOpen(true)
+    return true
   }, [open, status, connect, checkPlan, checkUsage, close])
+
+  const openForLogin = React.useCallback(async () => {
+    if (open || (await toggle())) setFullscreen(true)
+  }, [open, toggle])
 
   const pause = React.useCallback(async () => {
     setStatus("pausing")
@@ -204,6 +221,9 @@ function DesktopPanelProvider({
   const value = React.useMemo(
     () => ({
       open,
+      openForLogin,
+      fullscreen,
+      setFullscreen,
       toggle,
       close,
       status,
@@ -215,6 +235,8 @@ function DesktopPanelProvider({
     }),
     [
       open,
+      openForLogin,
+      fullscreen,
       toggle,
       close,
       status,
@@ -286,10 +308,16 @@ function DesktopPlaceholder() {
 }
 
 function DesktopPanel({ name }: { name: string }) {
-  const { open, toggle, status, attachScreen, setInteractive } =
-    useDesktopPanel()
+  const {
+    open,
+    toggle,
+    status,
+    attachScreen,
+    setInteractive,
+    fullscreen,
+    setFullscreen,
+  } = useDesktopPanel()
   const isMobile = useIsMobile()
-  const [fullscreen, setFullscreen] = React.useState(false)
   const [panelSlot, setPanelSlot] = React.useState<HTMLDivElement | null>(null)
   const [dialogSlot, setDialogSlot] = React.useState<HTMLDivElement | null>(
     null

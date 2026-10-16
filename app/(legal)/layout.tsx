@@ -19,6 +19,9 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
       <footer className="mt-12 flex flex-wrap gap-6 border-t pt-6 text-sm text-muted-foreground">
+        <Link href="/support" className="underline underline-offset-4">
+          Support
+        </Link>
         <Link href="/privacy" className="underline underline-offset-4">
           Privacy policy
         </Link>

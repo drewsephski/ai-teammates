@@ -3,6 +3,7 @@
 import { useRef, useState } from "react"
 import { XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { ComputerLoginCard } from "@/components/chat-computer-login"
 import {
   Questionnaire,
   QuestionnaireChoice,
@@ -24,16 +25,27 @@ export function ChatQuestion({
   busy,
   onAnswer,
   onDismiss,
+  onOpenComputer,
 }: {
   part: QuestionPart
   active: boolean
   busy: boolean
   onAnswer: (answer: string) => void | boolean | Promise<void | boolean>
   onDismiss: () => void | boolean | Promise<void | boolean>
+  onOpenComputer?: () => Promise<void>
 }) {
   const answered = useRef(false)
   const [submitting, setSubmitting] = useState(false)
   if (!active || part.state !== "output-available") return null
+  if (part.output.computerLogin && onOpenComputer)
+    return (
+      <ComputerLoginCard
+        login={part.output.computerLogin}
+        busy={busy}
+        onAnswer={onAnswer}
+        onOpen={onOpenComputer}
+      />
+    )
   const disabled = !active || busy || submitting
   async function submit(action: () => ReturnType<typeof onDismiss>) {
     if (answered.current || disabled) return

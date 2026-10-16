@@ -57,7 +57,8 @@ function screenshotToModelOutput({ output }: { output: Screenshot }) {
 // renewed when a tool needs it. Ask for the ID on every call so handoffs use
 // the receiving bot's computer, and paused sessions never leave stale clients.
 export function createSandboxTools(
-  getSandboxId: () => string | Promise<string>
+  getSandboxId: () => string | Promise<string>,
+  options: { onScreenViewed?: () => void } = {}
 ) {
   async function runInSandbox<T>(
     operation: (sandbox: Sandbox) => Promise<T>,
@@ -267,7 +268,11 @@ export function createSandboxTools(
       description:
         "Look at your sandbox's desktop yourself. Use this whenever you need to see the screen to do your work, such as before clicking and after an action to check what happened. The person you are talking to does not see this screenshot.",
       inputSchema: z.object({}),
-      execute: async () => runInSandbox(takeScreenshot),
+      execute: async () => {
+        const screenshot = await runInSandbox(takeScreenshot)
+        options.onScreenViewed?.()
+        return screenshot
+      },
       toModelOutput: screenshotToModelOutput,
     }),
 

@@ -11,11 +11,11 @@ export default function TermsPage() {
   return (
     <article>
       <h1>Terms of service</h1>
-      <p>Last updated: October 13, 2026</p>
+      <p>Last updated: October 15, 2026</p>
       <p>
-        These terms govern your use of Krafty at kraftybot.app, operated by Drew
-        Sepeczi. By using the service, you agree to these terms. Questions can
-        be sent to{" "}
+        These terms govern your use of Krafty at kraftybot.app and through the
+        Krafty mobile app, operated by Drew Sepeczi. By using the service, you
+        agree to these terms. Questions can be sent to{" "}
         <a href="mailto:drewsepeczi@gmail.com">drewsepeczi@gmail.com</a>.
       </p>
 
@@ -69,6 +69,11 @@ export default function TermsPage() {
       </p>
 
       <h2>Plans, payments, and usage</h2>
+      <p>
+        The iPhone app is a free companion to your Krafty account. Its available
+        features depend on your account plan and remaining allowances. The app
+        does not offer purchases. Web subscriptions are managed separately.
+      </p>
       <p>
         Plan prices, included allowances, and billing intervals are shown before
         checkout. Paid subscriptions renew automatically until canceled.

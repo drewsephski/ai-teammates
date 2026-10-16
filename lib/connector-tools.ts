@@ -100,8 +100,9 @@ export function createAppTools(userId: string, runtime: ConnectorRuntime) {
         if (!allowed.size)
           return boundedResult({
             tools: [],
+            connectedApps: [],
             message:
-              "No apps connected. Open Apps in the sidebar to connect an account.",
+              "No apps connected. Open Apps for a supported integration, or use the official website for browser-based work if computer tools are available.",
           })
         let results: AppToolSearch
         try {
@@ -126,6 +127,7 @@ export function createAppTools(userId: string, runtime: ConnectorRuntime) {
         for (const entry of tools) remember(entry, accounts)
         return boundedResult({
           tools,
+          connectedApps: [...allowed],
           guidance:
             JSON.stringify(results.guidance ?? null).length <= 20_000
               ? results.guidance
@@ -135,7 +137,7 @@ export function createAppTools(userId: string, runtime: ConnectorRuntime) {
                 },
           message: tools.length
             ? "Use exact schemas with executeAppTool. If inputSchema is absent, call getAppToolSchema first."
-            : "No matching tools in your connected apps. Refine the search or connect the required app in Apps.",
+            : "No matching tools in your connected apps. Refine the search if useful. For a browser-based task, use the official website if computer tools are available; a missing connector does not make the website unavailable.",
         })
       },
     }),

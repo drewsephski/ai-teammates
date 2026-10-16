@@ -28,6 +28,7 @@ import { createConnectorTools } from "@/lib/composio"
 import { createBotSetupTools, botSetupMessageId } from "@/lib/bot-setup-tools"
 import { configureBotProfile } from "@/lib/bot-profile"
 import { buildChatInstructions } from "@/lib/chat-instructions"
+import { assertComputerLoginReady } from "@/lib/computer-login-policy"
 import { chatPreview } from "@/lib/chat-preview"
 import { ensureBotComputer } from "@/lib/bot-computer"
 import { assertBotAccess } from "@/lib/teammates"
@@ -147,7 +148,8 @@ export const chatAgent = chat
 
       // Asked before every tool call, so a yes is kept for a minute
       let checkedAt = 0
-      const sandboxTools = createSandboxTools(async () => {
+      let screenViewed = false
+      const getComputerId = async () => {
         if (Date.now() - checkedAt > 60_000) {
           const usage = await getUsage(userId)
           if (!usage || usage.remaining.sandbox <= 0) {
@@ -166,6 +168,11 @@ export const chatAgent = chat
 
         // A reset changes the ID while this durable turn/session may survive.
         return ensureBotComputer(current.id, userId)
+      }
+      const sandboxTools = createSandboxTools(getComputerId, {
+        onScreenViewed: () => {
+          screenViewed = true
+        },
       })
 
       const teamTools = createDelegationTools({
@@ -229,8 +236,18 @@ export const chatAgent = chat
             })
           )
         : {}
-      const setupTools = createBotSetupTools((profile) =>
-        configureBotProfile(userId, current.id, profile)
+      const setupTools = createBotSetupTools(
+        (profile) => configureBotProfile(userId, current.id, profile),
+        {
+          prepareComputerLogin: async () => {
+            assertComputerLoginReady({
+              paid: plan.tier === "paid",
+              direct: kind === "direct",
+              screenViewed,
+            })
+            await getComputerId()
+          },
+        }
       )
       // Every plan; none at all when memory is off or the chat is temporary
       const memoryTools = (await isMemoryOn(userId, chatId))
@@ -329,6 +346,13 @@ export const chatAgent = chat
             ...config,
             messages: uiMessages,
             profile: `${bot.name}: ${bot.job}\n${bot.instructions ?? ""}`,
+            capabilities: {
+              computer:
+                currentUsage.tier === "paid" &&
+                currentUsage.remaining.sandbox > 0,
+              connectedApps: !!process.env.COMPOSIO_API_KEY,
+              webSearch: !!process.env.TAVILY_API_KEY?.trim(),
+            },
             onUsage: async (usage) => {
               const cost = chatModelCost(usage)
               if (cost > 0)

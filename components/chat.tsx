@@ -26,10 +26,7 @@ import {
   chatAuthorSections,
   type ChatActivity,
 } from "@/lib/chat-activity"
-import {
-  avatarStatusInProgress,
-  avatarStatusLabels,
-} from "@/lib/avatar-state"
+import { avatarStatusInProgress, avatarStatusLabels } from "@/lib/avatar-state"
 import {
   Conversation,
   ConversationContent,
@@ -55,6 +52,7 @@ import {
 } from "@/components/ai-elements/prompt-input"
 import { ToolCall } from "@/components/chat-tool-call"
 import { ChatQuestion } from "@/components/chat-question"
+import { useOptionalDesktopPanel } from "@/components/desktop-panel"
 import { ChatFollowUps } from "@/components/chat-follow-ups"
 import { ChatMessageActions } from "@/components/chat-message-actions"
 import { sectionText } from "@/lib/chat-export"
@@ -314,6 +312,7 @@ function ChatMessages({
   // The bot the next message goes to, in a group chat
   const [botId, setBotId] = useState(bots[0]?.id)
   const [setupStopped, setSetupStopped] = useState(false)
+  const desktop = useOptionalDesktopPanel()
   const inputRef = useRef<HTMLTextAreaElement>(null)
   // Falls back to the first one when the picked bot is removed from the group
   const selectedBot = bots.find((bot) => bot.id === botId) ?? bots[0]
@@ -521,9 +520,11 @@ function ChatMessages({
                           pendingQuestion.toolCallId === part.toolCallId
                         }
                         busy={busy}
-                        onAnswer={(answer) =>
-                          answerQuestion(part.toolCallId, answer)
-                        }
+                        onOpenComputer={desktop?.openForLogin}
+                        onAnswer={(answer) => {
+                          if (part.output.computerLogin) desktop?.close()
+                          return answerQuestion(part.toolCallId, answer)
+                        }}
                         onDismiss={() =>
                           answerQuestion(
                             part.toolCallId,

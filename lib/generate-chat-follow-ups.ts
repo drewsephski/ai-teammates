@@ -19,12 +19,18 @@ export async function generateChatFollowUps({
   model = followUpModel(),
   messages,
   profile,
+  capabilities,
   signal,
   onUsage,
 }: {
   model?: LanguageModel
   messages: ChatUIMessage[]
   profile: string
+  capabilities?: {
+    computer: boolean
+    connectedApps: boolean
+    webSearch: boolean
+  }
   signal: AbortSignal
   onUsage: (usage: LanguageModelUsage) => Promise<void>
 }) {
@@ -33,6 +39,11 @@ export async function generateChatFollowUps({
     system: followUpInstructions,
     prompt: JSON.stringify({
       teammate: profile.slice(0, 3000),
+      capabilities: capabilities ?? {
+        computer: false,
+        connectedApps: false,
+        webSearch: false,
+      },
       conversation: followUpContext(messages),
     }),
     // The limit includes reasoning tokens, not just the short JSON response.

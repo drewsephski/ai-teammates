@@ -5,6 +5,17 @@ import { botPersonalityInstructions } from "@/lib/bot-personality"
 
 export const botProfileSchema = botInsertSchema.omit({ avatar: true })
 export type BotProfile = z.infer<typeof botProfileSchema>
+// A display-only domain, never a URL to open on the user's device. Sign-in
+// happens in the existing authenticated viewer of the bot's computer.
+export const computerLoginSchema = z.object({
+  service: z.string().trim().min(1).max(80),
+  hostname: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(253)
+    .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/),
+})
 export const botQuestionSchema = z.object({
   question: z.string().trim().min(1).max(400),
   options: z
@@ -15,20 +26,34 @@ export const botQuestionSchema = z.object({
       (options) => new Set(options).size === options.length,
       "Offer distinct choices."
     ),
+  computerLogin: computerLoginSchema.optional(),
 })
 export function createBotSetupTools(
-  save: (profile: BotProfile) => Promise<BotProfile>
+  save: (profile: BotProfile) => Promise<BotProfile>,
+  options: { prepareComputerLogin?: () => Promise<void> } = {}
 ) {
   return {
     askUser: tool({
       description:
-        "Ask one focused question only when a missing answer materially changes the work or confirmation is required. First use available tools to resolve facts such as a named contact's email address. Offer two to five short choices grounded in the conversation or actual tool results; never invent email addresses, identities, dates or other factual choices. For missing free-form data, offer generic choices such as 'I will type it' and 'Cancel'; the person can type their own answer. Do not use this to ask permission for work already requested. Wait for the answer before continuing; never answer for them.",
+        "Ask one focused question only when a missing answer materially changes the work or confirmation is required. First use available tools to resolve facts such as a named contact's email address. Offer two to five short choices grounded in the conversation or actual tool results; never invent email addresses, identities, dates or other factual choices. For missing free-form data, offer generic choices such as 'I will type it' and 'Cancel'; the person can type their own answer. For a login, MFA or CAPTCHA blocking your computer work in a private chat, first open the requested website and inspect it with viewScreen, then include computerLogin with its service name and actual hostname. This renders a compact sign-in card and pauses the turn. Never request credentials in chat. Do not use this to ask permission for work already requested. Wait for the answer before continuing; never answer for them.",
       inputSchema: botQuestionSchema,
       outputSchema: botQuestionSchema,
-      execute: async (input) => botQuestionSchema.parse(input),
+      execute: async (input) => {
+        const parsed = botQuestionSchema.parse(input)
+        if (!parsed.computerLogin) return parsed
+        if (!options.prepareComputerLogin)
+          throw new Error("Computer sign-in is unavailable in this chat.")
+        await options.prepareComputerLogin()
+        // Keep the existing question/options contract usable by installed apps.
+        return {
+          ...parsed,
+          question: `Sign in to ${parsed.computerLogin.service} in Desktop, then return here so I can continue. Keep passwords and verification codes out of chat.`,
+          options: ["I'm signed in", "Cancel sign-in"],
+        }
+      },
       toModelOutput: ({ output }) => ({
         type: "text" as const,
-        value: `Question displayed: ${output.question}\nChoices: ${output.options.join("; ")}\nWait for the person's next chat message. No answer has been supplied by this tool.`,
+        value: `Question displayed: ${output.question}\nChoices: ${output.options.join("; ")}\nWait for the person's next chat message. No answer has been supplied by this tool.${output.computerLogin ? " Stop computer actions now. After they report signing in, call viewScreen to verify access, then continue the original task without another permission question. A cancellation means stop this sign-in workflow." : ""}`,
       }),
     }),
     configureBot: tool({
