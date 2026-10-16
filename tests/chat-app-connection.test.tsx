@@ -1,11 +1,52 @@
 import "./helpers/dom"
 import assert from "node:assert/strict"
-import { afterEach, test } from "node:test"
+import { after, afterEach, test } from "node:test"
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react"
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime"
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime"
-import { AppConnectionCardView } from "../components/chat-app-connection"
 import { APP_CONNECTION_OPTIONS } from "../lib/bot-setup-tools"
+
+// next/link reads `self` when it loads, which the DOM helper doesn't define.
+Object.defineProperty(globalThis, "self", {
+  configurable: true,
+  value: globalThis,
+})
+// Node's native channel dispatches native Events, while this suite runs in
+// JSDOM. Use an asynchronous in-memory browser channel for popup messages.
+const originalChannel = Object.getOwnPropertyDescriptor(
+  globalThis,
+  "BroadcastChannel"
+)
+class TestBroadcastChannel {
+  static channels = new Set<TestBroadcastChannel>()
+  onmessage: ((event: { data: unknown }) => void) | null = null
+  constructor(readonly name: string) {
+    TestBroadcastChannel.channels.add(this)
+  }
+  postMessage(data: unknown) {
+    for (const channel of TestBroadcastChannel.channels) {
+      if (channel !== this && channel.name === this.name)
+        queueMicrotask(() =>
+          channel.onmessage?.({ data: structuredClone(data) })
+        )
+    }
+  }
+  close() {
+    TestBroadcastChannel.channels.delete(this)
+  }
+}
+Object.defineProperty(globalThis, "BroadcastChannel", {
+  configurable: true,
+  value: TestBroadcastChannel,
+})
+after(() => {
+  if (originalChannel)
+    Object.defineProperty(globalThis, "BroadcastChannel", originalChannel)
+})
+const { AppConnectionCardView } =
+  await import("../components/chat-app-connection")
+const { appConnectionOutcome, postAppConnection } =
+  await import("../hooks/app-connection-channel")
 
 afterEach(cleanup)
 const router = {
@@ -28,6 +69,11 @@ function setup(
     <AppRouterContext.Provider value={router}>
       <AppConnectionCardView
         connection={{ ...base, state }}
+        question={
+          state === "planLimit"
+            ? "Your plan allows one app."
+            : "Connect Gmail so I can read mail."
+        }
         busy={false}
         chatId="chat_1"
         questionId="q_1"
@@ -48,7 +94,7 @@ test("connect state shows Connect", () => {
 test("plan limit state explains the limit and hides Connect", () => {
   const { queryByRole, getByText } = setup("planLimit")
   assert.equal(queryByRole("button", { name: "Connect" }), null)
-  assert.ok(getByText(/free plan includes one connected app/i))
+  assert.ok(getByText("Your plan allows one app."))
 })
 
 test("secondary buttons answer with the exact option strings", async () => {
@@ -87,4 +133,56 @@ test("Connect passes the chat context and then offers I've connected it", async 
   ])
   fireEvent.click(done)
   await waitFor(() => assert.deepEqual(answers, [APP_CONNECTION_OPTIONS[0]]))
+})
+
+test("outcomes follow the popup's report", () => {
+  const q = "q_1"
+  assert.equal(
+    appConnectionOutcome({ questionId: "x", connected: true, woke: true }, q),
+    "ignore"
+  )
+  assert.equal(
+    appConnectionOutcome({ questionId: q, connected: true, woke: true }, q),
+    "settle"
+  )
+  assert.equal(
+    appConnectionOutcome({ questionId: q, connected: true, woke: false }, q),
+    "answer"
+  )
+  assert.equal(
+    appConnectionOutcome({ questionId: q, connected: true }, q),
+    "answer"
+  )
+  assert.equal(
+    appConnectionOutcome({ questionId: q, connected: false }, q),
+    "retry"
+  )
+  assert.equal(appConnectionOutcome("nope", q), "ignore")
+})
+
+test("a woken bot settles the card and resumes the turn", async () => {
+  let resumed = 0
+  const { getByRole, queryByRole, getByText, answers } = setup("connect", {
+    onResume: () => void resumed++,
+    botName: "Alex",
+  })
+  postAppConnection({ questionId: "q_1", connected: true, woke: true })
+  await waitFor(() => getByText("Connected. Alex is continuing."))
+  assert.equal(resumed, 1)
+  assert.equal(queryByRole("button", { name: "Connect" }), null)
+  assert.ok(getByRole("status"))
+  assert.deepEqual(answers, [])
+})
+
+test("an unwoken bot gets the fallback answer, a failure shows an error", async () => {
+  const first = setup("connect")
+  postAppConnection({ questionId: "q_1", connected: true, woke: false })
+  await waitFor(() =>
+    assert.deepEqual(first.answers, [APP_CONNECTION_OPTIONS[0]])
+  )
+  first.unmount()
+  const second = setup("connect")
+  postAppConnection({ questionId: "q_1", connected: false })
+  await waitFor(() => second.getByText(/wasn't completed/))
+  assert.ok(second.getByRole("button", { name: "Connect" }))
 })
