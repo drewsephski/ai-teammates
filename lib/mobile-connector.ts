@@ -1,5 +1,11 @@
 import { z } from "zod"
 
+import {
+  CONNECT_CONTEXT_ERROR,
+  connectContextComplete,
+  connectContextShape,
+} from "@/lib/connect-context"
+
 // Deep-link schemes the native app may ask to be sent back to after OAuth.
 // Expo Go's exp:// links point at a developer's machine, so only in development.
 export const MOBILE_APP_SCHEMES = [
@@ -27,11 +33,15 @@ export const mobileReturnUrlSchema = z
     )
   }, "Return URL must use the Krafty app scheme")
 
-export const mobileConnectInputSchema = z.object({
-  // beginAppConnection checks the toolkit slug format
-  slug: z.string().min(1).max(100),
-  returnUrl: mobileReturnUrlSchema,
-})
+export const mobileConnectInputSchema = z
+  .object({
+    // beginAppConnection checks the toolkit slug format
+    slug: z.string().min(1).max(100),
+    returnUrl: mobileReturnUrlSchema,
+    // Set by the connect card in a chat; beginMobileAppConnection checks them
+    ...connectContextShape,
+  })
+  .refine(connectContextComplete, { message: CONNECT_CONTEXT_ERROR })
 
 export type MobileConnectInput = z.infer<typeof mobileConnectInputSchema>
 

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import { ShieldCheckIcon } from "lucide-react"
 
+import { EmailDraftCard } from "@/components/email-draft-card"
+import type { EmailDraft } from "@/lib/email-draft"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
@@ -46,6 +48,7 @@ export function ApprovalCard({
   toolkit?: string
 }) {
   const [state, setState] = useState<State>("loading")
+  const [emailDraft, setEmailDraft] = useState<EmailDraft>()
   const [pending, setPending] = useState<ApprovalDecision>()
 
   useEffect(() => {
@@ -53,13 +56,36 @@ export function ApprovalCard({
     actions()
       .then(({ getApproval }) => getApproval(approvalId))
       .then(
-        (approval) => current && setState(approval.state),
+        (approval) => {
+          if (!current) return
+          setState(approval.state)
+          setEmailDraft(approval.emailDraft)
+        },
         () => current && setState("unavailable")
       )
     return () => {
       current = false
     }
   }, [approvalId])
+
+  useEffect(() => {
+    if (!emailDraft || !["pending", "approved", "running"].includes(state))
+      return
+    let current = true
+    const refresh = async () => {
+      try {
+        const approval = await (await actions()).getApproval(approvalId)
+        if (current) setState(approval.state)
+      } catch {
+        /* Keep the saved card through a temporary network failure. */
+      }
+    }
+    const timer = setInterval(() => void refresh(), 3000)
+    return () => {
+      current = false
+      clearInterval(timer)
+    }
+  }, [approvalId, emailDraft, state])
 
   async function decide(decision: ApprovalDecision) {
     if (pending) return
@@ -93,6 +119,22 @@ export function ApprovalCard({
       setPending(undefined)
     }
   }
+
+  if (emailDraft)
+    return (
+      <EmailDraftCard
+        draft={emailDraft}
+        state={state}
+        onAction={async (input) => {
+          const result = await (
+            await actions()
+          ).actOnEmailDraft(approvalId, input)
+          if (!result.ok) throw new Error(result.message)
+          setState(result.approval.state)
+          return { draft: result.approval.emailDraft, woke: result.woke }
+        }}
+      />
+    )
 
   const label = settled[state]
   return (

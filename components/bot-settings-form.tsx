@@ -121,12 +121,13 @@ export function BotSettingsForm({
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="relative flex items-center justify-center gap-4">
                     <ChatAvatar seed={avatarValue} className="size-16" />
                     <Button
                       type="button"
                       size="sm"
                       variant="outline"
+                      className="absolute right-0"
                       disabled={isSubmitting}
                       onClick={() => field.onChange(createBotAvatar())}
                     >

@@ -98,10 +98,10 @@ const rejects = (promise: Promise<unknown>, message: RegExp) =>
 test("B can't see A's chats, bots or memories", async () => {
   assert.equal(await chats.findChat(B, "chat_a1"), null)
   assert.equal(await chats.findChat(B, "group_a"), null)
-  assert.deepEqual(
-    (await chats.listChats(B)).map((chat) => chat.id).sort(),
-    ["chat_b1", "group_b"]
-  )
+  assert.deepEqual((await chats.listChats(B)).map((chat) => chat.id).sort(), [
+    "chat_b1",
+    "group_b",
+  ])
   assert.equal(await bots.findBot(B, "bot_a1"), null)
   assert.deepEqual(
     (await bots.listBots(B)).map((bot) => bot.id),
@@ -123,7 +123,10 @@ test("B can't open, stream or check A's chat sessions", async () => {
     chats.startChatSession(caller(B), { chatId: "chat_a1", clientData: {} }),
     /Chat not found/
   )
-  await rejects(chats.mintChatAccessToken(caller(B), "chat_a1"), /Chat not found/)
+  await rejects(
+    chats.mintChatAccessToken(caller(B), "chat_a1"),
+    /Chat not found/
+  )
   await rejects(chats.getChatTurnStatus(B, "chat_a1"), /Chat not found/)
   await rejects(chats.loadTranscript(B, "group_a"), /Chat not found/)
 })
@@ -170,7 +173,12 @@ test("B can't rename, re-staff or delete A's group chat", async () => {
 
 test("B can't edit, pin, reorder or delete A's bots", async () => {
   await rejects(
-    bots.updateBot(B, "bot_a1", { name: "Mine", job: "Spy", avatar: "x", instructions: null }),
+    bots.updateBot(B, "bot_a1", {
+      name: "Mine",
+      job: "Spy",
+      avatar: "x",
+      instructions: null,
+    }),
     /Bot not found/
   )
   await rejects(bots.setBotPinned(B, "bot_a1", true), /Bot not found/)
@@ -204,25 +212,77 @@ test("B can't edit or delete A's memories, or scope a memory to A's bot", async 
   )
   await rejects(memory.deleteMemory(B, "mem_a"), /Memory not found/)
   assert.deepEqual(
-    (await memory.getMemoryOverview(A)).memories.map((row) => [row.id, row.pinned]),
+    (await memory.getMemoryOverview(A)).memories.map((row) => [
+      row.id,
+      row.pinned,
+    ]),
     [["mem_a", false]]
   )
 })
 
 test("B can't complete or consume A's app connection attempt", async () => {
   const state = "6f1c1c55-2f63-4b8b-9b0e-0a3c2f4f1e11"
-  assert.equal(
+  assert.deepEqual(
     await connectors.finishMobileAppConnection(B, {
       state,
       status: "success",
       accountId: "ca_a",
     }),
-    false
+    { connected: false }
   )
   // A's attempt is still there for A to finish
   assert.equal(
     await connectors.mobileConnectionReturnUrl(state),
     "krafty://apps/connected"
+  )
+})
+
+test("B can't start a connection from A's chat or with a bot outside the chat", async () => {
+  const origin = "https://example.test"
+  const input = { slug: "gmail", returnUrl: "krafty://apps/connected" }
+  // Rejected before the provider is reached
+  await rejects(
+    connectors.beginMobileAppConnection(
+      B,
+      { ...input, chatId: "chat_a1", botId: "bot_a1", questionId: "q" },
+      origin
+    ),
+    /Chat not found/
+  )
+  await rejects(
+    connectors.beginMobileAppConnection(
+      B,
+      { ...input, chatId: "group_a" },
+      origin
+    ),
+    /Chat not found/
+  )
+  // B's own chat, but a bot that isn't a member (A's bot, and B's other bot)
+  for (const botId of ["bot_a1", "bot_b2"])
+    await rejects(
+      connectors.beginMobileAppConnection(
+        B,
+        { ...input, chatId: "chat_b1", botId },
+        origin
+      ),
+      /Chat not found/
+    )
+  await rejects(
+    connectors.beginAppConnection(B, "gmail", origin, {
+      chatId: "chat_a1",
+      questionId: "q",
+      botId: "bot_a1",
+    }),
+    /Chat not found/
+  )
+  // questionId or botId without chatId is a validation error
+  await rejects(
+    connectors.beginMobileAppConnection(
+      B,
+      { ...input, questionId: "q" },
+      origin
+    ),
+    /chatId/
   )
 })
 
@@ -246,14 +306,20 @@ test("every /api/v1 handler runs through apiRoute", () => {
   for (const path of routes) {
     const source = readFileSync(path, "utf8")
     const handlers = [
-      ...source.matchAll(/export\s+(?:async\s+function|const)\s+(GET|POST|PUT|PATCH|DELETE)\b[^\n]*/g),
+      ...source.matchAll(
+        /export\s+(?:async\s+function|const)\s+(GET|POST|PUT|PATCH|DELETE)\b[^\n]*/g
+      ),
     ]
     assert.ok(handlers.length > 0, path)
     for (const [line] of handlers) {
       if (public_.has(path)) continue
       assert.match(line, /= apiRoute(<[^>]+>)?\(/, `${path}: ${line}`)
     }
-    assert.doesNotMatch(source, /userId\s*[:=]\s*(input|body|params|values)\b/, path)
+    assert.doesNotMatch(
+      source,
+      /userId\s*[:=]\s*(input|body|params|values)\b/,
+      path
+    )
   }
 })
 
@@ -357,5 +423,137 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
     await connectors.mobileConnectionReturnUrl(
       "6f1c1c55-2f63-4b8b-9b0e-0a3c2f4f1e11"
     )
+  )
+})
+
+test("email cards are owner-scoped and saved edits are the only arguments claimed once", async () => {
+  const service = await import("../services/approvals")
+  const approvalLib = await import("../lib/approvals")
+  const { stageEmailDraft, publicEmailDraft, emailExecutionArguments } =
+    await import("../lib/email-draft")
+  const { emailTool, emailInput } = await import("./helpers/email-draft")
+  const input = stageEmailDraft(emailTool, emailInput)!
+  await db.insert(schema.approvals).values({
+    id: "email_a",
+    userId: A,
+    botId: "bot_a1",
+    chatId: "chat_a1",
+    toolkit: "gmail",
+    toolSlug: emailTool.slug,
+    accountId: "gmail_a",
+    arguments: input,
+    summary: "Reply to Ayesha",
+    expiresAt: new Date(Date.now() + 60_000),
+  })
+  const draft = publicEmailDraft(input)!
+  await rejects(service.getApproval(B, "email_a"), /Approval not found/)
+  for (const action of ["save", "send"] as const)
+    await rejects(
+      service.actOnEmailDraft(B, "email_a", {
+        action,
+        revision: 0,
+        content: draft,
+      }),
+      /Approval not found/
+    )
+  await rejects(
+    service.actOnEmailDraft(B, "email_a", { action: "discard" }),
+    /Approval not found/
+  )
+  const saved = await service.actOnEmailDraft(A, "email_a", {
+    action: "save",
+    revision: 0,
+    content: { ...draft, body: "Reviewed by Drew" },
+  })
+  assert.equal(saved.approval.emailDraft?.body, "Reviewed by Drew")
+  await rejects(
+    service.actOnEmailDraft(A, "email_a", {
+      action: "save",
+      revision: 0,
+      content: draft,
+    }),
+    /changed on another device/
+  )
+  const sent = await service.actOnEmailDraft(
+    A,
+    "email_a",
+    {
+      action: "send",
+      revision: 1,
+      content: { ...draft, body: "Final reviewed reply" },
+    },
+    {
+      dispatch: async (_chatId, message) => {
+        assert.match(message.text, /runApprovedAction/)
+        assert.match(message.text, /email_a/)
+      },
+    }
+  )
+  assert.equal(sent.approval.state, "approved")
+  assert.equal(sent.approval.emailDraft?.body, "Final reviewed reply")
+  await rejects(
+    service.actOnEmailDraft(
+      A,
+      "email_a",
+      { action: "send", revision: 1, content: draft },
+      {
+        dispatch: async () => {
+          assert.fail("Duplicate must never dispatch")
+        },
+      }
+    ),
+    /changed on another device/
+  )
+  await db.insert(schema.approvals).values({
+    id: "discard_email",
+    userId: A,
+    botId: "bot_a1",
+    chatId: "chat_a1",
+    toolkit: "gmail",
+    toolSlug: emailTool.slug,
+    accountId: "gmail_a",
+    arguments: input,
+    summary: "Draft to discard",
+    expiresAt: new Date(Date.now() + 60_000),
+  })
+  const discarded = await service.actOnEmailDraft(
+    A,
+    "discard_email",
+    { action: "discard" },
+    {
+      dispatch: async (_chatId, message) => {
+        assert.match(message.text, /declined/)
+      },
+    }
+  )
+  assert.equal(discarded.approval.state, "denied")
+  assert.equal(
+    await approvalLib.claimApproval(A, "bot_a1", "discard_email"),
+    undefined
+  )
+  assert.equal(
+    await approvalLib.claimApproval(B, "bot_a1", "email_a"),
+    undefined
+  )
+  const claimed = await approvalLib.claimApproval(A, "bot_a1", "email_a")
+  assert.equal(
+    emailExecutionArguments(claimed!.arguments).body,
+    "Final reviewed reply"
+  )
+  assert.equal(
+    emailExecutionArguments(claimed!.arguments).thread_id,
+    "thread_verified"
+  )
+  assert.equal(
+    await approvalLib.claimApproval(A, "bot_a1", "email_a"),
+    undefined
+  )
+  await rejects(
+    service.actOnEmailDraft(A, "email_a", {
+      action: "save",
+      revision: 1,
+      content: draft,
+    }),
+    /already decided/
   )
 })

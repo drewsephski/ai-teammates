@@ -22,12 +22,13 @@ Don't re-call `sessions.start` with `basePayload.message` for an existing sessio
 
 The message ID marks the turn's origin, and `unattendedOrigin` reads it in `onTurnComplete`:
 
-| Prefix | Origin | Written by |
-|---|---|---|
-| `routine_<id>_<scheduledAt>` | routine run | `lib/routines.ts` |
-| `approval_<id>_<decision>` | owner's decision | `lib/approvals.ts` |
-| `brief_<op>` | delegation | `lib/team-delegation.ts` |
-| `task_<op>` | For you task | `services/for-you.ts` |
+| Prefix                       | Origin                                                                         | Written by               |
+| ---------------------------- | ------------------------------------------------------------------------------ | ------------------------ |
+| `routine_<id>_<scheduledAt>` | routine run                                                                    | `lib/routines.ts`        |
+| `approval_<id>_<decision>`   | owner's decision                                                               | `lib/approvals.ts`       |
+| `brief_<op>`                 | delegation                                                                     | `lib/team-delegation.ts` |
+| `task_<op>`                  | For you task                                                                   | `services/for-you.ts`    |
+| `connect_<state>`            | an app connected from a connect card (attended: `unattendedOrigin` ignores it) | `lib/connect-wake.ts`    |
 
 `displayPrompt` metadata ("Routine: Morning brief", "Approved") is what the chat shows in place of the long instruction text.
 

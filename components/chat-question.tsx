@@ -3,6 +3,7 @@
 import { useRef, useState } from "react"
 import { XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { AppConnectionCardView } from "@/components/chat-app-connection"
 import { ComputerLoginCard } from "@/components/chat-computer-login"
 import {
   Questionnaire,
@@ -26,6 +27,10 @@ export function ChatQuestion({
   onAnswer,
   onDismiss,
   onOpenComputer,
+  chatId,
+  botId,
+  botName,
+  onResume,
 }: {
   part: QuestionPart
   active: boolean
@@ -33,6 +38,12 @@ export function ChatQuestion({
   onAnswer: (answer: string) => void | boolean | Promise<void | boolean>
   onDismiss: () => void | boolean | Promise<void | boolean>
   onOpenComputer?: () => Promise<void>
+  chatId?: string
+  /** The bot that asked, from the message metadata. */
+  botId?: string
+  botName?: string
+  /** Picks up a turn the server started after the connection completed. */
+  onResume?: () => void
 }) {
   const answered = useRef(false)
   const [submitting, setSubmitting] = useState(false)
@@ -44,6 +55,20 @@ export function ChatQuestion({
         busy={busy}
         onAnswer={onAnswer}
         onOpen={onOpenComputer}
+      />
+    )
+  if (part.output.appConnection)
+    return (
+      <AppConnectionCardView
+        connection={part.output.appConnection}
+        question={part.output.question}
+        botName={botName}
+        onResume={onResume}
+        busy={busy}
+        chatId={chatId}
+        questionId={part.toolCallId}
+        botId={botId}
+        onAnswer={onAnswer}
       />
     )
   const disabled = !active || busy || submitting

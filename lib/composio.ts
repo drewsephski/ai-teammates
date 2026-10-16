@@ -1,3 +1,4 @@
+import { emailExecutionArguments } from "@/lib/email-draft"
 import { Composio } from "@composio/core"
 import { z } from "zod"
 import {
@@ -210,7 +211,7 @@ export function createApprovalGate(context: {
           slug: row.toolSlug,
           toolkit: row.toolkit,
           accountId: row.accountId,
-          input: row.arguments,
+          input: emailExecutionArguments(row.arguments),
         }
       )
     },

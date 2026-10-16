@@ -25,6 +25,8 @@ import {
 } from "@/lib/composer"
 import { createDelegationTools } from "@/lib/team-delegation"
 import { createApprovalGate, createConnectorTools } from "@/lib/composio"
+import { createAppCatalogTools } from "@/lib/app-catalog-tools"
+import { findApps, prepareAppConnection } from "@/lib/app-catalog"
 import { createRoutineTools } from "@/lib/routine-tools"
 import {
   createRoutine,
@@ -246,6 +248,10 @@ export const chatAgent = chat
             },
           })
         : {}
+      // The whole catalog, so the bot can offer a connect card for any app
+      const catalogTools = process.env.COMPOSIO_API_KEY
+        ? createAppCatalogTools((input) => findApps(userId, input))
+        : {}
       // Routines report into this chat, as the bot holding the turn
       // Only while the owner is in the conversation: an unattended turn reads
       // untrusted email and web content, which must not be able to schedule
@@ -316,6 +322,10 @@ export const chatAgent = chat
             })
             await getComputerId()
           },
+          ...(process.env.COMPOSIO_API_KEY && {
+            prepareAppConnection: (app) => prepareAppConnection(userId, app),
+          }),
+          computerAvailable: plan.tier === "paid",
         }
       )
       // Every plan; none at all when memory is off or the chat is temporary
@@ -333,6 +343,7 @@ export const chatAgent = chat
         ...teamTools,
         ...consultationTools,
         ...connectorTools,
+        ...catalogTools,
         ...webTools,
         ...setupTools,
         ...routineTools,
@@ -340,6 +351,7 @@ export const chatAgent = chat
       if (plan.tier === "free")
         return {
           ...connectorTools,
+          ...catalogTools,
           ...webTools,
           ...setupTools,
           ...memoryTools,

@@ -12,7 +12,21 @@ const attemptSchema = z.object({
   userId: z.string().min(1),
   accountId: z.string().min(1),
   toolkit: z.string().min(1),
+  // Set when a connect card in a chat started the attempt (null from the DB)
+  chatId: z.string().min(1).nullish(),
+  questionId: z.string().min(1).nullish(),
+  botId: z.string().min(1).nullish(),
 })
+
+export function parseConnectorAttempt(stored: string | undefined) {
+  if (!stored) return null
+  try {
+    const attempt = attemptSchema.safeParse(JSON.parse(stored))
+    return attempt.success ? attempt.data : null
+  } catch {
+    return null
+  }
+}
 
 export function connectorCookieName(state: string) {
   return `composio_connection_${z.uuid().parse(state)}`
@@ -40,28 +54,22 @@ export async function verifyConnectorCallback(
   ) => Promise<AccountPage>
 ) {
   if (callback.status !== "success" || !storedAttempt) return false
-  let value: unknown
-  try {
-    value = JSON.parse(storedAttempt)
-  } catch {
-    return false
-  }
-  const attempt = attemptSchema.safeParse(value)
+  const attempt = parseConnectorAttempt(storedAttempt)
   if (
-    !attempt.success ||
-    attempt.data.userId !== userId ||
-    attempt.data.accountId !== callback.accountId
+    !attempt ||
+    attempt.userId !== userId ||
+    attempt.accountId !== callback.accountId
   )
     return false
 
   let cursor: string | undefined
   do {
-    const page = await loadAccounts(userId, attempt.data.toolkit, cursor)
+    const page = await loadAccounts(userId, attempt.toolkit, cursor)
     if (
       page.items.some(
         (account) =>
           account.id === callback.accountId &&
-          account.toolkit.slug === attempt.data.toolkit &&
+          account.toolkit.slug === attempt.toolkit &&
           account.status === "ACTIVE" &&
           !account.isDisabled
       )

@@ -8,6 +8,7 @@ import type { connectorQuerySchema } from "@/lib/composio"
 import {
   connectorCallbackSchema,
   connectorCookieName,
+  parseConnectorAttempt,
   type ConnectorCallback,
 } from "@/lib/connector-callback"
 import * as service from "@/services/connectors"
@@ -24,11 +25,19 @@ export async function listConnectorApps(
   return service.listConnectorApps(await signedIn(), values)
 }
 
-export async function connectApp(slug: string) {
+export async function connectApp(
+  slug: string,
+  context?: { chatId: string; questionId: string; botId: string }
+) {
   const userId = await signedIn()
   // Next.js validates the browser's Origin against the Server Action host.
   const origin = (await headers()).get("origin")
-  const started = await service.beginAppConnection(userId, slug, origin)
+  const started = await service.beginAppConnection(
+    userId,
+    slug,
+    origin,
+    context
+  )
   if (!started.ok) return started
   const cookieStore = await cookies()
   cookieStore.set(connectorCookieName(started.state), started.attempt, {
@@ -44,19 +53,18 @@ export async function connectApp(slug: string) {
 export async function completeAppConnection(values: ConnectorCallback) {
   const userId = await signedIn()
   const parsed = connectorCallbackSchema.safeParse(values)
-  if (!parsed.success) return false
+  if (!parsed.success) return { connected: false }
   const cookieStore = await cookies()
   const cookieName = connectorCookieName(parsed.data.state)
   const attempt = cookieStore.get(cookieName)?.value
   // Consume the attempt even on failure; refresh cannot replay completion.
   cookieStore.delete(cookieName)
-  const connected = await service.finishAppConnection(
-    userId,
-    parsed.data,
-    attempt
-  )
-  if (connected) revalidatePath("/workspace")
-  return connected
+  const result = await service.finishAppConnection(userId, parsed.data, attempt)
+  if (result.connected) revalidatePath("/workspace")
+  // The connect card that started it, so the popup can tell the chat's tab.
+  // Only ever this user's own attempt, from their httpOnly cookie.
+  const questionId = parseConnectorAttempt(attempt)?.questionId
+  return { ...result, ...(questionId && { questionId }) }
 }
 
 export async function disconnectApp(accountId: string) {

@@ -1,4 +1,10 @@
 import { approvalDecisionSchema, type ApprovalDecision } from "@/db/schema"
+import {
+  emailDraftActionSchema,
+  editEmailDraft,
+  publicEmailDraft,
+  type EmailDraftAction,
+} from "@/lib/email-draft"
 import * as approvals from "@/lib/approvals"
 
 export type PublicApproval = Awaited<
@@ -20,6 +26,7 @@ export async function getApproval(userId: string, approvalId: string) {
     toolSlug: row.toolSlug,
     arguments: row.arguments,
     summary: row.summary,
+    emailDraft: publicEmailDraft(row.arguments),
     state: row.state,
     expiresAt: row.expiresAt,
     decidedAt: row.decidedAt,
@@ -41,4 +48,43 @@ export async function decideApproval(
     decision
   )
   return { state: approval.state, chatId: approval.chatId, woke }
+}
+
+export async function actOnEmailDraft(
+  userId: string,
+  approvalId: string,
+  value: EmailDraftAction,
+  steps?: { dispatch: approvals.ApprovalDispatch }
+) {
+  const input = emailDraftActionSchema.parse(value)
+  const row = await approvals.getApproval(userId, approvalId)
+  if (!publicEmailDraft(row.arguments)) throw new Error("Email draft not found")
+  if (input.action === "save") {
+    await approvals.saveEmailDraft(
+      userId,
+      approvalId,
+      input.revision,
+      input.content
+    )
+    return { approval: await getApproval(userId, approvalId), woke: true }
+  }
+  const email =
+    input.action === "send"
+      ? {
+          expectedArguments: row.arguments,
+          arguments: editEmailDraft(
+            row.arguments,
+            input.revision,
+            input.content
+          ),
+        }
+      : undefined
+  const { woke } = await approvals.decideApproval(
+    userId,
+    approvalId,
+    input.action === "send" ? "approve" : "deny",
+    email,
+    steps?.dispatch
+  )
+  return { approval: await getApproval(userId, approvalId), woke }
 }

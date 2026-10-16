@@ -10,7 +10,13 @@ import { sessions } from "@trigger.dev/sdk"
 // retried dispatch never posts twice.
 export async function postChatMessage(
   chatId: string,
-  message: { id: string; text: string; displayPrompt?: string },
+  message: {
+    id: string
+    text: string
+    displayPrompt?: string
+    // The toolCallId of the question this message answers
+    questionId?: string
+  },
   options: { botId?: string; fetchImpl?: typeof fetch } = {}
 ) {
   await sessions.start({
@@ -48,8 +54,13 @@ export async function postChatMessage(
             id: message.id,
             role: "user",
             parts: [{ type: "text", text: message.text }],
-            ...(message.displayPrompt && {
-              metadata: { displayPrompt: message.displayPrompt },
+            ...((message.displayPrompt || message.questionId) && {
+              metadata: {
+                ...(message.displayPrompt && {
+                  displayPrompt: message.displayPrompt,
+                }),
+                ...(message.questionId && { questionId: message.questionId }),
+              },
             }),
           },
           ...(options.botId && { metadata: { botId: options.botId } }),

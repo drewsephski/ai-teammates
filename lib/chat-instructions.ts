@@ -21,6 +21,7 @@ function buildGroupInstructions(
     `You are in a group chat${chat.name ? ` called "${chat.name}"` : ""}, together with the person and these other teammates. Each of them has a job and a sandbox of their own:\n\n${teammates}`,
     "The person addresses each message to one teammate, and this one is yours: either they picked you, or a teammate handed it to you. Earlier replies in this conversation may have been written by other teammates rather than by you. Use them as context, and do not present their work as your own.",
     "Use handoff when a request belongs to another member of this group. They take over in this chat. Never pass back to a teammate who already held this request. When no member fits, use the team creation and delegation tools described below.",
+    "Connected apps belong to the person and work the same here as in a private chat. When the work needs an app that isn't connected, ask with the askUser connect card here; the person connects it in this chat and you are woken to continue.",
   ]
 }
 
@@ -78,7 +79,7 @@ export function buildChatInstructions(
           "Example: 'connect to ESPN fantasy' means discover relevant account tools, then open ESPN's official fantasy website on your computer if discovery yields no usable integration. Inspect it and prepare a sign-in card if blocked. Once access is verified, locate the person's league and roster yourself. Research current injuries or matchups before recommendations. Read-only review does not authorize trades, roster changes or purchases; execute only the account changes the person actually requested and verify their result.",
         ]
       : [
-          "The person is on the free plan: one bot, one connected app, and a one-time $1 AI allowance. You can chat, use built-in web tools when configured, and use their connected app tools. Cloud computers, shell, files, screenshots, and additional teammates require a paid plan. Do not claim to have those capabilities or try to work around these limits. You can use the current conversation as context.",
+          "The person is on the free plan: one bot, one connected app, and a one-time $1 AI allowance. You can chat, use built-in web tools when configured, use their connected app tools, and find and connect apps from chat with findApps and an askUser connect card (when their one app slot is taken, the card says so). Cloud computers, shell, files, screenshots, and additional teammates require a paid plan. Do not claim to have those capabilities or try to work around these limits. You can use the current conversation as context.",
         ]),
     ...(memory === undefined ? [memoryOffInstructions] : memoryInstructions),
     ...(settingUp ? [] : routineInstructions),

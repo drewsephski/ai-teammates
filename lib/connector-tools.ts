@@ -1,5 +1,6 @@
 import { tool } from "ai"
 import { z } from "zod"
+import { emailContextSchema, stageEmailDraft } from "@/lib/email-draft"
 
 export type AppAccount = { id: string; toolkit: string }
 export type AppTool = {
@@ -244,6 +245,13 @@ export function createAppTools(
       inputSchema: z.object({
         slug: slugSchema,
         arguments: z.record(z.string(), z.unknown()),
+        prepareOnly: z
+          .boolean()
+          .optional()
+          .describe(
+            "For email drafts: true stages an editable email card without sending or creating a provider draft. Load a direct-send or thread-reply schema first."
+          ),
+        emailContext: emailContextSchema.optional(),
         summary: z
           .string()
           .trim()
@@ -253,7 +261,10 @@ export function createAppTools(
             "For writes: one plain sentence the owner reads on the approval card, naming the recipient or target and the gist, e.g. 'Email Sam Lee the Q3 summary'."
           ),
       }),
-      execute: async ({ slug, arguments: input, summary }, { abortSignal }) => {
+      execute: async (
+        { slug, arguments: input, summary, prepareOnly, emailContext },
+        { abortSignal }
+      ) => {
         const loaded = discovered.get(slug)
         const entry = loaded?.tool
         if (!entry?.inputSchema)
@@ -295,12 +306,31 @@ export function createAppTools(
             }
           )
         abortSignal?.throwIfAborted()
-        if (gate && (await gate.required(entry))) {
+        let email: Record<string, unknown> | undefined
+        try {
+          email = stageEmailDraft(entry, input, emailContext)
+        } catch {
+          return failure(
+            "INVALID_ARGUMENTS",
+            "Use valid email recipients, a subject and a plain-text body. Nothing was sent."
+          )
+        }
+        if (prepareOnly && !email)
+          return failure(
+            "EMAIL_CARD_UNSUPPORTED",
+            "This schema cannot be safely edited in an email card. Load a plain-text direct-send or thread-reply email schema. Nothing was sent."
+          )
+        if ((email || prepareOnly) && !gate)
+          return failure(
+            "APPROVALS_UNAVAILABLE",
+            "Email review is unavailable in this chat. Nothing was sent."
+          )
+        if (gate && (email || (await gate.required(entry)))) {
           const held = await gate.request({
             slug,
             toolkit: entry.toolkit,
             accountId: account.id,
-            input,
+            input: email ?? input,
             summary,
           })
           return boundedResult({

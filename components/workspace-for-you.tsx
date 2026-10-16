@@ -27,6 +27,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import type { ForYouItemView, ForYouState } from "@/services/for-you"
 
@@ -366,30 +371,38 @@ function ForYouCard({
           />
         </Button>
         <div className="ml-auto flex items-center">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Not now"
-            title="Not now"
-            disabled={disabled}
-            onClick={onSnooze}
-          >
-            <ClockIcon aria-hidden="true" className="text-muted-foreground" />
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger
+          <Tooltip>
+            <TooltipTrigger
               disabled={disabled}
+              onClick={onSnooze}
               render={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Dismiss"
-                  title="Dismiss"
-                />
+                <Button variant="ghost" size="icon-sm" aria-label="Not now" />
               }
             >
-              <XIcon aria-hidden="true" className="text-muted-foreground" />
-            </DropdownMenuTrigger>
+              <ClockIcon aria-hidden="true" className="text-muted-foreground" />
+            </TooltipTrigger>
+            <TooltipContent>Not now</TooltipContent>
+          </Tooltip>
+          <DropdownMenu>
+            <Tooltip>
+              <DropdownMenuTrigger
+                disabled={disabled}
+                render={
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Dismiss"
+                      />
+                    }
+                  />
+                }
+              >
+                <XIcon aria-hidden="true" className="text-muted-foreground" />
+              </DropdownMenuTrigger>
+              <TooltipContent>Dismiss</TooltipContent>
+            </Tooltip>
             <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuLabel>Dismiss because…</DropdownMenuLabel>
               <DropdownMenuItem onClick={() => onDismiss("done")}>

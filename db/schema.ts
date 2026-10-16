@@ -189,6 +189,11 @@ export const connectorAuthAttempts = pgTable(
     accountId: text().notNull(),
     toolkit: text().notNull(),
     returnUrl: text().notNull(),
+    // Set when the connect card in a chat started it: completing the
+    // connection wakes `botId` there and answers the card (`questionId`)
+    chatId: text(),
+    questionId: text(),
+    botId: text(),
     expiresAt: timestamp({ withTimezone: true }).notNull(),
   },
   (table) => [index("connector_auth_expiry_idx").on(table.expiresAt)]

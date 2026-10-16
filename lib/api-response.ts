@@ -1,3 +1,4 @@
+import { EMAIL_CHANGED_ERROR } from "@/lib/email-draft"
 import { ZodError } from "zod"
 
 import {
@@ -85,7 +86,8 @@ export function apiErrorResponse(error: unknown): {
     message === ACTIVE_PLAN_ERROR ||
     message === "That memory was changed at the same time." ||
     message === APPROVAL_DECIDED_ERROR ||
-    message === APPROVAL_EXPIRED_ERROR
+    message === APPROVAL_EXPIRED_ERROR ||
+    message === EMAIL_CHANGED_ERROR
   )
     return fail(409, "conflict", message)
   if (

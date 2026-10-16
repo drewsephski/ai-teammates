@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/node"
-import { and, desc, eq, lt } from "drizzle-orm"
+import { and, desc, eq, gt, lt } from "drizzle-orm"
 
 import { db } from "@/db"
 import {
@@ -16,6 +16,11 @@ import {
   approvalDisplayPrompt,
   approvalMessageId,
 } from "@/lib/approval-policy"
+import {
+  EMAIL_CHANGED_ERROR,
+  editEmailDraft,
+  type EmailContent,
+} from "@/lib/email-draft"
 import { postChatMessage } from "@/lib/chat-dispatch"
 import { recordActivity } from "@/lib/notify"
 
@@ -151,12 +156,19 @@ async function expireApprovals(userId: string) {
     )
 }
 
+export type ApprovalDispatch = typeof postChatMessage
+
 // The owner's answer. Approving wakes the bot with a message naming the
 // request; the bot runs the stored call through runApprovedAction.
 export async function decideApproval(
   userId: string,
   approvalId: string,
-  decision: ApprovalDecision
+  decision: ApprovalDecision,
+  email?: {
+    expectedArguments: Record<string, unknown>
+    arguments: Record<string, unknown>
+  },
+  dispatch: ApprovalDispatch = postChatMessage
 ) {
   const row = await getApproval(userId, approvalId)
   if (row.state === "expired") throw new Error(APPROVAL_EXPIRED_ERROR)
@@ -165,18 +177,21 @@ export async function decideApproval(
     .set({
       state: decision === "deny" ? "denied" : "approved",
       decidedAt: new Date(),
+      ...(email && { arguments: email.arguments }),
     })
     .where(
       and(
         eq(approvals.id, approvalId),
         eq(approvals.userId, userId),
-        eq(approvals.state, "pending")
+        eq(approvals.state, "pending"),
+        gt(approvals.expiresAt, new Date()),
+        ...(email ? [eq(approvals.arguments, email.expectedArguments)] : [])
       )
     )
     .returning()
   if (!decided) {
     // A double tap from the phone and the web lands here; the first one won
-    throw new Error(APPROVAL_DECIDED_ERROR)
+    throw new Error(email ? EMAIL_CHANGED_ERROR : APPROVAL_DECIDED_ERROR)
   }
   if (decision === "always")
     await db
@@ -195,7 +210,7 @@ export async function decideApproval(
   })
 
   try {
-    await postChatMessage(
+    await dispatch(
       row.chatId,
       {
         id: approvalMessageId(row.id, decision),
@@ -210,4 +225,32 @@ export async function decideApproval(
     return { approval: decided, woke: false }
   }
   return { approval: decided, woke: true }
+}
+
+// Compare the complete stored call as well as its revision: a concurrent
+// save/send/notification decision must never approve unseen content.
+export async function saveEmailDraft(
+  userId: string,
+  approvalId: string,
+  revision: number,
+  content: EmailContent
+) {
+  const row = await getApproval(userId, approvalId)
+  if (row.state !== "pending") throw new Error(APPROVAL_DECIDED_ERROR)
+  const next = editEmailDraft(row.arguments, revision, content)
+  const [saved] = await db
+    .update(approvals)
+    .set({ arguments: next })
+    .where(
+      and(
+        eq(approvals.id, approvalId),
+        eq(approvals.userId, userId),
+        eq(approvals.state, "pending"),
+        gt(approvals.expiresAt, new Date()),
+        eq(approvals.arguments, row.arguments)
+      )
+    )
+    .returning()
+  if (!saved) throw new Error(EMAIL_CHANGED_ERROR)
+  return saved
 }

@@ -2,6 +2,7 @@ import { tool } from "ai"
 import { z } from "zod"
 import { botInsertSchema } from "@/db/schema"
 import { botPersonalityInstructions } from "@/lib/bot-personality"
+import { toolkitSlugPattern } from "@/lib/app-catalog-policy"
 
 export const botProfileSchema = botInsertSchema.omit({ avatar: true })
 export type BotProfile = z.infer<typeof botProfileSchema>
@@ -16,7 +17,24 @@ export const computerLoginSchema = z.object({
     .max(253)
     .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/),
 })
-export const botQuestionSchema = z.object({
+// The model names an app from findApps; the server fills in the rest
+export const appConnectionSchema = z.object({
+  toolkit: z.string().trim().toLowerCase().regex(toolkitSlugPattern),
+  name: z.string().trim().min(1).max(80),
+})
+export const appConnectionCardSchema = appConnectionSchema.extend({
+  logo: z.string().nullable(),
+  state: z.enum(["connect", "planLimit"]),
+})
+export type AppConnectionCard = z.infer<typeof appConnectionCardSchema>
+// Fixed, so installed apps without the card still get usable choices
+export const APP_CONNECTION_OPTIONS = [
+  "I've connected it",
+  "Use the computer instead",
+  "Not now",
+]
+
+const questionFields = {
   question: z.string().trim().min(1).max(400),
   options: z
     .array(z.string().trim().min(1).max(200))
@@ -27,19 +45,52 @@ export const botQuestionSchema = z.object({
       "Offer distinct choices."
     ),
   computerLogin: computerLoginSchema.optional(),
+}
+export const botQuestionSchema = z
+  .object({ ...questionFields, appConnection: appConnectionSchema.optional() })
+  .refine(
+    (question) => !(question.computerLogin && question.appConnection),
+    "Ask for a sign-in or an app connection, not both."
+  )
+export const botQuestionOutputSchema = z.object({
+  ...questionFields,
+  appConnection: appConnectionCardSchema.optional(),
 })
+export type BotQuestion = z.infer<typeof botQuestionOutputSchema>
 export function createBotSetupTools(
   save: (profile: BotProfile) => Promise<BotProfile>,
-  options: { prepareComputerLogin?: () => Promise<void> } = {}
+  options: {
+    prepareComputerLogin?: () => Promise<void>
+    // Checks the catalog: the app exists, is connectable and isn't connected.
+    // Returns the catalog's name and logo, and whether the plan allows it.
+    prepareAppConnection?: (
+      app: z.infer<typeof appConnectionSchema>
+    ) => Promise<Omit<AppConnectionCard, "toolkit">>
+    // Whether this turn has computer tools, for the card's computer choice
+    computerAvailable?: boolean
+  } = {}
 ) {
   return {
     askUser: tool({
       description:
-        "Ask one focused question only when a missing answer materially changes the work or confirmation is required. First use available tools to resolve facts such as a named contact's email address. Offer two to five short choices grounded in the conversation or actual tool results; never invent email addresses, identities, dates or other factual choices. For missing free-form data, offer generic choices such as 'I will type it' and 'Cancel'; the person can type their own answer. For a login, MFA or CAPTCHA blocking your computer work in a private chat, first open the requested website and inspect it with viewScreen, then include computerLogin with its service name and actual hostname. This renders a compact sign-in card and pauses the turn. Never request credentials in chat. Do not use this to ask permission for work already requested. Wait for the answer before continuing; never answer for them.",
+        "Ask one focused question only when a missing answer materially changes the work or confirmation is required. First use available tools to resolve facts such as a named contact's email address. Offer two to five short choices grounded in the conversation or actual tool results; never invent email addresses, identities, dates or other factual choices. For missing free-form data, offer generic choices such as 'I will type it' and 'Cancel'; the person can type their own answer. For a login, MFA or CAPTCHA blocking your computer work in a private chat, first open the requested website and inspect it with viewScreen, then include computerLogin with its service name and actual hostname. This renders a compact sign-in card and pauses the turn. Never request credentials in chat. When the work needs an app that findApps reports as connectable but not connected, include appConnection with its toolkit and name from findApps, and write the question as 'Connect <name> so I can <what you'll do>.'; this renders a Connect card with fixed choices and pauses the turn. Do not use this to ask permission for work already requested. Wait for the answer before continuing; never answer for them.",
       inputSchema: botQuestionSchema,
-      outputSchema: botQuestionSchema,
-      execute: async (input) => {
-        const parsed = botQuestionSchema.parse(input)
+      outputSchema: botQuestionOutputSchema,
+      execute: async (input): Promise<BotQuestion> => {
+        const { appConnection, ...parsed } = botQuestionSchema.parse(input)
+        if (appConnection) {
+          if (!options.prepareAppConnection)
+            throw new Error("Connecting apps is unavailable in this chat.")
+          const card = await options.prepareAppConnection(appConnection)
+          return {
+            question:
+              card.state === "planLimit"
+                ? `The free plan includes one connected app, and yours is in use. Disconnect it or upgrade to connect ${card.name}.`
+                : parsed.question,
+            options: APP_CONNECTION_OPTIONS,
+            appConnection: { toolkit: appConnection.toolkit, ...card },
+          }
+        }
         if (!parsed.computerLogin) return parsed
         if (!options.prepareComputerLogin)
           throw new Error("Computer sign-in is unavailable in this chat.")
@@ -53,7 +104,7 @@ export function createBotSetupTools(
       },
       toModelOutput: ({ output }) => ({
         type: "text" as const,
-        value: `Question displayed: ${output.question}\nChoices: ${output.options.join("; ")}\nWait for the person's next chat message. No answer has been supplied by this tool.${output.computerLogin ? " Stop computer actions now. After they report signing in, call viewScreen to verify access, then continue the original task without another permission question. A cancellation means stop this sign-in workflow." : ""}`,
+        value: `Question displayed: ${output.question}\nChoices: ${output.options.join("; ")}\nWait for the person's next chat message. No answer has been supplied by this tool.${output.computerLogin ? " Stop computer actions now. After they report signing in, call viewScreen to verify access, then continue the original task without another permission question. A cancellation means stop this sign-in workflow." : ""}${output.appConnection ? ` A card to connect ${output.appConnection.name} is showing${output.appConnection.state === "planLimit" ? ", in its plan-limit state: the free plan's one app slot is taken, so they need to disconnect that app or upgrade first" : ""}. Stop now. When they connect it you'll get a message saying so: then discover its tools with searchAppTools and continue the original task without asking again. ${options.computerAvailable === false ? "If they choose the computer, explain in one sentence that the computer isn't available on their plan yet, and offer to continue another way." : "If they choose the computer, do the task on the computer's browser."} 'Not now' means stop this part of the task.` : ""}`,
       }),
     }),
     configureBot: tool({

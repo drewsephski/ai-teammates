@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { CheckIcon, Grid2X2Icon, RefreshCwIcon, SearchIcon } from "lucide-react"
 import {
-  connectApp,
   completeAppConnection,
   disconnectApp,
   listConnectorApps,
@@ -47,7 +46,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/toast"
-import { FREE_APP_LIMIT_ERROR } from "@/lib/billing-policy"
+import { postAppConnection } from "@/hooks/app-connection-channel"
+import { useConnectApp } from "@/hooks/use-connect-app"
 import type { ConnectorCallback } from "@/lib/connector-callback"
 
 export function ConnectorMarketplace({
@@ -83,7 +83,10 @@ export function ConnectorMarketplace({
     window.history.replaceState(null, "", url.href)
     void (async () => {
       try {
-        const connected = await completeAppConnection(connectionCallback)
+        const { connected, woke, questionId } =
+          await completeAppConnection(connectionCallback)
+        // Lets the chat tab that started this connection settle its card.
+        if (questionId) postAppConnection({ questionId, connected, woke })
         toast.add({
           type: connected ? "success" : "error",
           title: connected
@@ -151,6 +154,7 @@ function MarketplaceContent({
 }) {
   const router = useRouter()
   const generation = useRef(0)
+  const connectHook = useConnectApp()
   const [search, setSearch] = useState(initialSearch)
   const [tab, setTab] = useState<"all" | "connected">(initialTab)
   const [revision, setRevision] = useState(0)
@@ -208,39 +212,15 @@ function MarketplaceContent({
   }, [authorization, router])
 
   async function connect(app: ConnectorApp) {
-    // Reserve the tab during the click; browsers block tabs opened after await.
-    const popup = window.open("about:blank", "_blank")
-    if (popup) popup.opener = null
     setBusy(app.slug)
     try {
-      const result = await connectApp(app.slug)
-      if (!result.ok) {
-        popup?.close()
-        toast.add({
-          type: "error",
-          title: "Connected app limit reached",
-          description: FREE_APP_LIMIT_ERROR,
-          actionProps: {
-            children: "See plans",
-            onClick: () => router.push("/pricing"),
-          },
+      const result = await connectHook.start(app.slug)
+      if (result)
+        setAuthorization({
+          slug: app.slug,
+          url: result.url,
+          accountId: result.accountId,
         })
-        return
-      }
-      setAuthorization({
-        slug: app.slug,
-        url: result.url,
-        accountId: result.accountId,
-      })
-      if (popup) popup.location.replace(result.url)
-    } catch (error) {
-      popup?.close()
-      toast.add({
-        type: "error",
-        title: "Connection failed",
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      })
     } finally {
       setBusy(undefined)
     }

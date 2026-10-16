@@ -24,6 +24,7 @@ import {
   FileTextIcon,
   FolderSearchIcon,
   KeyboardIcon,
+  LayoutGridIcon,
   MonitorUpIcon,
   MousePointerClickIcon,
   MousePointerIcon,
@@ -101,6 +102,7 @@ const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
     "Handing over task",
     "Handed over task",
   ],
+  "tool-findApps": ["Find apps", "Finding apps", "Found apps"],
   "tool-searchAppTools": [
     "Find app tools",
     "Finding app tools",
@@ -166,6 +168,7 @@ const toolIcons: Record<ToolPart["type"], LucideIcon> = {
   "tool-createGroupChat": UsersRoundIcon,
   "tool-delegateToTeammate": UsersRoundIcon,
   "tool-consultTeammate": UsersRoundIcon,
+  "tool-findApps": LayoutGridIcon,
   "tool-searchAppTools": FolderSearchIcon,
   "tool-getAppToolSchema": FileTextIcon,
   "tool-executeAppTool": ArrowDownUpIcon,

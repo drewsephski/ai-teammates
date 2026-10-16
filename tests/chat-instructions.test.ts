@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { connectedAppInstructions } from "../lib/agent-tool-instructions"
 import { buildChatInstructions } from "../lib/chat-instructions"
 
 const bot = {
@@ -89,13 +90,13 @@ test("missing worker configuration remains explicit during setup", () => {
 
 test("authentication guidance uses connected apps and only offers browser sign-in when the computer is available", () => {
   const paid = buildChatInstructions(bot, undefined, true, true, true)
-  assert.match(paid, /prompt the person to authenticate through Apps/)
+  assert.match(paid, /ask the person to connect it with askUser/)
   assert.match(paid, /use askUser with computerLogin/)
   assert.match(paid, /resume the original task/)
   assert.match(paid, /Pause at login, MFA, or a CAPTCHA/)
   assert.match(paid, /An app connection does not sign the desktop browser in/)
   const free = buildChatInstructions(bot, undefined, true, false, true)
-  assert.match(free, /prompt the person to authenticate through Apps/)
+  assert.match(free, /ask the person to connect it with askUser/)
   assert.match(free, /do not offer a live Desktop on the free plan/)
   assert.doesNotMatch(free, /use askUser with computerLogin/)
 })
@@ -182,4 +183,72 @@ test("configured bots learn routines and the approval flow", async () => {
     true
   )
   assert.doesNotMatch(setup, /scheduleRoutine/)
+})
+
+test("email requests acknowledge before tools and stage editable cards without sending", () => {
+  const prompt = buildChatInstructions(
+    { ...bot, setupComplete: true },
+    undefined,
+    true
+  )
+  assert.match(prompt, /one brief acknowledgement before any tool calls/)
+  assert.match(prompt, /prepareOnly: true/)
+  assert.match(prompt, /Never substitute a prose draft/)
+  assert.match(prompt, /owner presses Send/)
+  assert.match(prompt, /including the owner’s edits via runApprovedAction/)
+})
+
+test("connected apps: connected app, then findApps and a connect card, then the computer", () => {
+  const paid = connectedAppInstructions(true, true)
+  const connected = paid.indexOf("(1) Use a connected app")
+  const card = paid.indexOf("(2) If the app isn't connected, call findApps")
+  const computer = paid.indexOf("(3) Use your computer")
+  assert.ok(connected >= 0 && connected < card && card < computer)
+  assert.match(paid, /askUser and appConnection/)
+  assert.match(paid, /works in group chats too/)
+  assert.match(paid, /blockedByPlan is true/)
+  assert.match(paid, /needs a custom authentication setup/)
+  assert.match(paid, /Use the computer instead/)
+  assert.doesNotMatch(paid, /direct them to Apps/)
+  assert.doesNotMatch(paid, /authenticate through Apps/)
+})
+
+test("connected apps: work accounts are confirmed once per chat", () => {
+  for (const computer of [true, false]) {
+    const text = connectedAppInstructions(true, computer)
+    assert.match(text, /work account/)
+    assert.match(text, /once per chat/)
+  }
+})
+
+test("connected apps: the free plan has no computer, and a failed card falls back to Apps", () => {
+  const free = connectedAppInstructions(true, false)
+  assert.match(free, /You do not have computer tools on the free plan/)
+  assert.match(free, /no computer on the free plan/)
+  assert.match(free, /connect from Apps/)
+  assert.doesNotMatch(free, /\(3\) Use your computer/)
+})
+
+test("connected apps: unconfigured Composio says findApps and cards are unavailable", () => {
+  for (const computer of [true, false]) {
+    const text = connectedAppInstructions(false, computer)
+    assert.match(text, /not configured/)
+    assert.match(text, /findApps and the connection card are unavailable/)
+  }
+})
+
+test("connect cards are offered in group chats and on the free plan", () => {
+  const configured = { ...bot, setupComplete: true, job: "Analyst" }
+  const group = {
+    chat: { name: "League" },
+    bots: [
+      { id: configured.id, name: configured.name, job: configured.job },
+      { id: "other", name: "Writer", job: "Writes" },
+    ],
+  }
+  const inGroup = buildChatInstructions(configured, group, true, true, true)
+  assert.match(inGroup, /askUser connect card here/)
+  const free = buildChatInstructions(configured, undefined, true, false, true)
+  assert.match(free, /find and connect apps from chat with findApps/)
+  assert.match(free, /the card says so/)
 })

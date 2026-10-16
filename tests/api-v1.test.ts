@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { z } from "zod"
+import { EMAIL_CHANGED_ERROR } from "../lib/email-draft"
 import { NextRequest } from "next/server"
 
 import { apiRoute, readJson } from "../lib/api"
@@ -67,6 +68,7 @@ test("bearer tokens are read only from a well-formed Authorization header", () =
 
 test("service errors map to stable codes and statuses without leaking internals", () => {
   const cases: [unknown, number, string][] = [
+    [new Error(EMAIL_CHANGED_ERROR), 409, "conflict"],
     [new Error("Unauthorized"), 401, "unauthorized"],
     [new Error("Upgrade required"), 403, "upgrade_required"],
     [new Error(FREE_BOT_LIMIT_ERROR), 403, "plan_limit"],
@@ -438,4 +440,43 @@ test("routine and approval errors map to stable codes", async () => {
       message
     )
   }
+})
+
+test("connect requests accept chat context, and questionId or botId without chatId is a 400", async () => {
+  const { mobileConnectInputSchema } = await import("../lib/mobile-connector")
+  const base = { slug: "gmail", returnUrl: "krafty://apps/connected" }
+  assert.equal(mobileConnectInputSchema.safeParse(base).success, true)
+  assert.equal(
+    mobileConnectInputSchema.safeParse({
+      ...base,
+      chatId: "c",
+      questionId: "call_1",
+      botId: "b",
+    }).success,
+    true
+  )
+  for (const extra of [{ questionId: "call_1" }, { botId: "b" }]) {
+    const bad = mobileConnectInputSchema.safeParse({ ...base, ...extra })
+    assert.equal(bad.success, false)
+    const response = apiErrorResponse(bad.error)
+    assert.equal(response.status, 400)
+    assert.equal(response.body.error.code, "invalid_request")
+  }
+  assert.equal(
+    mobileConnectInputSchema.safeParse({ ...base, chatId: "c", questionId: "" })
+      .success,
+    false
+  )
+})
+
+test("the complete route returns the service's { connected, woke } result", async () => {
+  const { readFileSync } = await import("node:fs")
+  const source = readFileSync(
+    new URL(
+      "../app/api/v1/apps/connections/complete/route.ts",
+      import.meta.url
+    ),
+    "utf8"
+  )
+  assert.match(source, /return result/)
 })

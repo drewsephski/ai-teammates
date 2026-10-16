@@ -3,7 +3,7 @@ import { and, eq, gt, lt } from "drizzle-orm"
 import { z } from "zod"
 
 import { db } from "@/db"
-import { connectorAuthAttempts } from "@/db/schema"
+import { chatMembers, chats, connectorAuthAttempts } from "@/db/schema"
 import {
   connectorCatalog,
   connectorQuerySchema,
@@ -14,9 +14,15 @@ import {
 import { FREE_APP_LIMIT_ERROR } from "@/lib/billing-policy"
 import {
   connectorCallbackSchema,
+  parseConnectorAttempt,
   verifyConnectorCallback,
   type ConnectorCallback,
 } from "@/lib/connector-callback"
+import {
+  connectContextSchema,
+  type ConnectContext,
+} from "@/lib/connect-context"
+import { wakeAfterConnect } from "@/lib/connect-wake"
 import {
   MOBILE_CONNECTOR_ATTEMPT_MS,
   MOBILE_CONNECTOR_CALLBACK_PATH,
@@ -42,13 +48,40 @@ export async function listConnectorApps(
   }
 }
 
+// The connect card's chat context: the chat must be the person's and the bot a
+// member of it. Both misses read as "Chat not found".
+async function checkedConnectContext(userId: string, values?: ConnectContext) {
+  const context = connectContextSchema.parse(values ?? {})
+  if (!context.chatId) return {}
+  const [chat] = await db
+    .select({ id: chats.id })
+    .from(chats)
+    .where(and(eq(chats.id, context.chatId), eq(chats.userId, userId)))
+  if (!chat) throw new Error("Chat not found")
+  if (context.botId) {
+    const [member] = await db
+      .select({ botId: chatMembers.botId })
+      .from(chatMembers)
+      .where(
+        and(
+          eq(chatMembers.chatId, context.chatId),
+          eq(chatMembers.botId, context.botId)
+        )
+      )
+    if (!member) throw new Error("Chat not found")
+  }
+  return context
+}
+
 // Starts the provider's OAuth flow back to /workspace on `origin`. The caller
 // keeps `attempt` somewhere only this user can present it again, keyed by state.
 export async function beginAppConnection(
   userId: string,
   slug: string,
-  origin: string | null
+  origin: string | null,
+  context?: ConnectContext
 ) {
+  const chat = await checkedConnectContext(userId, context)
   const started = await authorizeApp(userId, slug, origin, "/workspace", {
     apps: "connect",
   })
@@ -63,6 +96,7 @@ export async function beginAppConnection(
       userId,
       accountId: started.accountId,
       toolkit: started.toolkit,
+      ...chat,
     }),
   }
 }
@@ -76,6 +110,7 @@ export async function beginMobileAppConnection(
   origin: string | null
 ) {
   const input = mobileConnectInputSchema.parse(values)
+  const chat = await checkedConnectContext(userId, input)
   const started = await authorizeApp(
     userId,
     input.slug,
@@ -92,6 +127,9 @@ export async function beginMobileAppConnection(
     accountId: started.accountId,
     toolkit: started.toolkit,
     returnUrl: input.returnUrl,
+    chatId: chat.chatId,
+    questionId: chat.questionId,
+    botId: chat.botId,
     expiresAt: new Date(Date.now() + MOBILE_CONNECTOR_ATTEMPT_MS),
   })
   return {
@@ -138,6 +176,9 @@ export async function finishMobileAppConnection(
       userId: connectorAuthAttempts.userId,
       accountId: connectorAuthAttempts.accountId,
       toolkit: connectorAuthAttempts.toolkit,
+      chatId: connectorAuthAttempts.chatId,
+      questionId: connectorAuthAttempts.questionId,
+      botId: connectorAuthAttempts.botId,
     })
   return finishAppConnection(
     userId,
@@ -189,15 +230,16 @@ async function authorizeApp(
 export async function finishAppConnection(
   userId: string,
   values: ConnectorCallback,
-  attempt: string | undefined
+  stored: string | undefined
 ) {
   const parsed = connectorCallbackSchema.safeParse(values)
-  if (!parsed.success) return false
+  if (!parsed.success) return { connected: false }
+  let connected: boolean
   try {
-    return await verifyConnectorCallback(
+    connected = await verifyConnectorCallback(
       userId,
       parsed.data,
-      attempt,
+      stored,
       (owner, toolkit, cursor) =>
         getComposio().connectedAccounts.list({
           userIds: [owner],
@@ -212,6 +254,19 @@ export async function finishAppConnection(
     Sentry.captureException(error)
     throw new Error("Couldn't verify the connection. Please refresh Apps.")
   }
+  if (!connected) return { connected }
+  // Started from a connect card: wake the bot that asked. `woke` is absent
+  // for a connection started from Apps.
+  const attempt = parseConnectorAttempt(stored)
+  if (!attempt?.chatId) return { connected }
+  const woke = await wakeAfterConnect(userId, {
+    state: parsed.data.state,
+    chatId: attempt.chatId,
+    questionId: attempt.questionId,
+    botId: attempt.botId,
+    toolkit: attempt.toolkit,
+  })
+  return { connected, woke }
 }
 
 export async function disconnectApp(userId: string, accountId: string) {

@@ -521,6 +521,14 @@ function ChatMessages({
                         }
                         busy={busy}
                         onOpenComputer={desktop?.openForLogin}
+                        chatId={chatId}
+                        botName={author?.name}
+                        onResume={() => void resumeStream()}
+                        botId={
+                          message.metadata?.botId ??
+                          directBotId ??
+                          selectedBot?.id
+                        }
                         onAnswer={(answer) => {
                           if (part.output.computerLogin) desktop?.close()
                           return answerQuestion(part.toolCallId, answer)

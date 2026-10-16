@@ -8,7 +8,8 @@ import { finishMobileAppConnection } from "@/services/connectors"
 // { state, status, accountId }. Each attempt can be completed once.
 export const POST = apiRoute(async ({ userId }, request) => {
   const callback = connectorCallbackSchema.parse(await readJson(request))
-  const connected = await finishMobileAppConnection(userId, callback)
-  if (connected) revalidatePath("/workspace")
-  return { connected }
+  // `woke` is present only when a connect card in a chat started the attempt
+  const result = await finishMobileAppConnection(userId, callback)
+  if (result.connected) revalidatePath("/workspace")
+  return result
 })

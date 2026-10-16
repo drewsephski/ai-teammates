@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import {
-  botQuestionSchema,
+  botQuestionOutputSchema,
   computerLoginSchema,
   createBotSetupTools,
 } from "../lib/bot-setup-tools"
@@ -72,7 +72,7 @@ test("login cards require computer access and retain the installed-app questionn
       checked++
     },
   })
-  const output = botQuestionSchema.parse(
+  const output = botQuestionOutputSchema.parse(
     await tools.askUser.execute!(input, call)
   )
   assert.equal(checked, 1)
