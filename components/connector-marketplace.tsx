@@ -83,10 +83,11 @@ export function ConnectorMarketplace({
     window.history.replaceState(null, "", url.href)
     void (async () => {
       try {
-        const { connected, woke, questionId } =
+        const { connected, woke, inputSeq, questionId } =
           await completeAppConnection(connectionCallback)
         // Lets the chat tab that started this connection settle its card.
-        if (questionId) postAppConnection({ questionId, connected, woke })
+        if (questionId)
+          postAppConnection({ questionId, connected, woke, inputSeq })
         toast.add({
           type: connected ? "success" : "error",
           title: connected

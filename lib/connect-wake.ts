@@ -13,7 +13,7 @@ export function connectWakeMessageId(state: string) {
 }
 
 export function connectWakePrompt(name: string) {
-  return `The person connected ${name} from the connection card in this chat. Use searchAppTools to discover ${name}'s tools, then continue the task they asked for. Don't ask them to connect it again or to confirm.`
+  return `The person connected ${name} from the connection card in this chat. Use searchAppTools to discover ${name}'s tools, then continue the task they asked for. Don't ask them to connect it again or to confirm. If you already continued the task after they said they connected it, don't repeat that work: check what's done and only finish what's left.`
 }
 
 export type ConnectAttempt = {
@@ -35,18 +35,20 @@ async function defaultToolkitName(slug: string) {
 
 // Wakes the bot that showed the connect card, once the connection is verified.
 // The attempt came from the person's own request, but its chat and bot are
-// checked again here. Returns whether the bot was reached.
+// checked again here. Returns whether the bot was reached, and the posted
+// message's input seq for the watching browser.
 export async function wakeAfterConnect(
   userId: string,
   attempt: ConnectAttempt & { state: string },
   deps: Partial<ConnectWakeDeps> = {}
-) {
+): Promise<{ woke: boolean; inputSeq?: number }> {
+  const missed = { woke: false }
   try {
     const [chat] = await db
       .select({ id: chats.id })
       .from(chats)
       .where(and(eq(chats.id, attempt.chatId), eq(chats.userId, userId)))
-    if (!chat) return false
+    if (!chat) return missed
     let botId: string | undefined
     if (attempt.botId) {
       const [member] = await db
@@ -58,11 +60,11 @@ export async function wakeAfterConnect(
             eq(chatMembers.botId, attempt.botId)
           )
         )
-      if (!member) return false
+      if (!member) return missed
       botId = member.botId
     }
     const name = await (deps.toolkitName ?? defaultToolkitName)(attempt.toolkit)
-    await (deps.postChatMessage ?? postChatMessage)(
+    const posted = await (deps.postChatMessage ?? postChatMessage)(
       attempt.chatId,
       {
         id: connectWakeMessageId(attempt.state),
@@ -72,9 +74,9 @@ export async function wakeAfterConnect(
       },
       { ...(botId && { botId }) }
     )
-    return true
+    return { woke: true, inputSeq: posted ? posted.inputSeq : undefined }
   } catch (error) {
     Sentry.captureException(error)
-    return false
+    return missed
   }
 }

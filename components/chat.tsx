@@ -75,6 +75,7 @@ import {
 } from "@/lib/chatgpt-policy"
 import { usePaywall } from "@/hooks/use-paywall"
 import { useChatSession } from "@/hooks/use-chat-session"
+import { resumeAfterWake } from "@/hooks/app-connection-channel"
 import { useResumeChatStream } from "@/hooks/use-resume-chat-stream"
 import { navigationChatTransport } from "@/lib/chat-transport"
 import type { ChatUIMessage } from "@/lib/sandbox-tools"
@@ -169,6 +170,7 @@ function Chat({
       notice={notice}
       initialMessages={messages}
       transport={transport}
+      onReload={() => setAttempt((value) => value + 1)}
     />
   )
 }
@@ -184,6 +186,7 @@ function ChatMessages({
   directBot,
   mentionBots = [],
   notice,
+  onReload,
 }: {
   chatId: string
   name: string
@@ -195,6 +198,7 @@ function ChatMessages({
   directBot?: ChatBot
   mentionBots?: MentionBot[]
   notice?: React.ReactNode
+  onReload: () => void
 }) {
   const router = useRouter()
   const { checkPlan, showUsageLimit } = usePaywall()
@@ -523,7 +527,20 @@ function ChatMessages({
                         onOpenComputer={desktop?.openForLogin}
                         chatId={chatId}
                         botName={author?.name}
-                        onResume={() => void resumeStream()}
+                        assistantCount={
+                          messages.filter(
+                            (message) => message.role === "assistant"
+                          ).length
+                        }
+                        onResume={(inputSeq) =>
+                          resumeAfterWake({
+                            inputSeq,
+                            chatId,
+                            transport,
+                            resume: () => void resumeStream(),
+                            reload: onReload,
+                          })
+                        }
                         botId={
                           message.metadata?.botId ??
                           directBotId ??

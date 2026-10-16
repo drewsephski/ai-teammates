@@ -259,14 +259,14 @@ export async function finishAppConnection(
   // for a connection started from Apps.
   const attempt = parseConnectorAttempt(stored)
   if (!attempt?.chatId) return { connected }
-  const woke = await wakeAfterConnect(userId, {
+  const { woke, inputSeq } = await wakeAfterConnect(userId, {
     state: parsed.data.state,
     chatId: attempt.chatId,
     questionId: attempt.questionId,
     botId: attempt.botId,
     toolkit: attempt.toolkit,
   })
-  return { connected, woke }
+  return { connected, woke, inputSeq }
 }
 
 export async function disconnectApp(userId: string, accountId: string) {

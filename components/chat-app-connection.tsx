@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useEffectEvent, useRef, useState } from "react"
 import Link from "next/link"
 import { ConnectorLogo } from "@/components/connector-logo"
 import { Button } from "@/components/ui/button"
@@ -24,6 +24,7 @@ export function AppConnectionCardView({
   botName,
   onAnswer,
   onResume,
+  assistantCount = 0,
   connect,
 }: {
   connection: AppConnectionCard
@@ -35,7 +36,9 @@ export function AppConnectionCardView({
   botName?: string
   onAnswer: (answer: string) => void | boolean | Promise<void | boolean>
   /** Picks up the turn the server started after the connection completed. */
-  onResume?: () => void
+  onResume?: (inputSeq?: number) => void
+  /** Assistant messages in the chat, to notice when the woken reply arrives. */
+  assistantCount?: number
   /** Injected in tests; defaults to the connectApp server action. */
   connect?: ConnectAppAction
 }) {
@@ -44,6 +47,15 @@ export function AppConnectionCardView({
   const [started, setStarted] = useState(false)
   const [settled, setSettled] = useState(false)
   const [failed, setFailed] = useState(false)
+  // The popup reported success but the bot still needs the answer
+  const [queued, setQueued] = useState(false)
+  const [otherTab, setOtherTab] = useState(false)
+  const [stale, setStale] = useState(false)
+  const baseline = useRef(0)
+  const latestCount = useRef(assistantCount)
+  useEffect(() => {
+    latestCount.current = assistantCount
+  })
   const { start, connecting } = useConnectApp({
     context: botId && chatId ? { chatId, questionId, botId } : undefined,
     connect,
@@ -64,17 +76,39 @@ export function AppConnectionCardView({
     }
   }
 
+  // Send a queued answer as soon as the chat is free to take it
+  const sendQueued = useEffectEvent(() => void answer(CONNECTED))
+  useEffect(() => {
+    if (queued && !disabled && !locked.current) {
+      setQueued(false)
+      sendQueued()
+    }
+  }, [queued, disabled])
+
+  // After a wake, say so if no reply shows up
+  useEffect(() => {
+    if (!settled) return
+    baseline.current = latestCount.current
+    const timer = setTimeout(() => {
+      if (latestCount.current <= baseline.current) setStale(true)
+    }, 20_000)
+    return () => clearTimeout(timer)
+  }, [settled])
+
   // The popup finishes the connection in another tab and reports it here.
-  useAppConnectionResult(questionId, (outcome) => {
+  useAppConnectionResult(questionId, (outcome, message) => {
     if (locked.current) return
     if (outcome === "settle") {
       // The server already woke the bot; attach to the turn it started.
       locked.current = true
       setSettled(true)
       setFailed(false)
-      onResume?.()
-    } else if (outcome === "answer") void answer(CONNECTED)
-    else {
+      onResume?.(message.inputSeq)
+    } else if (outcome === "answer") {
+      // Only the tab that started the connection answers for it
+      if (started) setQueued(true)
+      else setOtherTab(true)
+    } else {
       setStarted(false)
       setFailed(true)
     }
@@ -87,14 +121,20 @@ export function AppConnectionCardView({
   }
 
   const status = settled
-    ? `Connected. ${botName ?? "Your teammate"} is continuing.`
-    : connecting
-      ? "Opening the connection…"
-      : failed
-        ? "The connection wasn't completed. Try Connect again."
-        : started
-          ? "Connecting… finish in the new window."
-          : ""
+    ? stale
+      ? "Refresh to see the reply."
+      : `Connected. ${botName ?? "Your teammate"} is continuing.`
+    : queued
+      ? "Connected. Sending your answer…"
+      : otherTab
+        ? "Connected. Confirm to continue."
+        : connecting
+          ? "Opening the connection…"
+          : failed
+            ? "The connection wasn't completed. Try Connect again."
+            : started
+              ? "Connecting… finish in the new window."
+              : ""
 
   return (
     <div
@@ -150,7 +190,7 @@ export function AppConnectionCardView({
                 {connecting && <Spinner data-icon="inline-start" />}
                 Connect
               </Button>
-              {started && (
+              {(started || queued || otherTab) && (
                 <Button
                   type="button"
                   size="sm"

@@ -57,7 +57,7 @@ const attempt = {
 
 test("the owner's connect card wakes its bot with connect_<state> and the question id", async () => {
   const { posts, deps } = fakes()
-  assert.equal(await wake.wakeAfterConnect("A", attempt, deps), true)
+  assert.equal((await wake.wakeAfterConnect("A", attempt, deps)).woke, true)
   assert.deepEqual(posts, [
     [
       "chat_a",
@@ -77,14 +77,15 @@ test("the owner's connect card wakes its bot with connect_<state> and the questi
 
 test("another account's chat is never woken", async () => {
   const { posts, deps } = fakes()
-  assert.equal(await wake.wakeAfterConnect("B", attempt, deps), false)
+  assert.equal((await wake.wakeAfterConnect("B", attempt, deps)).woke, false)
   assert.equal(posts.length, 0)
 })
 
 test("a bot that isn't in the chat is never woken", async () => {
   const { posts, deps } = fakes()
   assert.equal(
-    await wake.wakeAfterConnect("A", { ...attempt, botId: "bot_a2" }, deps),
+    (await wake.wakeAfterConnect("A", { ...attempt, botId: "bot_a2" }, deps))
+      .woke,
     false
   )
   assert.equal(posts.length, 0)
@@ -92,7 +93,7 @@ test("a bot that isn't in the chat is never woken", async () => {
 
 test("a failed post gives woke: false", async () => {
   const { deps } = fakes(true)
-  assert.equal(await wake.wakeAfterConnect("A", attempt, deps), false)
+  assert.equal((await wake.wakeAfterConnect("A", attempt, deps)).woke, false)
 })
 
 test("the prompt tells the bot to discover tools and not ask again", () => {

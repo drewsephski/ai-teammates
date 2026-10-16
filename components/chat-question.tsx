@@ -31,6 +31,7 @@ export function ChatQuestion({
   botId,
   botName,
   onResume,
+  assistantCount,
 }: {
   part: QuestionPart
   active: boolean
@@ -43,7 +44,8 @@ export function ChatQuestion({
   botId?: string
   botName?: string
   /** Picks up a turn the server started after the connection completed. */
-  onResume?: () => void
+  onResume?: (inputSeq?: number) => void
+  assistantCount?: number
 }) {
   const answered = useRef(false)
   const [submitting, setSubmitting] = useState(false)
@@ -64,6 +66,7 @@ export function ChatQuestion({
         question={part.output.question}
         botName={botName}
         onResume={onResume}
+        assistantCount={assistantCount}
         busy={busy}
         chatId={chatId}
         questionId={part.toolCallId}

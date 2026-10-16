@@ -45,7 +45,7 @@ after(() => {
 })
 const { AppConnectionCardView } =
   await import("../components/chat-app-connection")
-const { appConnectionOutcome, postAppConnection } =
+const { appConnectionOutcome, postAppConnection, resumeAfterWake } =
   await import("../hooks/app-connection-channel")
 
 afterEach(cleanup)
@@ -174,15 +174,98 @@ test("a woken bot settles the card and resumes the turn", async () => {
   assert.deepEqual(answers, [])
 })
 
-test("an unwoken bot gets the fallback answer, a failure shows an error", async () => {
-  const first = setup("connect")
+const startConnect = async (view: ReturnType<typeof setup>) => {
+  fireEvent.click(view.getByRole("button", { name: "Connect" }))
+  await waitFor(() =>
+    view.getByRole("button", { name: APP_CONNECTION_OPTIONS[0] })
+  )
+}
+const connectOk = async () => ({
+  ok: true as const,
+  url: "https://example.com/auth",
+  accountId: "acc",
+})
+
+test("the tab that started the connection answers when the bot wasn't woken", async () => {
+  const view = setup("connect", { connect: connectOk })
+  await startConnect(view)
   postAppConnection({ questionId: "q_1", connected: true, woke: false })
   await waitFor(() =>
-    assert.deepEqual(first.answers, [APP_CONNECTION_OPTIONS[0]])
+    assert.deepEqual(view.answers, [APP_CONNECTION_OPTIONS[0]])
   )
-  first.unmount()
-  const second = setup("connect")
+})
+
+test("another tab does not answer, it offers the button", async () => {
+  const view = setup("connect")
+  postAppConnection({ questionId: "q_1", connected: true, woke: false })
+  await waitFor(() => view.getByText("Connected. Confirm to continue."))
+  assert.deepEqual(view.answers, [])
+  assert.ok(view.getByRole("button", { name: APP_CONNECTION_OPTIONS[0] }))
+})
+
+test("a queued answer waits while busy, then sends once", async () => {
+  const answers: string[] = []
+  const element = (busy: boolean) => (
+    <AppRouterContext.Provider value={router}>
+      <AppConnectionCardView
+        connection={{ ...base, state: "connect" }}
+        question="Connect Gmail."
+        busy={busy}
+        chatId="chat_1"
+        questionId="q_1"
+        botId="bot_1"
+        connect={connectOk}
+        onAnswer={(answer) => void answers.push(answer)}
+      />
+    </AppRouterContext.Provider>
+  )
+  const r = render(element(false))
+  fireEvent.click(r.getByRole("button", { name: "Connect" }))
+  await waitFor(() =>
+    r.getByRole("button", { name: APP_CONNECTION_OPTIONS[0] })
+  )
+  r.rerender(element(true))
+  postAppConnection({ questionId: "q_1", connected: true, woke: false })
+  await waitFor(() => r.getByText("Connected. Sending your answer…"))
+  assert.deepEqual(answers, [])
+  r.rerender(element(false))
+  await waitFor(() => assert.deepEqual(answers, [APP_CONNECTION_OPTIONS[0]]))
+})
+
+test("a failure shows an error and keeps Connect", async () => {
+  const view = setup("connect")
   postAppConnection({ questionId: "q_1", connected: false })
-  await waitFor(() => second.getByText(/wasn't completed/))
-  assert.ok(second.getByRole("button", { name: "Connect" }))
+  await waitFor(() => view.getByText(/wasn't completed/))
+  assert.ok(view.getByRole("button", { name: "Connect" }))
+})
+
+test("a woken turn is resumed from its input sequence, else the transcript reloads", () => {
+  const calls: unknown[] = []
+  const transport = {
+    getSession: () => ({ isStreaming: false, token: "t" }) as never,
+    setSession: (...args: unknown[]) => void calls.push(["set", ...args]),
+  }
+  resumeAfterWake({
+    inputSeq: 4,
+    chatId: "c",
+    transport,
+    resume: () => void calls.push("resume"),
+    reload: () => void calls.push("reload"),
+  })
+  assert.deepEqual(calls, [
+    ["set", "c", { isStreaming: true, token: "t", activeInputSeq: 4 }],
+    "resume",
+  ])
+  const later: unknown[] = []
+  resumeAfterWake({
+    chatId: "c",
+    transport,
+    resume: () => void later.push("resume"),
+    reload: () => void later.push("reload"),
+    schedule: (callback, delay) => {
+      later.push(["delay", delay])
+      callback()
+    },
+  })
+  assert.deepEqual(later, [["delay", 1500], "reload"])
 })

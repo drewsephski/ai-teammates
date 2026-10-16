@@ -18,7 +18,8 @@ export async function postChatMessage(
     questionId?: string
   },
   options: { botId?: string; fetchImpl?: typeof fetch } = {}
-) {
+  // void keeps callers' fakes that resolve to nothing assignable
+): Promise<{ inputSeq?: number } | void> {
   await sessions.start({
     type: "chat.agent",
     externalId: chatId,
@@ -71,4 +72,9 @@ export async function postChatMessage(
   )
   if (!response.ok)
     throw new Error(`Couldn't reach the bot (${response.status})`)
+  // The appended record's input seq. A watching browser passes it to the
+  // transport so it streams this turn instead of the previous one's end.
+  const data = (await response.json().catch(() => undefined)) as
+    { seq?: unknown } | undefined
+  return { inputSeq: typeof data?.seq === "number" ? data.seq : undefined }
 }

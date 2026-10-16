@@ -186,10 +186,11 @@ Every route keeps `apiRoute` auth (`Authorization: Bearer <Clerk session token>`
 `POST /api/v1/apps/connections/complete`
 
 - Body unchanged: `{ state, status, accountId }`.
-- Response gains `woke`: `{ connected: boolean, woke?: boolean }`.
+- Response gains `woke` and `inputSeq`: `{ connected: boolean, woke?: boolean, inputSeq?: number }`.
   - `woke` is present only when the attempt had a `chatId`.
   - `woke: true` means the bot was woken with `connect_<state>`.
   - `woke: false` means the connection was saved but the bot couldn't be reached. The app should send "I've connected it" as the question's answer.
+  - `inputSeq` (with `woke: true`, when Trigger.dev reports it) is the session input seq of the `connect_` message. To show the woken turn in an open chat, resume the chat stream from that seq (the web sets the transport session's `activeInputSeq` to it before `resumeStream()`), so the previous turn's end isn't mistaken for this one.
 
 The web's `connectApp` server action takes the same optional `{ chatId, questionId, botId }`, kept in its state cookie.
 
