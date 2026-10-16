@@ -11,7 +11,7 @@ import {
 } from "@/actions/connectors"
 import type { ConnectorApp } from "@/lib/composio"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { ConnectorLogo } from "@/components/connector-logo"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -54,11 +54,13 @@ export function ConnectorMarketplace({
   trigger,
   children,
   initialSearch = "",
+  initialTab = "all",
   connectionCallback,
 }: {
   trigger?: React.ReactElement
   children?: React.ReactNode
   initialSearch?: string
+  initialTab?: "all" | "connected"
   connectionCallback?: ConnectorCallback
 } = {}) {
   const router = useRouter()
@@ -129,6 +131,7 @@ export function ConnectorMarketplace({
         {open && (
           <MarketplaceContent
             initialSearch={initialSearch}
+            initialTab={initialTab}
             refreshKey={revision}
           />
         )}
@@ -139,15 +142,17 @@ export function ConnectorMarketplace({
 
 function MarketplaceContent({
   initialSearch,
+  initialTab,
   refreshKey,
 }: {
   initialSearch: string
+  initialTab: "all" | "connected"
   refreshKey: number
 }) {
   const router = useRouter()
   const generation = useRef(0)
   const [search, setSearch] = useState(initialSearch)
-  const [tab, setTab] = useState("all")
+  const [tab, setTab] = useState<"all" | "connected">(initialTab)
   const [revision, setRevision] = useState(0)
   const [apps, setApps] = useState<ConnectorApp[]>([])
   const [cursor, setCursor] = useState<string>()
@@ -196,10 +201,11 @@ function MarketplaceContent({
     if (!authorization) return
     function refresh() {
       setRevision((value) => value + 1)
+      router.refresh()
     }
     window.addEventListener("focus", refresh)
     return () => window.removeEventListener("focus", refresh)
-  }, [authorization])
+  }, [authorization, router])
 
   async function connect(app: ConnectorApp) {
     // Reserve the tab during the click; browsers block tabs opened after await.
@@ -248,6 +254,7 @@ function MarketplaceContent({
       setAuthorization(undefined)
       setRevision((value) => value + 1)
       toast.add({ type: "success", title: `${app.name} disconnected` })
+      router.refresh()
     } catch (error) {
       toast.add({
         type: "error",
@@ -302,7 +309,12 @@ function MarketplaceContent({
         />
       </InputGroup>
       <div className="flex items-center justify-between gap-2">
-        <Tabs value={tab} onValueChange={(value) => setTab(String(value))}>
+        <Tabs
+          value={tab}
+          onValueChange={(value) =>
+            setTab(value === "connected" ? "connected" : "all")
+          }
+        >
           <TabsList>
             <TabsTrigger value="all">All apps</TabsTrigger>
             <TabsTrigger value="connected">Connected</TabsTrigger>
@@ -319,7 +331,12 @@ function MarketplaceContent({
         </Button>
       </div>
       {authorization &&
-        !apps.find((app) => app.slug === authorization.slug)?.connected && (
+        !apps.some(
+          (app) =>
+            app.slug === authorization.slug &&
+            app.accountId === authorization.accountId &&
+            app.connected
+        ) && (
           <Alert>
             <AlertDescription>
               Finish connecting in the authorization tab, then refresh.
@@ -343,6 +360,7 @@ function MarketplaceContent({
                 className="ml-2"
                 size="sm"
                 variant="link"
+                nativeButton={false}
                 render={
                   <a
                     href={authorization.url}
@@ -416,18 +434,7 @@ function MarketplaceContent({
               role="listitem"
             >
               <ItemMedia>
-                <Avatar className="size-9">
-                  <AvatarImage
-                    src={app.logo}
-                    alt=""
-                    className={
-                      app.slug === "github"
-                        ? "dark:brightness-0 dark:invert"
-                        : undefined
-                    }
-                  />
-                  <AvatarFallback>{app.name.slice(0, 2)}</AvatarFallback>
-                </Avatar>
+                <ConnectorLogo app={app} />
               </ItemMedia>
               <ItemContent className="min-w-0">
                 <ItemTitle>{app.name}</ItemTitle>
@@ -446,7 +453,26 @@ function MarketplaceContent({
                   )}
                 </ItemDescription>
               </ItemContent>
-              <ItemActions>
+              <ItemActions
+                className={
+                  app.connected && !app.noAuth
+                    ? "basis-full flex-wrap justify-end"
+                    : undefined
+                }
+              >
+                {app.connected && !app.noAuth && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={
+                      !!busy || loading || authorization?.slug === app.slug
+                    }
+                    aria-label={`Reauthenticate ${app.name}`}
+                    onClick={() => connect(app)}
+                  >
+                    Reauthenticate
+                  </Button>
+                )}
                 {!app.noAuth && (
                   <Button
                     size="sm"

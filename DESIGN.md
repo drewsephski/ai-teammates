@@ -296,6 +296,8 @@ Owners without teammates see a two-step introduction in the workspace content ar
 
 Suggested service buttons open the existing app marketplace with a search by display name; Find another app opens its full searchable catalog. Actual provider discovery determines available integrations and connection status. Users authenticate through the provider authorization page. Browser-only services use personal sign-in in the live Desktop, with no passwords or codes in chat. Connecting an app does not sign in the desktop browser or authorize unrelated actions. The introduction explicitly distinguishes connected apps from paid cloud-computer and file capabilities.
 
+Connected app names and logos open the marketplace's Connected tab filtered to that app, with disconnect and reauthentication controls. App logos preserve their full proportions without circular cropping. GitHub uses a light backing in both themes, shared between the workspace and marketplace.
+
 Keep the existing charcoal chrome, page-heading type sizes, native character palette, and white pill actions. Characters provide a quiet introduction beside the choices on desktop and above them on phones; the role illustration is explicitly a preview. Step changes have one brief entrance, disabled under reduced motion, and move keyboard focus to the new heading. Skip is always visible, remembered per account in this browser, and reversible through Resume getting started. Storage failure permits skipping for the current visit. Advanced workspace features sit inside a collapsed More you can do disclosure.
 
 ### Navigation

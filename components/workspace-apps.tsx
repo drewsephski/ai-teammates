@@ -1,6 +1,6 @@
 import { ConnectorMarketplace } from "@/components/connector-marketplace"
+import { ConnectorLogo } from "@/components/connector-logo"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { ConnectorApp } from "@/lib/composio"
 import type { ConnectorCallback } from "@/lib/connector-callback"
 
@@ -21,6 +21,7 @@ export function WorkspaceApps({
         </h2>
         <ConnectorMarketplace
           trigger={<Button variant="ghost" size="sm" />}
+          initialTab={apps.length ? "connected" : "all"}
           connectionCallback={connectionCallback}
         >
           {apps.length ? "Manage apps" : "Connect apps"}
@@ -29,17 +30,22 @@ export function WorkspaceApps({
       {apps.length ? (
         <ul className="flex flex-wrap gap-x-5 gap-y-3">
           {apps.map((app) => (
-            <li
-              key={app.slug}
-              className="flex items-center gap-2 text-sm text-muted-foreground"
-            >
-              <Avatar className="size-5 rounded-sm">
-                <AvatarImage src={app.logo} alt="" />
-                <AvatarFallback className="rounded-sm text-xs">
-                  {app.name.slice(0, 2)}
-                </AvatarFallback>
-              </Avatar>
-              {app.name}
+            <li key={app.slug}>
+              <ConnectorMarketplace
+                initialSearch={app.name}
+                initialTab="connected"
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto justify-start gap-2 rounded-sm p-0 font-normal text-muted-foreground"
+                    aria-label={`Manage ${app.name} connection`}
+                  />
+                }
+              >
+                <ConnectorLogo app={app} className="size-5" />
+                {app.name}
+              </ConnectorMarketplace>
             </li>
           ))}
         </ul>
