@@ -47,11 +47,7 @@ export function isModelUnavailable(error: unknown, depth = 0): boolean {
 // Only "queued" and "pending_version" need explaining: the turn is accepted
 // but nothing is working on it yet.
 export type ChatTurnState =
-  | "idle"
-  | "queued"
-  | "pending_version"
-  | "running"
-  | "ended"
+  "idle" | "queued" | "pending_version" | "running" | "ended"
 
 export function chatTurnState(runStatus: string | undefined): ChatTurnState {
   switch (runStatus) {

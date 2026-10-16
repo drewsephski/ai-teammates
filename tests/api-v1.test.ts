@@ -250,8 +250,14 @@ test("desktop tickets open one chat once, for one minute, for the user they name
 
   // Another chat, another key, after expiry, or tampered: rejected
   const fresh = () => new TicketReplayGuard()
-  assert.equal(verifyDesktopTicket(issue().ticket, "chat_b", secret, fresh(), now), null)
-  assert.equal(verifyDesktopTicket(issue().ticket, "chat_a", "other", fresh(), now), null)
+  assert.equal(
+    verifyDesktopTicket(issue().ticket, "chat_b", secret, fresh(), now),
+    null
+  )
+  assert.equal(
+    verifyDesktopTicket(issue().ticket, "chat_a", "other", fresh(), now),
+    null
+  )
   assert.equal(
     verifyDesktopTicket(issue().ticket, "chat_a", secret, fresh(), expiresAt),
     null
@@ -264,14 +270,29 @@ test("desktop tickets open one chat once, for one minute, for the user they name
     })
   ).toString("base64url")
   assert.equal(
-    verifyDesktopTicket(`${forged}.${signature}`, "chat_a", secret, fresh(), now),
+    verifyDesktopTicket(
+      `${forged}.${signature}`,
+      "chat_a",
+      secret,
+      fresh(),
+      now
+    ),
     null
   )
   for (const junk of ["", "a", "a.b.c", "....", `${body}.`])
-    assert.equal(verifyDesktopTicket(junk, "chat_a", secret, fresh(), now), null)
+    assert.equal(
+      verifyDesktopTicket(junk, "chat_a", secret, fresh(), now),
+      null
+    )
   // A Clerk session JWT is not a ticket
   assert.equal(
-    verifyDesktopTicket("eyJhbGciOi.eyJzdWIiOi.c2ln", "chat_a", secret, fresh(), now),
+    verifyDesktopTicket(
+      "eyJhbGciOi.eyJzdWIiOi.c2ln",
+      "chat_a",
+      secret,
+      fresh(),
+      now
+    ),
     null
   )
   assert.throws(() => createDesktopTicket({ userId: "u", chatId: "c" }, ""))
@@ -351,6 +372,18 @@ test("API-level and newer service errors map to their own statuses", () => {
     [new Error("Teammate not found"), 404, "not_found", true],
     // Already reported to Sentry by the service, and worded for the person
     [new Error("Couldn't load apps. Please try again."), 502, "upstream", true],
+    [
+      new Error("Couldn't cancel your subscription. Try again."),
+      502,
+      "upstream",
+      true,
+    ],
+    [
+      new Error("Couldn't close your conversations. Try again."),
+      502,
+      "upstream",
+      true,
+    ],
   ]
   for (const [error, status, code, expected] of cases) {
     const response = apiErrorResponse(error)
@@ -376,7 +409,7 @@ test("desktop socket URLs use the public host and the forwarded scheme", () => {
   )
 })
 
-test("account deletion waits for a paid plan to be cancelled, as a conflict", () => {
+test("legacy paid-plan deletion conflicts remain mapped for older clients", () => {
   const response = apiErrorResponse(new Error(ACTIVE_PLAN_ERROR))
   assert.deepEqual(
     [response.status, response.body.error.code, response.expected],

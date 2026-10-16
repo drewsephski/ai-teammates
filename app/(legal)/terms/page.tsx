@@ -105,8 +105,10 @@ export default function TermsPage() {
         Features depend on third-party services and may change or become
         unavailable. We do not guarantee uninterrupted service or permanent
         storage. Keep separate copies of important files and outputs. You may
-        stop using Krafty at any time; cancel paid subscriptions separately and
-        contact us if you want account or data deletion.
+        stop using Krafty at any time. On iPhone, Account includes a Delete
+        account control; deleting your account cancels its paid subscriptions
+        and ends access immediately. You can also contact us about account or
+        data deletion.
       </p>
 
       <h2>Disclaimers and responsibility</h2>

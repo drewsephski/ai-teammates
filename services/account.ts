@@ -1,4 +1,6 @@
 import { createClerkClient } from "@clerk/backend"
+import * as Sentry from "@sentry/nextjs"
+import { ApiError as TriggerApiError, sessions } from "@trigger.dev/sdk"
 import { eq } from "drizzle-orm"
 
 import { db } from "@/db"
@@ -9,20 +11,21 @@ import {
   chatgptConnections,
   chats,
   connectorAuthAttempts,
+  forYouScans,
   memories,
   memoryEvents,
   pushDevices,
   sidebarPreferences,
   userSettings,
 } from "@/db/schema"
-import { ACTIVE_PLAN_ERROR } from "@/lib/billing-policy"
+import { cancelAccountSubscriptions } from "@/lib/account-billing"
 import { disconnectChatGPT } from "@/lib/chatgpt-connection"
 import { getComposio } from "@/lib/composio"
-import { getAccountPlan } from "@/lib/usage"
 import { deleteBot } from "@/services/bots"
 
 type Steps = {
-  plan: (userId: string) => Promise<{ tier: string }>
+  cancelSubscriptions: (userId: string) => Promise<void>
+  closeChat: (chatId: string) => Promise<void>
   deleteBot: (userId: string, botId: string) => Promise<void>
   disconnectChatGPT: (userId: string) => Promise<unknown>
   disconnectApps: (userId: string) => Promise<void>
@@ -49,7 +52,23 @@ const clerk = () =>
   createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
 
 const providerSteps: Steps = {
-  plan: getAccountPlan,
+  cancelSubscriptions: async (userId) => {
+    try {
+      await cancelAccountSubscriptions(userId, clerk().billing)
+    } catch (cause) {
+      Sentry.captureException(cause)
+      throw new Error("Couldn't cancel your subscription. Try again.")
+    }
+  },
+  closeChat: async (chatId) => {
+    try {
+      await sessions.close(chatId, { reason: "account_deleted" })
+    } catch (cause) {
+      if (cause instanceof TriggerApiError && cause.status === 404) return
+      Sentry.captureException(cause)
+      throw new Error("Couldn't close your conversations. Try again.")
+    }
+  },
   deleteBot,
   disconnectChatGPT,
   disconnectApps,
@@ -63,10 +82,17 @@ const providerSteps: Steps = {
 // unused user ID, as the billing record. Conversation transcripts stored with
 // Trigger.dev sessions are not removed here.
 export async function deleteAccount(userId: string, steps = providerSteps) {
-  // A paid web subscription is billed by Stripe; deleting the user here
-  // would leave it running with no account to manage it from
-  if ((await steps.plan(userId)).tier !== "free")
-    throw new Error(ACTIVE_PLAN_ERROR)
+  // Do not leave a recurring charge attached to an account that cannot sign in.
+  // A billing failure leaves the workspace intact so the person can retry.
+  await steps.cancelSubscriptions(userId)
+
+  // Close sessions before their IDs disappear with the bots and group chats.
+  // Closing prevents more messages; it does not erase provider transcripts.
+  const ownedChats = await db
+    .select({ id: chats.id })
+    .from(chats)
+    .where(eq(chats.userId, userId))
+  for (const chat of ownedChats) await steps.closeChat(chat.id)
 
   // Computers first: a bot whose sandbox can't be deleted stays, and so does
   // everything else, until the retry
@@ -85,6 +111,7 @@ export async function deleteAccount(userId: string, steps = providerSteps) {
     await tx.delete(memoryEvents).where(eq(memoryEvents.userId, userId))
     await tx.delete(memories).where(eq(memories.userId, userId))
     await tx.delete(userSettings).where(eq(userSettings.userId, userId))
+    await tx.delete(forYouScans).where(eq(forYouScans.userId, userId))
     await tx
       .delete(sidebarPreferences)
       .where(eq(sidebarPreferences.userId, userId))

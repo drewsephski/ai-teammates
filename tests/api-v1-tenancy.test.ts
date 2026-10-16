@@ -260,54 +260,95 @@ test("every /api/v1 handler runs through apiRoute", () => {
 test("deleting B's account removes B's data and nothing of A's", async () => {
   const account = await import("../services/account")
   const calls: string[] = []
-  const steps = (tier: string) => ({
-    plan: async () => ({ tier }),
+  const steps = () => ({
+    cancelSubscriptions: async (userId: string) => {
+      calls.push(`billing:${userId}`)
+    },
+    closeChat: async (chatId: string) => {
+      calls.push(`close:${chatId}`)
+    },
     // services/bots.deleteBot without its Sentry log, which needs Next's
     // bundling; its owner check is covered above
     deleteBot: async (userId: string, botId: string) => {
-      await db.delete(schema.chats).where(
-        and(
-          eq(schema.chats.userId, userId),
-          eq(schema.chats.kind, "direct"),
-          inArray(
-            schema.chats.id,
-            db
-              .select({ id: schema.chatMembers.chatId })
-              .from(schema.chatMembers)
-              .where(eq(schema.chatMembers.botId, botId))
+      await db
+        .delete(schema.chats)
+        .where(
+          and(
+            eq(schema.chats.userId, userId),
+            eq(schema.chats.kind, "direct"),
+            inArray(
+              schema.chats.id,
+              db
+                .select({ id: schema.chatMembers.chatId })
+                .from(schema.chatMembers)
+                .where(eq(schema.chatMembers.botId, botId))
+            )
           )
         )
-      )
       await db
         .delete(schema.bots)
         .where(and(eq(schema.bots.id, botId), eq(schema.bots.userId, userId)))
     },
-    disconnectChatGPT: async (userId: string) => calls.push(`chatgpt:${userId}`),
+    disconnectChatGPT: async (userId: string) =>
+      calls.push(`chatgpt:${userId}`),
     disconnectApps: async (userId: string) => {
       calls.push(`apps:${userId}`)
     },
     deleteUser: async (userId: string) => calls.push(`clerk:${userId}`),
   })
 
-  // A paid plan is cancelled on the web first; nothing is touched
-  await rejects(account.deleteAccount(B, steps("paid")), /Cancel your paid plan/)
+  await db.insert(schema.forYouScans).values([
+    { userId: A, status: "done" },
+    { userId: B, status: "done" },
+  ])
+
+  // A billing outage must not destroy the account or any workspace data.
+  await rejects(
+    account.deleteAccount(B, {
+      ...steps(),
+      cancelSubscriptions: async () => {
+        throw new Error("billing unavailable")
+      },
+    }),
+    /billing unavailable/
+  )
   assert.equal((await bots.listBots(B)).length, 2)
   assert.deepEqual(calls, [])
 
-  await account.deleteAccount(B, steps("free"))
-  assert.deepEqual(calls, [`chatgpt:${B}`, `apps:${B}`, `clerk:${B}`])
+  // A session failure keeps chat IDs available for the next cleanup attempt.
+  await rejects(
+    account.deleteAccount(B, {
+      ...steps(),
+      cancelSubscriptions: async () => {},
+      closeChat: async () => {
+        throw new Error("session unavailable")
+      },
+    }),
+    /session unavailable/
+  )
+  assert.equal((await bots.listBots(B)).length, 2)
+  assert.equal((await chats.listChats(B)).length, 2)
+
+  await account.deleteAccount(B, steps())
+  assert.equal(calls[0], `billing:${B}`)
+  assert.deepEqual(calls.slice(1, 3).sort(), ["close:chat_b1", "close:group_b"])
+  assert.deepEqual(calls.slice(3), [`chatgpt:${B}`, `apps:${B}`, `clerk:${B}`])
   assert.deepEqual(await bots.listBots(B), [])
   assert.deepEqual(await chats.listChats(B), [])
   assert.deepEqual((await memory.getMemoryOverview(B)).memories, [])
+  assert.deepEqual(
+    (await db.select().from(schema.forYouScans)).map((row) => row.userId),
+    [A]
+  )
 
   assert.deepEqual(
     (await bots.listBots(A)).map((bot) => bot.id),
     ["bot_a1", "bot_a2"]
   )
-  assert.deepEqual(
-    (await chats.listChats(A)).map((chat) => chat.id).sort(),
-    ["chat_a1", "group_a"]
-  )
+  assert.deepEqual((await chats.listChats(A)).map((chat) => chat.id).sort(), [
+    "chat_a1",
+    "group_a",
+  ])
   assert.deepEqual(
     (await memory.getMemoryOverview(A)).memories.map((row) => row.id),
     ["mem_a"]

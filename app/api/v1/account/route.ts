@@ -9,7 +9,7 @@ import { deleteAccount } from "@/services/account"
 const bodySchema = z.object({ confirm: z.literal("delete my account") })
 
 // Permanently deletes the signed-in account and its data, then the Clerk user
-// (which signs out every device). A paid plan must be cancelled first (409).
+// (which signs out every device). Paid subscriptions are canceled during deletion.
 // Safe to retry after a failure.
 export const DELETE = apiRoute(async ({ userId }, request) => {
   bodySchema.parse(await readJson(request))

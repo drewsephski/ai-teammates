@@ -52,7 +52,8 @@ export class TicketReplayGuard {
   private readonly used = new Map<string, number>()
 
   claim(nonce: string, expiresAt: number, now = Date.now()) {
-    for (const [key, expiry] of this.used) if (expiry <= now) this.used.delete(key)
+    for (const [key, expiry] of this.used)
+      if (expiry <= now) this.used.delete(key)
     if (this.used.has(nonce)) return false
     this.used.set(nonce, expiresAt)
     return true
