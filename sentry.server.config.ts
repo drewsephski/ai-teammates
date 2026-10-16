@@ -16,8 +16,9 @@ Sentry.init({
   // 100% in dev, 10% in production
   tracesSampleRate: process.env.NODE_ENV === "development" ? 1.0 : 0.1,
 
-  // Attach local variable values to stack frames
-  includeLocalVariables: true,
+  // Off: local variables in chat and agent code hold message text, app data
+  // and tokens, which must not leave for Sentry
+  includeLocalVariables: false,
 
   // Logs need no switch in SDK 11: Sentry.logger always sends. This adds
   // whatever is written to console.warn and console.error, outside

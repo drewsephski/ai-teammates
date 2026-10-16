@@ -136,6 +136,14 @@ TRIGGER_PROJECT_REF=
 # E2B Hobby (server-side only; no paid plan required)
 E2B_API_KEY=
 
+# Optional: Expo access token, if push security is turned on for the Expo
+# project. Read where push notifications are sent (app and worker).
+EXPO_ACCESS_TOKEN=
+
+# Development only: let the local trigger dev worker run routines. Off by
+# default because local development shares production's database.
+# KRAFTY_DEV_ROUTINES=1
+
 # Sentry: optional. Without the DSN nothing is reported; the other three
 # upload source maps on build
 NEXT_PUBLIC_SENTRY_DSN=

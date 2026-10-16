@@ -149,3 +149,37 @@ test("saved profiles and group handoffs retain role and capability guidance", ()
   assert.match(group, /searchWeb finds sources/)
   assert.doesNotMatch(group, /being configured/)
 })
+
+test("configured bots learn routines and the approval flow", async () => {
+  const { buildChatInstructions } = await import("../lib/chat-instructions")
+  const prompt = buildChatInstructions(
+    {
+      id: "b",
+      name: "Quill",
+      job: "Writer",
+      instructions: null,
+      setupComplete: true,
+    },
+    undefined,
+    true,
+    false,
+    false,
+    "<memory></memory>"
+  )
+  assert.match(prompt, /scheduleRoutine/)
+  assert.match(prompt, /Scheduled routine/)
+  assert.match(prompt, /approval_required/)
+  assert.match(prompt, /runApprovedAction/)
+  const setup = buildChatInstructions(
+    {
+      id: "b",
+      name: "Quill",
+      job: "Writer",
+      instructions: null,
+      setupComplete: false,
+    },
+    undefined,
+    true
+  )
+  assert.doesNotMatch(setup, /scheduleRoutine/)
+})

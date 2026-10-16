@@ -235,6 +235,25 @@ export async function resetBotSandbox(
   )
 }
 
+// Meters a computer from its entry in listBotSandboxes, with no extra call
+export async function meterListedSandbox(info: SandboxInfo) {
+  await meterInfo(info)
+  return true
+}
+
+// An app computer no bot owns. Nothing to bill, so it goes without metering.
+export async function deleteOrphanSandbox(id: string) {
+  await withSandboxLock(id, async () => {
+    const [owner] = await db
+      .select({ id: bots.id })
+      .from(bots)
+      .where(eq(bots.sandboxId, id))
+    // Adopted since the list was read
+    if (owner) return
+    await Sandbox.kill(id, providerOptions)
+  })
+}
+
 export async function listBotSandboxes() {
   const paginator = Sandbox.list({
     ...providerOptions,

@@ -35,6 +35,56 @@ function hasImages(messages: readonly ModelMessage[]) {
   })
 }
 
+// The person's latest message and everything since: the only images the model
+// needs to see. Older screenshots stay in the transcript as placeholders, so a
+// single screenshot doesn't move the rest of the chat to the vision model.
+export function currentTurn<T extends { role: string }>(
+  messages: readonly T[]
+) {
+  const start = messages.findLastIndex((message) => message.role === "user")
+  return messages.slice(Math.max(0, start))
+}
+
+type Prompt = CallOptions["prompt"]
+const EARLIER_IMAGE = "[An image from earlier in the chat, not shown here]"
+
+// For the text model: images before the current turn become placeholders
+export function withoutEarlierImages(prompt: Prompt): Prompt {
+  const start = prompt.findLastIndex((message) => message.role === "user")
+  return prompt.map((message, index) => {
+    if (index >= start) return message
+    if (message.role === "user")
+      return {
+        ...message,
+        content: message.content.map((part) =>
+          part.type === "file" && part.mediaType.startsWith("image/")
+            ? { type: "text" as const, text: EARLIER_IMAGE }
+            : part
+        ),
+      }
+    if (message.role !== "tool") return message
+    return {
+      ...message,
+      content: message.content.map((part) => {
+        if (part.type !== "tool-result" || part.output.type !== "content")
+          return part
+        return {
+          ...part,
+          output: {
+            ...part.output,
+            value: part.output.value.map((item) =>
+              (item.type === "file-data" || item.type === "image-data") &&
+              item.mediaType.startsWith("image/")
+                ? { type: "text" as const, text: EARLIER_IMAGE }
+                : item
+            ),
+          },
+        }
+      }),
+    }
+  }) as Prompt
+}
+
 // AI SDK 7 gives this older provider file-data for tool screenshots.
 // The native Responses route needs image-data to interpret them as images.
 function withModelDefaults(options: CallOptions, vision: boolean): CallOptions {
@@ -48,7 +98,10 @@ function withModelDefaults(options: CallOptions, vision: boolean): CallOptions {
         ...options.providerOptions?.[provider],
       },
     },
-    prompt: normalizeFailedToolCalls(options.prompt).map((message) => {
+    prompt: (vision
+      ? normalizeFailedToolCalls(options.prompt)
+      : withoutEarlierImages(normalizeFailedToolCalls(options.prompt))
+    ).map((message) => {
       if (message.role !== "tool") return message
       return {
         ...message,
@@ -76,9 +129,10 @@ function withModelDefaults(options: CallOptions, vision: boolean): CallOptions {
   }
 }
 
-// GLM handles text and tools; Luna handles any step with image context.
+// GLM handles text and tools; Luna handles a step whose current turn has an
+// image in it.
 export function chatModel(messages: readonly ModelMessage[] = []): Model {
-  const vision = hasImages(messages)
+  const vision = hasImages(currentTurn(messages))
   const model = neon(vision ? visionModelId : textModelId)
   return {
     specificationVersion: model.specificationVersion,

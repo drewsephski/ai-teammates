@@ -313,6 +313,7 @@ export type ChatUIMessage = UIMessage<
       import("@/lib/consultation-tool").ConsultationTools &
       import("@/lib/bot-setup-tools").BotSetupTools &
       import("@/lib/composio").ConnectorTools &
-      import("@/lib/web-tools").WebTools
+      import("@/lib/web-tools").WebTools &
+      import("@/lib/routine-tools").RoutineTools
   >
 >

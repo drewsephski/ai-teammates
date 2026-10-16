@@ -29,7 +29,7 @@ test("both metering and quota pauses stay within four concurrent provider calls"
     report: () => {},
   })
   assert.equal(peak, 4)
-  assert.deepEqual(output, { metered: 20, missing: 0, paused: 20 })
+  assert.deepEqual(output, { metered: 20, missing: 0, paused: 20, removed: 0 })
 })
 
 function computer(
@@ -37,7 +37,12 @@ function computer(
   age = 0,
   state: "running" | "paused" = "running"
 ) {
-  return { sandboxId, state, startedAt: new Date(Date.now() - age) }
+  return {
+    sandboxId,
+    state,
+    startedAt: new Date(Date.now() - age),
+    endAt: new Date(Date.now() - age + 60_000),
+  }
 }
 
 test("one failing computer does not prevent other metering or quota enforcement", async () => {
@@ -51,9 +56,9 @@ test("one failing computer does not prevent other metering or quota enforcement"
         { sandboxId: "broken", userId: "first" },
         { sandboxId: "healthy", userId: "second" },
       ],
-      meter: async (id) => {
-        if (id === "broken") throw new Error("provider unavailable")
-        metered.push(id)
+      meter: async ({ sandboxId }) => {
+        if (sandboxId === "broken") throw new Error("provider unavailable")
+        metered.push(sandboxId)
         return true
       },
       hasUsage: async () => false,
@@ -112,7 +117,7 @@ test("new provisioning is spared, older orphan compute is paused, missing VMs ar
     report: () => {},
   })
   assert.deepEqual(paused, ["orphan"])
-  assert.deepEqual(output, { metered: 0, missing: 1, paused: 1 })
+  assert.deepEqual(output, { metered: 0, missing: 1, paused: 1, removed: 0 })
 })
 
 test("quota enforcement rechecks even a VM that was paused at list time", async () => {
@@ -128,4 +133,56 @@ test("quota enforcement rechecks even a VM that was paused at list time", async 
     report: () => {},
   })
   assert.deepEqual(paused, ["resumed-after-list"])
+})
+
+test("dormant paused computers cost no provider or billing calls", async () => {
+  const calls: string[] = []
+  const output = await runSandboxMetering({
+    list: async () => [
+      computer("dormant", 3 * 86_400_000, "paused"),
+      computer("busy"),
+    ],
+    owners: async () => [
+      { sandboxId: "dormant", userId: "sleepy" },
+      { sandboxId: "busy", userId: "active" },
+    ],
+    meter: async ({ sandboxId }) => {
+      calls.push(`meter:${sandboxId}`)
+      return true
+    },
+    hasUsage: async (userId) => {
+      calls.push(`usage:${userId}`)
+      return true
+    },
+    pause: async () => {},
+    report: () => {},
+  })
+  assert.deepEqual(calls, ["meter:busy", "usage:active"])
+  assert.deepEqual(output, { metered: 1, missing: 0, paused: 0, removed: 0 })
+})
+
+test("orphans older than a day are deleted, younger running ones paused", async () => {
+  const killed: string[] = []
+  const paused: string[] = []
+  const output = await runSandboxMetering({
+    list: async () => [
+      computer("old-paused", 2 * 86_400_000, "paused"),
+      computer("old-running", 2 * 86_400_000),
+      computer("young", 600_000),
+      computer("young-paused", 600_000, "paused"),
+    ],
+    owners: async () => [],
+    meter: async () => true,
+    hasUsage: async () => true,
+    pause: async (id) => {
+      paused.push(id)
+    },
+    kill: async (id) => {
+      killed.push(id)
+    },
+    report: () => {},
+  })
+  assert.deepEqual(killed.sort(), ["old-paused", "old-running"])
+  assert.deepEqual(paused, ["young"])
+  assert.deepEqual(output, { metered: 0, missing: 0, paused: 1, removed: 2 })
 })

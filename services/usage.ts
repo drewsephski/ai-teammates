@@ -14,7 +14,8 @@ export async function hasUsageLeft(userId: string, kind: UsageKind) {
 // The usage page's numbers: plan, period, and what is used and left
 export async function getUsageSummary(userId: string) {
   const [usage, chatGPT] = await Promise.all([
-    getUsage(userId),
+    // Fresh from Clerk: this is where people look right after upgrading
+    getUsage(userId, { fresh: true }),
     getChatGPTStatus(userId),
   ])
   return {

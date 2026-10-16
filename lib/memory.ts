@@ -123,13 +123,19 @@ export async function searchMemories({
 }) {
   const vector = await embedText(query)
   const distance = cosineDistance(memories.embedding, vector)
-  // Over-fetch by vector alone, then re-score with recency and importance
-  const rows = await db
-    .select({ ...memoryColumns, cosine: sql<number>`1 - (${distance})` })
-    .from(memories)
-    .where(visibleTo(userId, botId, includeSensitive))
-    .orderBy(asc(distance))
-    .limit(40)
+  // Over-fetch by vector alone, then re-score with recency and importance.
+  // The HNSW index is shared by every user: without an iterative scan it
+  // returns the nearest rows of anyone and the owner filter leaves few or none.
+  // SET LOCAL lasts for this transaction only, so it's safe behind the pooler.
+  const rows = await db.transaction(async (tx) => {
+    await tx.execute(sql`set local hnsw.iterative_scan = relaxed_order`)
+    return tx
+      .select({ ...memoryColumns, cosine: sql<number>`1 - (${distance})` })
+      .from(memories)
+      .where(visibleTo(userId, botId, includeSensitive))
+      .orderBy(asc(distance))
+      .limit(40)
+  })
   return rankRecalled(
     rows.map((row) => ({ ...row, cosine: Number(row.cosine) })),
     { limit, exclude }

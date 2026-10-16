@@ -4,7 +4,13 @@ import { schedules } from "@trigger.dev/sdk"
 import { isNotNull, sql } from "drizzle-orm"
 import { db } from "@/db"
 import { bots } from "@/db/schema"
-import { listBotSandboxes, meterBotSandbox, pauseBotSandbox } from "@/lib/e2b"
+import {
+  deleteOrphanSandbox,
+  listBotSandboxes,
+  meterBotSandbox,
+  meterListedSandbox,
+  pauseBotSandbox,
+} from "@/lib/e2b"
 import { getUsage } from "@/lib/usage"
 import { runSandboxMetering } from "@/lib/sandbox-metering"
 
@@ -25,12 +31,19 @@ export const meterSandboxes = schedules.task({
           })
           .from(bots)
           .where(isNotNull(bots.sandboxId)),
-      meter: meterBotSandbox,
+      // A running computer is read again: a tool may pause it after the list,
+      // and metering its stale end time would bill the gap. A paused
+      // computer's listed session is final.
+      meter: (info) =>
+        info.state === "running"
+          ? meterBotSandbox(info.sandboxId)
+          : meterListedSandbox(info),
       hasUsage: async (userId) => {
         const usage = await getUsage(userId)
         return !!usage && usage.remaining.sandbox > 0
       },
       pause: pauseBotSandbox,
+      kill: deleteOrphanSandbox,
       report: (error, id) =>
         Sentry.captureException(error, {
           tags: { "trigger.task": "meter-sandboxes" },

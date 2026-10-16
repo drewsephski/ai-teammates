@@ -14,7 +14,7 @@ import { chatModel, chatModelCost } from "@/lib/model"
 import { createSandboxTools, type ChatUIMessage } from "@/lib/sandbox-tools"
 import { isMemoryOn, loadMemoryContext, touchMemories } from "@/lib/memory"
 import { createMemoryTools } from "@/lib/memory-tools"
-import { getUsage, recordUsage, type Usage } from "@/lib/usage"
+import { getUsage, holdUsage, recordUsage, type Usage } from "@/lib/usage"
 import { createTeammateConsultation } from "@/lib/teammate-consultation"
 import {
   composerInstructions,
@@ -24,7 +24,17 @@ import {
   type BotMention,
 } from "@/lib/composer"
 import { createDelegationTools } from "@/lib/team-delegation"
-import { createConnectorTools } from "@/lib/composio"
+import { createApprovalGate, createConnectorTools } from "@/lib/composio"
+import { createRoutineTools } from "@/lib/routine-tools"
+import {
+  createRoutine,
+  deleteRoutine,
+  listRoutines,
+  updateRoutine,
+  userTimeZone,
+} from "@/lib/routines"
+import { unattendedOrigin } from "@/lib/routine-policy"
+import { recordActivity } from "@/lib/notify"
 import { createBotSetupTools, botSetupMessageId } from "@/lib/bot-setup-tools"
 import { configureBotProfile } from "@/lib/bot-profile"
 import { buildChatInstructions } from "@/lib/chat-instructions"
@@ -32,7 +42,6 @@ import { assertComputerLoginReady } from "@/lib/computer-login-policy"
 import { chatPreview } from "@/lib/chat-preview"
 import { ensureBotComputer } from "@/lib/bot-computer"
 import { assertBotAccess } from "@/lib/teammates"
-import { withSandboxLock } from "@/lib/sandbox-lock"
 import { createTavilyClient, tavilyCost } from "@/lib/tavily"
 import { createWebTools } from "@/lib/web-tools"
 import { isChatGPTSelected } from "@/lib/chatgpt-connection"
@@ -72,6 +81,12 @@ const turnModelUsage = chat.local<{
   cost: number
   webCost: number
   consultationCost: number
+  // Model cost already written to this turn's usage hold
+  held: number
+  // The account's AI allowance left after every running turn's holds
+  remaining: number
+  approvalRequested: boolean
+  startedAt: number
   messageId: string
   usageKey: string
   chatgpt: boolean
@@ -107,6 +122,10 @@ export const chatAgent = chat
         cost: 0,
         webCost: 0,
         consultationCost: 0,
+        held: 0,
+        remaining: Infinity,
+        approvalRequested: false,
+        startedAt: Date.now(),
         messageId: "",
         usageKey: "",
         chatgpt: false,
@@ -119,6 +138,10 @@ export const chatAgent = chat
       turnModelUsage.cost = 0
       turnModelUsage.webCost = 0
       turnModelUsage.consultationCost = 0
+      turnModelUsage.held = 0
+      turnModelUsage.remaining = Infinity
+      turnModelUsage.approvalRequested = false
+      turnModelUsage.startedAt = Date.now()
       turnModelUsage.chatgpt = false
       turnModelUsage.followUps = undefined
       const latest = uiMessages.findLast((message) => message.role === "user")
@@ -186,7 +209,8 @@ export const chatAgent = chat
         chatId,
         sourceBotId: bot.id,
         usageKey: () => turnModelUsage.usageKey,
-        unrecordedCost: () => turnModelUsage.cost,
+        // getUsage already counts the held part of this turn's cost
+        unrecordedCost: () => turnModelUsage.cost - turnModelUsage.held,
         onCost: (cost) => {
           turnModelUsage.consultationCost += cost
         },
@@ -201,21 +225,66 @@ export const chatAgent = chat
                 accountId: z.string().min(1).max(200),
               })
               .parse(sourceConfig)
+      // External writes wait for the owner (lib/approvals.ts)
+      const approvalGate = createApprovalGate({
+        userId,
+        chatId,
+        botId: () => current.id,
+      })
       const connectorTools = process.env.COMPOSIO_API_KEY
-        ? createConnectorTools(
-            userId,
-            source
-              ? { accountBindings: { [source.toolkit]: source.accountId } }
-              : {}
-          )
+        ? createConnectorTools(userId, {
+            ...(source && {
+              accountBindings: { [source.toolkit]: source.accountId },
+            }),
+            approvals: {
+              ...approvalGate,
+              request: async (call) => {
+                const held = await approvalGate.request(call)
+                turnModelUsage.approvalRequested = true
+                return held
+              },
+            },
+          })
         : {}
+      // Routines report into this chat, as the bot holding the turn
+      // Only while the owner is in the conversation: an unattended turn reads
+      // untrusted email and web content, which must not be able to schedule
+      // recurring work or switch the owner's routines off. A bot changes only
+      // its own routines.
+      const attended = () => {
+        if (unattendedOrigin(turnModelUsage.messageId))
+          throw new Error(
+            "Routines can only be changed while the owner is in the chat. Mention the change in your report instead."
+          )
+      }
+      const routineTools = createRoutineTools({
+        timezone: () => userTimeZone(userId),
+        list: () => listRoutines(userId),
+        create: ({ requestId, ...input }) => {
+          attended()
+          return createRoutine(
+            userId,
+            { ...input, botId: current.id, requestId },
+            { chatId }
+          )
+        },
+        update: (routineId, patch) => {
+          attended()
+          return updateRoutine(userId, routineId, patch, { botId: current.id })
+        },
+        remove: (routineId) => {
+          attended()
+          return deleteRoutine(userId, routineId, { botId: current.id })
+        },
+      })
       const webTools = process.env.TAVILY_API_KEY?.trim()
         ? createWebTools(
             createTavilyClient({
               beforeRequest: async (maxCredits) => {
                 const usage = await getUsage(userId)
                 if (
-                  usage.remaining.ai - turnModelUsage.cost <
+                  usage.remaining.ai -
+                    (turnModelUsage.cost - turnModelUsage.held) <
                   tavilyCost(maxCredits)
                 )
                   throw new Error(USAGE_LIMIT_ERROR)
@@ -266,9 +335,16 @@ export const chatAgent = chat
         ...connectorTools,
         ...webTools,
         ...setupTools,
+        ...routineTools,
       }
       if (plan.tier === "free")
-        return { ...connectorTools, ...webTools, ...setupTools, ...memoryTools }
+        return {
+          ...connectorTools,
+          ...webTools,
+          ...setupTools,
+          ...memoryTools,
+          ...routineTools,
+        }
       if (kind !== "group") return sharedTools
 
       return {
@@ -335,12 +411,12 @@ export const chatAgent = chat
             ? handoff.output.botId
             : responseMessage?.metadata?.botId
         const { chat: row, bot } = await getChatBots(chatId, authorId)
-        const plan = await getUsage(row.userId)
         const suggest = async () => {
           const currentUsage = await getUsage(row.userId)
           // Leave room for this bounded auxiliary call; never spend a depleted
           // Krafty allowance. Recommendations always use the app's GLM model.
-          const unrecordedCost = plan.tier === "free" ? 0 : turnModelUsage.cost
+          // getUsage already counts the turn's held cost.
+          const unrecordedCost = turnModelUsage.cost - turnModelUsage.held
           if (currentUsage.remaining.ai - unrecordedCost < 10_000) return
           const suggestions = await generateChatFollowUps({
             ...config,
@@ -373,10 +449,7 @@ export const chatAgent = chat
             data: { botId: bot.id, suggestions },
           })
         }
-        if (plan.tier === "free") {
-          // See the account lock in run(): both calls share the same budget.
-          await withSandboxLock(`free-ai:${row.userId}`, suggest)
-        } else await suggest()
+        await suggest()
       } catch (error) {
         // Suggestions are optional. Their failure must never fail a completed reply.
         Sentry.logger.warn("Chat follow-up suggestions unavailable", {
@@ -437,6 +510,19 @@ export const chatAgent = chat
           },
         ])
       }
+
+      if (row)
+        await reportUnattendedTurn({
+          userId: row.userId,
+          chatId,
+          runId,
+          turn,
+          failed: !!error && !refused,
+          refused,
+          responseMessage,
+        }).catch((reportError: unknown) =>
+          Sentry.captureException(reportError, { extra: { chatId, turn } })
+        )
 
       // One line per turn: who spent what, and how it ended
       Sentry.logger[error ? "warn" : "info"]("Chat turn finished", {
@@ -632,16 +718,28 @@ export const chatAgent = chat
               }),
             }
           },
-          onStepEnd: ({ usage, model }) => {
+          onStepEnd: async ({ usage, model }) => {
             turnModelUsage.cost += appModelCost(chatgptSelected, () =>
               chatModelCost(usage, model.modelId)
             )
+            // Hold what this turn has spent so far, so the account's other
+            // turns see it, and stop when the account as a whole runs out
+            const cost = turnModelUsage.cost
+            if (cost > turnModelUsage.held) {
+              await holdUsage(row.userId, turnModelUsage.usageKey, cost)
+              turnModelUsage.held = cost
+              turnModelUsage.remaining = (
+                await getUsage(row.userId)
+              ).remaining.ai
+            }
           },
           stopWhen: [
             ({ steps }) =>
               steps.some((step) =>
                 step.toolResults.some((result) => result.toolName === "askUser")
               ),
+            // An external action is waiting for the owner's decision
+            () => turnModelUsage.approvalRequested,
             ({ steps }) =>
               steps.some((step) =>
                 step.toolResults.some((result) =>
@@ -654,48 +752,98 @@ export const chatAgent = chat
               ),
             // Desktop work is one small action per step
             isStepCount(50),
-            // A long turn ends once it has spent what was left
+            // A long turn ends once it has spent what was left, counting the
+            // account's other running turns
             () =>
               !chatgptSelected &&
-              turnModelUsage.cost +
-                turnModelUsage.webCost +
-                turnModelUsage.consultationCost >=
-                usage.remaining.ai,
+              (turnModelUsage.remaining <= 0 ||
+                turnModelUsage.cost +
+                  turnModelUsage.webCost +
+                  turnModelUsage.consultationCost >=
+                  usage.remaining.ai),
           ],
           abortSignal: signal,
         })
       }
-      if (chatgptSelected || usage.tier === "paid") return respond(usage)
-      // One free account cannot spend the same remaining starter credit from
-      // parallel conversations. Persist cost before releasing the account lock.
-      return withSandboxLock(`free-ai:${row.userId}`, async () => {
-        signal.throwIfAborted()
-        const currentUsage = await getUsage(row.userId)
-        if (currentUsage.remaining.ai <= 0) throw new Error(USAGE_LIMIT_ERROR)
-        try {
-          const result = respond(currentUsage)
-          // Raw chat.pipe streams without saving text/tools or a shared message
-          // ID. Capture the full reply so continuation runs retain the answer
-          // and the browser resumes the same message rather than duplicating it.
-          const outcome = await chat.pipeAndCapture(result, {
-            signal,
-            originalMessages: chat.history.all(),
-          })
-          if (outcome.status === "error") throw outcome.error
-          // The managed agent skips auto-piping an already captured stream, but
-          // still reads this result's usage for its completion hook.
-          return result
-        } finally {
-          if (turnModelUsage.cost > 0)
-            await recordUsage([
-              {
-                userId: row.userId,
-                kind: "ai",
-                amount: turnModelUsage.cost,
-                idempotencyKey: turnModelUsage.usageKey,
-              },
-            ])
-        }
-      })
+      // Parallel turns on one account see each other through usage holds
+      // (onStepEnd), so no account-wide lock is held while the model streams.
+      return respond(usage)
     },
   })
+
+// A person who wasn't watching hears about the turn: work a routine, a
+// delegation, an approval or a task started, and any turn long enough that
+// they've probably walked away. An approval request was already announced.
+const LONG_TURN_MS = 2 * 60_000
+async function reportUnattendedTurn(turn: {
+  userId: string
+  chatId: string
+  runId: string
+  turn: number
+  failed: boolean
+  refused: boolean
+  responseMessage?: ChatUIMessage
+}) {
+  if (turnModelUsage.approvalRequested) return
+  const origin = unattendedOrigin(turnModelUsage.messageId)
+  const long = Date.now() - turnModelUsage.startedAt >= LONG_TURN_MS
+  if (!origin && !long) return
+
+  const botId = turn.responseMessage?.metadata?.botId
+  const [bot] = botId
+    ? await db
+        .select({ id: botTable.id, name: botTable.name })
+        .from(botTable)
+        .where(and(eq(botTable.id, botId), eq(botTable.userId, turn.userId)))
+    : []
+  const name = bot?.name ?? "Your bot"
+  const parts = turn.responseMessage?.parts ?? []
+  const question = parts.findLast(
+    (part) => part.type === "tool-askUser" && part.state === "output-available"
+  )
+  const text = chatPreview(
+    parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join(" ")
+  ).slice(0, 200)
+  const path = `/chats/${turn.chatId}`
+  const dedupeKey = `turn:${turn.runId}:${turn.turn}`
+
+  if (
+    question?.type === "tool-askUser" &&
+    question.state === "output-available"
+  ) {
+    await recordActivity(
+      {
+        userId: turn.userId,
+        kind: "question_asked",
+        title: `${name} has a question`,
+        detail: question.output.question,
+        botId: bot?.id,
+        chatId: turn.chatId,
+        dedupeKey,
+      },
+      { title: `${name} has a question`, body: question.output.question, path }
+    )
+    return
+  }
+  const failed = turn.failed || turn.refused
+  const title = failed
+    ? `${name} couldn't finish`
+    : `${name} finished${origin === "routine" ? " a routine" : ""}`
+  const body = turn.refused
+    ? "Your AI allowance ran out before the work was done."
+    : failed
+      ? "Something went wrong. Open the chat to retry."
+      : text || "Open the chat to see the result."
+  await recordActivity(
+    {
+      userId: turn.userId,
+      kind: failed ? "work_failed" : "work_finished",
+      title,
+      detail: body,
+      botId: bot?.id,
+      chatId: turn.chatId,
+      dedupeKey,
+    },
+    { title, body, path }
+  )
+}

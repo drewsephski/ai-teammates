@@ -481,3 +481,176 @@ test("a failed schema refresh invalidates the previous schema and preserves safe
     /SCHEMA_REQUIRED/
   )
 })
+
+const sendTool = {
+  slug: "GITHUB_CREATE_AN_ISSUE",
+  toolkit: "github",
+  description: "Create an issue",
+  inputSchema: { type: "object" },
+}
+
+function gate(
+  overrides: Partial<import("../lib/connector-tools").ApprovalGate> = {}
+) {
+  const requests: unknown[] = []
+  const completed: unknown[] = []
+  return {
+    requests,
+    completed,
+    gate: {
+      required: async (tool: { slug: string }) => tool.slug === sendTool.slug,
+      request: async (call: { summary?: string }) => {
+        requests.push(call)
+        return { approvalId: "apr_1", summary: call.summary ?? "Create issue" }
+      },
+      claim: async (id: string) =>
+        id === "apr_1"
+          ? {
+              slug: sendTool.slug,
+              toolkit: "github",
+              accountId: "alice-github",
+              input: { title: "Approved title" },
+            }
+          : undefined,
+      complete: async (id: string, outcome: unknown) => {
+        completed.push([id, outcome])
+      },
+      ...overrides,
+    },
+  }
+}
+
+test("a write is held for approval and never executed by executeAppTool", async () => {
+  let executed = false
+  const { gate: approvals, requests } = gate()
+  const tools = createAppTools(
+    "alice",
+    runtime({
+      search: async () => ({ tools: [sendTool], guidance: {} }),
+      execute: async () => {
+        executed = true
+        return { resultType: "completed", error: null }
+      },
+    }),
+    approvals
+  )
+  await tools.searchAppTools.execute!({ query: "Create an issue" }, options)
+  const result = JSON.parse(
+    String(
+      await tools.executeAppTool.execute!(
+        {
+          slug: sendTool.slug,
+          arguments: { title: "Bug" },
+          summary: "Open a GitHub issue titled Bug",
+        },
+        options
+      )
+    )
+  )
+  assert.equal(result.status, "approval_required")
+  assert.equal(result.approvalId, "apr_1")
+  assert.equal(executed, false)
+  assert.deepEqual(requests, [
+    {
+      slug: sendTool.slug,
+      toolkit: "github",
+      accountId: "alice-github",
+      input: { title: "Bug" },
+      summary: "Open a GitHub issue titled Bug",
+    },
+  ])
+})
+
+test("reads run without approval", async () => {
+  const { gate: approvals, requests } = gate()
+  const tools = createAppTools("alice", runtime(), approvals)
+  await tools.searchAppTools.execute!({ query: "Read issues" }, options)
+  const result = JSON.parse(
+    String(
+      await tools.executeAppTool.execute!(
+        { slug: githubTool.slug, arguments: {} },
+        options
+      )
+    )
+  )
+  assert.equal(result.status, "succeeded")
+  assert.equal(requests.length, 0)
+})
+
+test("an approved action runs the stored call once, not the model's arguments", async () => {
+  const calls: unknown[] = []
+  const { gate: approvals, completed } = gate()
+  const tools = createAppTools(
+    "alice",
+    runtime({
+      execute: async (_user, slug, input) => {
+        calls.push([slug, input])
+        return { resultType: "completed", error: null }
+      },
+    }),
+    approvals
+  )
+  const result = JSON.parse(
+    String(
+      await tools.runApprovedAction.execute!({ approvalId: "apr_1" }, options)
+    )
+  )
+  assert.equal(result.status, "succeeded")
+  assert.deepEqual(calls, [[sendTool.slug, { title: "Approved title" }]])
+  assert.deepEqual(completed, [
+    ["apr_1", { ok: true, result: { status: "succeeded" } }],
+  ])
+  const unknown = JSON.parse(
+    String(
+      await tools.runApprovedAction.execute!(
+        { approvalId: "apr_other" },
+        options
+      )
+    )
+  )
+  assert.equal(unknown.code, "NOT_APPROVED")
+  assert.equal(calls.length, 1)
+})
+
+test("an approved action refuses to run on a different connected account", async () => {
+  let executed = false
+  const { gate: approvals, completed } = gate()
+  const tools = createAppTools(
+    "alice",
+    runtime({
+      accounts: async () => [{ id: "alice-github-2", toolkit: "github" }],
+      execute: async () => {
+        executed = true
+      },
+    }),
+    approvals
+  )
+  const result = JSON.parse(
+    String(
+      await tools.runApprovedAction.execute!({ approvalId: "apr_1" }, options)
+    )
+  )
+  assert.equal(result.code, "ACCOUNT_CHANGED")
+  assert.equal(executed, false)
+  assert.equal((completed[0] as [string, { ok: boolean }])[1].ok, false)
+})
+
+test("a claimed approval records a failure when the provider throws before running", async () => {
+  const { gate: approvals, completed } = gate()
+  const tools = createAppTools(
+    "alice",
+    runtime({
+      accounts: async () => {
+        throw new Error("Composio unavailable")
+      },
+    }),
+    approvals
+  )
+  const result = JSON.parse(
+    String(
+      await tools.runApprovedAction.execute!({ approvalId: "apr_1" }, options)
+    )
+  )
+  assert.equal(result.status, "unknown")
+  assert.equal((completed[0] as [string, { ok: boolean }])[1].ok, false)
+})

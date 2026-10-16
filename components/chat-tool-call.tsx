@@ -4,6 +4,7 @@ import { CodeBlock } from "@/components/ai-elements/code-block"
 import { MessageResponse } from "@/components/ai-elements/message"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { ApprovalCard } from "@/components/approval-card"
 import { Image } from "@/components/ai-elements/image"
 import {
   Tool,
@@ -36,6 +37,10 @@ import {
   CircleHelpIcon,
   SearchIcon,
   GlobeIcon,
+  CalendarClockIcon,
+  CalendarXIcon,
+  ListChecksIcon,
+  ShieldCheckIcon,
 } from "lucide-react"
 
 type ToolPart = Extract<
@@ -111,6 +116,27 @@ const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
     "Using connected app",
     "App tool finished",
   ],
+  "tool-runApprovedAction": [
+    "Run approved action",
+    "Running approved action",
+    "Ran approved action",
+  ],
+  "tool-scheduleRoutine": [
+    "Schedule routine",
+    "Scheduling routine",
+    "Scheduled routine",
+  ],
+  "tool-listRoutines": ["List routines", "Listing routines", "Listed routines"],
+  "tool-updateRoutine": [
+    "Update routine",
+    "Updating routine",
+    "Updated routine",
+  ],
+  "tool-deleteRoutine": [
+    "Delete routine",
+    "Deleting routine",
+    "Deleted routine",
+  ],
 }
 
 const toolIcons: Record<ToolPart["type"], LucideIcon> = {
@@ -143,6 +169,11 @@ const toolIcons: Record<ToolPart["type"], LucideIcon> = {
   "tool-searchAppTools": FolderSearchIcon,
   "tool-getAppToolSchema": FileTextIcon,
   "tool-executeAppTool": ArrowDownUpIcon,
+  "tool-runApprovedAction": ShieldCheckIcon,
+  "tool-scheduleRoutine": CalendarClockIcon,
+  "tool-listRoutines": ListChecksIcon,
+  "tool-updateRoutine": CalendarClockIcon,
+  "tool-deleteRoutine": CalendarXIcon,
 }
 
 // Keep previews short even for pasted text. The complete value stays in details.
@@ -158,6 +189,7 @@ function appToolError(part: ToolPart): string | undefined {
     return part.output.status === "failed" ? part.output.message : undefined
   if (
     (part.type !== "tool-executeAppTool" &&
+      part.type !== "tool-runApprovedAction" &&
       part.type !== "tool-getAppToolSchema" &&
       part.type !== "tool-searchAppTools") ||
     part.state !== "output-available"
@@ -179,7 +211,44 @@ function appToolError(part: ToolPart): string | undefined {
   }
 }
 
+// The approval a held app action is waiting on, from its tool result
+export function pendingApproval(part: ToolPart) {
+  if (part.type !== "tool-executeAppTool" || part.state !== "output-available")
+    return undefined
+  try {
+    const result = JSON.parse(part.output)
+    if (
+      result.status === "approval_required" &&
+      typeof result.approvalId === "string"
+    )
+      return {
+        approvalId: result.approvalId as string,
+        summary: String(
+          result.summary ?? part.input?.summary ?? part.input?.slug
+        ),
+        toolkit:
+          typeof result.toolkit === "string" ? result.toolkit : undefined,
+      }
+  } catch {
+    // Historical results may be plain text.
+  }
+}
+
+function routineError(part: ToolPart) {
+  if (
+    (part.type === "tool-scheduleRoutine" ||
+      part.type === "tool-listRoutines" ||
+      part.type === "tool-updateRoutine" ||
+      part.type === "tool-deleteRoutine") &&
+    part.state === "output-available" &&
+    part.output.status === "failed"
+  )
+    return part.output.message
+}
+
 function toolSummary(part: ToolPart): string | undefined {
+  const routineFailure = routineError(part)
+  if (routineFailure) return preview(routineFailure)
   const appError = appToolError(part)
   if (appError) return preview(appError)
   if (part.state === "output-error") return preview(part.errorText)
@@ -253,8 +322,27 @@ function toolSummary(part: ToolPart): string | undefined {
     case "tool-searchAppTools":
       return preview(part.input?.query)
     case "tool-executeAppTool":
+      return preview(part.input?.summary ?? part.input?.slug)
     case "tool-getAppToolSchema":
       return preview(part.input?.slug)
+    case "tool-runApprovedAction":
+      return undefined
+    case "tool-scheduleRoutine":
+      return part.state === "output-available" &&
+        part.output.status === "scheduled"
+        ? `${part.output.title} · ${part.output.when}`
+        : preview(part.input?.title)
+    case "tool-updateRoutine":
+      return part.state === "output-available" &&
+        part.output.status === "updated"
+        ? `${part.output.title} · ${part.output.enabled ? part.output.when : "Paused"}`
+        : undefined
+    case "tool-listRoutines":
+      return part.state === "output-available" && part.output.status === "ok"
+        ? `${part.output.routines.length} found`
+        : undefined
+    case "tool-deleteRoutine":
+      return undefined
   }
 }
 
@@ -263,6 +351,7 @@ export function toolCallText(part: ToolPart) {
   const failed =
     part.state === "output-error" ||
     !!appToolError(part) ||
+    !!routineError(part) ||
     (part.type === "tool-bash" &&
       part.state === "output-available" &&
       part.output.exitCode !== 0)
@@ -272,6 +361,8 @@ export function toolCallText(part: ToolPart) {
 }
 
 export function ToolCall({ part }: { part: ToolPart }) {
+  const approval = pendingApproval(part)
+  if (approval) return <ApprovalCard {...approval} />
   if (
     part.type === "tool-consultTeammate" &&
     part.state === "output-available"
@@ -337,6 +428,7 @@ export function ToolCall({ part }: { part: ToolPart }) {
 
   const state =
     appToolError(part) ||
+    routineError(part) ||
     (part.type === "tool-bash" &&
       part.state === "output-available" &&
       part.output.exitCode !== 0)
@@ -367,6 +459,7 @@ export function ToolCall({ part }: { part: ToolPart }) {
 
 function ToolCallDetails({ part }: { part: ToolPart }) {
   const error =
+    routineError(part) ??
     appToolError(part) ??
     (part.state === "output-error"
       ? part.errorText

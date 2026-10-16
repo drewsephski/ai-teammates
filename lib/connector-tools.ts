@@ -34,6 +34,33 @@ export type ConnectorRuntime = {
   ) => Promise<unknown>
 }
 
+// External writes wait for the owner. Reads, and actions the owner chose to
+// always allow for this bot, run straight away.
+export type ApprovalGate = {
+  required: (tool: AppTool) => Promise<boolean>
+  request: (call: {
+    slug: string
+    toolkit: string
+    accountId: string
+    input: Record<string, unknown>
+    summary?: string
+  }) => Promise<{ approvalId: string; summary: string }>
+  // The approved call, once; undefined when it isn't approved for this bot
+  claim: (approvalId: string) => Promise<
+    | {
+        slug: string
+        toolkit: string
+        accountId: string
+        input: Record<string, unknown>
+      }
+    | undefined
+  >
+  complete: (
+    approvalId: string,
+    outcome: { ok: boolean; result: unknown }
+  ) => Promise<void>
+}
+
 function boundedResult(value: unknown) {
   const text = JSON.stringify(value) ?? "null"
   const metadata =
@@ -82,7 +109,45 @@ function diagnosticIds(error: unknown) {
 
 // Provider filters are defense in depth. Enforce both discovery and execution
 // locally, and re-check active ownership before every external action.
-export function createAppTools(userId: string, runtime: ConnectorRuntime) {
+function executionStatus(result: unknown) {
+  const envelope =
+    result && typeof result === "object"
+      ? (result as Record<string, unknown>)
+      : {}
+  const status =
+    envelope.resultType === "completed" && !envelope.error
+      ? "succeeded"
+      : envelope.resultType === "failed" || envelope.error
+        ? "failed"
+        : "unknown"
+  return { envelope, status }
+}
+
+function outcomeMessage(status: string) {
+  return status === "unknown"
+    ? "Outcome unconfirmed. Verify the external state with a read tool before retrying any write."
+    : "Execution failed. Inspect error and data; do not claim success or repeat unchanged arguments."
+}
+
+function thrownOutcome(error: unknown) {
+  // Transport exceptions can happen after the provider committed a write.
+  // Do not expose raw SDK exceptions (which can include request secrets).
+  const requiresInput =
+    error instanceof Error && error.name === "ComposioToolInputRequiredError"
+  return {
+    status: requiresInput ? "requires_input" : "unknown",
+    ...diagnosticIds(error),
+    message: requiresInput
+      ? "The provider requires user input or approval. The action is not confirmed; ask the user to resolve it."
+      : "The provider did not return a confirmed outcome. Verify external state with a read tool before retrying any write. Do not switch sending methods.",
+  }
+}
+
+export function createAppTools(
+  userId: string,
+  runtime: ConnectorRuntime,
+  gate?: ApprovalGate
+) {
   const discovered = new Map<string, { tool: AppTool; accountId: string }>()
   function remember(entry: AppTool, accounts: AppAccount[]) {
     const account = accounts.find((a) => a.toolkit === entry.toolkit)
@@ -175,12 +240,20 @@ export function createAppTools(userId: string, runtime: ConnectorRuntime) {
     }),
     executeAppTool: tool({
       description:
-        "Run a tool whose full schema was loaded this turn through searchAppTools or getAppToolSchema. Match the schema exactly. Perform writes only when requested. Check status and provider data before claiming success. An unknown outcome must be verified with a read tool before retrying a write.",
+        "Run a tool whose full schema was loaded this turn through searchAppTools or getAppToolSchema. Match the schema exactly. Perform writes only when requested. Writes such as sending, posting, creating or deleting may return approval_required: Krafty then shows the owner an approval card and notifies their phone, so don't ask for confirmation in text first. Check status and provider data before claiming success. An unknown outcome must be verified with a read tool before retrying a write.",
       inputSchema: z.object({
         slug: slugSchema,
         arguments: z.record(z.string(), z.unknown()),
+        summary: z
+          .string()
+          .trim()
+          .max(300)
+          .optional()
+          .describe(
+            "For writes: one plain sentence the owner reads on the approval card, naming the recipient or target and the gist, e.g. 'Email Sam Lee the Q3 summary'."
+          ),
       }),
-      execute: async ({ slug, arguments: input }, { abortSignal }) => {
+      execute: async ({ slug, arguments: input, summary }, { abortSignal }) => {
         const loaded = discovered.get(slug)
         const entry = loaded?.tool
         if (!entry?.inputSchema)
@@ -222,6 +295,23 @@ export function createAppTools(userId: string, runtime: ConnectorRuntime) {
             }
           )
         abortSignal?.throwIfAborted()
+        if (gate && (await gate.required(entry))) {
+          const held = await gate.request({
+            slug,
+            toolkit: entry.toolkit,
+            accountId: account.id,
+            input,
+            summary,
+          })
+          return boundedResult({
+            status: "approval_required",
+            approvalId: held.approvalId,
+            summary: held.summary,
+            toolkit: entry.toolkit,
+            message:
+              "Nothing was executed. The owner has an approval card and a notification. Tell them in one sentence what you'll do once they approve, then stop. Don't retry, rephrase, or work around this; you'll get a message when they decide.",
+          })
+        }
         try {
           const result = await runtime.execute(
             userId,
@@ -230,42 +320,77 @@ export function createAppTools(userId: string, runtime: ConnectorRuntime) {
             account,
             abortSignal
           )
-          const envelope =
-            result && typeof result === "object"
-              ? (result as Record<string, unknown>)
-              : {}
-          const status =
-            envelope.resultType === "completed" && !envelope.error
-              ? "succeeded"
-              : envelope.resultType === "failed" || envelope.error
-                ? "failed"
-                : "unknown"
+          const { envelope, status } = executionStatus(result)
           return boundedResult({
             ...envelope,
             status,
             toolkit: entry.toolkit,
             accountId: account.id,
-            ...(status !== "succeeded" && {
-              message:
-                status === "unknown"
-                  ? "Outcome unconfirmed. Verify the external state with a read tool before retrying any write."
-                  : "Execution failed. Inspect error and data; do not claim success or repeat unchanged arguments.",
-            }),
+            ...(status !== "succeeded" && { message: outcomeMessage(status) }),
           })
         } catch (error) {
           abortSignal?.throwIfAborted()
-          // Transport exceptions can happen after the provider committed a write.
-          // Do not expose raw SDK exceptions (which can include request secrets).
-          const requiresInput =
-            error instanceof Error &&
-            error.name === "ComposioToolInputRequiredError"
-          return boundedResult({
-            status: requiresInput ? "requires_input" : "unknown",
-            ...diagnosticIds(error),
-            message: requiresInput
-              ? "The provider requires user input or approval. The action is not confirmed; ask the user to resolve it."
-              : "The provider did not return a confirmed outcome. Verify external state with a read tool before retrying any write. Do not switch sending methods.",
+          return boundedResult(thrownOutcome(error))
+        }
+      },
+    }),
+    runApprovedAction: tool({
+      description:
+        "Run an action the owner approved, by the approvalId from their approval message. Runs exactly the call they saw, once. Check the result before reporting success.",
+      inputSchema: z.object({ approvalId: z.string().min(1).max(100) }),
+      execute: async ({ approvalId }, { abortSignal }) => {
+        if (!gate)
+          return failure(
+            "APPROVALS_UNAVAILABLE",
+            "Approved actions can't run in this chat."
+          )
+        const call = await gate.claim(approvalId)
+        if (!call)
+          return failure(
+            "NOT_APPROVED",
+            "That request isn't approved for you, or it already ran. Don't retry; tell the owner what happened."
+          )
+        // Claimed: from here every path records an outcome, so the approval
+        // never reads as done when nothing ran
+        try {
+          const account = (await runtime.accounts(userId)).find(
+            (account) => account.toolkit === call.toolkit
+          )
+          if (!account || account.id !== call.accountId) {
+            const result = {
+              status: "failed",
+              code: "ACCOUNT_CHANGED",
+              message:
+                "The connected account changed since approval. Nothing ran. Ask the owner to reconnect the app, then request approval again.",
+            }
+            await gate.complete(approvalId, { ok: false, result })
+            return boundedResult(result)
+          }
+          const result = await runtime.execute(
+            userId,
+            call.slug,
+            call.input,
+            account,
+            abortSignal
+          )
+          const { envelope, status } = executionStatus(result)
+          await gate.complete(approvalId, {
+            ok: status === "succeeded",
+            result: { status },
           })
+          return boundedResult({
+            ...envelope,
+            status,
+            toolkit: call.toolkit,
+            accountId: account.id,
+            ...(status !== "succeeded" && { message: outcomeMessage(status) }),
+          })
+        } catch (error) {
+          const outcome = thrownOutcome(error)
+          await gate
+            .complete(approvalId, { ok: false, result: outcome })
+            .catch(() => {})
+          return boundedResult(outcome)
         }
       },
     }),

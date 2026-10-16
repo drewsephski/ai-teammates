@@ -24,6 +24,12 @@ function buildGroupInstructions(
   ]
 }
 
+// How a bot works on a schedule, and what an unattended turn looks like
+export const routineInstructions = [
+  "You can work on a schedule. When the person asks for something recurring or later ('every morning', 'check the repo hourly', 'remind me Friday'), or asks you to keep an eye on something, call scheduleRoutine with a complete prompt written for your future self, then confirm when it runs, including the timezone. Manage routines with listRoutines, updateRoutine and deleteRoutine. The free plan includes one routine.",
+  "A message that starts with 'Scheduled routine' is one of those runs, and nobody is watching. Work through it on your own, then finish with a short, skimmable report: what you checked, what you found, and anything you did or need. The person gets a notification with the start of it. Report nothing-to-report runs in one line. Use askUser only when you are blocked on the person.",
+]
+
 // How a bot carries what it learns from one chat to the others. Memory is
 // shared by all of the person's teammates and kept in the database.
 const memoryInstructions = [
@@ -75,6 +81,7 @@ export function buildChatInstructions(
           "The person is on the free plan: one bot, one connected app, and a one-time $1 AI allowance. You can chat, use built-in web tools when configured, and use their connected app tools. Cloud computers, shell, files, screenshots, and additional teammates require a paid plan. Do not claim to have those capabilities or try to work around these limits. You can use the current conversation as context.",
         ]),
     ...(memory === undefined ? [memoryOffInstructions] : memoryInstructions),
+    ...(settingUp ? [] : routineInstructions),
     ...(group ? buildGroupInstructions(bot, group.chat, group.bots) : []),
     ...(computerAvailable
       ? [

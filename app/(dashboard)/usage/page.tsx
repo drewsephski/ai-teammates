@@ -62,7 +62,11 @@ export default async function Page({
 }) {
   const { userId } = await auth.protect()
 
-  const [usage, params] = await Promise.all([getUsage(userId), searchParams])
+  const [usage, params] = await Promise.all([
+    // Fresh from Clerk: this is where people look right after upgrading
+    getUsage(userId, { fresh: true }),
+    searchParams,
+  ])
 
   const { period, used, limits } = usage
 

@@ -1,5 +1,6 @@
 import { formatDistanceToNowStrict } from "date-fns"
 import {
+  ActivityIcon,
   BrainIcon,
   GaugeIcon,
   LayoutGridIcon,
@@ -28,6 +29,7 @@ import {
   SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
@@ -35,6 +37,7 @@ import { UserMenu } from "@/components/user-menu"
 import { KraftyWordmark } from "@/components/krafty-wordmark"
 import { SidebarNavLink } from "@/components/sidebar-nav-link"
 import { getBots, getChats, type ChatWithBots } from "@/queries/bots"
+import { getPendingApprovalCount } from "@/queries/activity"
 import { chatPreview } from "@/lib/chat-preview"
 import { chatSearchContent } from "@/lib/chat-search"
 
@@ -58,10 +61,11 @@ function SidebarChatAvatar({ chat }: { chat: ChatWithBots }) {
 }
 
 export async function AppSidebar() {
-  const [chats, bots, conversationOrder] = await Promise.all([
+  const [chats, bots, conversationOrder, pendingApprovals] = await Promise.all([
     getChats(),
     getBots(),
     getSidebarConversationOrder(),
+    getPendingApprovalCount(),
   ])
   const { pinned, conversations: unpinnedChats } = sidebarSections(
     chats,
@@ -110,6 +114,19 @@ export async function AppSidebar() {
             <SidebarNavLink href="/workspace" label="Workspace">
               <LayoutGridIcon />
             </SidebarNavLink>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarNavLink href="/activity" label="Activity">
+              <ActivityIcon />
+            </SidebarNavLink>
+            {pendingApprovals > 0 && (
+              <SidebarMenuBadge
+                className="top-2.5 rounded-full bg-sidebar-accent"
+                aria-label={`${pendingApprovals} waiting for approval`}
+              >
+                {pendingApprovals}
+              </SidebarMenuBadge>
+            )}
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>

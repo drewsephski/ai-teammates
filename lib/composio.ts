@@ -1,6 +1,17 @@
 import { Composio } from "@composio/core"
 import { z } from "zod"
-import { createAppTools, type AppAccount } from "@/lib/connector-tools"
+import {
+  createAppTools,
+  type AppAccount,
+  type ApprovalGate,
+} from "@/lib/connector-tools"
+import { appToolRisk, fallbackSummary } from "@/lib/approval-policy"
+import {
+  claimApproval,
+  completeApproval,
+  hasApprovalRule,
+  requestApproval,
+} from "@/lib/approvals"
 import { createSessionRuntime } from "@/lib/connector-session"
 import { allowedAppAccounts, assertAppCapacity } from "@/lib/billing-policy"
 import { getAccountPlan } from "@/lib/usage"
@@ -147,9 +158,73 @@ export function createReadOnlyRuntime(userId: string, accounts: AppAccount[]) {
   )
 }
 
+// Tool tags don't change; keep them for the life of the worker
+const toolTags = new Map<string, Promise<string[] | undefined>>()
+function appToolTags(slug: string) {
+  let tags = toolTags.get(slug)
+  if (!tags) {
+    tags = getComposio()
+      .tools.getRawComposioToolBySlug(slug)
+      .then((tool) => tool.tags)
+      .catch(() => {
+        toolTags.delete(slug)
+        return undefined
+      })
+    toolTags.set(slug, tags)
+  }
+  return tags
+}
+
+// Approvals for one chat. The bot is read at call time: a handoff changes it.
+export function createApprovalGate(context: {
+  userId: string
+  chatId: string
+  botId: () => string
+}): ApprovalGate {
+  return {
+    required: async (tool) =>
+      appToolRisk(tool.slug, await appToolTags(tool.slug)) === "write" &&
+      !(await hasApprovalRule(context.botId(), tool.slug)),
+    request: async (call) => {
+      const summary = call.summary || fallbackSummary(call.slug, call.input)
+      const row = await requestApproval({
+        userId: context.userId,
+        botId: context.botId(),
+        chatId: context.chatId,
+        toolkit: call.toolkit,
+        toolSlug: call.slug,
+        accountId: call.accountId,
+        arguments: call.input,
+        summary,
+      })
+      return { approvalId: row.id, summary }
+    },
+    claim: async (approvalId) => {
+      const row = await claimApproval(
+        context.userId,
+        context.botId(),
+        approvalId
+      )
+      return (
+        row && {
+          slug: row.toolSlug,
+          toolkit: row.toolkit,
+          accountId: row.accountId,
+          input: row.arguments,
+        }
+      )
+    },
+    complete: completeApproval,
+  }
+}
+
 export function createConnectorTools(
   userId: string,
-  options: { readOnly?: boolean; accountBindings?: Record<string, string> } = {}
+  options: {
+    readOnly?: boolean
+    accountBindings?: Record<string, string>
+    approvals?: ApprovalGate
+  } = {}
 ) {
   return createAppTools(
     userId,
@@ -164,6 +239,7 @@ export function createConnectorTools(
       (owner, toolkits, accounts) =>
         createConnectorSession(owner, toolkits, accounts, options),
       { readOnly: options.readOnly }
-    )
+    ),
+    options.approvals
   )
 }

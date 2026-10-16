@@ -30,7 +30,7 @@ const nextConfig: NextConfig = {
       },
       {
         source:
-          "/:path(sign-in|sign-up|workspace|usage|chats|pricing|auth|api)/:rest*",
+          "/:path(sign-in|sign-up|workspace|usage|memory|activity|chats|pricing|auth|api)/:rest*",
         headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
       },
     ]

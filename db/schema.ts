@@ -18,6 +18,11 @@ import { nanoid } from "nanoid"
 import { z } from "zod"
 
 import { containsSecret } from "@/lib/memory-policy"
+import {
+  routineScheduleSchema,
+  timeZoneSchema,
+  type RoutineSchedule,
+} from "@/lib/routine-policy"
 
 export const bots = pgTable(
   "bots",
@@ -43,7 +48,11 @@ export const bots = pgTable(
     sandboxId: text(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("bots_user_id_idx").on(table.userId)]
+  (table) => [
+    index("bots_user_id_idx").on(table.userId),
+    // Metering looks bots up by their computer
+    index("bots_sandbox_id_idx").on(table.sandboxId),
+  ]
 )
 
 export const chatKind = pgEnum("chat_kind", ["direct", "group"])
@@ -391,6 +400,170 @@ export const forYouScans = pgTable("for_you_scans", {
   finishedAt: timestamp({ withTimezone: true }),
 })
 
+// Work a bot does on its own schedule. Each run posts the prompt into the
+// routine's chat as an unattended turn; the cron in trigger/routines.ts claims
+// due rows by nextRunAt.
+export const routines = pgTable(
+  "routines",
+  {
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    // Clerk user ID
+    userId: text().notNull(),
+    botId: text()
+      .notNull()
+      .references(() => bots.id, { onDelete: "cascade" }),
+    // Where each run reports. A direct chat with the bot, or a group it is in.
+    chatId: text()
+      .notNull()
+      .references(() => chats.id, { onDelete: "cascade" }),
+    title: text().notNull(),
+    prompt: text().notNull(),
+    schedule: jsonb().$type<RoutineSchedule>().notNull(),
+    // IANA zone the schedule's clock times are read in
+    timezone: text().notNull(),
+    enabled: boolean().notNull().default(true),
+    // Null once a one-off routine has run, or while it is paused
+    nextRunAt: timestamp({ withTimezone: true }),
+    lastRunAt: timestamp({ withTimezone: true }),
+    lastStatus: text({ enum: ["started", "skipped", "failed"] }),
+    lastError: text(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("routines_user_id_idx").on(table.userId),
+    index("routines_due_idx").on(table.enabled, table.nextRunAt),
+  ]
+)
+
+export const approvalState = pgEnum("approval_state", [
+  "pending",
+  "approved",
+  "denied",
+  "expired",
+  // Claimed by runApprovedAction; a row left here never confirmed an outcome
+  "running",
+  "executed",
+  "failed",
+])
+
+// An external action a bot wants to take, held until its owner decides. The
+// stored call is what runs on approval; the model can't change it afterwards.
+export const approvals = pgTable(
+  "approvals",
+  {
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    // Clerk user ID
+    userId: text().notNull(),
+    botId: text()
+      .notNull()
+      .references(() => bots.id, { onDelete: "cascade" }),
+    chatId: text()
+      .notNull()
+      .references(() => chats.id, { onDelete: "cascade" }),
+    toolkit: text().notNull(),
+    toolSlug: text().notNull(),
+    accountId: text().notNull(),
+    arguments: jsonb().$type<Record<string, unknown>>().notNull(),
+    // One sentence, in the bot's words, of what will happen
+    summary: text().notNull(),
+    state: approvalState().notNull().default("pending"),
+    result: jsonb(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    decidedAt: timestamp({ withTimezone: true }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("approvals_user_state_idx").on(table.userId, table.state)]
+)
+
+// "Always allow": an app action this bot may take without asking again
+export const approvalRules = pgTable(
+  "approval_rules",
+  {
+    userId: text().notNull(),
+    botId: text()
+      .notNull()
+      .references(() => bots.id, { onDelete: "cascade" }),
+    toolSlug: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.botId, table.toolSlug] })]
+)
+
+export const activityKind = pgEnum("activity_kind", [
+  "routine_started",
+  "routine_skipped",
+  "routine_failed",
+  "approval_requested",
+  "approval_decided",
+  "question_asked",
+  "work_finished",
+  "work_failed",
+])
+
+// What the person's bots did while nobody was watching, newest first
+export const activityEvents = pgTable(
+  "activity_events",
+  {
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    // Clerk user ID
+    userId: text().notNull(),
+    botId: text().references(() => bots.id, { onDelete: "set null" }),
+    chatId: text().references(() => chats.id, { onDelete: "set null" }),
+    kind: activityKind().notNull(),
+    title: text().notNull(),
+    detail: text(),
+    // Names the event, so a retried task records it once
+    dedupeKey: text().unique(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("activity_events_user_created_idx").on(table.userId, table.createdAt),
+  ]
+)
+
+// Expo push tokens for the person's phones
+export const pushDevices = pgTable(
+  "push_devices",
+  {
+    token: text().primaryKey(),
+    // Clerk user ID
+    userId: text().notNull(),
+    platform: text({ enum: ["ios", "android"] }).notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("push_devices_user_id_idx").on(table.userId)]
+)
+
+// AI spend a turn has made but not yet written to the ledger. getUsage counts
+// it, so parallel turns see each other; a sweep books abandoned holds.
+export const usageHolds = pgTable(
+  "usage_holds",
+  {
+    // The usage entry's idempotency key this hold becomes
+    idempotencyKey: text().primaryKey(),
+    userId: text().notNull(),
+    amount: integer().notNull(),
+    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("usage_holds_user_id_idx").on(table.userId)]
+)
+
+// The last plan read from Clerk Billing, so hot paths don't call Clerk each time
+export const accountPlans = pgTable("account_plans", {
+  userId: text().primaryKey(),
+  tier: text({ enum: ["free", "paid"] }).notNull(),
+  periodStart: timestamp({ withTimezone: true }),
+  periodEnd: timestamp({ withTimezone: true }),
+  checkedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+})
+
 export const botsRelations = relations(bots, ({ many }) => ({
   memberships: many(chatMembers),
 }))
@@ -517,6 +690,70 @@ export type MemoryKind = (typeof memoryKind.enumValues)[number]
 export type MemoryUpdate = z.infer<typeof memoryUpdateSchema>
 export type AboutYou = z.infer<typeof aboutYouSchema>
 export type MemorySettings = z.infer<typeof memorySettingsSchema>
+
+const routineTitle = (schema: z.ZodString) =>
+  schema
+    .trim()
+    .min(1, "Give the routine a name.")
+    .max(60, "Keep it under 60 characters.")
+const routinePrompt = (schema: z.ZodString) =>
+  schema
+    .trim()
+    .min(1, "Tell the bot what to do each time.")
+    .max(2000, "Keep it under 2000 characters.")
+
+// A new routine. The chat it reports to is picked server-side from the bot.
+export const routineInsertSchema = createInsertSchema(routines, {
+  title: routineTitle,
+  prompt: routinePrompt,
+  schedule: routineScheduleSchema,
+  timezone: timeZoneSchema,
+})
+  .pick({
+    botId: true,
+    title: true,
+    prompt: true,
+    schedule: true,
+    timezone: true,
+  })
+  .required()
+  .extend({ requestId: z.string().min(1).max(100) })
+
+export const routineUpdateSchema = createInsertSchema(routines, {
+  title: routineTitle,
+  prompt: routinePrompt,
+  schedule: routineScheduleSchema,
+  timezone: timeZoneSchema,
+})
+  .pick({
+    title: true,
+    prompt: true,
+    schedule: true,
+    timezone: true,
+    enabled: true,
+  })
+  .partial()
+
+export const approvalDecisionSchema = z.object({
+  decision: z.enum(["approve", "always", "deny"]),
+})
+
+export const pushDeviceSchema = createInsertSchema(pushDevices, {
+  token: z
+    .string()
+    .trim()
+    .regex(/^(Expo|Exponent)PushToken\[[^\]]{1,200}\]$/, "Invalid push token"),
+}).pick({ token: true, platform: true })
+
+export type Routine = typeof routines.$inferSelect
+export type RoutineInsert = z.infer<typeof routineInsertSchema>
+export type RoutineUpdate = z.infer<typeof routineUpdateSchema>
+export type Approval = typeof approvals.$inferSelect
+export type ApprovalDecision = z.infer<
+  typeof approvalDecisionSchema
+>["decision"]
+export type ActivityEvent = typeof activityEvents.$inferSelect
+export type PushDevice = z.infer<typeof pushDeviceSchema>
 export type UserSettings = typeof userSettings.$inferSelect
 
 export type Bot = typeof bots.$inferSelect

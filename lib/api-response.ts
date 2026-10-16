@@ -5,6 +5,14 @@ import {
   FREE_APP_LIMIT_ERROR,
   FREE_BOT_LIMIT_ERROR,
 } from "@/lib/billing-policy"
+import {
+  APPROVAL_DECIDED_ERROR,
+  APPROVAL_EXPIRED_ERROR,
+} from "@/lib/approval-policy"
+import {
+  PAID_ROUTINE_LIMIT_ERROR,
+  ROUTINE_LIMIT_ERROR,
+} from "@/lib/routine-policy"
 
 // The mobile API's error body. `code` is stable for clients to branch on;
 // `message` is safe to show to the person.
@@ -61,7 +69,12 @@ export function apiErrorResponse(error: unknown): {
     message === "Group chats require a paid plan."
   )
     return fail(403, "upgrade_required", message)
-  if (message === FREE_BOT_LIMIT_ERROR || message === FREE_APP_LIMIT_ERROR)
+  if (
+    message === FREE_BOT_LIMIT_ERROR ||
+    message === FREE_APP_LIMIT_ERROR ||
+    message === ROUTINE_LIMIT_ERROR ||
+    message === PAID_ROUTINE_LIMIT_ERROR
+  )
     return fail(403, "plan_limit", message)
   if (message === "Usage limit reached")
     return fail(429, "usage_limit", message)
@@ -70,13 +83,16 @@ export function apiErrorResponse(error: unknown): {
     message === "Conversations changed. Try again." ||
     message === "Pinned bots changed. Try again." ||
     message === ACTIVE_PLAN_ERROR ||
-    message === "That memory was changed at the same time."
+    message === "That memory was changed at the same time." ||
+    message === APPROVAL_DECIDED_ERROR ||
+    message === APPROVAL_EXPIRED_ERROR
   )
     return fail(409, "conflict", message)
   if (
     message === "Unknown starting role" ||
     message === "Unknown usage" ||
-    message === "Pick between two and eight different bots."
+    message === "Pick between two and eight different bots." ||
+    message === "Pick a time in the future."
   )
     return fail(400, "invalid_request", message)
   // For you token checks explain what changed and ask for a refresh

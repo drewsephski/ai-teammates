@@ -1,0 +1,244 @@
+import { z } from "zod"
+
+// Browser-safe: the routine form and db/schema.ts import this module.
+
+export const ROUTINE_LIMITS = { free: 1, paid: 50 } as const
+export const MIN_INTERVAL_HOURS = 1
+export const ROUTINE_LIMIT_ERROR =
+  "The free plan includes one routine. Upgrade to schedule more."
+export const PAID_ROUTINE_LIMIT_ERROR = `You can have up to ${ROUTINE_LIMITS.paid} routines.`
+
+const time = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Pick a time like 08:30.")
+
+export const routineScheduleSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("daily"),
+    time,
+    // 0 is Sunday. Every day when all seven are listed.
+    days: z
+      .array(z.number().int().min(0).max(6))
+      .min(1, "Pick at least one day.")
+      .max(7)
+      .transform((days) => [...new Set(days)].sort()),
+  }),
+  z.object({
+    kind: z.literal("interval"),
+    hours: z
+      .number()
+      .int("Use whole hours.")
+      .min(MIN_INTERVAL_HOURS, "Run it at most once an hour.")
+      .max(24 * 7, "Run it at least once a week."),
+  }),
+  z.object({
+    kind: z.literal("once"),
+    at: z.iso.datetime({ offset: true, message: "Pick a date and time." }),
+  }),
+])
+export type RoutineSchedule = z.infer<typeof routineScheduleSchema>
+
+export function isTimeZone(zone: string) {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export const timeZoneSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .refine(isTimeZone, "Pick a timezone from the list.")
+
+const formatters = new Map<string, Intl.DateTimeFormat>()
+function formatter(zone: string) {
+  let format = formatters.get(zone)
+  if (!format) {
+    format = new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+      weekday: "short",
+    })
+    formatters.set(zone, format)
+  }
+  return format
+}
+
+const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+// The wall clock in a zone at an instant
+export function zonedParts(instant: Date, zone: string) {
+  const parts = Object.fromEntries(
+    formatter(zone)
+      .formatToParts(instant)
+      .map((part) => [part.type, part.value])
+  )
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    hour: Number(parts.hour),
+    minute: Number(parts.minute),
+    second: Number(parts.second),
+    weekday: weekdays.indexOf(parts.weekday),
+  }
+}
+
+function offsetAt(instant: number, zone: string) {
+  const p = zonedParts(new Date(instant), zone)
+  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second)
+  return asUtc - Math.floor(instant / 1000) * 1000
+}
+
+// The instant a wall-clock time happens in a zone. A time skipped by a DST
+// change lands just after the gap; a repeated one takes its first occurrence.
+export function zonedTime(
+  date: { year: number; month: number; day: number },
+  hour: number,
+  minute: number,
+  zone: string
+) {
+  const wall = Date.UTC(date.year, date.month - 1, date.day, hour, minute)
+  const candidates = [
+    ...new Set([
+      wall - offsetAt(wall, zone),
+      wall - offsetAt(wall - offsetAt(wall, zone), zone),
+      // The offsets either side of a change, so both readings are tried
+      wall - offsetAt(wall - 12 * 3_600_000, zone),
+      wall - offsetAt(wall + 12 * 3_600_000, zone),
+    ]),
+  ].sort((a, b) => a - b)
+  const exact = candidates.filter((instant) => {
+    const parts = zonedParts(new Date(instant), zone)
+    return (
+      parts.year === date.year &&
+      parts.month === date.month &&
+      parts.day === date.day &&
+      parts.hour === hour &&
+      parts.minute === minute
+    )
+  })
+  // No exact reading means the time was skipped: take the later one
+  return new Date(exact.length ? exact[0] : candidates[candidates.length - 1])
+}
+
+// When a routine runs next, strictly after `after`. Null when it never will.
+export function nextRunAt(
+  schedule: RoutineSchedule,
+  zone: string,
+  after: Date
+): Date | null {
+  switch (schedule.kind) {
+    case "once": {
+      const at = new Date(schedule.at)
+      return at > after ? at : null
+    }
+    case "interval":
+      return new Date(after.getTime() + schedule.hours * 3_600_000)
+    case "daily": {
+      const [hour, minute] = schedule.time.split(":").map(Number)
+      const today = zonedParts(after, zone)
+      for (let offset = 0; offset <= 8; offset++) {
+        // Noon UTC never crosses a date line when stepping whole days
+        const day = new Date(
+          Date.UTC(today.year, today.month - 1, today.day + offset, 12)
+        )
+        const date = {
+          year: day.getUTCFullYear(),
+          month: day.getUTCMonth() + 1,
+          day: day.getUTCDate(),
+        }
+        if (!schedule.days.includes(day.getUTCDay())) continue
+        const at = zonedTime(date, hour, minute, zone)
+        if (at > after) return at
+      }
+      return null
+    }
+  }
+}
+
+function clock(time: string) {
+  const [hour, minute] = time.split(":").map(Number)
+  const suffix = hour < 12 ? "am" : "pm"
+  const twelve = hour % 12 === 0 ? 12 : hour % 12
+  return minute
+    ? `${twelve}:${String(minute).padStart(2, "0")}${suffix}`
+    : `${twelve}${suffix}`
+}
+
+// "Weekdays at 8am", "Every 3 hours", in the routine's own zone
+export function describeSchedule(schedule: RoutineSchedule, zone: string) {
+  switch (schedule.kind) {
+    case "interval":
+      return schedule.hours === 1
+        ? "Every hour"
+        : schedule.hours % 24 === 0
+          ? schedule.hours === 24
+            ? "Every 24 hours"
+            : `Every ${schedule.hours / 24} days`
+          : `Every ${schedule.hours} hours`
+    case "once": {
+      const at = new Intl.DateTimeFormat("en-US", {
+        timeZone: zone,
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(new Date(schedule.at))
+      return `Once, ${at}`
+    }
+    case "daily": {
+      const days = schedule.days.join(",")
+      const label =
+        days === "0,1,2,3,4,5,6"
+          ? "Every day"
+          : days === "1,2,3,4,5"
+            ? "Weekdays"
+            : days === "0,6"
+              ? "Weekends"
+              : schedule.days.map((day) => weekdays[day]).join(", ")
+      return `${label} at ${clock(schedule.time)}`
+    }
+  }
+}
+
+export function assertRoutineCapacity(tier: "free" | "paid", count: number) {
+  if (count >= ROUTINE_LIMITS[tier])
+    throw new Error(
+      tier === "free" ? ROUTINE_LIMIT_ERROR : PAID_ROUTINE_LIMIT_ERROR
+    )
+}
+
+// The message a scheduled run posts. Its ID marks the turn as unattended.
+export function routineRunMessageId(routineId: string, scheduledAt: Date) {
+  return `routine_${routineId}_${scheduledAt.getTime()}`
+}
+
+export function routineRunPrompt(routine: { title: string; prompt: string }) {
+  return [
+    `Scheduled routine "${routine.title}". Nobody is watching this chat right now, so work on your own and finish with a short report of what you did and found.`,
+    `If you need the owner (a decision, a sign-in, or missing information), ask with askUser; they get a notification. External actions that need approval wait for the owner automatically.`,
+    "",
+    routine.prompt,
+  ].join("\n")
+}
+
+// Turns nobody started from the composer, by the ID their server-sent message carries
+export function unattendedOrigin(messageId: string | undefined) {
+  if (!messageId) return undefined
+  if (messageId.startsWith("routine_")) return "routine" as const
+  if (messageId.startsWith("brief_")) return "delegation" as const
+  if (messageId.startsWith("approval_")) return "approval" as const
+  if (messageId.startsWith("task_")) return "task" as const
+  return undefined
+}

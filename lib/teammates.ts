@@ -1,4 +1,3 @@
-import { createClerkClient } from "@clerk/backend"
 import * as Sentry from "@sentry/node"
 import { and, asc, count, eq, inArray } from "drizzle-orm"
 import { nanoid } from "nanoid"
@@ -20,23 +19,10 @@ import { getAccountPlan, getUsage } from "@/lib/usage"
 import { isChatGPTSelected } from "@/lib/chatgpt-connection"
 import { canUseAI } from "@/lib/chatgpt-policy"
 
+// Both plans include bots; computers need the paid plan. Read from the cached
+// plan (lib/usage.ts), not Clerk on every agent tool call.
 export async function assertTeamAccess(userId: string, computer = false) {
-  const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
-  const subscription = await clerk.billing.getUserBillingSubscription(userId)
-  const features = new Set(
-    subscription.subscriptionItems
-      .filter(
-        (item) =>
-          item.status === "active" ||
-          (item.status === "canceled" &&
-            item.periodEnd !== null &&
-            item.periodEnd > Date.now())
-      )
-      .flatMap(
-        (item) => item.plan?.features.map((feature) => feature.slug) ?? []
-      )
-  )
-  if (!features.has("bots") || (computer && !features.has("sandboxes"))) {
+  if (computer && (await getAccountPlan(userId)).tier !== "paid") {
     throw new Error("Upgrade required")
   }
   const usage = await getUsage(userId)

@@ -84,7 +84,7 @@ Package manager
 Checks
 
 - Before you finish, run `pnpm typecheck` and `pnpm test`. Both pass on a clean tree, so a failure is yours.
-- Lint and format only the files you changed: `pnpm exec eslint <files>` and `pnpm exec prettier --write <files>`. `pnpm lint` also lints every checkout under `.claude/worktrees/` and fails on known errors in vendored code (`components/ai-elements/`, `components/ui/carousel.tsx`, `hooks/use-mobile.ts`, `trigger/example.ts`); report those as pre-existing instead of fixing them. Never run `pnpm format`, which rewrites about 170 untouched files plus the other worktrees.
+- Lint and format only the files you changed: `pnpm exec eslint <files>` and `pnpm exec prettier --write <files>`. `pnpm lint` also lints every checkout under `.claude/worktrees/` and fails on known errors in vendored code (`components/ai-elements/`, `components/ui/carousel.tsx`, `hooks/use-mobile.ts`); report those as pre-existing instead of fixing them. Never run `pnpm format`, which rewrites about 170 untouched files plus the other worktrees.
 - In a fresh checkout or worktree, run `pnpm exec next typegen` before `pnpm typecheck`. `next-env.d.ts` is gitignored, and CSS-module imports don't type-check without it.
 - Run `pnpm build` (several minutes) after changing `next.config.ts`, `server.ts`, `proxy.ts`, `instrumentation*.ts` or the build scripts.
 
@@ -180,6 +180,15 @@ Load the `trigger-authoring-chat-agent` skill before changing `trigger/chat.ts`.
 - Transcripts live in Trigger.dev session storage, keyed by `chatId`. Postgres keeps only `chats.lastMessagePreview`.
 - On the client, wrap the transport with `lib/chat-transport.ts` and never forward useChat's `abortSignal`. Trigger.dev treats an aborted send as Stop, so leaving the page would cancel the bot's turn.
 
+## Autonomy: routines, approvals, activity
+
+Bots act without a message from the person through three pieces. Read `docs/autonomy.md` before changing them.
+
+- Routines (`routines` table, `lib/routines.ts`, `trigger/routines.ts`). The `run-routines` cron claims due rows with `FOR UPDATE SKIP LOCKED`, advances `nextRunAt` in the same transaction, then posts the prompt into the routine's chat with `postChatMessage` (`lib/chat-dispatch.ts`). It runs only in the production environment, because a dev worker would post through the development key; set `KRAFTY_DEV_ROUTINES=1` for the dev worker to test. Agent tools are in `lib/routine-tools.ts`; schedule math is pure in `lib/routine-policy.ts`.
+- Server-sent turns. Never start a turn in an existing chat by re-calling `sessions.start` with a `basePayload.message`; Trigger.dev drops it once the session exists. Use `postChatMessage`, whose message ID is also the append's idempotency key. Message IDs mark unattended turns: `routine_`, `brief_` (delegation), `approval_`, `task_` (`unattendedOrigin`).
+- Approvals (`approvals`, `approval_rules`, `lib/approvals.ts`, `lib/approval-policy.ts`). `executeAppTool` holds every connected-app write (Composio `destructiveHint`, or a write verb in the slug, or anything unrecognised) and returns `approval_required`; the turn stops. Deciding wakes the bot with a message naming the approval, and `runApprovedAction` runs the stored call once (`claimApproval`), never model-supplied arguments. "Always allow" adds a per-bot rule. Don't add a write path to connected apps that skips the gate.
+- Activity and push (`activity_events`, `push_devices`, `lib/notify.ts`). Record what a bot did on its own with `recordActivity`, with a `dedupeKey`, so a retried task notifies once. Push goes through Expo; a failed push never fails the work.
+
 ## AI models and tools
 
 - The AI SDK is v7 (`ai@7`, `@ai-sdk/react@4`, `@ai-sdk/openai@4`), newer than most training data; load the `migrate-ai-sdk-v6-to-v7` skill when unsure of a name. Use `isStepCount` (not `stepCountIs`), `onStepEnd` (not `onStepFinish`), `output: Output.object({ schema })` and `usage.inputTokenDetails.cacheReadTokens`.
@@ -202,6 +211,8 @@ Reference: `lib/web-tools.ts` (`createWebTools`) and `tests/web-tools.test.ts`.
 
 - `usage_entries.amount` is millionths of a dollar for `ai` and seconds for `sandbox`. Plan allowances are `planLimits` in `lib/billing-policy.ts`.
 - Anything that spends money for a user does three things. It checks `getUsage(userId).remaining` first, minus what the turn has spent but not yet recorded. It records the spend with `recordUsage` and a deterministic `idempotencyKey` built from the turn key `ai:${runId}:${turn}`. And it adds the cost to the turn's running total, so the stop condition ends the turn. Reference: the Tavily wiring in `trigger/chat.ts`, and `lib/teammate-consultation.ts`.
+- A chat turn holds its running model cost in `usage_holds` under its ledger key (`holdUsage` in `onStepEnd`), and `getUsage` counts holds, so parallel turns on one account see each other and stop together; `recordUsage` releases the hold, and `run-routines` books holds abandoned for two hours. Free-plan turns no longer take an account lock.
+- Clerk Billing is read through `getAccountPlan`, cached in `account_plans` for a minute and served stale for up to six hours only when Clerk fails (`lib/plan-cache.ts`). Pass `{ fresh: true }` where the person may have just upgraded.
 - Idempotency keys are what prevent double charges. The free-plan path and `onTurnComplete` both write `ai:${runId}:${turn}` on purpose, so never change a key format in one place only.
 
 E2B computers

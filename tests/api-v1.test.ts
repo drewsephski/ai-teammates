@@ -383,3 +383,26 @@ test("account deletion waits for a paid plan to be cancelled, as a conflict", ()
     [409, "conflict", true]
   )
 })
+
+test("routine and approval errors map to stable codes", async () => {
+  const { APPROVAL_DECIDED_ERROR, APPROVAL_EXPIRED_ERROR } =
+    await import("../lib/approval-policy")
+  const { ROUTINE_LIMIT_ERROR, PAID_ROUTINE_LIMIT_ERROR } =
+    await import("../lib/routine-policy")
+  for (const [message, status, code] of [
+    [ROUTINE_LIMIT_ERROR, 403, "plan_limit"],
+    [PAID_ROUTINE_LIMIT_ERROR, 403, "plan_limit"],
+    [APPROVAL_DECIDED_ERROR, 409, "conflict"],
+    [APPROVAL_EXPIRED_ERROR, 409, "conflict"],
+    ["Pick a time in the future.", 400, "invalid_request"],
+    ["Routine not found", 404, "not_found"],
+    ["Approval not found", 404, "not_found"],
+  ] as const) {
+    const response = apiErrorResponse(new Error(message))
+    assert.deepEqual(
+      [response.status, response.body.error.code],
+      [status, code],
+      message
+    )
+  }
+})

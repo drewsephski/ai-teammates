@@ -10,6 +10,8 @@ export default function robots(): MetadataRoute.Robots {
         "/sign-up",
         "/workspace",
         "/usage",
+        "/memory",
+        "/activity",
         "/chats/",
         "/auth/",
         "/api/",

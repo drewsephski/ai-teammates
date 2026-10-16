@@ -3,12 +3,15 @@ import { eq } from "drizzle-orm"
 
 import { db } from "@/db"
 import {
+  accountPlans,
+  activityEvents,
   bots,
   chatgptConnections,
   chats,
   connectorAuthAttempts,
   memories,
   memoryEvents,
+  pushDevices,
   sidebarPreferences,
   userSettings,
 } from "@/db/schema"
@@ -91,6 +94,11 @@ export async function deleteAccount(userId: string, steps = providerSteps) {
     await tx
       .delete(chatgptConnections)
       .where(eq(chatgptConnections.userId, userId))
+    // Routines, approvals and approval rules went with the bots and chats.
+    // Usage holds stay: the settle job books them into the billing record.
+    await tx.delete(activityEvents).where(eq(activityEvents.userId, userId))
+    await tx.delete(pushDevices).where(eq(pushDevices.userId, userId))
+    await tx.delete(accountPlans).where(eq(accountPlans.userId, userId))
   })
 
   await steps.deleteUser(userId)
