@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
@@ -404,16 +405,18 @@ function ForYouCard({
               <TooltipContent>Dismiss</TooltipContent>
             </Tooltip>
             <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel>Dismiss because…</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => onDismiss("done")}>
-                Already done
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onDismiss("not_relevant")}>
-                Not relevant to me
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onDismiss("wrong_bot")}>
-                Wrong teammate
-              </DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Dismiss because…</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => onDismiss("done")}>
+                  Already done
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onDismiss("not_relevant")}>
+                  Not relevant to me
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onDismiss("wrong_bot")}>
+                  Wrong teammate
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
