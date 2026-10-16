@@ -68,14 +68,14 @@ export async function runSandboxMetering<C extends Computer>(
   }
 
   const byId = new Map(sandboxes.map((sandbox) => [sandbox.sandboxId, sandbox]))
-  const active = owners.filter((bot) => {
-    const sandbox = byId.get(bot.sandboxId)
+  const active = owners.filter((owner) => {
+    const sandbox = byId.get(owner.sandboxId)
     if (!sandbox) missing++
     return sandbox && isRecentlyActive(sandbox, now)
   })
-  await each(active, (bot) =>
-    attempt(bot.sandboxId, async () => {
-      if (await deps.meter(byId.get(bot.sandboxId)!)) metered++
+  await each(active, (owner) =>
+    attempt(owner.sandboxId, async () => {
+      if (await deps.meter(byId.get(owner.sandboxId)!)) metered++
       else missing++
     })
   )
@@ -88,20 +88,20 @@ export async function runSandboxMetering<C extends Computer>(
     })
   )
   await each(
-    active.filter((bot) => allowed.get(bot.userId) === false),
-    (bot) =>
-      attempt(bot.sandboxId, async () => {
+    active.filter((owner) => allowed.get(owner.userId) === false),
+    (owner) =>
+      attempt(owner.sandboxId, async () => {
         // Pause paused VMs too: a tool may have resumed one after the list.
-        await deps.pause(bot.sandboxId)
+        await deps.pause(owner.sandboxId)
         paused++
       })
   )
 
-  const owned = new Set(owners.map((bot) => bot.sandboxId))
+  const owned = new Set(owners.map((owner) => owner.sandboxId))
   const orphans = sandboxes.filter(
     (sandbox) =>
       !owned.has(sandbox.sandboxId) &&
-      // A freshly created VM may not have its bot row yet.
+      // A freshly created VM may not be registered on its account yet.
       now - sandbox.startedAt.getTime() >= ORPHAN_PAUSE_MS
   )
   await each(orphans, (sandbox) =>

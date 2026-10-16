@@ -1,6 +1,9 @@
 // Leave a five-minute safety margin below Hobby's one-hour session ceiling.
 export const SESSION_LIMIT_MS = 55 * 60_000
 export const IDLE_TIMEOUT_MS = 5 * 60_000
+// Another operation holds the computer's lock (lib/sandbox-lock.ts)
+export const SANDBOX_BUSY_ERROR =
+  "The computer is busy with another operation. Try again shortly."
 
 export function sandboxTimeout(
   startedAt: Date,

@@ -217,7 +217,8 @@ Reference: `lib/web-tools.ts` (`createWebTools`) and `tests/web-tools.test.ts`.
 
 E2B computers
 
-- Every E2B call goes through `lib/e2b.ts` (`withBotSandbox`, `createBotSandbox`, `pauseBotSandbox`, `deleteBotSandbox`). It takes the advisory lock, meters before and after, and enforces the 55-minute session cap and the 5-minute idle pause. Never call `Sandbox.create` or `Sandbox.connect` anywhere else. Keep `metadata.app`, `lifecycle: { onTimeout: "pause", autoResume: false }` and `allowPublicTraffic: false` in `createBotSandbox`, because metering and orphan cleanup depend on them.
+- Each account has one computer, shared by all its bots: the `computers` table, `lib/account-computer.ts` (`ensureAccountComputer`, lock `computer:<userId>`). A turn takes its lease (`acquireComputerLease`, keyed by the turn's `ai:${runId}:${turn}`) on every computer call, and `onTurnComplete` releases it; `lib/computer-lease-policy.ts` holds the timings. `bots.sandboxId` is no longer read.
+- Every E2B call goes through `lib/e2b.ts` (`withComputer`, `createAccountSandbox`, `pauseComputer`, `deleteSandbox`). It takes the advisory lock, meters before and after, and enforces the 55-minute session cap and the 5-minute idle pause. Never call `Sandbox.create` or `Sandbox.connect` anywhere else. Keep `metadata.app`, `lifecycle: { onTimeout: "pause", autoResume: false }` and `allowPublicTraffic: false` in `createAccountSandbox`, because metering and orphan cleanup depend on them. Metering and orphan cleanup find a computer's owner through `computers.sandboxId`.
 - Check the user's remaining sandbox seconds before anything starts or resumes a computer.
 - E2B stays on the Hobby plan. Never upgrade it or enable paid usage.
 

@@ -4,12 +4,12 @@ import { createClerkClient } from "@clerk/backend"
 import { and, eq } from "drizzle-orm"
 import { WebSocket, WebSocketServer, createWebSocketStream } from "ws"
 
-import { ensureBotComputer } from "@/lib/bot-computer"
+import { ensureAccountComputer } from "@/lib/account-computer"
 import { desktopAuth } from "@/lib/desktop-gateway-auth"
 import { TicketReplayGuard, verifyDesktopTicket } from "@/lib/desktop-ticket"
 import { db } from "@/db"
-import { bots, chatMembers, chats } from "@/db/schema"
-import { getBotDesktopConnection, renewBotDesktop } from "@/lib/e2b"
+import { chats } from "@/db/schema"
+import { getDesktopConnection, renewComputerDesktop } from "@/lib/e2b"
 import { getUsage } from "@/lib/usage"
 
 const clerk = createClerkClient({
@@ -68,24 +68,16 @@ export async function upgradeDesktop(
     const auth = await desktopUser(credentials, url, chatId)
     if (!auth) return reject(401)
     if (!auth.sandboxes) return reject(403)
-    const [bot] = await db
-      .select({ id: bots.id, sandboxId: bots.sandboxId })
+    // Any chat of the person's streams the account's one computer
+    const [chat] = await db
+      .select({ id: chats.id })
       .from(chats)
-      .innerJoin(chatMembers, eq(chatMembers.chatId, chats.id))
-      .innerJoin(bots, eq(bots.id, chatMembers.botId))
-      .where(
-        and(
-          eq(chats.id, chatId),
-          eq(chats.userId, auth.userId),
-          eq(bots.userId, auth.userId),
-          eq(chats.kind, "direct")
-        )
-      )
-    if (!bot) return reject(404)
+      .where(and(eq(chats.id, chatId), eq(chats.userId, auth.userId)))
+    if (!chat) return reject(404)
     const usage = await getUsage(auth.userId)
     if (!usage || usage.remaining.sandbox <= 0) return reject(403)
-    const sandboxId = await ensureBotComputer(bot.id, auth.userId)
-    const connection = await getBotDesktopConnection(sandboxId)
+    const sandboxId = await ensureAccountComputer(auth.userId)
+    const connection = await getDesktopConnection(sandboxId)
     if (socket.destroyed) return
     // Neither the provider API key nor the private ingress token crosses to UI.
     const upstream = new WebSocket(connection.url, {
@@ -123,7 +115,7 @@ export async function upgradeDesktop(
             // disconnects the viewer and requires an explicit Resume.
             const remaining = await getUsage(auth.userId)
             if (!remaining || remaining.remaining.sandbox <= 0) return cleanup()
-            await renewBotDesktop(sandboxId, connection.startedAt)
+            await renewComputerDesktop(sandboxId, connection.startedAt)
           } catch {
             cleanup()
           } finally {

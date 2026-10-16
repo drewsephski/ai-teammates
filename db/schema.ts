@@ -139,6 +139,26 @@ export const sandboxSessions = pgTable("sandbox_sessions", {
   meteredSeconds: integer().notNull().default(0),
 })
 
+// The person's one E2B computer, shared by all their bots. A turn holds the
+// lease while it uses the computer, so bots take turns; it lapses two minutes
+// after the turn's last computer call (lib/computer-lease-policy.ts).
+export const computers = pgTable("computers", {
+  // Clerk user ID
+  userId: text().primaryKey(),
+  // E2B desktop sandbox ID, preserved across pause/resume. Metering and orphan
+  // cleanup find the owner through it.
+  sandboxId: text().unique(),
+  leaseBotId: text().references(() => bots.id, { onDelete: "set null" }),
+  leaseChatId: text().references(() => chats.id, { onDelete: "set null" }),
+  // The holding turn's ledger key, ai:<runId>:<turn>
+  leaseRunKey: text(),
+  leaseExpiresAt: timestamp({ withTimezone: true }),
+  // Last lease taken or renewed; free-plan computers idle 30 days are deleted
+  lastUsedAt: timestamp({ withTimezone: true }),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+})
+
 // Identity survives disconnecting plan usage, so ChatGPT remains a sign-in method.
 // Credentials are encrypted server-side and never returned by dashboard queries.
 export const chatgptConnections = pgTable(

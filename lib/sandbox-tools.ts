@@ -2,7 +2,8 @@ import type { Sandbox } from "@e2b/desktop"
 import { tool, type InferUITools, type UIMessage } from "ai"
 import { z } from "zod"
 
-import { withBotSandbox, runSandboxCommand } from "@/lib/e2b"
+import { withComputer, runSandboxCommand } from "@/lib/e2b"
+import { isComputerBusy, type ComputerBusy } from "@/lib/computer-lease-policy"
 import { sandboxPath } from "@/lib/sandbox-policy"
 import type { HandoffTools } from "@/lib/handoff-tool"
 
@@ -34,9 +35,13 @@ async function takeScreenshot(sandbox: Sandbox) {
 }
 
 type Screenshot = Awaited<ReturnType<typeof takeScreenshot>>
-
 // The model gets the picture itself rather than its base64 as text
 function screenshotToModelOutput({ output }: { output: Screenshot }) {
+  if (isComputerBusy(output))
+    return {
+      type: "text" as const,
+      value: `The computer is busy: ${output.heldBy} is using it. Don't retry in a loop.`,
+    }
   return {
     type: "content" as const,
     value: [
@@ -53,24 +58,53 @@ function screenshotToModelOutput({ output }: { output: Screenshot }) {
   }
 }
 
-// A bot's sandbox as a tool set. The sandbox is only looked up, woken and
-// renewed when a tool needs it. Ask for the ID on every call so handoffs use
-// the receiving bot's computer, and paused sessions never leave stale clients.
+// The person's computer as a tool set. It is only looked up, woken and renewed
+// when a tool needs it. `getComputer` runs on every call: it takes or renews
+// this turn's lease, so it returns a busy result while another of the person's
+// bots has the computer, and paused sessions never leave stale clients.
 export function createSandboxTools(
-  getSandboxId: () => string | Promise<string>,
-  options: { onScreenViewed?: () => void } = {}
+  // holdMs: how long the call may run, so its lease outlasts it
+  getComputer: (
+    holdMs?: number
+  ) => string | ComputerBusy | Promise<string | ComputerBusy>,
+  options: {
+    onScreenViewed?: () => void
+    // Runs when a computer call ends, so the lease counts from the last call
+    // finishing rather than starting
+    afterCall?: () => Promise<unknown> | unknown
+  } = {}
 ) {
+  // When each call still in flight may end. A step's tool calls run in
+  // parallel, so a short call's renewal must not cut a long command's lease.
+  const inFlight: number[] = []
   async function runInSandbox<T>(
     operation: (sandbox: Sandbox) => Promise<T>,
-    leaseMs?: number
-  ) {
-    return withBotSandbox(await getSandboxId(), operation, leaseMs)
+    leaseMs?: number,
+    holdMs = 0
+  ): Promise<T> {
+    const now = Date.now()
+    const until = now + holdMs
+    const longest = Math.max(until, ...inFlight)
+    inFlight.push(until)
+    try {
+      const computer = await getComputer(longest - now)
+      // Busy is kept out of the declared output types, so every renderer of a
+      // tool part checks for it with isComputerBusy before reading an output
+      if (typeof computer !== "string") return computer as unknown as T
+      try {
+        return await withComputer(computer, operation, leaseMs)
+      } finally {
+        await Promise.resolve(options.afterCall?.()).catch(() => {})
+      }
+    } finally {
+      inFlight.splice(inFlight.indexOf(until), 1)
+    }
   }
 
   return {
     bash: tool({
       description:
-        "Run a shell command in your sandbox and get its output and exit code. Commands start in your home directory unless you pass cwd, and each call is a fresh shell.",
+        "Run a shell command on the computer and get its output and exit code. Commands start in your home directory unless you pass cwd, and each call is a fresh shell.",
       inputSchema: z.object({
         command: z.string().describe("The shell command to run"),
         cwd: z.string().optional().describe("Directory to run the command in"),
@@ -82,26 +116,29 @@ export function createSandboxTools(
           .optional()
           .describe("Seconds to wait before giving up. Defaults to 60."),
       }),
-      execute: async ({ command, cwd, timeout = 60 }) =>
+      execute: async ({ command, cwd, timeout = 60 }, { abortSignal }) =>
         runInSandbox(
           async (sandbox) => {
+            // Stop kills the command: the computer is shared with other bots
             const response = await runSandboxCommand(
               sandbox,
               command,
               cwd ? sandboxPath(cwd) : undefined,
-              timeout * 1000
+              timeout * 1000,
+              abortSignal
             )
             return {
               exitCode: response.exitCode,
               output: truncate(response.stdout + response.stderr),
             }
           },
-          Math.max(5 * 60_000, (timeout + 30) * 1000)
+          Math.max(5 * 60_000, (timeout + 30) * 1000),
+          (timeout + 30) * 1000
         ),
     }),
 
     readFile: tool({
-      description: "Read a text file from your sandbox.",
+      description: "Read a text file from the computer.",
       inputSchema: z.object({
         path: z
           .string()
@@ -116,7 +153,7 @@ export function createSandboxTools(
 
     writeFile: tool({
       description:
-        "Write a text file in your sandbox, creating it and any missing folders, or replacing it if it exists.",
+        "Write a text file on the computer, creating it and any missing folders, or replacing it if it exists.",
       inputSchema: z.object({
         path: z
           .string()
@@ -132,7 +169,7 @@ export function createSandboxTools(
     }),
 
     listFiles: tool({
-      description: "List the files and folders in a directory of your sandbox.",
+      description: "List the files and folders in a directory on the computer.",
       inputSchema: z.object({
         path: z
           .string()
@@ -156,7 +193,7 @@ export function createSandboxTools(
 
     mouseClick: tool({
       description:
-        "Click the mouse at a point on your sandbox's desktop. Look at the screen first to find the coordinates.",
+        "Click the mouse at a point on the computer's desktop. Look at the screen first to find the coordinates.",
       inputSchema: z.object({
         ...point,
         button: z.enum(["left", "right", "middle"]).default("left"),
@@ -181,7 +218,7 @@ export function createSandboxTools(
 
     mouseMove: tool({
       description:
-        "Move the mouse cursor to a point on your sandbox's desktop without clicking.",
+        "Move the mouse cursor to a point on the computer's desktop without clicking.",
       inputSchema: z.object(point),
       execute: async ({ x, y }) =>
         runInSandbox(async (sandbox) => {
@@ -192,7 +229,7 @@ export function createSandboxTools(
 
     mouseDrag: tool({
       description:
-        "Press the left mouse button at one point on your sandbox's desktop, drag to another and release.",
+        "Press the left mouse button at one point on the computer's desktop, drag to another and release.",
       inputSchema: z.object({
         startX: point.x,
         startY: point.y,
@@ -208,7 +245,7 @@ export function createSandboxTools(
 
     mouseScroll: tool({
       description:
-        "Scroll the mouse wheel at a point on your sandbox's desktop.",
+        "Scroll the mouse wheel at a point on the computer's desktop.",
       inputSchema: z.object({
         ...point,
         direction: z.enum(["up", "down"]),
@@ -230,7 +267,7 @@ export function createSandboxTools(
 
     keyboardType: tool({
       description:
-        "Type text into whatever has keyboard focus on your sandbox's desktop. Newlines are typed as Enter.",
+        "Type text into whatever has keyboard focus on the computer's desktop. Newlines are typed as Enter.",
       inputSchema: z.object({
         text: z.string().describe("The text to type"),
       }),
@@ -243,7 +280,7 @@ export function createSandboxTools(
 
     keyboardPress: tool({
       description:
-        "Press a single key on your sandbox's desktop, optionally with modifiers held, e.g. key 'enter', or key 'c' with modifiers ['ctrl'].",
+        "Press a single key on the computer's desktop, optionally with modifiers held, e.g. key 'enter', or key 'c' with modifiers ['ctrl'].",
       inputSchema: z.object({
         key: z
           .string()
@@ -266,11 +303,11 @@ export function createSandboxTools(
 
     viewScreen: tool({
       description:
-        "Look at your sandbox's desktop yourself. Use this whenever you need to see the screen to do your work, such as before clicking and after an action to check what happened. The person you are talking to does not see this screenshot.",
+        "Look at the computer's desktop yourself. Use this whenever you need to see the screen to do your work, such as before clicking and after an action to check what happened. The person you are talking to does not see this screenshot.",
       inputSchema: z.object({}),
       execute: async () => {
         const screenshot = await runInSandbox(takeScreenshot)
-        options.onScreenViewed?.()
+        if (!isComputerBusy(screenshot)) options.onScreenViewed?.()
         return screenshot
       },
       toModelOutput: screenshotToModelOutput,
@@ -278,7 +315,7 @@ export function createSandboxTools(
 
     showScreen: tool({
       description:
-        "Show your sandbox's desktop to the person you are talking to: the screenshot appears in the chat, and you see it too. Use this only when they ask to see the screen or what is on it.",
+        "Show the computer's desktop to the person you are talking to: the screenshot appears in the chat, and you see it too. Use this only when they ask to see the screen or what is on it.",
       inputSchema: z.object({}),
       execute: async () => runInSandbox(takeScreenshot),
       toModelOutput: screenshotToModelOutput,

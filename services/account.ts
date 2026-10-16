@@ -10,6 +10,7 @@ import {
   bots,
   chatgptConnections,
   chats,
+  computers,
   connectorAuthAttempts,
   forYouScans,
   memories,
@@ -19,6 +20,7 @@ import {
   userSettings,
 } from "@/db/schema"
 import { cancelAccountSubscriptions } from "@/lib/account-billing"
+import { deleteAccountComputer } from "@/lib/account-computer"
 import { disconnectChatGPT } from "@/lib/chatgpt-connection"
 import { getComposio } from "@/lib/composio"
 import { deleteBot } from "@/services/bots"
@@ -26,6 +28,7 @@ import { deleteBot } from "@/services/bots"
 type Steps = {
   cancelSubscriptions: (userId: string) => Promise<void>
   closeChat: (chatId: string) => Promise<void>
+  deleteComputer: (userId: string) => Promise<void>
   deleteBot: (userId: string, botId: string) => Promise<void>
   disconnectChatGPT: (userId: string) => Promise<unknown>
   disconnectApps: (userId: string) => Promise<void>
@@ -69,13 +72,14 @@ const providerSteps: Steps = {
       throw new Error("Couldn't close your conversations. Try again.")
     }
   },
+  deleteComputer: deleteAccountComputer,
   deleteBot,
   disconnectChatGPT,
   disconnectApps,
   deleteUser: (userId) => clerk().users.deleteUser(userId),
 }
 
-// Deletes the account and what it owns: computers and bots, chats, memories,
+// Deletes the account and what it owns: the computer, bots, chats, memories,
 // settings and app and ChatGPT connections, then the Clerk user, which ends
 // every session. Each step can run again, so a failure part-way is retried by
 // asking again. Usage and sandbox metering rows are kept, keyed by the now
@@ -94,13 +98,16 @@ export async function deleteAccount(userId: string, steps = providerSteps) {
     .where(eq(chats.userId, userId))
   for (const chat of ownedChats) await steps.closeChat(chat.id)
 
-  // Computers first: a bot whose sandbox can't be deleted stays, and so does
-  // everything else, until the retry
   const owned = await db
     .select({ id: bots.id })
     .from(bots)
     .where(eq(bots.userId, userId))
   for (const bot of owned) await steps.deleteBot(userId, bot.id)
+
+  // The computer after the bots: with no bot left, a turn still running can't
+  // create it again (lib/account-computer.ts). A failure here is retried by
+  // asking again; the row stays until it succeeds.
+  await steps.deleteComputer(userId)
 
   await steps.disconnectChatGPT(userId)
   await steps.disconnectApps(userId)
@@ -126,6 +133,9 @@ export async function deleteAccount(userId: string, steps = providerSteps) {
     await tx.delete(activityEvents).where(eq(activityEvents.userId, userId))
     await tx.delete(pushDevices).where(eq(pushDevices.userId, userId))
     await tx.delete(accountPlans).where(eq(accountPlans.userId, userId))
+    // deleteComputer removed it. A computer created since becomes an orphan,
+    // which the metering cron deletes
+    await tx.delete(computers).where(eq(computers.userId, userId))
   })
 
   await steps.deleteUser(userId)

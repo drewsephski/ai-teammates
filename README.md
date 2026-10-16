@@ -43,7 +43,7 @@ Krafty is an open exploration of that idea. Every prompt, tool and limit is a fi
 | Product                                      | What it does here                                                                             |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | [**Trigger.dev**](https://cwa.run/trigger-1) | Runs the durable chat agent and the cron task that meters running sandboxes.                  |
-| [**E2B Hobby**](https://e2b.dev/pricing)     | One cloud sandbox per bot: shell, files and a desktop it controls.                            |
+| [**E2B Hobby**](https://e2b.dev/pricing)     | One cloud computer per account, shared by its bots: shell, files and a desktop.               |
 | [**Clerk**](https://cwa.run/clerk)           | Authentication, plus Billing for plans, checkout and feature gates.                           |
 | [**Neon**](https://cwa.run/neon)             | Serverless Postgres, and the AI Gateway the chat model is called through.                     |
 | [**Sentry**](https://cwa.run/sentry)         | Errors, traces, session replays and logs from the app and every task run.                     |

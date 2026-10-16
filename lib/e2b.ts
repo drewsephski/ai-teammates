@@ -6,10 +6,10 @@ import {
 } from "@e2b/desktop"
 import * as Sentry from "@sentry/node"
 import { randomUUID } from "node:crypto"
-import { and, eq } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 
 import { db } from "@/db"
-import { bots, sandboxSessions, usageEntries } from "@/db/schema"
+import { computers, sandboxSessions, usageEntries } from "@/db/schema"
 import { IDLE_TIMEOUT_MS, runningSeconds } from "@/lib/sandbox-policy"
 import { createSandboxLifecycle } from "@/lib/sandbox-lifecycle"
 import { withSandboxLock, tryWithSandboxLock } from "@/lib/sandbox-lock"
@@ -23,9 +23,9 @@ async function meterSession(
   sampledAt: number
 ) {
   const [owner] = await tx
-    .select({ userId: bots.userId })
-    .from(bots)
-    .where(eq(bots.sandboxId, info.sandboxId))
+    .select({ userId: computers.userId })
+    .from(computers)
+    .where(eq(computers.sandboxId, info.sandboxId))
   if (!owner) return
   const id = `${info.sandboxId}:${info.startedAt.toISOString()}`
   await tx
@@ -91,24 +91,24 @@ const lifecycle = createSandboxLifecycle({
   report: reportMaintenance,
 })
 
-export const withBotSandbox = lifecycle.run
-export const getBotSandboxInfo = lifecycle.getInfo
-export const renewBotDesktop = lifecycle.renewDesktop
-export const pauseBotSandbox = lifecycle.pause
+export const withComputer = lifecycle.run
+export const getComputerInfo = lifecycle.getInfo
+export const renewComputerDesktop = lifecycle.renewDesktop
+export const pauseComputer = lifecycle.pause
 
-export async function createBotSandbox(botId: string) {
+export async function createAccountSandbox(userId: string) {
   const creationId = randomUUID()
   let sandbox: Sandbox | undefined
   try {
     sandbox = await Sandbox.create({
       resolution: [1024, 768],
       ...providerOptions,
-      metadata: { app: APP, botId, creationId },
+      metadata: { app: APP, userId, creationId },
       timeoutMs: IDLE_TIMEOUT_MS,
       lifecycle: { onTimeout: "pause", autoResume: false },
       network: { allowPublicTraffic: false },
     })
-    // Creating a teammate should not keep an unused computer running.
+    // Creating a computer should not keep an unused one running.
     await sandbox.pause()
     return sandbox.sandboxId
   } catch (error) {
@@ -116,7 +116,7 @@ export async function createBotSandbox(botId: string) {
       if (sandbox) await sandbox.kill()
       else {
         // Desktop startup may throw after the VM was allocated. Find only this
-        // exact create attempt; never delete a concurrent bot's computer.
+        // exact create attempt; never delete a concurrent create's computer.
         const pending = Sandbox.list({
           ...providerOptions,
           query: { metadata: { creationId }, state: ["running", "paused"] },
@@ -134,8 +134,8 @@ export async function createBotSandbox(botId: string) {
 }
 
 // Stream credentials are consumed only by the server's authenticated gateway.
-export async function getBotDesktopConnection(id: string) {
-  return withBotSandbox(id, async (sandbox) => {
+export async function getDesktopConnection(id: string) {
+  return withComputer(id, async (sandbox) => {
     if (!sandbox.trafficAccessToken)
       throw new Error("Private desktop access is unavailable")
     const running = await runSandboxCommand(sandbox, "pgrep -x x11vnc")
@@ -148,7 +148,7 @@ export async function getBotDesktopConnection(id: string) {
   })
 }
 
-export async function deleteBotSandbox(id: string) {
+export async function deleteSandbox(id: string) {
   await withSandboxLock(id, async () => {
     try {
       await Sandbox.pause(id, providerOptions)
@@ -162,7 +162,7 @@ export async function deleteBotSandbox(id: string) {
 }
 
 // Metering has its own short row-locked transaction and never waits on a tool.
-export async function meterBotSandbox(id: string) {
+export async function meterSandbox(id: string) {
   try {
     await meterInfo(await Sandbox.getInfo(id, providerOptions))
   } catch (error) {
@@ -172,89 +172,38 @@ export async function meterBotSandbox(id: string) {
   return true
 }
 
-// Reset is explicit and only available for a definitively missing computer.
-// Recheck under the old ID's lock; concurrent resets adopt the same replacement.
-export async function resetBotSandbox(
-  botId: string,
-  userId: string,
-  oldId: string
-) {
-  return withSandboxLock(`bot:${botId}`, () =>
-    withSandboxLock(oldId, async () => {
-      const [bot] = await db
-        .select()
-        .from(bots)
-        .where(and(eq(bots.id, botId), eq(bots.userId, userId)))
-      if (!bot) throw new Error("Bot not found")
-      if (!bot.sandboxId)
-        throw new Error("This bot's computer has not been provisioned yet.")
-      if (bot.sandboxId !== oldId) return bot.sandboxId
-      try {
-        await Sandbox.getInfo(oldId, providerOptions)
-        throw new Error(
-          "The computer still exists. Reconnect instead of resetting it."
-        )
-      } catch (error) {
-        if (!(error instanceof SandboxNotFoundError)) throw error
-      }
-      const id = await createBotSandbox(botId)
-      try {
-        const [updated] = await db
-          .update(bots)
-          .set({ sandboxId: id })
-          .where(
-            and(
-              eq(bots.id, botId),
-              eq(bots.userId, userId),
-              eq(bots.sandboxId, oldId)
-            )
-          )
-          .returning({ id: bots.id })
-        if (!updated)
-          throw new Error("Bot changed while resetting the computer")
-        return id
-      } catch (error) {
-        // An UPDATE response can be lost after Postgres committed. Never kill a
-        // replacement which has already become this bot's registered computer.
-        let current
-        try {
-          current = await db.query.bots.findFirst({ where: eq(bots.id, botId) })
-        } catch (lookupError) {
-          reportMaintenance(lookupError, id)
-          // Provisioning already paused it; leave uncertain ownership for review.
-          reportMaintenance(error, id)
-          throw error
-        }
-        if (current?.sandboxId === id) return id
-        await Sandbox.kill(id, providerOptions).catch((cleanupError: unknown) =>
-          reportMaintenance(cleanupError, id)
-        )
-        throw error
-      }
-    })
-  )
+// True while the provider still has the computer; false only when it is
+// definitively gone. Other errors propagate so a hiccup never reads as missing.
+export async function sandboxExists(id: string) {
+  try {
+    await Sandbox.getInfo(id, providerOptions)
+    return true
+  } catch (error) {
+    if (error instanceof SandboxNotFoundError) return false
+    throw error
+  }
 }
 
-// Meters a computer from its entry in listBotSandboxes, with no extra call
+// Meters a computer from its entry in listAppSandboxes, with no extra call
 export async function meterListedSandbox(info: SandboxInfo) {
   await meterInfo(info)
   return true
 }
 
-// An app computer no bot owns. Nothing to bill, so it goes without metering.
+// An app computer no account owns. Nothing to bill, so it goes without metering.
 export async function deleteOrphanSandbox(id: string) {
   await withSandboxLock(id, async () => {
     const [owner] = await db
-      .select({ id: bots.id })
-      .from(bots)
-      .where(eq(bots.sandboxId, id))
+      .select({ userId: computers.userId })
+      .from(computers)
+      .where(eq(computers.sandboxId, id))
     // Adopted since the list was read
     if (owner) return
     await Sandbox.kill(id, providerOptions)
   })
 }
 
-export async function listBotSandboxes() {
+export async function listAppSandboxes() {
   const paginator = Sandbox.list({
     ...providerOptions,
     query: { metadata: { app: APP }, state: ["running", "paused"] },
@@ -268,10 +217,26 @@ export async function runSandboxCommand(
   sandbox: Sandbox,
   command: string,
   cwd = "/home/user",
-  timeoutMs = 60_000
+  timeoutMs = 60_000,
+  // Kills the command when aborted, instead of leaving it running
+  signal?: AbortSignal
 ) {
   try {
-    return await sandbox.commands.run(command, { cwd, timeoutMs })
+    if (!signal) return await sandbox.commands.run(command, { cwd, timeoutMs })
+    signal.throwIfAborted()
+    const handle = await sandbox.commands.run(command, {
+      cwd,
+      timeoutMs,
+      background: true,
+    })
+    const kill = () => void handle.kill().catch(() => {})
+    signal.addEventListener("abort", kill, { once: true })
+    try {
+      if (signal.aborted) kill()
+      return await handle.wait()
+    } finally {
+      signal.removeEventListener("abort", kill)
+    }
   } catch (error) {
     // E2B throws on nonzero exit; the agent needs its output to recover.
     if (error instanceof CommandExitError) return error

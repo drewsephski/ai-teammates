@@ -1,4 +1,5 @@
 import { EMAIL_CHANGED_ERROR } from "@/lib/email-draft"
+import { SANDBOX_BUSY_ERROR } from "@/lib/sandbox-policy"
 import { ZodError } from "zod"
 
 import {
@@ -87,7 +88,9 @@ export function apiErrorResponse(error: unknown): {
     message === "That memory was changed at the same time." ||
     message === APPROVAL_DECIDED_ERROR ||
     message === APPROVAL_EXPIRED_ERROR ||
-    message === EMAIL_CHANGED_ERROR
+    message === EMAIL_CHANGED_ERROR ||
+    // A running command holds the shared computer; retrying works
+    message === SANDBOX_BUSY_ERROR
   )
     return fail(409, "conflict", message)
   if (

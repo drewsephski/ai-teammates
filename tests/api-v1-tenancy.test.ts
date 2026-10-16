@@ -135,6 +135,12 @@ test("B can't start, pause or reset A's computer", async () => {
   await rejects(chats.getDesktopUrl(caller(B), "chat_a1"), /Chat not found/)
   await rejects(chats.pauseDesktop(B, "chat_a1"), /Chat not found/)
   await rejects(chats.resetDesktop(caller(B), "chat_a1"), /Chat not found/)
+  // The account computer is shown in group chats too, still owner-scoped
+  await rejects(chats.getDesktopUrl(caller(B), "group_a"), /Chat not found/)
+  await rejects(chats.pauseDesktop(B, "group_a"), /Chat not found/)
+  await rejects(chats.resetDesktop(caller(B), "group_a"), /Chat not found/)
+  await rejects(chats.getComputerInUse(B, "chat_a1"), /Chat not found/)
+  await rejects(chats.getComputerInUse(B, "group_a"), /Chat not found/)
 })
 
 test("B can't rename, re-staff or delete A's group chat", async () => {
@@ -355,6 +361,9 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
         .delete(schema.bots)
         .where(and(eq(schema.bots.id, botId), eq(schema.bots.userId, userId)))
     },
+    deleteComputer: async (userId: string) => {
+      calls.push(`computer:${userId}`)
+    },
     disconnectChatGPT: async (userId: string) =>
       calls.push(`chatgpt:${userId}`),
     disconnectApps: async (userId: string) => {
@@ -367,6 +376,10 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
     { userId: A, status: "done" },
     { userId: B, status: "done" },
   ])
+  await db
+    .insert(schema.computers)
+    .values([{ userId: A }, { userId: B }])
+    .onConflictDoNothing()
 
   // A billing outage must not destroy the account or any workspace data.
   await rejects(
@@ -398,12 +411,21 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
   await account.deleteAccount(B, steps())
   assert.equal(calls[0], `billing:${B}`)
   assert.deepEqual(calls.slice(1, 3).sort(), ["close:chat_b1", "close:group_b"])
-  assert.deepEqual(calls.slice(3), [`chatgpt:${B}`, `apps:${B}`, `clerk:${B}`])
+  assert.deepEqual(calls.slice(3), [
+    `computer:${B}`,
+    `chatgpt:${B}`,
+    `apps:${B}`,
+    `clerk:${B}`,
+  ])
   assert.deepEqual(await bots.listBots(B), [])
   assert.deepEqual(await chats.listChats(B), [])
   assert.deepEqual((await memory.getMemoryOverview(B)).memories, [])
   assert.deepEqual(
     (await db.select().from(schema.forYouScans)).map((row) => row.userId),
+    [A]
+  )
+  assert.deepEqual(
+    (await db.select().from(schema.computers)).map((row) => row.userId),
     [A]
   )
 

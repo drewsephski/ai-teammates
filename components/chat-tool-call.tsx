@@ -13,6 +13,7 @@ import {
   ToolInput,
   ToolOutput,
 } from "@/components/ai-elements/tool"
+import { isComputerBusy } from "@/lib/computer-lease-policy"
 import type { ChatUIMessage } from "@/lib/sandbox-tools"
 import {
   ArrowDownUpIcon,
@@ -185,6 +186,9 @@ function preview(text?: string) {
 }
 
 function appToolError(part: ToolPart): string | undefined {
+  // Another of the person's bots had the computer (lib/sandbox-tools.ts)
+  if (part.state === "output-available" && isComputerBusy(part.output))
+    return `${part.output.heldBy} was using the computer.`
   if (
     (part.type === "tool-searchWeb" || part.type === "tool-readWebPage") &&
     part.state === "output-available"
@@ -308,7 +312,7 @@ function toolSummary(part: ToolPart): string | undefined {
     }
     case "tool-viewScreen":
     case "tool-showScreen":
-      return part.state === "output-available"
+      return part.state === "output-available" && !isComputerBusy(part.output)
         ? `${part.output.width} × ${part.output.height}`
         : undefined
     case "tool-handoff":
@@ -405,7 +409,11 @@ export function ToolCall({ part }: { part: ToolPart }) {
     )
   }
   // The one tool whose result is for the reader: show it, not the call
-  if (part.type === "tool-showScreen" && part.state === "output-available") {
+  if (
+    part.type === "tool-showScreen" &&
+    part.state === "output-available" &&
+    !isComputerBusy(part.output)
+  ) {
     return (
       <Image
         alt="The sandbox's screen"
@@ -478,7 +486,7 @@ function ToolCallDetails({ part }: { part: ToolPart }) {
       <ToolOutput
         errorText={error}
         output={
-          part.state === "output-available" ? (
+          part.state === "output-available" && !error ? (
             <p className="p-2.5 text-muted-foreground">
               {part.type === "tool-viewScreen"
                 ? "The bot captured the desktop to see what is on screen."
@@ -506,7 +514,8 @@ function ToolCallDetails({ part }: { part: ToolPart }) {
           label="Command output"
           errorText={error}
           output={
-            part.state === "output-available" ? (
+            part.state === "output-available" &&
+            !isComputerBusy(part.output) ? (
               <CodeBlock
                 code={part.output.output || `Exit code ${part.output.exitCode}`}
                 language="log"
@@ -547,7 +556,8 @@ function textResult(text: string) {
 }
 
 function toolResult(part: ToolPart) {
-  if (part.state !== "output-available") return undefined
+  if (part.state !== "output-available" || isComputerBusy(part.output))
+    return undefined
 
   // Text results should be readable, rather than one escaped JSON string.
   switch (part.type) {

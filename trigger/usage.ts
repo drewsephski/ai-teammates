@@ -1,15 +1,13 @@
 import * as Sentry from "@sentry/node"
 import { schedules } from "@trigger.dev/sdk"
 
-import { isNotNull, sql } from "drizzle-orm"
-import { db } from "@/db"
-import { bots } from "@/db/schema"
+import { listComputerOwners } from "@/lib/account-computer"
 import {
   deleteOrphanSandbox,
-  listBotSandboxes,
-  meterBotSandbox,
+  listAppSandboxes,
+  meterSandbox,
   meterListedSandbox,
-  pauseBotSandbox,
+  pauseComputer,
 } from "@/lib/e2b"
 import { getUsage } from "@/lib/usage"
 import { runSandboxMetering } from "@/lib/sandbox-metering"
@@ -22,27 +20,20 @@ export const meterSandboxes = schedules.task({
   maxDuration: 240,
   run: async () => {
     const result = await runSandboxMetering({
-      list: listBotSandboxes,
-      owners: () =>
-        db
-          .select({
-            sandboxId: sql<string>`${bots.sandboxId}`,
-            userId: bots.userId,
-          })
-          .from(bots)
-          .where(isNotNull(bots.sandboxId)),
+      list: listAppSandboxes,
+      owners: listComputerOwners,
       // A running computer is read again: a tool may pause it after the list,
       // and metering its stale end time would bill the gap. A paused
       // computer's listed session is final.
       meter: (info) =>
         info.state === "running"
-          ? meterBotSandbox(info.sandboxId)
+          ? meterSandbox(info.sandboxId)
           : meterListedSandbox(info),
       hasUsage: async (userId) => {
         const usage = await getUsage(userId)
         return !!usage && usage.remaining.sandbox > 0
       },
-      pause: pauseBotSandbox,
+      pause: pauseComputer,
       kill: deleteOrphanSandbox,
       report: (error, id) =>
         Sentry.captureException(error, {

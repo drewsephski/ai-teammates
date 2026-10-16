@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/node"
 import { and, asc, count, eq, inArray } from "drizzle-orm"
 import { nanoid } from "nanoid"
 
@@ -12,7 +11,6 @@ import {
   type BotInsert,
   type GroupChatInsert,
 } from "@/db/schema"
-import { createBotSandbox, deleteBotSandbox } from "@/lib/e2b"
 import { withSandboxLock } from "@/lib/sandbox-lock"
 import { assertBotCapacity, FREE_BOT_LIMIT_ERROR } from "@/lib/billing-policy"
 import { getAccountPlan, getUsage } from "@/lib/usage"
@@ -66,40 +64,23 @@ export async function provisionTeammate(
     assertBotCapacity(plan.tier, size.value)
     const computer = !options.setup && options.computer !== false
     await assertTeamAccess(userId, computer)
-    // Conversational setup needs no computer. Provision it on the first real
-    // desktop/tool request instead of delaying navigation with provider startup.
-    const sandboxId = computer ? await createBotSandbox(ids.botId) : null
-    try {
-      const bot = await db.transaction(async (tx) => {
-        const [bot] = await tx
-          .insert(bots)
-          .values({
-            ...data,
-            id: ids.botId,
-            userId,
-            sandboxId,
-            instructions: data.instructions || null,
-            setupComplete: !options.setup,
-          })
-          .returning()
-        await tx
-          .insert(chats)
-          .values({ id: ids.chatId, userId, kind: "direct" })
-        await tx
-          .insert(chatMembers)
-          .values({ chatId: ids.chatId, botId: bot.id })
-        return bot
-      })
-      return { bot, chatId: ids.chatId }
-    } catch (error) {
-      if (sandboxId)
-        await deleteBotSandbox(sandboxId).catch((cleanupError: unknown) => {
-          Sentry.captureException(cleanupError, {
-            extra: { botId: ids.botId, sandboxId },
-          })
+    // The account computer is created on the first real desktop or tool request.
+    const bot = await db.transaction(async (tx) => {
+      const [bot] = await tx
+        .insert(bots)
+        .values({
+          ...data,
+          id: ids.botId,
+          userId,
+          instructions: data.instructions || null,
+          setupComplete: !options.setup,
         })
-      throw error
-    }
+        .returning()
+      await tx.insert(chats).values({ id: ids.chatId, userId, kind: "direct" })
+      await tx.insert(chatMembers).values({ chatId: ids.chatId, botId: bot.id })
+      return bot
+    })
+    return { bot, chatId: ids.chatId }
   })
 }
 

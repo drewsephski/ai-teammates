@@ -41,24 +41,36 @@ export default async function Page({
     </Suspense>
   )
 
-  // A group has several bots and so no single desktop to show
+  // A group shares the one account computer, like a direct chat
   if (chat.kind === "group") {
     return (
       <ChatActivityProvider key={chat.id}>
-        <div className="chat-surface flex h-svh flex-col">
-          <ChatHeader chat={chat} bots={headerBots} />
-          <Chat
-            chatId={chat.id}
-            mentionBots={mentionBots}
-            notice={notice}
-            name={chat.name ?? "your teammates"}
-            bots={chat.bots.map(({ id, name, avatar }) => ({
-              id,
-              name,
-              avatar,
-            }))}
-          />
-        </div>
+        <DesktopPanelProvider key={chat.id} chatId={chat.id}>
+          {/* Only the provider: DesktopButton closes settings, which groups lack */}
+          <BotSettingsProvider>
+            <div className="chat-surface h-svh">
+              <ResizablePanelGroup orientation="horizontal">
+                <ResizablePanel id="chat" minSize="30%">
+                  <div className="flex h-full flex-col">
+                    <ChatHeader chat={chat} bots={headerBots} />
+                    <Chat
+                      chatId={chat.id}
+                      mentionBots={mentionBots}
+                      notice={notice}
+                      name={chat.name ?? "your teammates"}
+                      bots={chat.bots.map(({ id, name, avatar }) => ({
+                        id,
+                        name,
+                        avatar,
+                      }))}
+                    />
+                  </div>
+                </ResizablePanel>
+                <DesktopPanel />
+              </ResizablePanelGroup>
+            </div>
+          </BotSettingsProvider>
+        </DesktopPanelProvider>
       </ChatActivityProvider>
     )
   }
@@ -90,7 +102,7 @@ export default async function Page({
                   />
                 </div>
               </ResizablePanel>
-              <DesktopPanel name={chat.bots[0].name} />
+              <DesktopPanel />
               <BotSettingsPanel bot={chat.bots[0]} />
             </ResizablePanelGroup>
           </div>

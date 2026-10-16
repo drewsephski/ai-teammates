@@ -5,7 +5,12 @@ import type RFB from "@novnc/novnc"
 import * as Sentry from "@sentry/nextjs"
 import { MonitorIcon, PauseIcon, RefreshCwIcon } from "lucide-react"
 
-import { getDesktopUrl, pauseDesktop, resetDesktop } from "@/actions/chat"
+import {
+  getComputerInUse,
+  getDesktopUrl,
+  pauseDesktop,
+  resetDesktop,
+} from "@/actions/chat"
 import { DesktopResetDialog } from "@/components/desktop-reset-dialog"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { Button } from "@/components/ui/button"
@@ -40,6 +45,8 @@ type DesktopPanelContextValue = {
   toggle: () => void
   close: () => void
   status: DesktopStatus
+  // The bot currently working on the shared computer, from the last connect
+  inUseBy: { botId: string; name: string } | null
   connect: () => void
   pause: () => void
   reset: () => Promise<void>
@@ -76,6 +83,10 @@ function DesktopPanelProvider({
   const [open, setOpen] = React.useState(false)
   const [fullscreen, setFullscreen] = React.useState(false)
   const [status, setStatus] = React.useState<DesktopStatus>("idle")
+  const [inUseBy, setInUseBy] = React.useState<{
+    botId: string
+    name: string
+  } | null>(null)
   const { checkPlan, checkUsage } = usePaywall()
 
   // The VNC client draws into this element. It is never rendered by React, so
@@ -109,9 +120,11 @@ function DesktopPanelProvider({
       ])
       if (attempt !== attemptRef.current) return
       if (connection.missing) {
+        setInUseBy(null)
         setStatus("missing")
         return
       }
+      setInUseBy(connection.inUseBy)
 
       const address = new URL(connection.url, window.location.origin)
       address.protocol = address.protocol === "https:" ? "wss:" : "ws:"
@@ -157,6 +170,7 @@ function DesktopPanelProvider({
   const close = React.useCallback(() => {
     disconnect()
     setStatus("idle")
+    setInUseBy(null)
     setOpen(false)
     setFullscreen(false)
   }, [disconnect])
@@ -186,10 +200,15 @@ function DesktopPanelProvider({
       attemptRef.current++
       rfbRef.current?.disconnect()
       rfbRef.current = null
+      setInUseBy(null)
       setStatus("paused")
     } catch {
       setStatus(rfbRef.current ? "connected" : "disconnected")
-      toast.add({ title: "Could not pause the computer", type: "error" })
+      toast.add({
+        type: "error",
+        title: "Couldn't pause the computer",
+        description: "Try again.",
+      })
     }
   }, [chatId])
 
@@ -218,6 +237,18 @@ function DesktopPanelProvider({
     return disconnect
   }, [disconnect])
 
+  // Bots take turns on the computer, so keep "In use by" current while it shows
+  React.useEffect(() => {
+    if (!open || status !== "connected") return
+    const timer = setInterval(() => {
+      getComputerInUse(chatId).then(
+        ({ inUseBy }) => setInUseBy(inUseBy),
+        () => {}
+      )
+    }, 15_000)
+    return () => clearInterval(timer)
+  }, [chatId, open, status])
+
   const value = React.useMemo(
     () => ({
       open,
@@ -227,6 +258,7 @@ function DesktopPanelProvider({
       toggle,
       close,
       status,
+      inUseBy,
       connect,
       pause,
       reset,
@@ -240,6 +272,7 @@ function DesktopPanelProvider({
       toggle,
       close,
       status,
+      inUseBy,
       connect,
       pause,
       reset,
@@ -281,6 +314,16 @@ function DesktopControls() {
   )
 }
 
+function DesktopInUse({ className }: { className?: string }) {
+  const { inUseBy, status } = useDesktopPanel()
+  if (!inUseBy || status !== "connected") return null
+  return (
+    <p role="status" className={className}>
+      In use by {inUseBy.name}
+    </p>
+  )
+}
+
 function DesktopPlaceholder() {
   const { status, connect, reset } = useDesktopPanel()
   if (status === "connected") return null
@@ -288,7 +331,7 @@ function DesktopPlaceholder() {
     <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
       {status === "missing" ? (
         <div className="flex flex-col items-center gap-3 px-4 text-center">
-          <p>This computer no longer exists.</p>
+          <p>Your computer no longer exists.</p>
           <DesktopResetDialog reset={reset} />
         </div>
       ) : status === "disconnected" || status === "paused" ? (
@@ -307,7 +350,7 @@ function DesktopPlaceholder() {
   )
 }
 
-function DesktopPanel({ name }: { name: string }) {
+function DesktopPanel() {
   const {
     open,
     toggle,
@@ -333,7 +376,7 @@ function DesktopPanel({ name }: { name: string }) {
 
   if (!open) return null
 
-  const title = `${name}'s screen`
+  const title = "Your computer"
 
   if (isMobile) {
     return (
@@ -357,13 +400,14 @@ function DesktopPanel({ name }: { name: string }) {
             <DesktopControls />
           </DialogHeader>
           <DialogDescription className="sr-only">
-            Your teammate’s live computer. Close this view to return to the
-            conversation.
+            Your computer, shared by all your bots. Close this view to return to
+            the conversation.
           </DialogDescription>
           <div className="relative min-h-0 flex-1 bg-background">
             <div ref={setDialogSlot} className="absolute inset-0" />
             <DesktopPlaceholder />
           </div>
+          <DesktopInUse className="shrink-0 border-t px-4 py-2 text-xs text-muted-foreground" />
         </DialogContent>
       </Dialog>
     )
@@ -405,6 +449,7 @@ function DesktopPanel({ name }: { name: string }) {
                   <DesktopPlaceholder />
                 )}
               </AspectRatio>
+              <DesktopInUse className="text-xs text-muted-foreground" />
               <p className="text-xs text-muted-foreground">
                 Open the screen to control the computer.
               </p>
@@ -419,8 +464,8 @@ function DesktopPanel({ name }: { name: string }) {
               <DialogTitle className="text-sm">{title}</DialogTitle>
             </DialogHeader>
             <DialogDescription className="sr-only">
-              Your teammate’s live computer. Close this view to return to the
-              conversation.
+              Your computer, shared by all your bots. Close this view to return
+              to the conversation.
             </DialogDescription>
             <div ref={setDialogSlot} className="min-h-0 flex-1 bg-background" />
           </DialogContent>

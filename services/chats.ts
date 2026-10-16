@@ -1,5 +1,10 @@
 import * as Sentry from "@sentry/nextjs"
-import { ApiError as TriggerApiError, auth, runs, sessions } from "@trigger.dev/sdk"
+import {
+  ApiError as TriggerApiError,
+  auth,
+  runs,
+  sessions,
+} from "@trigger.dev/sdk"
 import {
   chat,
   defaultStorage,
@@ -19,7 +24,14 @@ import {
 import type { Feature } from "@/lib/billing"
 import { delegationSourceId } from "@/lib/chat-origin"
 import { chatTurnState } from "@/lib/chat-turn"
-import { getBotSandboxInfo, pauseBotSandbox, resetBotSandbox } from "@/lib/e2b"
+import {
+  accountComputerId,
+  computerInUseBy,
+  ensureAccountComputer,
+  pauseAccountComputer,
+  resetAccountComputer,
+} from "@/lib/account-computer"
+import { getComputerInfo } from "@/lib/e2b"
 import { SandboxMissingError } from "@/lib/sandbox-lifecycle"
 import type { ChatUIMessage } from "@/lib/sandbox-tools"
 import { sidebarOrderSchema } from "@/lib/sidebar-order"
@@ -28,7 +40,6 @@ import { assertBotAccess, provisionGroup } from "@/lib/teammates"
 import type { chatAgent } from "@/trigger/chat"
 import { startBotSetupSession } from "@/lib/bot-setup-session"
 import { teamOperationId } from "@/lib/team-policy"
-import { ensureBotComputer } from "@/lib/bot-computer"
 import type { Caller } from "@/services/caller"
 
 const startSession = chat.createStartSessionAction<typeof chatAgent>("chat")
@@ -173,8 +184,17 @@ export async function mintChatAccessToken(caller: Caller, chatId: string) {
 // hasn't started streaming. Session tokens can't read run status, so the
 // server reads it for the chat's owner: "queued" means no worker has picked
 // the turn up yet, "pending_version" that it waits for a deployment.
+// Which of the person's bots is using their computer, for an open Desktop view.
+// The app reads the same from GET /api/v1/chats/:id/status, so no route of its own.
+export async function getComputerInUse(userId: string, chatId: string) {
+  await ownedChat(userId, chatId)
+  return { inUseBy: await computerInUseBy(userId) }
+}
+
 export async function getChatTurnStatus(userId: string, chatId: string) {
   await ownedChat(userId, chatId)
+  // The bot using the account's computer right now, if any
+  const inUseBy = await computerInUseBy(userId)
 
   let runId: string | null | undefined
   try {
@@ -182,13 +202,13 @@ export async function getChatTurnStatus(userId: string, chatId: string) {
   } catch (error) {
     // No session yet: the first message will start one
     if (error instanceof TriggerApiError && error.status === 404)
-      return { state: chatTurnState(undefined) }
+      return { state: chatTurnState(undefined), inUseBy }
     throw error
   }
-  if (!runId) return { state: chatTurnState(undefined) }
+  if (!runId) return { state: chatTurnState(undefined), inUseBy }
 
   const run = await runs.retrieve(runId)
-  return { state: chatTurnState(run.status), runId }
+  return { state: chatTurnState(run.status), runId, inUseBy }
 }
 
 // The chat a delegated chat came from, when both are this user's. A source
@@ -224,9 +244,8 @@ export async function loadTranscript(userId: string, chatId: string) {
 export async function getDesktopUrl(caller: Caller, chatId: string) {
   assertFeature(caller, "sandboxes")
 
-  const chat = await findChat(caller.userId, chatId)
-  // Only a direct chat has one desktop to show
-  if (!chat || chat.kind !== "direct") throw new Error("Chat not found")
+  // Any chat of the person's shows the account's one computer
+  const chat = await ownedChat(caller.userId, chatId)
 
   // Showing the desktop starts the sandbox
   const usage = await getUsage(chat.userId)
@@ -241,9 +260,7 @@ export async function getDesktopUrl(caller: Caller, chatId: string) {
 
   // The gateway authenticates again and keeps provider tokens server-side.
   try {
-    await getBotSandboxInfo(
-      await ensureBotComputer(chat.bots[0].id, chat.userId)
-    )
+    await getComputerInfo(await ensureAccountComputer(chat.userId))
   } catch (error) {
     if (error instanceof SandboxMissingError) return { missing: true as const }
     throw error
@@ -251,28 +268,29 @@ export async function getDesktopUrl(caller: Caller, chatId: string) {
   return {
     missing: false as const,
     url: `/api/chats/${encodeURIComponent(chatId)}/desktop`,
+    inUseBy: await computerInUseBy(chat.userId),
   }
 }
 
+// Resets the computer for every bot of the account
 export async function resetDesktop(caller: Caller, chatId: string) {
   assertFeature(caller, "sandboxes")
-  const chat = await findChat(caller.userId, chatId)
-  if (!chat || chat.kind !== "direct") throw new Error("Chat not found")
+  await ownedChat(caller.userId, chatId)
   const usage = await getUsage(caller.userId)
   if (!usage || usage.remaining.sandbox <= 0)
     throw new Error("Usage limit reached")
-  const bot = chat.bots[0]
-  if (!bot.sandboxId) {
-    await ensureBotComputer(bot.id, caller.userId)
+  const sandboxId = await accountComputerId(caller.userId)
+  if (!sandboxId) {
+    await ensureAccountComputer(caller.userId)
     return
   }
-  await resetBotSandbox(bot.id, caller.userId, bot.sandboxId)
+  await resetAccountComputer(caller.userId, sandboxId)
 }
 
+// Pauses the computer for every bot of the account
 export async function pauseDesktop(userId: string, chatId: string) {
-  const chat = await findChat(userId, chatId)
-  if (!chat || chat.kind !== "direct") throw new Error("Chat not found")
-  if (chat.bots[0].sandboxId) await pauseBotSandbox(chat.bots[0].sandboxId)
+  await ownedChat(userId, chatId)
+  await pauseAccountComputer(userId)
 }
 
 // A client retry with the same requestId returns the chat already made

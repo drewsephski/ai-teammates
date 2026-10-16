@@ -1,10 +1,19 @@
 import "./helpers/dom"
 import assert from "node:assert/strict"
 import { after, afterEach, test } from "node:test"
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react"
+import {
+  cleanup,
+  configure,
+  fireEvent,
+  render,
+  waitFor,
+} from "@testing-library/react"
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime"
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime"
 import { APP_CONNECTION_OPTIONS } from "../lib/bot-setup-tools"
+
+// BroadcastChannel delivery is async and slower when the whole suite runs
+configure({ asyncUtilTimeout: 5000 })
 
 // next/link reads `self` when it loads, which the DOM helper doesn't define.
 Object.defineProperty(globalThis, "self", {

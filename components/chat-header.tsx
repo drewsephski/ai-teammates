@@ -21,7 +21,7 @@ import { chatExportFileName, chatTranscriptMarkdown } from "@/lib/chat-export"
 import type { Bot } from "@/db/schema"
 import type { ChatWithBots } from "@/queries/bots"
 
-// Only rendered in direct chats, the only ones inside a DesktopPanelProvider
+// Rendered in direct and group chats, both inside a DesktopPanelProvider
 function DesktopButton() {
   const desktopPanel = useDesktopPanel()
   const settings = useBotSettings()
@@ -182,7 +182,7 @@ function ChatHeader({
         </h1>
       )}
       <div className="ml-auto flex items-center gap-1">
-        {chat.kind === "direct" && <DesktopButton />}
+        <DesktopButton />
         <ExportChatButton chat={chat} bots={bots} />
       </div>
       <span

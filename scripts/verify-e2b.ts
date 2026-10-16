@@ -7,16 +7,16 @@ import { eq, sql } from "drizzle-orm"
 import { WebSocket } from "ws"
 
 import { db } from "@/db"
-import { bots, usageEntries } from "@/db/schema"
+import { computers, usageEntries } from "@/db/schema"
+import { resetAccountComputer } from "@/lib/account-computer"
 import {
-  createBotSandbox,
-  deleteBotSandbox,
-  getBotDesktopConnection,
-  meterBotSandbox,
-  pauseBotSandbox,
-  withBotSandbox,
-  renewBotDesktop,
-  resetBotSandbox,
+  createAccountSandbox,
+  deleteSandbox,
+  getDesktopConnection,
+  meterSandbox,
+  pauseComputer,
+  withComputer,
+  renewComputerDesktop,
 } from "@/lib/e2b"
 import { createSandboxTools } from "@/lib/sandbox-tools"
 import { SandboxMissingError } from "@/lib/sandbox-lifecycle"
@@ -52,9 +52,8 @@ mock.method(Sandbox, "create", (options: SandboxOpts) =>
   })
 )
 await mkdir(directory, { recursive: true })
-const botId = `verify-${randomUUID()}`
 const userId = `verify-${randomUUID()}`
-let sandboxId = await createBotSandbox(botId)
+let sandboxId = await createAccountSandbox(userId)
 const createdIds = new Set([sandboxId])
 const tools = createSandboxTools(() => sandboxId)
 const options = { toolCallId: "verification", messages: [], context: {} }
@@ -62,15 +61,9 @@ const report: Record<string, unknown> = {
   sandboxId,
   checkedAt: new Date().toISOString(),
 }
-const content = `files survive ${botId}`
+const content = `files survive ${userId}`
 try {
-  await db.insert(bots).values({
-    id: botId,
-    userId,
-    name: "Verification",
-    job: "Verify E2B",
-    sandboxId,
-  })
+  await db.insert(computers).values({ userId, sandboxId })
   assert.equal((await Sandbox.getInfo(sandboxId)).state, "paused")
   const lockFailure = new Error("intentional lock failure")
   await assert.rejects(
@@ -106,7 +99,7 @@ try {
   )
   assert.equal(failed.exitCode, 7)
   assert.match(failed.output, /expected-error/)
-  await withBotSandbox(sandboxId, (sandbox) =>
+  await withComputer(sandboxId, (sandbox) =>
     sandbox.open("https://drewsepeczi.xyz")
   )
   // Wait for the actual browser to render; no HTML is substituted for the screen.
@@ -146,10 +139,10 @@ try {
     `${directory}/after-input.png`,
     Buffer.from(after.base64, "base64")
   )
-  const connection = await getBotDesktopConnection(sandboxId)
+  const connection = await getDesktopConnection(sandboxId)
   const started = Promise.withResolvers<void>()
   const finish = Promise.withResolvers<void>()
-  const activeTool = withBotSandbox(
+  const activeTool = withComputer(
     sandboxId,
     async () => {
       started.resolve()
@@ -160,8 +153,8 @@ try {
   await Promise.race([started.promise, activeTool])
   try {
     const beforeRenew = await Sandbox.getInfo(sandboxId)
-    await renewBotDesktop(sandboxId, connection.startedAt)
-    await Promise.all([meterBotSandbox(sandboxId), meterBotSandbox(sandboxId)])
+    await renewComputerDesktop(sandboxId, connection.startedAt)
+    await Promise.all([meterSandbox(sandboxId), meterSandbox(sandboxId)])
     assert.equal(
       (await Sandbox.getInfo(sandboxId)).endAt.getTime(),
       beforeRenew.endAt.getTime()
@@ -199,15 +192,15 @@ try {
     publicHttpStatus: direct.status,
     authenticatedGreeting: hello.trim(),
   }
-  await pauseBotSandbox(sandboxId)
+  await pauseComputer(sandboxId)
   const paused = await Sandbox.getInfo(sandboxId)
   assert.equal(paused.state, "paused")
-  await meterBotSandbox(sandboxId)
+  await meterSandbox(sandboxId)
   const ledgerBefore = await db
     .select()
     .from(usageEntries)
     .where(eq(usageEntries.userId, userId))
-  await meterBotSandbox(sandboxId)
+  await meterSandbox(sandboxId)
   assert.deepEqual(
     await db.select().from(usageEntries).where(eq(usageEntries.userId, userId)),
     ledgerBefore
@@ -248,23 +241,20 @@ try {
   report.nonzeroCommandsPreserved = true
   console.log("Lifecycle checks passed; checking explicit reset")
   await assert.rejects(
-    resetBotSandbox(botId, "wrong-owner", sandboxId),
-    /Bot not found/
+    resetAccountComputer("wrong-owner", sandboxId),
+    /not been provisioned/
   )
-  await assert.rejects(
-    resetBotSandbox(botId, userId, sandboxId),
-    /still exists/
-  )
+  await assert.rejects(resetAccountComputer(userId, sandboxId), /still exists/)
   const previousId = sandboxId
   await Sandbox.kill(previousId)
   await assert.rejects(
-    withBotSandbox(previousId, async () => {}),
+    withComputer(previousId, async () => {}),
     SandboxMissingError
   )
-  assert.equal(await meterBotSandbox(previousId), false)
+  assert.equal(await meterSandbox(previousId), false)
   const replacements = await Promise.all([
-    resetBotSandbox(botId, userId, previousId),
-    resetBotSandbox(botId, userId, previousId),
+    resetAccountComputer(userId, previousId),
+    resetAccountComputer(userId, previousId),
   ])
   sandboxId = replacements[0]
   createdIds.add(sandboxId)
@@ -276,11 +266,11 @@ try {
 } finally {
   try {
     for (const id of createdIds) {
-      await deleteBotSandbox(id)
-      await deleteBotSandbox(id)
+      await deleteSandbox(id)
+      await deleteSandbox(id)
     }
   } finally {
-    await db.delete(bots).where(eq(bots.id, botId))
+    await db.delete(computers).where(eq(computers.userId, userId))
     await db.delete(usageEntries).where(eq(usageEntries.userId, userId))
   }
 }

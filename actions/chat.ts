@@ -37,6 +37,11 @@ export async function getDesktopUrl(chatId: string) {
   return service.getDesktopUrl(await caller(), chatId)
 }
 
+export async function getComputerInUse(chatId: string) {
+  const { userId } = await caller()
+  return service.getComputerInUse(userId, chatId)
+}
+
 export async function resetDesktop(chatId: string) {
   await service.resetDesktop(await caller(), chatId)
   revalidatePath("/", "layout")

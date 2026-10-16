@@ -432,6 +432,11 @@ test("routine and approval errors map to stable codes", async () => {
     ["Pick a time in the future.", 400, "invalid_request"],
     ["Routine not found", 404, "not_found"],
     ["Approval not found", 404, "not_found"],
+    [
+      "The computer is busy with another operation. Try again shortly.",
+      409,
+      "conflict",
+    ],
   ] as const) {
     const response = apiErrorResponse(new Error(message))
     assert.deepEqual(

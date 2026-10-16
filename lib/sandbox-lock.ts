@@ -4,6 +4,7 @@ import * as Sentry from "@sentry/node"
 import { Pool } from "pg"
 
 import config from "@/neon"
+import { SANDBOX_BUSY_ERROR } from "@/lib/sandbox-policy"
 
 const globalForLocks = globalThis as unknown as { sandboxLockPool?: Pool }
 
@@ -31,7 +32,7 @@ function getPool() {
 
 export class SandboxBusyError extends Error {
   constructor() {
-    super("The computer is busy with another operation. Try again shortly.")
+    super(SANDBOX_BUSY_ERROR)
     this.name = "SandboxBusyError"
   }
 }

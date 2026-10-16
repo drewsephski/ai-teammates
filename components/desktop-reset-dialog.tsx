@@ -25,11 +25,11 @@ export function DesktopResetDialog({ reset }: { reset: () => Promise<void> }) {
     try {
       await reset()
       setOpen(false)
-      toast.add({ type: "success", title: "New computer created" })
+      toast.add({ type: "success", title: "Computer reset" })
     } catch {
       toast.add({
         type: "error",
-        title: "Could not reset the computer",
+        title: "Couldn't reset the computer",
         description: "Try again shortly.",
       })
     } finally {
@@ -43,18 +43,17 @@ export function DesktopResetDialog({ reset }: { reset: () => Promise<void> }) {
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Start a new computer?</AlertDialogTitle>
+          <AlertDialogTitle>Reset the computer?</AlertDialogTitle>
           <AlertDialogDescription>
-            The previous computer no longer exists. This creates an empty
-            computer. Its previous files and open applications cannot be
-            recovered. Your conversations and memory stay available.
+            This deletes its files and browser sign-ins for all your bots. This
+            can&apos;t be undone. Your conversations and memory stay available.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
           <AlertDialogAction type="button" disabled={pending} onClick={confirm}>
             {pending && <Spinner data-icon="inline-start" />}
-            Create new computer
+            Reset computer
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

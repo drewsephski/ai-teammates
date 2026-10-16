@@ -17,7 +17,7 @@ The mobile session reads this table. `planned` means the shapes below may still 
 | Phase | Scope                                                                                                                                     | Status       |
 | ----- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
 | 1     | `findApps`, connect card (`askUser.appConnection`), connection attempts with `chatId`/`questionId`/`botId`, wake on connect               | server ready |
-| 2     | One computer per account, turn lease, `inUseBy`, desktop in group chats                                                                   | planned      |
+| 2     | One computer per account, turn lease, `inUseBy`, desktop in group chats                                                                   | server ready |
 | 3     | Free computer allowance, `requestComputerApproval`, `commits`, `approvals.kind`, `computerLogin.reason`                                   | planned      |
 | 4     | Workflows (routes, tools, routine link), app preferences (proactive opt-out, work apps), attachments (computer upload plus inline images) | planned      |
 
@@ -207,6 +207,8 @@ The web's `connectApp` server action takes the same optional `{ chatId, question
 `POST /api/v1/chats/:chatId/desktop/reset` and `/desktop/pause`: same bodies and responses, and they work in group chats. **Both now affect every bot**, because there's one computer per account. New builds should say so in the confirmation ("This resets the computer for all your bots").
 
 `GET /api/v1/chats/:chatId/status` gains `inUseBy`: `{ state, runId?, inUseBy: { botId, name } | null }`.
+
+Any desktop route, and account deletion, may return 409 `conflict` "The computer is busy with another operation. Try again shortly." while a long command runs on the shared computer (it was a 500 before). Retry after a moment.
 
 ### Phase 3: approvals
 

@@ -2,7 +2,7 @@
 
 Krafty is an authenticated workspace for AI teammates. A workspace owner creates a bot, configures its name, role, and working instructions in conversation, and returns to its persistent chat. The AI sends the first setup message and offers choices through the existing Questionnaire component. Bots can be pinned above the sidebar conversation list.
 
-Teammates can use persistent cloud computers, saved memory, files, connected apps, group chats, and specialist handoffs. A new bot's computer is provisioned when first requested, rather than during conversational setup. Actual computer access and AI usage are gated by the owner's plan and remaining allowances. Usage and billing display real account data through the existing Clerk integration.
+Teammates share one persistent cloud computer per account, so files and browser sign-ins carry over between bots, along with saved memory, connected apps, group chats, and specialist handoffs. The computer is provisioned when first requested, rather than during conversational setup. Actual computer access and AI usage are gated by the owner's plan and remaining allowances. Usage and billing display real account data through the existing Clerk integration.
 
 The web application uses Next.js, React, TypeScript, Tailwind, and shadcn/Base UI components. Clerk protects account-specific routes. Trigger.dev runs durable chat agents and background tasks; E2B supplies interactive computers. The current setup flow can record a desired cadence in working instructions but cannot activate a recurring schedule.
 

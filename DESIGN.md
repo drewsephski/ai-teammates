@@ -238,7 +238,7 @@ The message container is capped at (36rem/576px), with (20px) horizontal padding
 
 Workspace and pricing content use a centered (64rem/1024px) container, phone gutters (20px), and small-breakpoint gutters (32px). Cards become two columns at the small breakpoint where the content warrants it. Spacing follows the recurring four-pixel rhythm in the frontmatter, with compact control gaps and larger section gaps.
 
-The live computer is a resizable side panel on desktop, initially (50%) with a minimum (20%). Below (768px) it occupies a full-screen dialog using the same live viewer. Do not compress it into a phone split pane. Direct-chat settings occupy a separate right panel, initially (360px) with an allowed range of (280–480px); below (768px) they use a full-width sheet. Settings and the computer viewer close each other when opened. Forms and long content scroll within the available viewport.
+There is one computer per account, shared by all the person's bots, so the Desktop control appears in direct and group chats alike, and the panel says which bot is using it. Reset and pause copy says they affect every bot. The live computer is a resizable side panel on desktop, initially (50%) with a minimum (20%). Below (768px) it occupies a full-screen dialog using the same live viewer. Do not compress it into a phone split pane. Direct-chat settings occupy a separate right panel, initially (360px) with an allowed range of (280–480px); below (768px) they use a full-width sheet. Settings and the computer viewer close each other when opened. Forms and long content scroll within the available viewport.
 
 ## Elevation & Depth
 

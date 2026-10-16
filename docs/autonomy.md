@@ -56,7 +56,7 @@ The message ID marks the turn's origin, and `unattendedOrigin` reads it in `onTu
 - **On hold:** the call (slug, account, arguments, the bot's one-line summary) is stored in `approvals` with a 7-day expiry. The tool returns `approval_required`, the turn's stop condition fires, and the owner gets a push in the `approval` category.
 - **Decision:** `decideApproval` moves `pending` to `approved` or `denied` atomically, so a double tap from the phone and the web gets a 409 for the second. It then posts `approval_<id>_<decision>` into the chat.
 - **Execution:** the bot calls `runApprovedAction({ approvalId })`. `claimApproval` moves `approved` to `running` once, only for the same owner and bot, and returns the stored call; every path after the claim records `executed` or `failed`, so a row left `running` means the outcome was never confirmed. The model's own arguments are never used. If the connected account changed since approval, nothing runs.
-- **What isn't gated:** shell and browser actions on the bot's own computer. The computer is isolated, but browser purchases and posts there are still only governed by instructions. This is the next gap to close (see the roadmap).
+- **What isn't gated:** shell and browser actions on the account's computer, which all the person's bots share. The computer is isolated, but browser purchases and posts there are still only governed by instructions. This is the next gap to close (see the roadmap).
 
 ## Activity and notifications
 

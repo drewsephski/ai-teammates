@@ -43,10 +43,10 @@ test("unfinished setup respects free-plan computer restrictions", () => {
   assert.match(free, /You do not have computer tools on the free plan/)
   assert.doesNotMatch(
     free,
-    /You have a sandbox of your own|call listTeammates first/
+    /You work on the person.s computer|call listTeammates first/
   )
   const paid = buildChatInstructions(bot, undefined, true, true, true)
-  assert.match(paid, /You have a sandbox of your own/)
+  assert.match(paid, /You work on the person.s computer/)
   assert.match(paid, /call listTeammates first/)
 })
 
@@ -124,7 +124,7 @@ test("complex website work is owned through discovery, computer fallback and ver
     true,
     true
   )
-  assert.match(group, /do not emit a computerLogin card here/)
+  assert.match(group, /Do not emit a computerLogin card in this group/)
 })
 
 test("saved profiles and group handoffs retain role and capability guidance", () => {
@@ -251,4 +251,33 @@ test("connect cards are offered in group chats and on the free plan", () => {
   const free = buildChatInstructions(configured, undefined, true, false, true)
   assert.match(free, /find and connect apps from chat with findApps/)
   assert.match(free, /the card says so/)
+})
+
+test("the computer is shared by the person's bots, who take turns", () => {
+  const configured = { ...bot, setupComplete: true, job: "Analyst" }
+  const paid = buildChatInstructions(configured, undefined, true, true, true)
+  assert.match(paid, /shared by all of their bots/)
+  assert.match(paid, /~\/workspace\/<project>\//)
+  assert.match(paid, /status busy with heldBy/)
+  assert.match(paid, /may already be signed in/)
+  assert.doesNotMatch(paid, /belongs to you alone/)
+  const group = buildChatInstructions(
+    configured,
+    {
+      chat: { name: "League" },
+      bots: [
+        { id: configured.id, name: configured.name, job: configured.job },
+        { id: "other", name: "Writer", job: "Writes" },
+      ],
+    },
+    true,
+    true,
+    true
+  )
+  assert.match(group, /all of you share the person's one computer/)
+  assert.match(group, /the sign-in carries over here/)
+  assert.match(
+    connectedAppInstructions(true, true),
+    /app connection does not sign the desktop browser in/i
+  )
 })

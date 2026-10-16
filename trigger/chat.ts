@@ -42,7 +42,13 @@ import { configureBotProfile } from "@/lib/bot-profile"
 import { buildChatInstructions } from "@/lib/chat-instructions"
 import { assertComputerLoginReady } from "@/lib/computer-login-policy"
 import { chatPreview } from "@/lib/chat-preview"
-import { ensureBotComputer } from "@/lib/bot-computer"
+import {
+  acquireComputerLease,
+  ensureAccountComputer,
+  releaseComputerLease,
+  renewComputerLease,
+} from "@/lib/account-computer"
+import { busyResult } from "@/lib/computer-lease-policy"
 import { assertBotAccess } from "@/lib/teammates"
 import { createTavilyClient, tavilyCost } from "@/lib/tavily"
 import { createWebTools } from "@/lib/web-tools"
@@ -88,6 +94,11 @@ const turnModelUsage = chat.local<{
   // The account's AI allowance left after every running turn's holds
   remaining: number
   approvalRequested: boolean
+  // Whose computer lease this turn may hold, so the release never depends on
+  // the chat still existing
+  computerOwner?: string
+  // The bot that held the computer when this turn's tool gave up waiting
+  computerBusy?: string
   startedAt: number
   messageId: string
   usageKey: string
@@ -143,6 +154,8 @@ export const chatAgent = chat
       turnModelUsage.held = 0
       turnModelUsage.remaining = Infinity
       turnModelUsage.approvalRequested = false
+      turnModelUsage.computerOwner = undefined
+      turnModelUsage.computerBusy = undefined
       turnModelUsage.startedAt = Date.now()
       turnModelUsage.chatgpt = false
       turnModelUsage.followUps = undefined
@@ -174,7 +187,7 @@ export const chatAgent = chat
       // Asked before every tool call, so a yes is kept for a minute
       let checkedAt = 0
       let screenViewed = false
-      const getComputerId = async () => {
+      const getComputerId = async (holdMs?: number) => {
         if (Date.now() - checkedAt > 60_000) {
           const usage = await getUsage(userId)
           if (!usage || usage.remaining.sandbox <= 0) {
@@ -191,13 +204,35 @@ export const chatAgent = chat
           checkedAt = Date.now()
         }
 
+        // One computer per account: this turn takes, or renews, the lease
+        // on every call and waits up to a minute for another turn's. Marked
+        // first: the UPDATE may commit even if its reply is lost, and
+        // releasing a lease this turn doesn't hold is a no-op.
+        turnModelUsage.computerOwner = userId
+        const lease = await acquireComputerLease(
+          userId,
+          {
+            runKey: turnModelUsage.usageKey,
+            botId: current.id,
+            chatId,
+          },
+          { holdMs }
+        )
+        if (!lease.ok) {
+          turnModelUsage.computerBusy = lease.heldBy.name
+          return busyResult(lease.heldBy.name)
+        }
+        // A turn reports the computer as busy only if its last try was
+        turnModelUsage.computerBusy = undefined
         // A reset changes the ID while this durable turn/session may survive.
-        return ensureBotComputer(current.id, userId)
+        return ensureAccountComputer(userId)
       }
       const sandboxTools = createSandboxTools(getComputerId, {
         onScreenViewed: () => {
           screenViewed = true
         },
+        // The lease lapses two minutes after the last call ends, never sooner
+        afterCall: () => renewComputerLease(userId, turnModelUsage.usageKey),
       })
 
       const teamTools = createDelegationTools({
@@ -320,7 +355,11 @@ export const chatAgent = chat
               direct: kind === "direct",
               screenViewed,
             })
-            await getComputerId()
+            const computer = await getComputerId()
+            if (typeof computer !== "string")
+              throw new Error(
+                `${computer.heldBy} is using the computer right now. Try the sign-in again once it's free.`
+              )
           },
           ...(process.env.COMPOSIO_API_KEY && {
             prepareAppConnection: (app) => prepareAppConnection(userId, app),
@@ -489,6 +528,16 @@ export const chatAgent = chat
           extra: { chatId, turn },
         })
       }
+
+      // Free the computer for the person's other bots right away, before
+      // anything else here can fail, even if the chat was deleted meanwhile
+      if (turnModelUsage.computerOwner)
+        await releaseComputerLease(
+          turnModelUsage.computerOwner,
+          `ai:${runId}:${turn}`
+        ).catch((leaseError: unknown) =>
+          Sentry.captureException(leaseError, { extra: { chatId, turn } })
+        )
 
       const [row] = await db
         .select({ userId: chats.userId })
@@ -834,6 +883,24 @@ async function reportUnattendedTurn(turn: {
         dedupeKey,
       },
       { title: `${name} has a question`, body: question.output.question, path }
+    )
+    return
+  }
+  // Another bot had the computer: the work didn't fail, it waits for a rerun
+  if (origin && turnModelUsage.computerBusy) {
+    const title = `${name} couldn't use the computer`
+    const body = `${turnModelUsage.computerBusy} was using it. Run it again later.`
+    await recordActivity(
+      {
+        userId: turn.userId,
+        kind: "work_failed",
+        title,
+        detail: body,
+        botId: bot?.id,
+        chatId: turn.chatId,
+        dedupeKey,
+      },
+      { title, body, path }
     )
     return
   }

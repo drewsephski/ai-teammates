@@ -186,3 +186,26 @@ test("orphans older than a day are deleted, younger running ones paused", async 
   assert.deepEqual(paused, ["young"])
   assert.deepEqual(output, { metered: 0, missing: 0, paused: 1, removed: 2 })
 })
+
+test("owners come from computers: an old per-bot sandbox is an orphan", async () => {
+  const killed: string[] = []
+  const paused: string[] = []
+  const day = 25 * 3_600_000
+  const output = await runSandboxMetering({
+    // sbx_old was a bot's computer; no computers row points at it
+    list: async () => [computer("sbx_account"), computer("sbx_old", day)],
+    owners: async () => [{ sandboxId: "sbx_account", userId: "user" }],
+    meter: async () => true,
+    hasUsage: async () => true,
+    pause: async (id) => {
+      paused.push(id)
+    },
+    kill: async (id) => {
+      killed.push(id)
+    },
+    report: () => {},
+  })
+  assert.deepEqual(killed, ["sbx_old"])
+  assert.deepEqual(paused, [])
+  assert.deepEqual(output, { metered: 1, missing: 0, paused: 0, removed: 1 })
+})

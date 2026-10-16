@@ -123,6 +123,65 @@ Tests:
 
 ## Phase 2: one computer per account
 
+Interfaces (frozen for the Phase 2 agents, 2026-10-16). The `computers` table is pushed.
+
+```ts
+// lib/computer-lease-policy.ts (pure)
+export const LEASE_TTL_MS = 2 * 60_000 // expires this long after the last computer call
+export const LEASE_WAIT_MS = 60_000 // how long a tool waits for another turn's lease
+export const LEASE_POLL_MS = 2_000
+export type Lease = {
+  runKey: string | null
+  botId: string | null
+  chatId: string | null
+  expiresAt: Date | null
+}
+export type LeaseHolder = { runKey: string; botId: string; chatId: string } // runKey = ai:<runId>:<turn>
+export function leaseDecision(
+  lease: Lease,
+  me: LeaseHolder,
+  now: number
+): "take" | "renew" | "wait"
+export function leaseExpiry(now: number): Date
+export function busyResult(name: string): { status: "busy"; heldBy: string }
+
+// lib/account-computer.ts (replaces lib/bot-computer.ts; Trigger.dev- and gateway-safe)
+export function ensureAccountComputer(userId: string): Promise<string> // sandbox ID; lock computer:<userId>
+export function acquireComputerLease(
+  userId: string,
+  holder: LeaseHolder,
+  options?: {
+    waitMs?: number
+    pollMs?: number
+    sleep?: (ms: number) => Promise<void>
+  }
+): Promise<
+  { ok: true } | { ok: false; heldBy: { botId: string; name: string } }
+>
+export function releaseComputerLease(
+  userId: string,
+  runKey: string
+): Promise<void>
+export function computerInUseBy(
+  userId: string
+): Promise<{ botId: string; name: string } | null>
+export function resetAccountComputer(userId: string): Promise<string> // explicit reset of a missing computer
+export function pauseAccountComputer(userId: string): Promise<void>
+export function deleteAccountComputer(userId: string): Promise<void> // deleteAccount step
+
+// lib/e2b.ts renames: withBotSandbox → withComputer, getBotSandboxInfo → getComputerInfo,
+// renewBotDesktop → renewComputerDesktop, pauseBotSandbox → pauseComputer,
+// createBotSandbox(botId) → createAccountSandbox(userId), getBotDesktopConnection → getDesktopConnection,
+// deleteBotSandbox → deleteSandbox, meterBotSandbox → meterSandbox, listBotSandboxes → listAppSandboxes.
+// resetBotSandbox moves into resetAccountComputer. Owners resolve through computers.sandboxId.
+
+// services/chats.ts (web and /api/v1)
+getDesktopUrl(caller, chatId) // any owned chat → { missing: true } | { missing: false, url, inUseBy }
+resetDesktop(caller, chatId)
+pauseDesktop(userId, chatId) // any owned chat; the account computer
+getChatTurnStatus(userId, chatId) // + inUseBy
+```
+
 | File                                                                  | Owner           | Change                                                                                                                                                                                                                                                                                     |
 | --------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `db/schema.ts`                                                        | Lead            | New `computers` table: `userId` primary key, `sandboxId` (unique, nullable), `leaseBotId`, `leaseChatId`, `leaseRunKey`, `leaseExpiresAt`, `lastUsedAt`, `createdAt`, `updatedAt`. `bots.sandboxId` stays, unread (follow-up drop).                                                        |
