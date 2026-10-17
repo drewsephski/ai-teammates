@@ -5,9 +5,11 @@ import { and, eq, isNotNull, isNull, lte, or, sql } from "drizzle-orm"
 import { db } from "@/db"
 import { bots, computers } from "@/db/schema"
 import {
+  isLeaseHolderGone,
   LEASE_POLL_MS,
   LEASE_WAIT_MS,
   leaseExpiry,
+  leaseRunId,
   type LeaseHolder,
 } from "@/lib/computer-lease-policy"
 import type { Retention } from "@/lib/sandbox-metering"
@@ -452,6 +454,71 @@ export async function pauseComputerIfLowAllowance(
     return { paused: false, remainingSeconds }
   await provider.pause(sandboxId)
   return { paused: true, remainingSeconds }
+}
+
+// Frees the computers whose holding turn died mid-turn (#34). A cancelled or
+// crashed chat run never reaches onTurnComplete, so its lease would stand
+// until it lapsed and the computer would run, and bill, until the provider's
+// idle pause: five minutes of a free plan's 300 lifetime seconds. Run by the
+// metering cron each minute. The release is keyed on the dead turn's run key,
+// so a turn that has taken the computer since is untouched, and then the
+// computer is paused as that turn's end would have (pauseComputerIfLowAllowance,
+// which leaves it running if another turn holds it now).
+export async function releaseStoppedComputerLeases(deps: {
+  // The Trigger.dev run's status. A failure counts as unknown: nothing is done.
+  runStatus: (runId: string) => Promise<string | undefined>
+  tier: (userId: string) => Promise<"free" | "paid" | undefined>
+  allowance?: Omit<AllowanceDeps, "thresholdSeconds">
+  now?: () => number
+  report?: (error: unknown, userId: string) => void
+}) {
+  const held = await db
+    .select({
+      userId: computers.userId,
+      runKey: computers.leaseRunKey,
+      expiresAt: computers.leaseExpiresAt,
+    })
+    .from(computers)
+    .where(
+      and(isNotNull(computers.leaseRunKey), isNotNull(computers.sandboxId))
+    )
+  const result = { released: 0, paused: 0 }
+  for (const lease of held) {
+    const runKey = lease.runKey!
+    const runId = leaseRunId(runKey)
+    if (!runId) continue
+    const status = await deps.runStatus(runId).catch(() => undefined)
+    if (!isLeaseHolderGone(lease, status, deps.now?.() ?? Date.now())) continue
+    try {
+      const [released] = await db
+        .update(computers)
+        .set({
+          leaseBotId: null,
+          leaseChatId: null,
+          leaseRunKey: null,
+          leaseExpiresAt: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(computers.userId, lease.userId),
+            eq(computers.leaseRunKey, runKey)
+          )
+        )
+        .returning({ userId: computers.userId })
+      if (!released) continue
+      result.released++
+      const tier = await deps.tier(lease.userId)
+      const { paused } = await pauseComputerIfLowAllowance(lease.userId, {
+        ...deps.allowance,
+        thresholdSeconds: tier === "free" ? Infinity : LOW_ALLOWANCE_SECONDS,
+      })
+      if (paused) result.paused++
+    } catch (error) {
+      deps.report?.(error, lease.userId)
+    }
+  }
+  return result
 }
 
 // Free-plan retention: every registered computer with what the policy needs

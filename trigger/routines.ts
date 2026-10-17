@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/node"
 import { schedules } from "@trigger.dev/sdk"
 
-import { dispatchDueRoutines } from "@/lib/routines"
+import { closeStoppedRoutineRuns, dispatchDueRoutines } from "@/lib/routines"
 import { settleAbandonedHolds } from "@/lib/usage"
 
 // Starts every routine that is due. Claims advance nextRunAt in the same
@@ -22,6 +22,9 @@ export const runRoutines = schedules.task({
     )
       return { skipped: "not production" }
     const result = await dispatchDueRoutines()
+    // Turns that died before onTurnComplete never reported: close their runs
+    // as failed and tell the owner, once (#34)
+    const closed = await closeStoppedRoutineRuns()
     // Turns that died before onTurnComplete still spent what they held
     const settled = await settleAbandonedHolds()
     if (
@@ -29,9 +32,16 @@ export const runRoutines = schedules.task({
       result.skipped ||
       result.failed ||
       result.missed ||
+      closed.stopped ||
+      closed.settled ||
       settled
     )
-      Sentry.logger.info("Routines dispatched", { ...result, settled })
-    return { ...result, settled }
+      Sentry.logger.info("Routines dispatched", {
+        ...result,
+        stopped: closed.stopped,
+        reportSettled: closed.settled,
+        settled,
+      })
+    return { ...result, closed, settled }
   },
 })

@@ -1,7 +1,11 @@
 import * as Sentry from "@sentry/node"
-import { schedules } from "@trigger.dev/sdk"
+import { runs, schedules } from "@trigger.dev/sdk"
 
-import { createRetention, listComputerOwners } from "@/lib/account-computer"
+import {
+  createRetention,
+  listComputerOwners,
+  releaseStoppedComputerLeases,
+} from "@/lib/account-computer"
 import {
   deleteOrphanSandbox,
   isSandboxPaused,
@@ -26,6 +30,21 @@ export const meterSandboxes = schedules.task({
   queue: { concurrencyLimit: 1 },
   maxDuration: 240,
   run: async () => {
+    // A turn that died mid-turn never released the computer: free it and
+    // pause it now instead of at the idle pause (#34). Before metering, so
+    // this run already bills the shorter session. A run of another
+    // environment isn't found, and an unknown run is left alone.
+    const leases = await releaseStoppedComputerLeases({
+      runStatus: async (runId) =>
+        (await runs.retrieve(runId, { retry: { maxAttempts: 1 } })).status,
+      tier: async (userId) => (await getUsage(userId))?.tier,
+      report,
+    }).catch((error: unknown) => {
+      report(error, "leases")
+      return { released: 0, paused: 0 }
+    })
+    if (leases.released)
+      Sentry.logger.info("Stopped turns' computers released", leases)
     const result = await runSandboxMetering({
       list: listAppSandboxes,
       owners: listComputerOwners,

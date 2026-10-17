@@ -548,13 +548,11 @@ const activityFor = (dedupePrefix: string) =>
 const later = (ms: number) => new Date(Date.now() + ms)
 
 test("#34: a run whose turn died is closed as failed once, with one activity and one push", async () => {
-  await db
-    .insert(schema.pushDevices)
-    .values({
-      token: "ExponentPushToken[stuck]",
-      userId: STUCK,
-      platform: "ios",
-    })
+  await db.insert(schema.pushDevices).values({
+    token: "ExponentPushToken[stuck]",
+    userId: STUCK,
+    platform: "ios",
+  })
   const pushes: string[] = []
   const fetchMock = mock.method(
     globalThis,
