@@ -4,8 +4,10 @@ import test from "node:test"
 import {
   LEASE_TTL_MS,
   busyResult,
+  isLeaseHolderGone,
   leaseDecision,
   leaseExpiry,
+  leaseRunId,
   type Lease,
 } from "../lib/computer-lease-policy"
 
@@ -61,4 +63,43 @@ test("a long call's lease outlasts the call", () => {
     now + 630_000 + LEASE_TTL_MS
   )
   assert.equal(leaseExpiry(now, -5).getTime(), now + LEASE_TTL_MS)
+})
+
+test("the run holding a lease is read from its ledger key", () => {
+  assert.equal(
+    leaseRunId("ai:run_06gkm209otomj7g648smblc501:0"),
+    "run_06gkm209otomj7g648smblc501"
+  )
+  assert.equal(leaseRunId("ai:run_1:12"), "run_1")
+  assert.equal(leaseRunId("run_1"), undefined)
+  assert.equal(leaseRunId("ai::0"), undefined)
+  assert.equal(leaseRunId("ai:run_1"), undefined)
+})
+
+test("a lease whose run died is freed at once; a live turn's is kept", () => {
+  const held = { expiresAt: new Date(now + LEASE_TTL_MS) }
+  const lapsed = { expiresAt: new Date(now - 1) }
+  // Cancelled, crashed, out of time: nothing will ever release it
+  for (const status of [
+    "CANCELED",
+    "CRASHED",
+    "SYSTEM_FAILURE",
+    "FAILED",
+    "TIMED_OUT",
+    "EXPIRED",
+    "COMPLETED",
+  ]) {
+    assert.equal(isLeaseHolderGone(held, status, now), true, status)
+    assert.equal(isLeaseHolderGone(lapsed, status, now), true, status)
+  }
+  // A turn between computer calls keeps the computer, even past the lease
+  assert.equal(isLeaseHolderGone(held, "EXECUTING", now), false)
+  assert.equal(isLeaseHolderGone(lapsed, "EXECUTING", now), false)
+  // A run waiting between turns released its lease when its turn ended, so a
+  // lapsed one it still names was left behind
+  assert.equal(isLeaseHolderGone(held, "WAITING", now), false)
+  assert.equal(isLeaseHolderGone(lapsed, "WAITING", now), true)
+  // Unknown (lookup failed, another environment's run): never act on a guess
+  assert.equal(isLeaseHolderGone(lapsed, undefined, now), false)
+  assert.equal(isLeaseHolderGone(lapsed, "SOMETHING_NEW", now), false)
 })

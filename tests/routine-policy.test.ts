@@ -6,7 +6,13 @@ import {
   describeSchedule,
   nextRunAt,
   routineRunMessageId,
+  ROUTINE_RUN_MAX_MS,
+  ROUTINE_RUN_START_GRACE_MS,
+  reportedRoutineStatus,
   routineScheduleSchema,
+  STOPPED_RUN_NOTIFY_MS,
+  stoppedRunIsRecent,
+  stuckRoutineRunVerdict,
   unattendedOrigin,
   zonedTime,
 } from "../lib/routine-policy"
@@ -146,4 +152,65 @@ test("plan limits and unattended turn origins", () => {
   assert.equal(unattendedOrigin("approval_x_approve"), "approval")
   assert.equal(unattendedOrigin("task_x"), "task")
   assert.equal(unattendedOrigin("msg-123"), undefined)
+})
+
+test("a started run is closed only once its chat has nothing left running it", () => {
+  const startedAt = new Date("2026-10-17T18:03:00Z")
+  const at = (ms: number) => new Date(startedAt.getTime() + ms)
+  // Just posted: the chat run may not be listed yet, whatever the lookup says
+  for (const chatRunLive of [true, false, undefined])
+    assert.equal(
+      stuckRoutineRunVerdict(
+        { startedAt, chatRunLive },
+        at(ROUTINE_RUN_START_GRACE_MS - 1)
+      ),
+      "wait"
+    )
+  // The run that took the turn was cancelled, crashed or ran out of time
+  assert.equal(
+    stuckRoutineRunVerdict(
+      { startedAt, chatRunLive: false },
+      at(ROUTINE_RUN_START_GRACE_MS)
+    ),
+    "stopped"
+  )
+  // Still running, or Trigger.dev couldn't say: give it the longest a turn takes
+  for (const chatRunLive of [true, undefined]) {
+    assert.equal(
+      stuckRoutineRunVerdict(
+        { startedAt, chatRunLive },
+        at(ROUTINE_RUN_MAX_MS - 1)
+      ),
+      "wait"
+    )
+    assert.equal(
+      stuckRoutineRunVerdict(
+        { startedAt, chatRunLive },
+        at(ROUTINE_RUN_MAX_MS)
+      ),
+      "stopped"
+    )
+  }
+  // The longest wait covers the chat task's one-hour maxDuration
+  assert.ok(ROUTINE_RUN_MAX_MS > 3_600_000)
+})
+
+test("a stopped run that died long ago is closed without a push", () => {
+  const startedAt = new Date("2026-10-17T18:03:00Z")
+  const at = (ms: number) => new Date(startedAt.getTime() + ms)
+  assert.equal(stoppedRunIsRecent(startedAt, at(ROUTINE_RUN_MAX_MS)), true)
+  assert.equal(
+    stoppedRunIsRecent(startedAt, at(STOPPED_RUN_NOTIFY_MS - 1)),
+    true
+  )
+  assert.equal(stoppedRunIsRecent(startedAt, at(STOPPED_RUN_NOTIFY_MS)), false)
+})
+
+test("a turn that reported but never recorded its outcome is read from its report", () => {
+  assert.equal(reportedRoutineStatus("work_finished"), "completed")
+  assert.equal(reportedRoutineStatus("question_asked"), "blocked")
+  assert.equal(reportedRoutineStatus("work_failed"), "failed")
+  // Not a turn's own end-of-turn report
+  assert.equal(reportedRoutineStatus("approval_requested"), undefined)
+  assert.equal(reportedRoutineStatus("routine_started"), undefined)
 })

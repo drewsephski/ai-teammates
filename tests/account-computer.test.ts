@@ -62,6 +62,9 @@ before(async () => {
       "user_low",
       "user_expire",
       "user_touch",
+      "user_dead",
+      "user_dead_paid",
+      "user_live_turn",
     ].map((userId) => ({
       id: `bot_${userId}`,
       userId,
@@ -712,4 +715,79 @@ test("anything but a plain yes from the plan check keeps the computer", async ()
     )
   }
   assert.deepEqual(calls, [])
+})
+
+test("#34: a lease whose run died is released at once, and a free computer paused", async () => {
+  const { provider, calls } = fakeProvider()
+  const free = "user_dead"
+  const paid = "user_dead_paid"
+  const live = "user_live_turn"
+  const ids: Record<string, string> = {}
+  for (const user of [free, paid, live]) {
+    ids[user] = await computer.ensureAccountComputer(user, provider)
+    assert.deepEqual(
+      await computer.acquireComputerLease(
+        user,
+        { runKey: `ai:run_${user}:0`, botId: `bot_${user}`, chatId: "chat_a1" },
+        { waitMs: 0 }
+      ),
+      { ok: true }
+    )
+  }
+  calls.length = 0
+  const statuses: Record<string, string> = {
+    // Cancelled mid-turn, as in the B12 run 12 evidence
+    [`run_${free}`]: "CANCELED",
+    [`run_${paid}`]: "CRASHED",
+    // Between two computer calls: keeps its computer
+    [`run_${live}`]: "EXECUTING",
+  }
+  const looked: string[] = []
+  const sweep = () =>
+    computer.releaseStoppedComputerLeases({
+      runStatus: async (runId) => {
+        looked.push(runId)
+        // Other tests' turns: the lookup fails, and nothing is done on a guess
+        if (!(runId in statuses)) throw new Error("run not found")
+        return statuses[runId]
+      },
+      tier: async (userId) => (userId === free ? "free" : "paid"),
+      allowance: {
+        provider,
+        meter: async () => true,
+        remainingSeconds: async () => 250,
+      },
+    })
+
+  const result = await sweep()
+  assert.equal(result.released, 2)
+  // Free computers pause when the turn ends, so one whose turn died does too.
+  // A paid one with time left stays up, as at a normal turn end.
+  assert.equal(result.paused, 1)
+  assert.deepEqual(calls, [`pause:${ids[free]}`])
+  assert.equal(await computer.computerInUseBy(free), null)
+  assert.equal(await computer.computerInUseBy(paid), null)
+  assert.equal((await computer.computerInUseBy(live))?.botId, `bot_${live}`)
+  assert.ok(looked.includes(`run_${free}`))
+
+  // Nothing is left to release, and the live turn still holds its computer
+  calls.length = 0
+  const again = await sweep()
+  assert.equal(again.released, 0)
+  assert.deepEqual(calls, [])
+  assert.equal((await computer.computerInUseBy(live))?.botId, `bot_${live}`)
+
+  // Another bot's turn took the freed computer: the dead turn's key no longer
+  // names it, so nothing is released or paused under it
+  await computer.acquireComputerLease(
+    free,
+    { runKey: "ai:run_next:0", botId: `bot_${free}`, chatId: "chat_a1" },
+    { waitMs: 0 }
+  )
+  statuses.run_next = "EXECUTING"
+  calls.length = 0
+  assert.equal((await sweep()).released, 0)
+  assert.deepEqual(calls, [])
+  await computer.releaseComputerLease(free, "ai:run_next:0")
+  await computer.releaseComputerLease(live, `ai:run_${live}:0`)
 })

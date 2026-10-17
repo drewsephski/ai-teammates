@@ -34,6 +34,39 @@ export function leaseExpiry(now: number, holdMs = 0) {
   return new Date(now + Math.max(0, holdMs) + LEASE_TTL_MS)
 }
 
+// The Trigger.dev run in a lease's ledger key, ai:<runId>:<turn>
+export function leaseRunId(runKey: string) {
+  return /^ai:([^:]+):\d+$/.exec(runKey)?.[1]
+}
+
+// Run statuses that never execute again
+const FINAL_RUN_STATUSES = new Set([
+  "COMPLETED",
+  "CANCELED",
+  "FAILED",
+  "CRASHED",
+  "SYSTEM_FAILURE",
+  "EXPIRED",
+  "TIMED_OUT",
+])
+
+// Whether the turn holding a lease is gone without releasing it (a run that
+// was cancelled or crashed mid-turn never reaches onTurnComplete). A run
+// waiting between turns released its lease when its turn ended, so a lapsed
+// lease it still holds was left behind too. A turn that is executing keeps its
+// computer, and an unknown status (a failed lookup, or another environment's
+// run) is never acted on.
+export function isLeaseHolderGone(
+  lease: { expiresAt: Date | null },
+  runStatus: string | undefined,
+  now: number
+) {
+  if (!runStatus) return false
+  if (FINAL_RUN_STATUSES.has(runStatus)) return true
+  const lapsed = !lease.expiresAt || lease.expiresAt.getTime() <= now
+  return lapsed && runStatus === "WAITING"
+}
+
 export function busyResult(name: string) {
   return { status: "busy" as const, heldBy: name }
 }

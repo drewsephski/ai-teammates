@@ -341,6 +341,53 @@ export function routineOutcomeError(outcome: RoutineRunOutcome) {
 
 export const MISSED_RUN_ERROR = "Missed while Krafty was unavailable"
 
+// A run whose turn died (cancelled, crashed, out of memory, out of time, a
+// worker restart) never reaches onTurnComplete, so nothing reports on it.
+// The run-routines cron closes it instead (closeStoppedRoutineRuns).
+export const STOPPED_RUN_ERROR = "The run stopped before it finished."
+// How long after its post a run may still be waiting for its chat run to show
+export const ROUTINE_RUN_START_GRACE_MS = 3 * 60_000
+// The longest a routine's turn can still be working: past the chat task's
+// one-hour maxDuration plus queueing, the same window as abandoned usage holds
+export const ROUTINE_RUN_MAX_MS = 2 * 3_600_000
+// A run that stopped longer ago than this is closed without a push, so the
+// first sweep after an outage (or this fix shipping) doesn't page anyone
+export const STOPPED_RUN_NOTIFY_MS = 24 * 3_600_000
+
+// Whether a run still marked started has stopped. `chatRunLive` is whether
+// the routine's chat has a run that could still be working on it, or
+// undefined when Trigger.dev couldn't say; then only the time limit decides.
+export function stuckRoutineRunVerdict(
+  run: { startedAt: Date; chatRunLive: boolean | undefined },
+  now: Date
+): "wait" | "stopped" {
+  const age = now.getTime() - run.startedAt.getTime()
+  if (age < ROUTINE_RUN_START_GRACE_MS) return "wait"
+  if (age >= ROUTINE_RUN_MAX_MS) return "stopped"
+  return run.chatRunLive === false ? "stopped" : "wait"
+}
+
+export function stoppedRunIsRecent(startedAt: Date, now: Date) {
+  return now.getTime() - startedAt.getTime() < STOPPED_RUN_NOTIFY_MS
+}
+
+// The status a turn's own end-of-turn report (reportUnattendedTurn) stands
+// for, when the turn reported but its routine outcome was never written
+export function reportedRoutineStatus(
+  kind: string
+): RoutineRunOutcome["status"] | undefined {
+  switch (kind) {
+    case "work_finished":
+      return "completed"
+    case "question_asked":
+      return "blocked"
+    case "work_failed":
+      return "failed"
+    default:
+      return undefined
+  }
+}
+
 // How late a run may start and still be worth doing. A morning brief at nine
 // is no use at noon, an hourly check an hour late is the next one anyway, and
 // a one-off reminder is better late than never.

@@ -1,12 +1,16 @@
 import * as Sentry from "@sentry/node"
+import { runs } from "@trigger.dev/sdk"
 import {
   and,
   asc,
   count,
   desc,
   eq,
+  gte,
   inArray,
+  isNotNull,
   isNull,
+  like,
   lte,
   ne,
   notInArray,
@@ -15,6 +19,7 @@ import {
 
 import { db } from "@/db"
 import {
+  activityEvents,
   bots,
   chatMembers,
   chats,
@@ -38,9 +43,14 @@ import {
   normalizeSchedule,
   parseRoutineRunMessageId,
   planDueRun,
+  reportedRoutineStatus,
+  ROUTINE_RUN_START_GRACE_MS,
   routineOutcomeError,
   routineRunMessageId,
   routineRunPrompt,
+  STOPPED_RUN_ERROR,
+  stoppedRunIsRecent,
+  stuckRoutineRunVerdict,
   type RoutineRunOutcome,
 } from "@/lib/routine-policy"
 import { teamOperationId } from "@/lib/team-policy"
@@ -504,4 +514,180 @@ export async function dispatchDueRoutines(
     }
   }
   return results
+}
+
+// Chat runs that may still be working on a turn, or about to
+const LIVE_CHAT_RUN_STATUSES = [
+  "PENDING_VERSION",
+  "QUEUED",
+  "DEQUEUED",
+  "DELAYED",
+  "EXECUTING",
+  "WAITING",
+] as const
+
+export type StoppedRunDeps = {
+  // Whether the chat has a run that could still be working on its turn, or
+  // undefined when Trigger.dev couldn't say
+  chatRunLive: (chatId: string) => Promise<boolean | undefined>
+}
+
+async function chatRunLive(chatId: string) {
+  try {
+    const page = await runs.list(
+      {
+        taskIdentifier: "chat",
+        tag: `chat:${chatId}`,
+        status: [...LIVE_CHAT_RUN_STATUSES],
+        limit: 1,
+      },
+      { retry: { maxAttempts: 1 } }
+    )
+    return page.data.length > 0
+  } catch (error) {
+    Sentry.logger.warn("Chat run lookup failed", {
+      "chat.id": chatId,
+      "error.type": error instanceof Error ? error.name : "UnknownError",
+    })
+    return undefined
+  }
+}
+
+const liveStoppedRunDeps: StoppedRunDeps = { chatRunLive }
+
+// Closes routine runs whose turn died before it could report (#34): a run
+// cancelled, crashed, out of memory or out of time never reaches
+// onTurnComplete, so its routine would stay "started" and its owner would
+// never hear. A run is judged from when it was posted (its routine_started
+// activity), never from when it was due, and closed only once its chat has no
+// run left that could still be working on it, or after the longest a turn can
+// take (stuckRoutineRunVerdict). Each write is conditional on the run still
+// being the routine's latest and still started, so a late report from the
+// turn, a newer run, or a second sweep is never overwritten, and the one
+// routine_failed event (and push) is keyed like the run's other failure.
+export async function closeStoppedRoutineRuns(
+  now = new Date(),
+  deps: StoppedRunDeps = liveStoppedRunDeps,
+  limit = 200
+) {
+  const result = { stopped: 0, settled: 0 }
+  const candidates = await db
+    .select()
+    .from(routines)
+    .where(
+      and(
+        eq(routines.lastStatus, "started"),
+        isNotNull(routines.lastRunAt),
+        // Posted no earlier than it was due, so younger ones can't be stale
+        lte(
+          routines.lastRunAt,
+          new Date(now.getTime() - ROUTINE_RUN_START_GRACE_MS)
+        )
+      )
+    )
+    .orderBy(asc(routines.lastRunAt))
+    .limit(limit)
+  const live = new Map<string, Promise<boolean | undefined>>()
+  for (const routine of candidates) {
+    const scheduledAt = routine.lastRunAt!
+    const messageId = routineRunMessageId(routine.id, scheduledAt)
+    try {
+      const [posted] = await db
+        .select({ createdAt: activityEvents.createdAt })
+        .from(activityEvents)
+        .where(eq(activityEvents.dedupeKey, messageId))
+      const startedAt = posted?.createdAt ?? scheduledAt
+      // The time limit alone decides first. Trigger.dev is asked, once per
+      // chat, only when its answer could close the run.
+      let verdict = stuckRoutineRunVerdict(
+        { startedAt, chatRunLive: undefined },
+        now
+      )
+      if (
+        verdict === "wait" &&
+        stuckRoutineRunVerdict({ startedAt, chatRunLive: false }, now) ===
+          "stopped"
+      ) {
+        let pending = live.get(routine.chatId)
+        if (!pending) {
+          pending = deps.chatRunLive(routine.chatId)
+          live.set(routine.chatId, pending)
+        }
+        verdict = stuckRoutineRunVerdict(
+          { startedAt, chatRunLive: await pending },
+          now
+        )
+      }
+      if (verdict === "wait") continue
+
+      const stillStarted = and(
+        eq(routines.id, routine.id),
+        eq(routines.lastRunAt, scheduledAt),
+        eq(routines.lastStatus, "started")
+      )
+      // The turn reported (and notified) but its outcome write was lost:
+      // take the outcome from that report, and don't notify again
+      const [report] = await db
+        .select({ kind: activityEvents.kind })
+        .from(activityEvents)
+        .where(
+          and(
+            eq(activityEvents.userId, routine.userId),
+            eq(activityEvents.chatId, routine.chatId),
+            inArray(activityEvents.kind, [
+              "work_finished",
+              "work_failed",
+              "question_asked",
+            ]),
+            like(activityEvents.dedupeKey, "turn:%"),
+            gte(activityEvents.createdAt, startedAt)
+          )
+        )
+        .orderBy(asc(activityEvents.createdAt))
+        .limit(1)
+      const reported = report && reportedRoutineStatus(report.kind)
+      if (reported) {
+        const settled = await db
+          .update(routines)
+          .set({
+            lastStatus: reported,
+            lastError: routineOutcomeError({ status: reported }),
+          })
+          .where(stillStarted)
+          .returning({ id: routines.id })
+        if (settled.length) result.settled++
+        continue
+      }
+
+      const stopped = await db
+        .update(routines)
+        .set({ lastStatus: "failed", lastError: STOPPED_RUN_ERROR })
+        .where(stillStarted)
+        .returning({ id: routines.id })
+      if (!stopped.length) continue
+      result.stopped++
+      const title = `${routine.title} didn't finish`
+      await recordActivity(
+        {
+          userId: routine.userId,
+          kind: "routine_failed",
+          title,
+          detail: STOPPED_RUN_ERROR,
+          botId: routine.botId,
+          chatId: routine.chatId,
+          dedupeKey: `${messageId}:failed`,
+        },
+        stoppedRunIsRecent(startedAt, now)
+          ? {
+              title,
+              body: `${STOPPED_RUN_ERROR} Open the chat to run it again.`,
+              path: `/chats/${routine.chatId}`,
+            }
+          : undefined
+      )
+    } catch (error) {
+      Sentry.captureException(error, { extra: { routineId: routine.id } })
+    }
+  }
+  return result
 }
