@@ -25,7 +25,7 @@ Krafty is an open exploration of that idea. Every prompt, tool and limit is a fi
 ## ✨ Features
 
 - 🧑‍💼 **Teammates with a job**: a name, a job and instructions that each bot keeps in every conversation.
-- 🖥️ **A computer per teammate**: a persistent Linux sandbox with a shell, a filesystem and a graphical desktop.
+- 🖥️ **A computer for your team**: one persistent Linux sandbox per account, shared by all your bots, with a shell, a filesystem and a graphical desktop (`lib/account-computer.ts`).
 - 👀 **Live desktop view**: watch a bot move the mouse and type, streamed into the chat.
 - 👥 **Group chats with handoffs**: a bot passes a request to the teammate whose job it is.
 - **Expressive teammate avatars**: thinking, tool work, response writing, and questions reflect live chat activity. Handoffs animate the current author, with restrained motion, accessible status text, and reduced-motion support.
@@ -42,7 +42,7 @@ Krafty is an open exploration of that idea. Every prompt, tool and limit is a fi
 
 | Product                                      | What it does here                                                                             |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| [**Trigger.dev**](https://cwa.run/trigger-1) | Runs the durable chat agent and the cron task that meters running sandboxes.                  |
+| [**Trigger.dev**](https://cwa.run/trigger-1) | Runs the durable chat agent and the cron tasks that meter running sandboxes and start routines. |
 | [**E2B Hobby**](https://e2b.dev/pricing)     | One cloud computer per account, shared by its bots: shell, files and a desktop.               |
 | [**Clerk**](https://cwa.run/clerk)           | Authentication, plus Billing for plans, checkout and feature gates.                           |
 | [**Neon**](https://cwa.run/neon)             | Serverless Postgres, and the AI Gateway the chat model is called through.                     |
@@ -101,7 +101,7 @@ You need Node.js 24+ and an account with [Clerk](https://cwa.run/clerk), [Neon](
 ```bash
 git clone https://github.com/code-with-antonio/ai-teammates.git
 cd ai-teammates
-npm install
+pnpm install
 ```
 
 **2. Create `.env.local`**
@@ -165,7 +165,7 @@ In Clerk, enable Billing and create a user plan with two features, slugged `bots
 ```bash
 npm run db:push            # create the tables
 npm run dev                # terminal 1: Next.js
-npx trigger.dev@4.7.3 dev  # terminal 2: Trigger.dev tasks
+npx trigger.dev@4.7.4 dev  # terminal 2: Trigger.dev tasks
 ```
 
 Open [http://localhost:3000](http://localhost:3000), sign up, pick a plan and create your first teammate.
@@ -183,7 +183,7 @@ Fill in the variables it asks for. `TRIGGER_SECRET_KEY` is your Trigger.dev **pr
 **2. Deploy the tasks to Trigger.dev**
 
 ```bash
-npx trigger.dev@4.7.3 deploy
+npx trigger.dev@4.7.4 deploy
 ```
 
 **3. Give the tasks their variables**
@@ -204,7 +204,7 @@ NEXT_PUBLIC_SENTRY_DSN=
 
 ## 🤝 Contributing
 
-Issues and pull requests are welcome. Run `npm run lint`, `npm run typecheck` and `npm run format` before opening one.
+Issues and pull requests are welcome. Run `pnpm typecheck` and `pnpm test` before opening one, and lint and format only the files you changed (`pnpm exec eslint <files>`, `pnpm exec prettier --write <files>`). `pnpm format` rewrites many untouched files; see `AGENTS.md`.
 
 ---
 
@@ -222,7 +222,7 @@ Use `@e2b/desktop` with E2B's **Hobby** plan. Hobby has a one-hour session limit
 
 Put `E2B_API_KEY` privately in ignored `.env.local`. Never use a `NEXT_PUBLIC_` variable for it. Set the same key on Railway's `ai-teammates` service, `production`, and the Trigger.dev project's `prod` environment. Keep Railway's production `TRIGGER_SECRET_KEY`; the local development key intentionally differs.
 
-Each bot has one desktop sandbox. New computers are paused immediately after `MEMORY.md` is initialized. Tools resume the same ID and renew a five-minute idle timeout. Commands can lease longer to finish (at most 630 seconds), then return to the five-minute idle policy. E2B automatically **pauses**, rather than kills, on expiry, with automatic traffic-based resume disabled. Before 55 continuous minutes, tools pause/resume into a new session; a connected viewer pauses and asks for Resume. Files, memory and applications survive. Delete bot permanently kills its sandbox.
+Each account has one desktop sandbox, shared by all of its bots (`lib/account-computer.ts`). New computers are paused immediately after creation (`lib/e2b.ts`). Tools resume the same ID and renew a five-minute idle timeout. Commands can lease longer to finish (at most 630 seconds), then return to the five-minute idle policy. E2B automatically **pauses**, rather than kills, on expiry, with automatic traffic-based resume disabled. Before 55 continuous minutes, tools pause/resume into a new session; a connected viewer pauses and asks for Resume. Files and applications survive; saved memory lives in Postgres, not on the computer (`lib/memory.ts`). Deleting a bot keeps the account computer (`services/bots.ts`); deleting the account removes it (`services/account.ts`).
 
 `pnpm dev` runs `server.ts`; `pnpm build` compiles it to `.server/server.mjs`, and `pnpm start` runs the compiled Next.js server with a same-origin WebSocket gateway and a bounded 384 MiB V8 heap. Keep these start commands on Railway: `next start` alone cannot serve the gateway. Public sandbox traffic is disabled. The gateway verifies Clerk authentication, same origin, direct-chat ownership, feature access and remaining usage, then forwards noVNC with the E2B private ingress token **only on the server**. Closing the screen disconnects the stream and stops renewing its lease. Viewing an open screen counts as active use.
 
@@ -230,7 +230,7 @@ Each bot has one desktop sandbox. New computers are paused immediately after `ME
 
 Cross-worker commands, pause, reset and deletion serialize with session advisory locks on a separate, bounded **direct** Postgres pool. `DATABASE_URL_UNPOOLED` must be present on Railway and Trigger.dev production; `DATABASE_URL` continues serving ordinary application queries. No database transaction stays open during a remote command. Busy operations wait at most ten seconds for a lock; desktop heartbeats skip busy tools and do not shorten their lease or resume a paused/replaced session. Provider control-plane requests have a 15-second deadline. Post-operation maintenance failures are reported without masking a completed command or its original error.
 
-A missing provider computer is reported explicitly. The screen panel offers **Reset computer**, with confirmation that the new computer has no previous files, saved memory, or open applications. Temporary provider errors never trigger a reset. Resets recheck provider absence and bot ownership, serialize with deletion, and update the bot's sandbox ID; durable chat tools look up that ID on every call. Metering processes up to four computers concurrently, isolates individual failures, and completes healthy accounts' quota enforcement before requesting a retry. Newly provisioning computers have a five-minute grace period before orphan cleanup.
+A missing provider computer is reported explicitly. The screen panel offers **Reset computer**, with confirmation that the new computer has none of the previous files or browser sign-ins, for any of the account's bots; conversations and memory stay available (`components/desktop-reset-dialog.tsx`). Temporary provider errors never trigger a reset. Resets recheck provider absence under the account lock, serialize with deletion, and update the account's computer row (`resetAccountComputer` in `lib/account-computer.ts`); durable chat tools look up that ID on every call. Metering processes up to four computers concurrently, isolates individual failures, and completes healthy accounts' quota enforcement before requesting a retry. Newly provisioning computers have a five-minute grace period before orphan cleanup.
 
 Verification: `pnpm lint`, `pnpm typecheck`, `pnpm exec tsx --test tests/sandbox-*.test.ts`, `pnpm build`. `pnpm exec tsx --env-file=.env.local scripts/verify-e2b.ts` creates a real temporary bot, exercises its tools and private stream, verifies explicit and idle pause/resume, and deletes it. It consumes Hobby credits. Screenshots and the JSON report are saved under ignored `.artifacts/e2b/`. Pass an output directory to preserve previous evidence, e.g. `pnpm exec tsx --env-file=.env.local scripts/verify-e2b.ts .artifacts/e2b-hardening`. The live verification also checks independent metering while a tool holds a lease, lock release on failure, absence of long billing transactions, and concurrent explicit resets of a missing computer.
 
