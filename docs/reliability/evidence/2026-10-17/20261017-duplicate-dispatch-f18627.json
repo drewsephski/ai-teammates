@@ -1,0 +1,81 @@
+{
+  "state": {
+    "tag": "20261017-duplicate-dispatch-f18627",
+    "scenario": "duplicate-dispatch",
+    "env": "dev",
+    "userId": "reliability-20261017-duplicate-dispatch-f18627",
+    "botId": "bot_c7a0e07a5daed5c2447d0f01e6a5dd0b",
+    "chatId": "chat_c7a0e07a5daed5c2447d0f01e6a5dd0b",
+    "routineId": "13c615756d3bb72dd8edc05fcdfbdd0e",
+    "createdAt": "2026-10-17T18:18:04.599Z",
+    "commit": "400267f",
+    "dispatched": 1
+  },
+  "evidence": {
+    "routine": {
+      "lastStatus": "completed",
+      "lastError": null,
+      "lastRunAt": "2026-10-17T18:18:00.000Z",
+      "nextRunAt": null,
+      "enabled": false
+    },
+    "routineCount": 1,
+    "activity": [
+      {
+        "kind": "routine_started",
+        "title": "The same routine run dispatched twice produces one turn started",
+        "detail": null,
+        "dedupeKey": "routine_13c615756d3bb72dd8edc05fcdfbdd0e_1792261080000",
+        "createdAt": "2026-10-17T18:18:08.847Z"
+      },
+      {
+        "kind": "work_finished",
+        "title": "Relay finished a routine",
+        "detail": "Routine completed; this turn ran ONCE, with nothing to check or report beyond the duplicate-dispatch title itself.",
+        "dedupeKey": "turn:run_06gkm5f4u1pvvnhi5s737uj601:0",
+        "createdAt": "2026-10-17T18:18:17.458Z"
+      }
+    ],
+    "usage": [
+      {
+        "kind": "ai",
+        "amount": 171,
+        "key": "ai:run_06gkm5f4u1pvvnhi5s737uj601:0:follow-ups"
+      },
+      {
+        "kind": "ai",
+        "amount": 1052,
+        "key": "ai:run_06gkm5f4u1pvvnhi5s737uj601:0"
+      }
+    ],
+    "turns": [
+      "ai:run_06gkm5f4u1pvvnhi5s737uj601:0"
+    ],
+    "runIds": [
+      "run_06gkm5f4u1pvvnhi5s737uj601"
+    ],
+    "approvals": [],
+    "memories": [],
+    "chatPreview": "Routine completed; this turn ran ONCE, with nothing to check or report beyond the duplicate-dispatch title itself.",
+    "computer": null,
+    "overspendMicros": 0,
+    "duplicates": {
+      "extraTurns": 0,
+      "routineStartsOverOne": 0,
+      "approvalsExecutedOverOne": 0,
+      "duplicateMemories": 0,
+      "unattendedRoutineCreates": 0
+    },
+    "triggerRuns": [
+      {
+        "id": "run_06gkm5f4u1pvvnhi5s737uj601",
+        "task": "chat",
+        "status": "COMPLETED",
+        "version": "20261017.1",
+        "created": "10/17/2026, 1:18:08 PM"
+      }
+    ],
+    "failures": [],
+    "result": "PASS"
+  }
+}

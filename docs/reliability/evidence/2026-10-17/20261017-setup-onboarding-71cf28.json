@@ -1,0 +1,88 @@
+{
+  "state": {
+    "tag": "20261017-setup-onboarding-71cf28",
+    "scenario": "setup-onboarding",
+    "env": "dev",
+    "userId": "reliability-20261017-setup-onboarding-71cf28",
+    "botId": "bot_bceb1cfce3960a77b14fa047fa5390f2",
+    "chatId": "chat_bceb1cfce3960a77b14fa047fa5390f2",
+    "routineId": "",
+    "createdAt": "2026-10-17T18:29:22.746Z",
+    "commit": "400267f",
+    "dispatched": 3
+  },
+  "evidence": {
+    "bot": {
+      "name": "Inbox Pal",
+      "job": "Triage the customer support inbox each morning and draft short, friendly replies for review",
+      "setupComplete": true,
+      "instructions": "Inbox Pal helps Reliability with customer support email. Each morning, triage the support inbox: sort messages by what needs attention first, and draft short, casual, friendly replies for Reliability "
+    },
+    "routineCount": 0,
+    "activity": [],
+    "usage": [
+      {
+        "kind": "ai",
+        "amount": 2208,
+        "key": "ai:run_06gkm81eqka4eei2ukq4pu8501:0"
+      },
+      {
+        "kind": "ai",
+        "amount": 2229,
+        "key": "ai:run_06gkm89vp67scudj5bkb8jdg01:0"
+      },
+      {
+        "kind": "ai",
+        "amount": 4619,
+        "key": "ai:run_06gkm8n6h07pm0lah1c1iep501:0"
+      }
+    ],
+    "turns": [
+      "ai:run_06gkm81eqka4eei2ukq4pu8501:0",
+      "ai:run_06gkm89vp67scudj5bkb8jdg01:0",
+      "ai:run_06gkm8n6h07pm0lah1c1iep501:0"
+    ],
+    "runIds": [
+      "run_06gkm81eqka4eei2ukq4pu8501",
+      "run_06gkm89vp67scudj5bkb8jdg01",
+      "run_06gkm8n6h07pm0lah1c1iep501"
+    ],
+    "approvals": [],
+    "memories": [],
+    "chatPreview": "Saved — I'm Inbox Pal now. Next: to reach your support inbox I'll need access to your email. Which service do you use? Setup's saved. Last piece: connecting you",
+    "computer": null,
+    "overspendMicros": 0,
+    "duplicates": {
+      "extraTurns": 0,
+      "routineStartsOverOne": 0,
+      "approvalsExecutedOverOne": 0,
+      "duplicateMemories": 0,
+      "unattendedRoutineCreates": 0
+    },
+    "triggerRuns": [
+      {
+        "id": "run_06gkm8n6h07pm0lah1c1iep501",
+        "task": "chat",
+        "status": "COMPLETED",
+        "version": "20261017.1",
+        "created": "10/17/2026, 1:32:20 PM"
+      },
+      {
+        "id": "run_06gkm89vp67scudj5bkb8jdg01",
+        "task": "chat",
+        "status": "COMPLETED",
+        "version": "20261017.1",
+        "created": "10/17/2026, 1:30:32 PM"
+      },
+      {
+        "id": "run_06gkm81eqka4eei2ukq4pu8501",
+        "task": "chat",
+        "status": "COMPLETED",
+        "version": "20261017.1",
+        "created": "10/17/2026, 1:29:22 PM"
+      }
+    ],
+    "failures": [],
+    "result": "PASS"
+  }
+}
