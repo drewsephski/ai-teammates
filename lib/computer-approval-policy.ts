@@ -393,10 +393,70 @@ export function approvalRequiredMessage(
   return `${COMPUTER_APPROVAL_REQUIRED} (${verdict.category}: ${verdict.reason.slice(0, 200)}). Nothing was done. Call requestComputerApproval with action "${action}", the site's hostname and one sentence of exactly what will happen, then stop. After the owner approves, look at the screen again and repeat this step with the approvalId.`
 }
 
+export const NOT_APPROVED_ERROR =
+  "That approvalId isn't an approved request for this step from this chat, or its time ran out. Nothing was done. Call requestComputerApproval for this step and stop."
+
+// requestComputerApproval holds only a step a computer tool refused in this
+// turn, as the server classified it; the bot's own label is never stored
+export const NOTHING_HELD_ERROR =
+  "No step was held for approval in this turn, so there is nothing to approve. Take the step first: the computer tool says when it needs approval. Then call requestComputerApproval."
+
+export const MULTIPLE_ENTER_ERROR =
+  "This would press Enter more than once on a step that commits. Nothing was done. Type one line at a time."
+
+export const OPAQUE_COMMAND_ERROR =
+  "Put the data this command sends inline in the command, not in a file or piped input, so the owner approves exactly what is sent. Nothing ran."
+
+export const VIEW_SCREEN_FIRST_ERROR =
+  "Look at the screen with viewScreen first, so the owner sees the step they're approving."
+
+export function shellRefusedMessage(reason: string) {
+  return `This command ${reason}, which isn't allowed. Nothing ran. Use the mouse, keyboard and screen tools instead.`
+}
+
+export function shellApprovalRequiredMessage(
+  risk: Extract<ShellRisk, { kind: "approve" }>
+) {
+  return `Approval required: this command ${risk.reason}. Nothing ran. Call requestComputerApproval with action "${risk.action}", the destination's hostname, one sentence of what will happen and the exact command, then stop. After the owner approves, run that same command with the approvalId.`
+}
+
 export const GUARD_UNAVAILABLE_ERROR =
   "Couldn't check whether this step is safe to take, so it wasn't done. Look at the screen and try once more; if it fails again, tell the person."
 export const GUARD_EXHAUSTED_ERROR =
   "The safety check for clicks and keys isn't available right now, so this step wasn't done. Stop using the mouse and keyboard in this turn and tell the person; reading the screen and the shell still work."
+
+// The computer gate's own refusals: fixed server wording (plus the guard's
+// short reason on a held step) that says what happened and that nothing ran.
+// The chat passes these to the tool card instead of a generic error.
+const COMPUTER_REFUSALS = new Set([
+  NOT_APPROVED_ERROR,
+  NOTHING_HELD_ERROR,
+  MULTIPLE_ENTER_ERROR,
+  OPAQUE_COMMAND_ERROR,
+  VIEW_SCREEN_FIRST_ERROR,
+  DECLINED_ERROR,
+  HUMAN_ONLY_ERROR,
+  GUARD_UNAVAILABLE_ERROR,
+  GUARD_EXHAUSTED_ERROR,
+  ...SHELL_REFUSED.map(({ reason }) => shellRefusedMessage(reason)),
+])
+
+export function computerRefusalMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : undefined
+  if (!message) return undefined
+  if (COMPUTER_REFUSALS.has(message)) return message
+  if (
+    message.startsWith(COMPUTER_APPROVAL_REQUIRED) ||
+    SHELL_APPROVAL.some(
+      ({ reason, action }) =>
+        message ===
+        shellApprovalRequiredMessage({ kind: "approve", reason, action })
+    )
+  )
+    return message
+  return undefined
+}
+
 // Consecutive guard failures before a turn stops trying
 export const GUARD_FAILURE_LIMIT = 3
 // What one turn may spend on guard checks, in millionths of a dollar

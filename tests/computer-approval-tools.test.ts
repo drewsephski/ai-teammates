@@ -13,6 +13,7 @@ import {
   GUARD_EXHAUSTED_ERROR,
   GUARD_UNAVAILABLE_ERROR,
   guardVerdict,
+  NOTHING_HELD_ERROR,
   type ComputerGesture,
   type DeclinedAction,
   type GuardOutput,
@@ -302,6 +303,7 @@ test("after a decline, the same kind of step is refused and can't be asked again
   })
   const { store } = memoryStore()
   const tools = createComputerApprovalTools(store, {
+    gate: g,
     screenViewed: () => true,
     declined: () => declined,
   })
@@ -314,6 +316,36 @@ test("after a decline, the same kind of step is refused and can't be asked again
     ),
     { message: DECLINED_ERROR }
   )
+})
+
+test("a declined kind of step can't be asked again under another label", async () => {
+  const declined: DeclinedAction[] = [
+    { kind: "computer", action: "buy", hostname: null },
+  ]
+  // Held before the decline was known, say from an earlier message
+  const {
+    gate: g,
+    store,
+    requested,
+  } = gate({
+    verdicts: [high({ category: "payment" })],
+  })
+  await assert.rejects(g.gesture(sandbox, click, undefined, ctx), /"buy"/)
+  const tools = createComputerApprovalTools(store, {
+    gate: g,
+    screenViewed: () => true,
+    declined: () => declined,
+  })
+  await assert.rejects(
+    Promise.resolve(
+      tools.requestComputerApproval.execute!(
+        { action: "submit", summary: "Submit it", hostname: "shop.example" },
+        { toolCallId: "t", messages: [], context: {} }
+      )
+    ),
+    { message: DECLINED_ERROR }
+  )
+  assert.equal(requested.length, 0)
 })
 
 test("a retried step on an unchanged screen is checked once", async () => {
@@ -367,9 +399,16 @@ test("the shell: refused commands never run, held ones need the exact approved c
 })
 
 test("asking for approval needs a look at the screen first and stores the server's screenshot", async () => {
-  const { store, requested } = memoryStore()
+  const {
+    gate: g,
+    store,
+    requested,
+  } = gate({
+    verdicts: [high({ category: "grades", hostname: null })],
+  })
   let viewed = false
   const tools = createComputerApprovalTools(store, {
+    gate: g,
     screenViewed: () => viewed,
     preview: async () => ({
       base64: "abc",
@@ -386,6 +425,16 @@ test("asking for approval needs a look at the screen first and stores the server
         context: {},
       })
     )
+  // Nothing was held yet
+  await assert.rejects(
+    run({
+      action: "submit",
+      summary: "Submit grades",
+      hostname: "school.example.com",
+    }),
+    { message: NOTHING_HELD_ERROR }
+  )
+  await assert.rejects(g.gesture(sandbox, click, undefined, ctx), /"submit"/)
   await assert.rejects(
     run({
       action: "submit",
@@ -404,6 +453,12 @@ test("asking for approval needs a look at the screen first and stores the server
   assert.equal(
     (requested[0] as { preview: string }).preview,
     "data:image/png;base64,abc"
+  )
+  // No address bar in view: the bot's hostname is kept, and the window title
+  // must name it when the approval is spent
+  assert.equal(
+    (requested[0] as { hostname: string }).hostname,
+    "school.example.com"
   )
   // A model can't name its own hostname with a scheme or path
   await assert.rejects(
@@ -524,4 +579,158 @@ test("without an address bar in view, the window must name the approved site", a
     /isn't an approved request/
   )
   assert.equal((await g.gesture(sandbox, click, "apr_1", ctx)).claimed, "apr_1")
+})
+
+// #33: the bot labelled a pizza "Submit order" click "submit", the guard
+// classified it as a purchase, and the approved step could never be spent
+test("an approval is bound to the guard's action and site, not the bot's label, and then spends once", async () => {
+  const purchase = high({
+    target: "Submit order",
+    category: "purchase",
+    hostname: "httpbin.org",
+    reason: "Places a pizza order",
+  })
+  // Turn 1: the click is held, and the bot asks with its own word
+  const first = gate({ verdicts: [purchase] })
+  await assert.rejects(
+    first.gate.gesture(sandbox, click, undefined, ctx),
+    /action "buy"/
+  )
+  const tools = createComputerApprovalTools(first.store, {
+    gate: first.gate,
+    screenViewed: () => true,
+    preview: async () => ({
+      base64: "abc",
+      mediaType: "image/png",
+      width: 1,
+      height: 1,
+    }),
+  })
+  const held = await tools.requestComputerApproval.execute!(
+    {
+      action: "submit",
+      summary: "Submit the httpbin pizza order form",
+      hostname: "httpbin.org",
+      // Prose in place of a command, as in the B12 run
+      command:
+        "Click the Submit order button on https://httpbin.org/forms/post",
+    },
+    { toolCallId: "t", messages: [], context: {} }
+  )
+  assert.equal((held as { action: string }).action, "buy")
+  const stored = first.requested[0] as Record<string, unknown>
+  // The owner's card says Buy, shows the server's screenshot and no command
+  assert.equal(stored.action, "buy")
+  assert.equal(stored.hostname, "httpbin.org")
+  assert.equal(stored.preview, "data:image/png;base64,abc")
+  assert.equal(stored.command, undefined)
+
+  // The owner approves; turn 2 repeats the click with the approvalId
+  const rows: Record<string, Row> = {
+    apr_new: {
+      state: "approved",
+      action: stored.action as string,
+      hostname: stored.hostname as string,
+      claimedAt: null,
+      uses: 0,
+    },
+  }
+  const second = gate({ verdicts: [purchase], rows })
+  const { claimed } = await second.gate.gesture(sandbox, click, "apr_new", ctx)
+  assert.equal(claimed, "apr_new")
+  assert.equal(rows.apr_new.state, "running")
+  assert.equal(rows.apr_new.uses, 1)
+})
+
+test("a command approval holds only a command the shell held, with the shell's action", async () => {
+  const { gate: g, store, requested } = gate()
+  const tools = createComputerApprovalTools(store, {
+    gate: g,
+    screenViewed: () => false,
+    preview: async () => {
+      throw new Error("no screenshot for a command")
+    },
+  })
+  const run = (input: Record<string, unknown>) =>
+    Promise.resolve(
+      tools.requestComputerApproval.execute!(input as never, {
+        toolCallId: "t",
+        messages: [],
+        context: {},
+      })
+    )
+  const push = {
+    action: "send",
+    summary: "Push main to GitHub",
+    hostname: "github.com",
+    command: "git push origin main",
+  }
+  // The shell never refused this command, so there's nothing to approve
+  await assert.rejects(run(push), { message: NOTHING_HELD_ERROR })
+  await assert.rejects(g.shell(push.command, undefined), /Approval required/)
+  await run(push)
+  // Stored as the shell's "post", so the command can be spent once
+  const stored = requested[0] as Record<string, unknown>
+  assert.equal(stored.action, "post")
+  assert.equal(stored.command, push.command)
+  assert.equal(stored.preview, undefined)
+  const rows: Record<string, Row> = {
+    apr_new: {
+      state: "approved",
+      action: stored.action as string,
+      hostname: stored.hostname as string,
+      claimedAt: null,
+      uses: 0,
+      command: stored.command as string,
+    },
+  }
+  const next = gate({ rows })
+  assert.deepEqual(await next.gate.shell(push.command, "apr_new"), {
+    claimed: "apr_new",
+  })
+})
+
+test("the guard's hostname is the approved site when it read one", async () => {
+  const {
+    gate: g,
+    store,
+    requested,
+  } = gate({
+    verdicts: [high({ hostname: "mail.example.com" })],
+  })
+  await assert.rejects(g.gesture(sandbox, click, undefined, ctx), /"send"/)
+  const tools = createComputerApprovalTools(store, {
+    gate: g,
+    screenViewed: () => true,
+  })
+  await tools.requestComputerApproval.execute!(
+    { action: "send", summary: "Send the reply", hostname: "example.com" },
+    { toolCallId: "t", messages: [], context: {} }
+  )
+  assert.equal(
+    (requested[0] as { hostname: string }).hostname,
+    "mail.example.com"
+  )
+})
+
+test("an approval that doesn't cover the step leaves it held for a new request", async () => {
+  const rows: Record<string, Row> = {
+    apr_send: {
+      state: "approved",
+      action: "send",
+      hostname: null,
+      claimedAt: null,
+      uses: 0,
+    },
+  }
+  const { gate: g } = gate({
+    verdicts: [high({ category: "purchase" })],
+    rows,
+  })
+  await assert.rejects(
+    g.gesture(sandbox, click, "apr_send", ctx),
+    /isn't an approved request/
+  )
+  assert.equal(rows.apr_send.state, "approved")
+  assert.equal(g.heldGesture()?.action, "buy")
 })

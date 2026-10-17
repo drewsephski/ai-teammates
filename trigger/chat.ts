@@ -53,6 +53,7 @@ import {
   COMPUTER_ACCOUNT,
   COMPUTER_TOOLKIT,
   computerApprovalSlug,
+  computerRefusalMessage,
   DECLINED_ERROR,
   GUARD_RESERVE,
   GUARD_TURN_BUDGET,
@@ -161,6 +162,9 @@ export const chatAgent = chat
     uiMessageStreamOptions: {
       onError: (error) => {
         if (isModelUnavailable(error)) return MODEL_UNAVAILABLE_ERROR
+        // A computer step the gate refused on purpose says why on its card
+        const refusal = computerRefusalMessage(error)
+        if (refusal) return refusal
         const message = error instanceof Error ? error.message : ""
         return [
           USAGE_LIMIT_ERROR,
@@ -357,6 +361,7 @@ export const chatAgent = chat
       const computerApprovalTools = createComputerApprovalTools(
         computerApprovals,
         {
+          gate: computerGate,
           screenViewed: () => screenViewed,
           declined: () => turnModelUsage.declined,
           preview: async () => {
