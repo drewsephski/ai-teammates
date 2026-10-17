@@ -271,7 +271,40 @@ test("B can't act on A's For you items", async () => {
     forYou.updateForYouItem(B, "fy_a", { type: "snooze" }),
     /no longer available/
   )
+  await assert.rejects(
+    forYou.updateForYouItem(B, "fy_a", { type: "hide_app" }),
+    /no longer available/
+  )
   await assert.rejects(forYou.startForYouItem(B, "fy_a"), /no longer available/)
+  // Hiding an app is per account and only clears that account's cards
+  await db.insert(schema.forYouItems).values({
+    id: "fy_a_gmail",
+    userId: A,
+    botId: "bot_a1",
+    fingerprint: "gmail:m9",
+    title: "Reply to Dana",
+    reason: "Asked yesterday",
+    prompt: "Draft a reply",
+    category: "reply",
+    urgency: "today",
+    score: 0.8,
+    toolkit: "gmail",
+    sourceId: "m9",
+    sourceQuote: "Reply to Dana",
+    sourceLabel: "Email from Dana",
+    expiresAt: new Date(Date.now() + 86_400_000),
+  })
+  await forYou.setAppSuggestions(B, "gmail", false)
+  assert.deepEqual((await forYou.getForYou(A)).hiddenApps, [])
+  assert.ok(
+    (await forYou.getForYou(A)).items.some((entry) => entry.id === "fy_a_gmail")
+  )
+  assert.deepEqual((await forYou.getForYou(B)).hiddenApps, ["gmail"])
+  await forYou.setAppSuggestions(B, "gmail", true)
+  assert.deepEqual((await forYou.getForYou(B)).hiddenApps, [])
+  await db
+    .delete(schema.forYouItems)
+    .where(eq(schema.forYouItems.id, "fy_a_gmail"))
   const [item] = await db
     .select()
     .from(schema.forYouItems)

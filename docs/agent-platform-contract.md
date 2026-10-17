@@ -321,6 +321,11 @@ Routines (`/api/v1/routines`):
 
 `PATCH /api/v1/apps/preferences` takes `{ toolkit: string, proactive?: boolean, work?: boolean }` and returns `{ toolkit, proactive, work }`.
 
+Shipped so far (2026-10-17): `proactive` only. `PATCH /api/v1/apps/preferences` takes `{ toolkit, proactive: boolean }` and returns `{ toolkit, proactive }`; `work` and the `GET /api/v1/apps` fields come later. For you uses it directly:
+
+- `GET /api/v1/for-you` and `POST /api/v1/for-you/suggestions` gain `hiddenApps: string[]` (toolkits with `proactive: false`), and each item gains `categoryLabel` ("Reply", "Schedule", "Meeting prep", "Follow up", "To-do", ...). `category` gains the values `schedule`, `follow_up` and `admin`.
+- `PATCH /api/v1/for-you/items/:itemId` also accepts `{ type: "hide_app" }`: it dismisses the card and sets `proactive: false` for its app. Send it only to a server whose For you state has `hiddenApps`.
+
 ### Phase 4: attachments
 
 The owner chose (2026-10-16) to put files on the account computer, plus inline images under 5 MB for the model to look at directly. No new storage service.

@@ -7,11 +7,13 @@ import {
   ChevronDownIcon,
   ClockIcon,
   RefreshCwIcon,
+  SlidersHorizontalIcon,
   XIcon,
 } from "lucide-react"
 
 import {
   refreshForYou,
+  setAppSuggestions,
   startForYouItem,
   updateForYouItem,
 } from "@/actions/for-you"
@@ -19,10 +21,12 @@ import { ChatAvatar } from "@/components/chat-avatar"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -51,6 +55,9 @@ function since(iso: string | null, now: number) {
   return hours < 24 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`
 }
 
+// Cards beyond this sit behind "Show more"
+const VISIBLE = 3
+
 function list(names: string[]) {
   if (names.length <= 2) return names.join(" and ")
   return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`
@@ -73,6 +80,9 @@ export function WorkspaceForYou({
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
   const [busy, setBusy] = useState<string>()
   const [now, setNow] = useState(() => Date.now())
+  const [expanded, setExpanded] = useState(false)
+  const hiddenApps = state?.hiddenApps ?? []
+  const shownApps = apps.filter((app) => !hiddenApps.includes(app.slug))
   const eligible = apps.length > 0 && hasBots && !appsUnavailable
   const autoScanned = useRef(false)
 
@@ -157,7 +167,61 @@ export function WorkspaceForYou({
     }
   }
 
+  async function toggleApp(slug: string, on: boolean) {
+    const previous = state
+    setState(
+      (current) =>
+        current && {
+          ...current,
+          hiddenApps: on
+            ? current.hiddenApps.filter((app) => app !== slug)
+            : [...current.hiddenApps, slug],
+          items: on
+            ? current.items
+            : current.items.filter((item) => item.toolkit !== slug),
+        }
+    )
+    try {
+      await setAppSuggestions(slug, on)
+      toast.add({
+        title: on
+          ? `Suggestions from ${nameOf(slug)} turned on`
+          : `No more suggestions from ${nameOf(slug)}`,
+      })
+    } catch {
+      setState(previous)
+      toast.add({
+        type: "error",
+        title: "Couldn't change this app",
+        description: "Try again.",
+      })
+    }
+  }
+
+  // "Stop suggesting from Gmail" on a card: dismisses it and hides the app
+  async function hideApp(item: ForYouItemView) {
+    const slug = item.toolkit
+    if (!slug) return
+    const previous = state
+    setState(
+      (current) =>
+        current && {
+          ...current,
+          hiddenApps: [...current.hiddenApps, slug],
+          items: current.items.filter((entry) => entry.toolkit !== slug),
+        }
+    )
+    try {
+      await updateForYouItem(item.id, { type: "hide_app" })
+      toast.add({ title: `No more suggestions from ${item.app}` })
+    } catch {
+      setState(previous)
+      toast.add({ type: "error", title: "Couldn't update this suggestion" })
+    }
+  }
+
   const items = (state?.items ?? []).filter((item) => !hidden.has(item.id))
+  const visible = expanded ? items : items.slice(0, VISIBLE)
   const running = scanning || state?.scan.status === "running"
   const nameOf = (slug: string) =>
     apps.find((app) => app.slug === slug)?.name ?? slug
@@ -165,23 +229,25 @@ export function WorkspaceForYou({
   const failedNames = (state?.scan.failed ?? []).map(nameOf)
 
   const meta = running
-    ? `Checking ${list(apps.slice(0, 4).map((app) => app.name))}…`
+    ? `Checking ${list(shownApps.slice(0, 4).map((app) => app.name))}…`
     : checkedNames.length
       ? `Checked ${list(checkedNames)} · ${since(state?.scan.finishedAt ?? null, now)}`
       : null
 
   const empty = appsUnavailable
     ? "App connections are temporarily unavailable."
-    : !apps.length || state?.reason === "no-apps"
-      ? "Connect an app and your teammates will find work worth doing."
-      : !hasBots || state?.reason === "no-bots"
-        ? "Finish setting up a bot to get suggestions."
-        : state?.reason === "usage"
-          ? "Your AI allowance is too low to check for new tasks."
-          : (state?.error ??
-            (state?.scan.status === "never"
-              ? "Your teammates haven't looked yet."
-              : "Nothing needs you right now. Check back later."))
+    : apps.length && !shownApps.length
+      ? "Suggestions are off for all your apps. Turn some back on with the apps button."
+      : !apps.length || state?.reason === "no-apps"
+        ? "Connect an app and your teammates will find work worth doing."
+        : !hasBots || state?.reason === "no-bots"
+          ? "Finish setting up a bot to get suggestions."
+          : state?.reason === "usage"
+            ? "Your AI allowance is too low to check for new tasks."
+            : (state?.error ??
+              (state?.scan.status === "never"
+                ? "Your teammates haven't looked yet."
+                : "Nothing needs you right now. Check back later."))
 
   return (
     <section aria-labelledby="workspace-for-you-title" className="space-y-3">
@@ -200,28 +266,67 @@ export function WorkspaceForYou({
           )}
         </div>
         {eligible && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Check again"
-            disabled={running}
-            onClick={() => scan(true)}
-          >
-            {running ? (
-              <Spinner aria-hidden="true" className="size-3.5" />
-            ) : (
-              <RefreshCwIcon
-                aria-hidden="true"
-                className="size-3.5 text-muted-foreground"
-              />
-            )}
-          </Button>
+          <div className="flex items-center">
+            <DropdownMenu>
+              <Tooltip>
+                <DropdownMenuTrigger
+                  render={
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="Choose apps for suggestions"
+                        />
+                      }
+                    />
+                  }
+                >
+                  <SlidersHorizontalIcon
+                    aria-hidden="true"
+                    className="size-3.5 text-muted-foreground"
+                  />
+                </DropdownMenuTrigger>
+                <TooltipContent>Choose apps</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Suggest tasks from</DropdownMenuLabel>
+                  {apps.map((app) => (
+                    <DropdownMenuCheckboxItem
+                      key={app.slug}
+                      checked={!hiddenApps.includes(app.slug)}
+                      onCheckedChange={(on) => toggleApp(app.slug, on)}
+                    >
+                      {app.name}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Check again"
+              disabled={running || !shownApps.length}
+              onClick={() => scan(true)}
+            >
+              {running ? (
+                <Spinner aria-hidden="true" className="size-3.5" />
+              ) : (
+                <RefreshCwIcon
+                  aria-hidden="true"
+                  className="size-3.5 text-muted-foreground"
+                />
+              )}
+            </Button>
+          </div>
         )}
       </div>
 
       {items.length ? (
         <ul className="space-y-2">
-          {items.map((item, index) => (
+          {visible.map((item, index) => (
             <ForYouCard
               key={item.id}
               item={item}
@@ -232,6 +337,7 @@ export function WorkspaceForYou({
               onSnooze={() =>
                 feedback(item, { type: "snooze" }, "Snoozed until tomorrow")
               }
+              onHideApp={item.toolkit ? () => hideApp(item) : undefined}
               onDismiss={(reason) =>
                 feedback(
                   item,
@@ -243,6 +349,29 @@ export function WorkspaceForYou({
               }
             />
           ))}
+          {items.length > VISIBLE && (
+            <li>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-expanded={expanded}
+                onClick={() => setExpanded((value) => !value)}
+                className="text-muted-foreground"
+              >
+                {expanded
+                  ? "Show fewer"
+                  : `Show ${items.length - VISIBLE} more`}
+                <ChevronDownIcon
+                  aria-hidden="true"
+                  data-icon="inline-end"
+                  className={cn(
+                    "transition-transform",
+                    expanded && "rotate-180"
+                  )}
+                />
+              </Button>
+            </li>
+          )}
         </ul>
       ) : running && eligible ? (
         <div className="space-y-2" aria-hidden="true">
@@ -277,6 +406,7 @@ function ForYouCard({
   disabled,
   onStart,
   onSnooze,
+  onHideApp,
   onDismiss,
 }: {
   item: ForYouItemView
@@ -285,6 +415,7 @@ function ForYouCard({
   disabled: boolean
   onStart: () => void
   onSnooze: () => void
+  onHideApp?: () => void
   onDismiss: (reason: "not_relevant" | "done" | "wrong_bot") => void
 }) {
   const [open, setOpen] = useState(false)
@@ -308,6 +439,11 @@ function ForYouCard({
             <span className="font-medium text-foreground/80">
               {item.bot.name}
             </span>
+            {item.categoryLabel && (
+              <span className="rounded-full bg-muted px-1.5 py-px text-[11px] text-foreground/80">
+                {item.categoryLabel}
+              </span>
+            )}
             {urgency && (
               <span className="rounded-full bg-muted px-1.5 py-px text-[11px] text-foreground/80">
                 {urgency}
@@ -417,6 +553,14 @@ function ForYouCard({
                   Wrong teammate
                 </DropdownMenuItem>
               </DropdownMenuGroup>
+              {onHideApp && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onHideApp}>
+                    Stop suggesting from {item.app}
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

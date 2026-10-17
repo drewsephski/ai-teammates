@@ -335,6 +335,8 @@ export const memoryEvents = pgTable(
 // Nightly aggregates of user_signals; filled in by later phases
 export type BehaviorAggregate = Record<string, unknown>
 
+export type AppPreferences = Record<string, { proactive?: boolean }>
+
 export const userSettings = pgTable("user_settings", {
   userId: text().primaryKey(),
   memoryEnabled: boolean().notNull().default(true),
@@ -347,6 +349,8 @@ export const userSettings = pgTable("user_settings", {
   quietHours: jsonb().$type<{ start: number; end: number }>(),
   // Null means every connected app
   suggestionApps: text().array(),
+  // Per toolkit; `proactive: false` keeps For you away from the app
+  appPreferences: jsonb().$type<AppPreferences>(),
   behavior: jsonb().$type<BehaviorAggregate>(),
   updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 })
@@ -359,6 +363,12 @@ export const forYouCategory = pgEnum("for_you_category", [
   "doc_followup",
   "commitment",
   "other",
+  // Answer an invite, find a time, or move a meeting
+  "schedule",
+  // Nudge someone who hasn't answered the person's own email
+  "follow_up",
+  // Bills, renewals, forms, deadlines and other errands
+  "admin",
 ])
 export const forYouUrgency = pgEnum("for_you_urgency", [
   "today",
