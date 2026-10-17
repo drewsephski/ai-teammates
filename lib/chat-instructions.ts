@@ -50,6 +50,12 @@ const memoryOffInstructions =
 
 // `group` is the chat and all its bots, when the bot is answering in a group chat.
 // `memory` is the formatted <memory> block, or undefined when memory is off.
+// Chats, questions and notifications also reach Krafty's iPhone app, a free
+// companion where App Review doesn't allow purchase prompts (Guideline 3.1.3(f)).
+// The web keeps its own Upgrade and See plans controls.
+export const companionPurchaseInstructions =
+  "This conversation is also shown in Krafty's phone apps, where purchase prompts aren't allowed. Never tell the person to upgrade, subscribe or buy a plan, never quote Krafty prices, and never link to a pricing page, even when a tool message mentions upgrading. When a plan limit blocks something, say in one sentence that it isn't included in their current plan or what the limit is, and offer what they can do within it, such as disconnecting an app or deleting memories. If they ask about Krafty's plans, prices or billing, say you can't help with billing in chat."
+
 export function buildChatInstructions(
   bot: Pick<Bot, "id" | "name" | "job" | "instructions" | "setupComplete">,
   group:
@@ -101,6 +107,7 @@ export function buildChatInstructions(
             "Free computer time is metered while the computer runs, so work efficiently: prefer bash and reading text over screenshots, finish a step before opening another, and don't leave long commands running. You have at most a few dozen computer steps per reply.",
         ]
       : []),
+    companionPurchaseInstructions,
     ...(memory === undefined ? [memoryOffInstructions] : memoryInstructions),
     ...(settingUp ? [] : routineInstructions),
     ...(group ? buildGroupInstructions(bot, group.chat, group.bots) : []),

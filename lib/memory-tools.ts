@@ -112,7 +112,7 @@ export function createMemoryTools({
       execute: async ({ content, kind, scope, importance, dueAt }) => {
         if (free && (await countActiveMemories(userId)) >= FREE_MEMORY_LIMIT)
           throw new Error(
-            `Memory is full: the free plan keeps ${FREE_MEMORY_LIMIT} memories. The person can delete some on the Memory page or upgrade.`
+            `Memory is full: the free plan keeps ${FREE_MEMORY_LIMIT} memories. The person can delete some on the Memory page.`
           )
         const row = await writeMemory({
           userId,
