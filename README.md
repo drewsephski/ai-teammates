@@ -140,6 +140,19 @@ E2B_API_KEY=
 # project. Read where push notifications are sent (app and worker).
 EXPO_ACCESS_TOKEN=
 
+# Sign in with Apple token revocation on account deletion (Railway only; the
+# worker never reads these). The key is a Sign in with Apple key (Certificates,
+# Identifiers & Profiles > Keys, "Sign in with Apple" enabled, primary App ID
+# app.kraftybot.mobile), not an App Store Connect API key. Paste the .p8
+# contents; \n escapes are accepted. The encryption key is 64 hex characters
+# (openssl rand -hex 32). Without them, Apple users get manual removal steps.
+# See docs/apple-sign-in-revocation.md.
+APPLE_TEAM_ID=
+APPLE_SIWA_KEY_ID=
+APPLE_SIWA_PRIVATE_KEY=
+APPLE_SIWA_CLIENT_ID=app.kraftybot.mobile
+APPLE_SIWA_TOKEN_ENCRYPTION_KEY=
+
 # Development only: let the local trigger dev worker run routines. Off by
 # default because local development shares production's database.
 # KRAFTY_DEV_ROUTINES=1

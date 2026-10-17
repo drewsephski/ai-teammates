@@ -7,6 +7,7 @@ import { db } from "@/db"
 import {
   accountPlans,
   activityEvents,
+  appleSignInGrants,
   bots,
   chatgptConnections,
   chats,
@@ -22,10 +23,16 @@ import { cancelAccountSubscriptions } from "@/lib/account-billing"
 import { deleteAccountComputer } from "@/lib/account-computer"
 import { disconnectChatGPT } from "@/lib/chatgpt-connection"
 import { getComposio } from "@/lib/composio"
+import type { AppleRevocation } from "@/lib/apple-signin"
+import { revokeAppleSignIn } from "@/services/apple"
 import { deleteBot } from "@/services/bots"
 
 type Steps = {
   cancelSubscriptions: (userId: string) => Promise<void>
+  revokeApple: (
+    userId: string,
+    authorizationCode: string | undefined
+  ) => Promise<AppleRevocation>
   closeChat: (chatId: string) => Promise<void>
   deleteComputer: (userId: string) => Promise<void>
   deleteBot: (userId: string, botId: string) => Promise<void>
@@ -82,6 +89,8 @@ const providerSteps: Steps = {
         Sentry.captureException(cause)
       })
   },
+  revokeApple: (userId, authorizationCode) =>
+    revokeAppleSignIn(userId, authorizationCode),
   deleteComputer: deleteAccountComputer,
   deleteBot,
   disconnectChatGPT,
@@ -95,10 +104,26 @@ const providerSteps: Steps = {
 // asking again. Usage and sandbox metering rows are kept, keyed by the now
 // unused user ID, as the billing record. Conversation transcripts stored with
 // Trigger.dev sessions are not removed here.
-export async function deleteAccount(userId: string, steps = providerSteps) {
+//
+// Sign in with Apple: Apple's grant is revoked before anything is deleted,
+// with stored tokens and, when the app re-authenticated, a fresh
+// authorization code. An Apple outage stops deletion for a retry. Without a
+// usable token deletion goes on and the result tells the app to show how to
+// remove Krafty in Apple Account settings (services/apple.ts).
+export async function deleteAccount(
+  userId: string,
+  steps = providerSteps,
+  options: { appleAuthorizationCode?: string } = {}
+): Promise<{ appleSignIn: AppleRevocation }> {
   // Do not leave a recurring charge attached to an account that cannot sign in.
   // A billing failure leaves the workspace intact so the person can retry.
   await steps.cancelSubscriptions(userId)
+
+  // While the stored grant still exists. Revoking again is harmless.
+  const appleSignIn = await steps.revokeApple(
+    userId,
+    options.appleAuthorizationCode
+  )
 
   // Close sessions before their IDs disappear with the bots and group chats.
   // Closing prevents more messages; it does not erase provider transcripts.
@@ -139,6 +164,10 @@ export async function deleteAccount(userId: string, steps = providerSteps) {
     await tx
       .delete(chatgptConnections)
       .where(eq(chatgptConnections.userId, userId))
+    // revokeApple already revoked these with Apple
+    await tx
+      .delete(appleSignInGrants)
+      .where(eq(appleSignInGrants.userId, userId))
     // Routines, approvals and approval rules went with the bots and chats.
     // Usage holds stay: the settle job books them into the billing record.
     await tx.delete(activityEvents).where(eq(activityEvents.userId, userId))
@@ -153,4 +182,5 @@ export async function deleteAccount(userId: string, steps = providerSteps) {
   await steps.deleteComputer(userId)
 
   await steps.deleteUser(userId)
+  return { appleSignIn }
 }
