@@ -140,6 +140,24 @@ E2B_API_KEY=
 # project. Read where push notifications are sent (app and worker).
 EXPO_ACCESS_TOKEN=
 
+# Optional: 64 hex characters (openssl rand -hex 32). Seals the model API
+# keys people bring and Slack bot tokens. Without it, own keys and Slack are
+# off. Read by the app and the worker; never change it once keys are saved.
+CREDENTIAL_ENCRYPTION_KEY=
+
+# Optional: email triggers. Mail to <token>@INBOUND_EMAIL_DOMAIN is posted by
+# Postmark, SendGrid Inbound Parse or Mailgun to /api/inbound/email, with
+# INBOUND_EMAIL_SECRET as the URL's basic-auth password or ?secret=
+INBOUND_EMAIL_DOMAIN=
+INBOUND_EMAIL_SECRET=
+
+# Optional: Slack app (Events API at /api/slack/events, redirect URL
+# /api/slack/callback, bot scopes app_mentions:read chat:write im:history
+# im:read im:write, events app_mention and message.im)
+SLACK_CLIENT_ID=
+SLACK_CLIENT_SECRET=
+SLACK_SIGNING_SECRET=
+
 # Development only: let the local trigger dev worker run routines. Off by
 # default because local development shares production's database.
 # KRAFTY_DEV_ROUTINES=1
@@ -197,6 +215,10 @@ E2B_API_KEY=
 NEON_AI_GATEWAY_BASE_URL=
 NEON_AI_GATEWAY_TOKEN=
 COMPOSIO_API_KEY=
+
+# Optional: only if people bring model keys or use Slack. The same value as
+# the app's, or saved keys and tokens won't open.
+CREDENTIAL_ENCRYPTION_KEY=
 
 # Optional: only if you use Sentry
 NEXT_PUBLIC_SENTRY_DSN=

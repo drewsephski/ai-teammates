@@ -4,7 +4,7 @@ How a Krafty bot works when nobody is talking to it, and how it stays safe while
 
 ## The loop
 
-1. **Something starts a turn without the composer.** A routine comes due, the owner approves a held action, a teammate delegates, or a For you task starts. Each posts a user-role message into a chat from the server.
+1. **Something starts a turn without the composer.** A routine comes due, a webhook is called or an email arrives for an event trigger, the owner approves a held action, a teammate delegates, or a For you task starts. Each posts a user-role message into a chat from the server. A message the owner sends from Slack arrives the same way.
 2. **The bot works unattended.** It's the ordinary chat agent (`trigger/chat.ts`) with the ordinary tools, ownership checks, allowance checks and metering. The message tells it nobody is watching.
 3. **Risky actions wait.** Any connected-app write is held as an approval, and the turn stops.
 4. **The owner hears about it on whatever device they have.** An activity event is recorded and a push goes to their phones: the work finished, the bot has a question, an approval is waiting, or a routine was skipped.
@@ -22,13 +22,15 @@ Don't re-call `sessions.start` with `basePayload.message` for an existing sessio
 
 The message ID marks the turn's origin, and `unattendedOrigin` reads it in `onTurnComplete`:
 
-| Prefix                       | Origin                                                                         | Written by               |
-| ---------------------------- | ------------------------------------------------------------------------------ | ------------------------ |
-| `routine_<id>_<scheduledAt>` | routine run                                                                    | `lib/routines.ts`        |
-| `approval_<id>_<decision>`   | owner's decision                                                               | `lib/approvals.ts`       |
-| `brief_<op>`                 | delegation                                                                     | `lib/team-delegation.ts` |
-| `task_<op>`                  | For you task                                                                   | `services/for-you.ts`    |
-| `connect_<state>`            | an app connected from a connect card (attended: `unattendedOrigin` ignores it) | `lib/connect-wake.ts`    |
+| Prefix                                 | Origin                                                                         | Written by               |
+| -------------------------------------- | ------------------------------------------------------------------------------ | ------------------------ |
+| `routine_<id>_<scheduledAt>`           | routine run                                                                    | `lib/routines.ts`        |
+| `approval_<id>_<decision>`             | owner's decision                                                               | `lib/approvals.ts`       |
+| `brief_<op>`                           | delegation                                                                     | `lib/team-delegation.ts` |
+| `task_<op>`                            | For you task                                                                   | `services/for-you.ts`    |
+| `connect_<state>`                      | an app connected from a connect card (attended: `unattendedOrigin` ignores it) | `lib/connect-wake.ts`    |
+| `event_<triggerId>_<key>`              | event trigger (webhook or email)                                               | `lib/bot-triggers.ts`    |
+| `slack_<team>_<channel>_<thread>_<ts>` | the owner's Slack message (attended: the reply goes back to the thread)        | `lib/slack.ts`           |
 
 `displayPrompt` metadata ("Routine: Morning brief", "Approved") is what the chat shows in place of the long instruction text.
 
@@ -47,6 +49,23 @@ The message ID marks the turn's origin, and `unattendedOrigin` reads it in `onTu
 - **Prompt injection:** the routine tools refuse to create, change or delete routines during an unattended turn, since those turns read untrusted email and web content, and a bot can only change its own routines.
 - **Cadence:** the next run is computed from when the routine was due, not when the cron ran, so intervals don't drift.
 - **Where to create them:** the bot's `scheduleRoutine` tool (it reports into the current chat), the Activity page, or `POST /api/v1/routines` (it reports into the bot's latest direct chat).
+
+## Event triggers
+
+- **Storage:** `bot_triggers` (kind `webhook` or `email`, a random 32-character lowercase base32 `token`, the owner's instructions, optional `allowedSenders` for mail) and `trigger_events`, one row per accepted event keyed by its message ID. Both cascade from the bot.
+- **Where events come in:**
+  - `POST /api/hooks/<token>`: no session, the token is the credential. Bodies up to 256 KB. Answers 202 accepted, 200 duplicate, 403 refused sender, 404 unknown or paused, 429 over the hourly limit, 503 when the bot couldn't be woken.
+  - `POST /api/inbound/email`: the inbound mail provider (Postmark JSON, SendGrid Inbound Parse or Mailgun forms; `lib/inbound-email.ts`) proves itself with `INBOUND_EMAIL_SECRET`. Each recipient `<token>@INBOUND_EMAIL_DOMAIN` (plus-addressing allowed) is one delivery. Mail for unknown addresses is accepted and dropped.
+- **Delivery (`receiveTriggerEvent`):** the token must name an enabled trigger of the event's kind; mail must come from an allowed sender when any are listed; at most 30 events an hour per trigger (one `event_skipped` notice an hour past that); the event's key is the sender's delivery ID (`idempotency-key`, `webhook-id`, `x-github-delivery`, …) or the body within ten minutes, and the mail's Message-ID, so a retry posts nothing. Then the same `checkBotRun` as routines (plan access, AI allowance), then `postChatMessage` into the trigger's chat. A failed post removes the event row so the sender's retry can try again.
+- **Prompt injection:** the event is quoted inside `<event>` tags with any tag inside it neutralised, cut to 8000 characters, and introduced as data, not instructions. Event turns are unattended, so they can't change routines, and every app write and committing computer step still waits for approval.
+- **Outcome:** like routines, `started` when posted, then the turn's own `completed`, `blocked` or `failed` (`recordTriggerOutcome`), only for the trigger's latest event (`lastEventId`).
+- **Limits:** free 1, paid 25 per account (`TRIGGER_LIMITS`). Created from the Activity page or `POST /api/v1/triggers`; the response carries the `url` or `address`, which only the owner sees.
+
+## Slack
+
+- **Install:** `/api/slack/install` (signed-in browser) sends the person to Slack's consent page with a state cookie; `/api/slack/callback` trades the code (`oauth.v2.access`) and stores `slack_installations`: the workspace, the approving member (`slackUserId`), the app's own user, and the bot token sealed with `CREDENTIAL_ENCRYPTION_KEY`. One workspace per account, and one account per Slack member.
+- **Messages:** `/api/slack/events` checks Slack's signature (five-minute window), answers `url_verification`, and handles the rest after responding. Only a direct message to the app or a mention of it, from the installing member, reaches a bot; everyone else in the workspace is ignored, because they would spend the owner's allowance and act with the owner's connected apps. "Ledger: …" picks a bot by name; otherwise the default bot from the Activity page, otherwise the first bot. The message goes into that bot's latest direct chat with `checkBotRun` first.
+- **Replies:** `onTurnComplete` posts the turn's text back to the thread (`postSlackTurnReply`), or the bot's question, or that it is waiting for an approval, or why it couldn't finish, with a link to the chat. Approvals are still decided in Krafty.
 
 ## Approvals
 
@@ -109,7 +128,7 @@ Not enforced, only reduced:
 
 ## Not built yet
 
-- Event triggers: new email, PR review requested, webhook.
+- App-native event triggers (Composio triggers such as "new Gmail message" without forwarding).
 - A separate Unix user for shell commands on the computer, so scripts can't reach the desktop or the browser profile.
 - Undo for app writes.
 - Per-bot budgets.

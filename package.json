@@ -15,7 +15,10 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.82",
+    "@ai-sdk/google": "^4.0.99",
     "@ai-sdk/openai": "^4.0.93",
+    "@ai-sdk/openai-compatible": "^3.0.71",
     "@ai-sdk/react": "^4.0.130",
     "@base-ui/react": "^1.8.0",
     "@clerk/backend": "^3.21.1",

@@ -4,7 +4,7 @@ import * as Sentry from "@sentry/nextjs"
 import { GaugeIcon } from "lucide-react"
 
 import { buttonVariants } from "@/components/ui/button"
-import { isChatGPTSelected } from "@/lib/chatgpt-connection"
+import { usesOwnModel } from "@/lib/ai-provider"
 import { getUsage } from "@/lib/usage"
 import { usageNotice, usageNoticeCopy } from "@/lib/usage-notice"
 import { cn } from "@/lib/utils"
@@ -16,11 +16,11 @@ async function UsageNotice() {
   if (!userId) return null
 
   let usage: Awaited<ReturnType<typeof getUsage>>
-  let chatgptSelected: boolean
+  let ownModel: boolean
   try {
-    ;[usage, chatgptSelected] = await Promise.all([
+    ;[usage, ownModel] = await Promise.all([
       getUsage(userId),
-      isChatGPTSelected(userId),
+      usesOwnModel(userId),
     ])
   } catch (error) {
     Sentry.logger.warn("Usage notice unavailable", {
@@ -30,7 +30,7 @@ async function UsageNotice() {
     return null
   }
 
-  const notice = usageNotice(usage, { chatgptSelected })
+  const notice = usageNotice(usage, { chatgptSelected: ownModel })
   if (!notice) return null
   const { message, action } = usageNoticeCopy(notice, usage)
 

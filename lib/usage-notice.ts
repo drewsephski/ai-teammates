@@ -17,7 +17,8 @@ type UsageSnapshot = {
 }
 
 // The one allowance worth mentioning, if any: a spent one before a low one.
-// ChatGPT-backed replies don't draw on the AI allowance, so it isn't mentioned.
+// Replies on the person's own model (their ChatGPT plan or an API key) don't
+// draw on the AI allowance, so it isn't mentioned.
 export function usageNotice(
   usage: UsageSnapshot,
   { chatgptSelected = false }: { chatgptSelected?: boolean } = {}

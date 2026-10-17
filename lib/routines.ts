@@ -26,8 +26,8 @@ import {
   type RoutineInsert,
   type RoutineUpdate,
 } from "@/db/schema"
+import { usesOwnModel } from "@/lib/ai-provider"
 import { canUseAI } from "@/lib/chatgpt-policy"
-import { isChatGPTSelected } from "@/lib/chatgpt-connection"
 import { postChatMessage } from "@/lib/chat-dispatch"
 import { recordActivity } from "@/lib/notify"
 import {
@@ -101,9 +101,10 @@ export async function userTimeZone(userId: string) {
   return (await savedTimeZone(userId)) ?? "UTC"
 }
 
-// The chat a routine reports to: the one asked for, if the bot is in it, or
-// the bot's latest direct chat, or a new one.
-async function routineChat(
+// The chat unattended work reports to: the one asked for, if the bot is in
+// it, or the bot's latest direct chat, or a new one. Routines, event triggers
+// and Slack messages use it.
+export async function reportChat(
   userId: string,
   botId: string,
   operationId: string,
@@ -179,7 +180,7 @@ export async function createRoutine(
     .where(eq(routines.userId, userId))
   assertRoutineCapacity(plan.tier, total)
 
-  const chatId = await routineChat(userId, bot.id, id, options.chatId)
+  const chatId = await reportChat(userId, bot.id, id, options.chatId)
   // A one-off given as a wall-clock time is stored as the instant it means
   const schedule = normalizeSchedule(values.schedule, values.timezone)
   const next = nextRunAt(schedule, values.timezone, new Date())
@@ -267,22 +268,25 @@ export type RoutineRunDeps = {
   check: (routine: Routine) => Promise<string | undefined>
 }
 
-async function checkRoutineRun(routine: Routine) {
+// A reason a bot can't start work nobody asked for in the composer, worded
+// for the owner, or undefined to go on. The same checks a person's own message
+// would pass; routines, event triggers and Slack messages run them.
+export async function checkBotRun(userId: string, botId: string) {
   try {
-    await assertBotAccess(routine.userId, routine.botId)
+    await assertBotAccess(userId, botId)
   } catch {
     // Plan-neutral: this reaches the phone, where upgrade copy isn't allowed
     return "This bot isn't available on your current plan."
   }
-  const usage = await getUsage(routine.userId)
-  if (!canUseAI(usage.remaining.ai, await isChatGPTSelected(routine.userId)))
+  const usage = await getUsage(userId)
+  if (!canUseAI(usage.remaining.ai, await usesOwnModel(userId)))
     return "Your AI allowance is used up until it resets."
   return undefined
 }
 
 const liveRunDeps: RoutineRunDeps = {
   post: postChatMessage,
-  check: checkRoutineRun,
+  check: (routine) => checkBotRun(routine.userId, routine.botId),
 }
 
 // Posts one run into the routine's chat, after the checks a person's own

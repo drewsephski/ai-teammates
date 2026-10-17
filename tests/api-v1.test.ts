@@ -448,6 +448,34 @@ test("routine and approval errors map to stable codes", async () => {
   }
 })
 
+test("trigger, own-model and Slack errors map to stable codes", async () => {
+  const triggers = await import("../lib/trigger-policy")
+  const keys = await import("../lib/model-key-policy")
+  const { SLACK_UNAVAILABLE_ERROR } = await import("../lib/slack-policy")
+  for (const [message, status, code] of [
+    [triggers.TRIGGER_LIMIT_ERROR, 403, "plan_limit"],
+    [triggers.PAID_TRIGGER_LIMIT_ERROR, 403, "plan_limit"],
+    [triggers.EMAIL_TRIGGERS_UNAVAILABLE_ERROR, 503, "unavailable"],
+    [keys.MODEL_KEY_UNAVAILABLE_ERROR, 503, "unavailable"],
+    [SLACK_UNAVAILABLE_ERROR, 503, "unavailable"],
+    [keys.MODEL_KEY_REJECTED_ERROR, 400, "invalid_request"],
+    [keys.MODEL_NOT_OFFERED_ERROR, 400, "invalid_request"],
+    [keys.MODEL_KEY_MISSING_ERROR, 400, "invalid_request"],
+    ["Couldn't reach Anthropic. Try again.", 502, "upstream"],
+    ["Couldn't connect Slack. Try again.", 502, "upstream"],
+    ["Trigger not found", 404, "not_found"],
+    ["Key not found", 404, "not_found"],
+    ["Slack connection not found", 404, "not_found"],
+  ] as const) {
+    const response = apiErrorResponse(new Error(message))
+    assert.deepEqual(
+      [response.status, response.body.error.code],
+      [status, code],
+      message
+    )
+  }
+})
+
 test("connect requests accept chat context, and questionId or botId without chatId is a 400", async () => {
   const { mobileConnectInputSchema } = await import("../lib/mobile-connector")
   const base = { slug: "gmail", returnUrl: "krafty://apps/connected" }

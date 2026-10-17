@@ -15,14 +15,17 @@ import {
   forYouScans,
   memories,
   memoryEvents,
+  modelKeys,
   pushDevices,
   sidebarPreferences,
+  slackInstallations,
   userSettings,
 } from "@/db/schema"
 import { cancelAccountSubscriptions } from "@/lib/account-billing"
 import { deleteAccountComputer } from "@/lib/account-computer"
 import { disconnectChatGPT } from "@/lib/chatgpt-connection"
 import { getComposio } from "@/lib/composio"
+import { disconnectSlack } from "@/lib/slack"
 import { deleteBot } from "@/services/bots"
 
 type Steps = {
@@ -32,6 +35,7 @@ type Steps = {
   deleteBot: (userId: string, botId: string) => Promise<void>
   disconnectChatGPT: (userId: string) => Promise<unknown>
   disconnectApps: (userId: string) => Promise<void>
+  disconnectSlack: (userId: string) => Promise<unknown>
   deleteUser: (userId: string) => Promise<unknown>
 }
 
@@ -76,13 +80,14 @@ const providerSteps: Steps = {
   deleteBot,
   disconnectChatGPT,
   disconnectApps,
+  disconnectSlack: (userId) => disconnectSlack(userId),
   deleteUser: (userId) => clerk().users.deleteUser(userId),
 }
 
 // Deletes the account and what it owns: the computer, bots, chats, memories,
-// settings and app and ChatGPT connections, then the Clerk user, which ends
-// every session. Each step can run again, so a failure part-way is retried by
-// asking again. Usage and sandbox metering rows are kept, keyed by the now
+// settings, model keys and app, ChatGPT and Slack connections, then the Clerk
+// user, which ends every session. Each step can run again, so a failure
+// part-way is retried by asking again. Usage and sandbox metering rows are kept, keyed by the now
 // unused user ID, as the billing record. Conversation transcripts stored with
 // Trigger.dev sessions are not removed here.
 export async function deleteAccount(userId: string, steps = providerSteps) {
@@ -111,6 +116,8 @@ export async function deleteAccount(userId: string, steps = providerSteps) {
 
   await steps.disconnectChatGPT(userId)
   await steps.disconnectApps(userId)
+  // Revokes the workspace's token and removes it
+  await steps.disconnectSlack(userId)
 
   await db.transaction(async (tx) => {
     // Group chats; direct chats went with their bots, members cascade
@@ -128,7 +135,12 @@ export async function deleteAccount(userId: string, steps = providerSteps) {
     await tx
       .delete(chatgptConnections)
       .where(eq(chatgptConnections.userId, userId))
-    // Routines, approvals and approval rules went with the bots and chats.
+    await tx.delete(modelKeys).where(eq(modelKeys.userId, userId))
+    await tx
+      .delete(slackInstallations)
+      .where(eq(slackInstallations.userId, userId))
+    // Routines, triggers (and their events), approvals and approval rules
+    // went with the bots and chats.
     // Usage holds stay: the settle job books them into the billing record.
     await tx.delete(activityEvents).where(eq(activityEvents.userId, userId))
     await tx.delete(pushDevices).where(eq(pushDevices.userId, userId))

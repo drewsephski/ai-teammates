@@ -392,5 +392,6 @@ export function unattendedOrigin(messageId: string | undefined) {
   if (messageId.startsWith("brief_")) return "delegation" as const
   if (messageId.startsWith("approval_")) return "approval" as const
   if (messageId.startsWith("task_")) return "task" as const
+  if (messageId.startsWith("event_")) return "event" as const
   return undefined
 }

@@ -13,6 +13,7 @@ import {
 import { CHATGPT_ISSUER, requireChatGPTConfig } from "@/lib/chatgpt-config"
 import { disconnectChatGPT, getChatGPTStatus } from "@/lib/chatgpt-connection"
 import { getChatGPTModels } from "@/lib/chatgpt-model"
+import { deselectModelKeys } from "@/lib/model-keys"
 import {
   CHATGPT_RECONNECT_ERROR,
   hasChatGPTPlanGrant,
@@ -61,6 +62,8 @@ export async function saveChatGPTPreference(input: ChatGPTPreference) {
     )
     .returning({ userId: chatgptConnections.userId })
   if (!saved) throw new Error("Your connection changed. Refresh and try again.")
+  // One provider at a time: the ChatGPT plan replaces a selected API key
+  if (values.enabled) await deselectModelKeys(userId)
   revalidatePath("/", "layout")
   return getChatGPTStatus(userId)
 }

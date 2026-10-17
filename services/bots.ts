@@ -18,7 +18,7 @@ import { botPresets } from "@/lib/bot-presets"
 import { startBotSetupSession } from "@/lib/bot-setup-session"
 import { teamOperationId } from "@/lib/team-policy"
 import { FREE_BOT_LIMIT_ERROR } from "@/lib/billing-policy"
-import { isChatGPTSelected } from "@/lib/chatgpt-connection"
+import { usesOwnModel } from "@/lib/ai-provider"
 import { canUseAI } from "@/lib/chatgpt-policy"
 import {
   pinnedBotOrderSchema,
@@ -73,7 +73,7 @@ export async function createBot(
   // Check the authoritative allowances once, without extra client round trips.
   const usage = await getUsage(userId)
   if (!usage) throw new Error("Upgrade required")
-  if (!canUseAI(usage.remaining.ai, await isChatGPTSelected(userId)))
+  if (!canUseAI(usage.remaining.ai, await usesOwnModel(userId)))
     return { ok: false, usageLimit: "ai" }
 
   const { requestId } = createBotInputSchema.parse(input)

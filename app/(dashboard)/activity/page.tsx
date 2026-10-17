@@ -5,15 +5,38 @@ import { listApprovalRules } from "@/actions/approvals"
 import { ApprovalRules } from "@/components/activity/approval-rules"
 import { RoutineDialog } from "@/components/activity/routine-dialog"
 import { RoutineList } from "@/components/activity/routine-list"
+import { SlackCard } from "@/components/activity/slack-card"
+import { TriggerDialog } from "@/components/activity/trigger-dialog"
+import { TriggerList } from "@/components/activity/trigger-list"
 import { AppPageHeader } from "@/components/app-page-header"
 import { ApprovalCard } from "@/components/approval-card"
 import { ChatAvatar } from "@/components/chat-avatar"
-import { getSignedInActivity } from "@/queries/activity"
+import { getSignedInActivity, getSignedInChannels } from "@/queries/activity"
 import { getBots } from "@/queries/bots"
 
-export default async function Page() {
-  const [{ approvals, routines, events, bots: named }, bots, rules] =
-    await Promise.all([getSignedInActivity(), getBots(), listApprovalRules()])
+const slackMessages: Record<string, string> = {
+  failed: "Couldn't connect Slack. Try again.",
+  unavailable: "Slack isn't set up yet.",
+}
+
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ slack?: string }>
+}) {
+  const [
+    { approvals, routines, events, bots: named },
+    bots,
+    rules,
+    { triggers, slack, emailAvailable },
+    params,
+  ] = await Promise.all([
+    getSignedInActivity(),
+    getBots(),
+    listApprovalRules(),
+    getSignedInChannels(),
+    searchParams,
+  ])
   const botFor = (id: string | null) => named.find((bot) => bot.id === id)
 
   return (
@@ -26,7 +49,8 @@ export default async function Page() {
           </h1>
           <p className="text-sm text-muted-foreground sm:text-base">
             What your teammates do on their own: requests waiting for you, the
-            routines they run, and what happened while you were away.
+            routines and triggers they run, and what happened while you were
+            away.
           </p>
         </div>
 
@@ -99,6 +123,51 @@ export default async function Page() {
             />
           </div>
           <RoutineList routines={routines} bots={bots} />
+        </section>
+
+        <section aria-labelledby="triggers" className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <h2 id="triggers" className="text-lg font-medium">
+                Triggers
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Work that starts when something happens, not on a clock.
+              </p>
+            </div>
+            <TriggerDialog
+              bots={bots.map(({ id, name }) => ({ id, name }))}
+              emailAvailable={emailAvailable}
+            />
+          </div>
+          <TriggerList triggers={triggers} bots={bots} />
+        </section>
+
+        <section
+          id="slack"
+          aria-labelledby="slack-heading"
+          className="flex scroll-mt-6 flex-col gap-3"
+        >
+          <h2 id="slack-heading" className="text-lg font-medium">
+            Slack
+          </h2>
+          {params.slack && slackMessages[params.slack] && (
+            <p
+              role="alert"
+              className="rounded-xl border border-destructive/30 p-4 text-sm"
+            >
+              {slackMessages[params.slack]}
+            </p>
+          )}
+          {params.slack === "connected" && (
+            <p role="status" className="text-sm">
+              Slack connected. Send the Krafty app a message to try it.
+            </p>
+          )}
+          <SlackCard
+            status={slack}
+            bots={bots.map(({ id, name }) => ({ id, name }))}
+          />
         </section>
 
         <section aria-labelledby="recent" className="flex flex-col gap-3">

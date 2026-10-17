@@ -45,10 +45,9 @@ const MAX_BODY_BYTES = 64 * 1024
 const tooLarge = () =>
   new HttpError(413, "payload_too_large", "Request body is too large")
 
-// Reads at most MAX_BODY_BYTES, even when the client sends no Content-Length
-async function readCapped(request: NextRequest) {
-  if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES)
-    throw tooLarge()
+// Reads at most `max` bytes, even when the client sends no Content-Length
+export async function readCapped(request: Request, max = MAX_BODY_BYTES) {
+  if (Number(request.headers.get("content-length") ?? 0) > max) throw tooLarge()
   if (!request.body) return ""
   const reader = request.body.getReader()
   const chunks: Uint8Array[] = []
@@ -57,7 +56,7 @@ async function readCapped(request: NextRequest) {
     const { done, value } = await reader.read()
     if (done) break
     size += value.byteLength
-    if (size > MAX_BODY_BYTES) {
+    if (size > max) {
       await reader.cancel()
       throw tooLarge()
     }

@@ -16,9 +16,21 @@ import {
   APPROVAL_EXPIRED_ERROR,
 } from "@/lib/approval-policy"
 import {
+  MODEL_KEY_MISSING_ERROR,
+  MODEL_KEY_REJECTED_ERROR,
+  MODEL_KEY_UNAVAILABLE_ERROR,
+  MODEL_NOT_OFFERED_ERROR,
+} from "@/lib/model-key-policy"
+import {
   PAID_ROUTINE_LIMIT_ERROR,
   ROUTINE_LIMIT_ERROR,
 } from "@/lib/routine-policy"
+import { SLACK_UNAVAILABLE_ERROR } from "@/lib/slack-policy"
+import {
+  EMAIL_TRIGGERS_UNAVAILABLE_ERROR,
+  PAID_TRIGGER_LIMIT_ERROR,
+  TRIGGER_LIMIT_ERROR,
+} from "@/lib/trigger-policy"
 
 // The mobile API's error body. `code` is stable for clients to branch on;
 // `message` is safe to show to the person.
@@ -79,7 +91,9 @@ export function apiErrorResponse(error: unknown): {
     message === FREE_BOT_LIMIT_ERROR ||
     message === FREE_APP_LIMIT_ERROR ||
     message === ROUTINE_LIMIT_ERROR ||
-    message === PAID_ROUTINE_LIMIT_ERROR
+    message === PAID_ROUTINE_LIMIT_ERROR ||
+    message === TRIGGER_LIMIT_ERROR ||
+    message === PAID_TRIGGER_LIMIT_ERROR
   )
     return fail(403, "plan_limit", message)
   if (
@@ -90,6 +104,13 @@ export function apiErrorResponse(error: unknown): {
   // E2B's rate limit, quota or concurrent-sandbox cap: wait a few minutes.
   // `upstream` is an existing code that apps already show as a retryable failure.
   if (message === COMPUTERS_BUSY_ERROR) return fail(503, "upstream", message)
+  // A feature this server hasn't been configured for
+  if (
+    message === MODEL_KEY_UNAVAILABLE_ERROR ||
+    message === EMAIL_TRIGGERS_UNAVAILABLE_ERROR ||
+    message === SLACK_UNAVAILABLE_ERROR
+  )
+    return fail(503, "unavailable", message)
   if (/ not found$/i.test(message)) return fail(404, "not_found", message)
   if (
     message === "Conversations changed. Try again." ||
@@ -107,7 +128,10 @@ export function apiErrorResponse(error: unknown): {
     message === "Unknown starting role" ||
     message === "Unknown usage" ||
     message === "Pick between two and eight different bots." ||
-    message === "Pick a time in the future."
+    message === "Pick a time in the future." ||
+    message === MODEL_KEY_MISSING_ERROR ||
+    message === MODEL_KEY_REJECTED_ERROR ||
+    message === MODEL_NOT_OFFERED_ERROR
   )
     return fail(400, "invalid_request", message)
   // For you token checks explain what changed and ask for a refresh

@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/node"
 import { metadata, sessions } from "@trigger.dev/sdk"
 import { chat } from "@trigger.dev/sdk/ai"
-import { isStepCount } from "ai"
+import { APICallError, isStepCount } from "ai"
 import { and, asc, eq, inArray } from "drizzle-orm"
 import { z } from "zod"
 
@@ -42,6 +42,9 @@ import {
   userTimeZone,
 } from "@/lib/routines"
 import { routineClock, unattendedOrigin } from "@/lib/routine-policy"
+import { recordTriggerOutcome } from "@/lib/bot-triggers"
+import { postSlackTurnReply } from "@/lib/slack"
+import { parseSlackMessageId, type SlackTurnOutcome } from "@/lib/slack-policy"
 import {
   completeComputerApproval,
   declinedFor,
@@ -87,8 +90,12 @@ import { busyResult } from "@/lib/computer-lease-policy"
 import { assertBotAccess } from "@/lib/teammates"
 import { createTavilyClient, tavilyCost } from "@/lib/tavily"
 import { createWebTools } from "@/lib/web-tools"
-import { isChatGPTSelected } from "@/lib/chatgpt-connection"
-import { chatGPTModelForUser } from "@/lib/chatgpt-model"
+import { replyModelForUser } from "@/lib/ai-provider"
+import {
+  isOwnModelError,
+  ownModelErrorMessage,
+  type ModelProvider,
+} from "@/lib/model-key-policy"
 import { canSuggestFollowUps } from "@/lib/chat-follow-ups"
 import { generateChatFollowUps } from "@/lib/generate-chat-follow-ups"
 import {
@@ -144,13 +151,27 @@ const turnModelUsage = chat.local<{
   startedAt: number
   messageId: string
   usageKey: string
-  chatgpt: boolean
+  // Who pays for this turn's replies, for the logs and error messages
+  aiProvider: "krafty" | "chatgpt" | ModelProvider
   composerText: string
   mentions: BotMention[]
   followUps?: { signal: AbortSignal }
 }>({
   id: "chat-turn-model-cost",
 })
+
+// The provider of the person's own key, when this turn runs on one. The
+// stream's error handler may run without turn state, so a miss is undefined.
+function ownKeyProvider() {
+  try {
+    const provider = turnModelUsage.aiProvider
+    return provider === "krafty" || provider === "chatgpt"
+      ? undefined
+      : provider
+  } catch {
+    return undefined
+  }
+}
 
 // The transcript is kept per chatId by the agent's default transcript storage
 export const chatAgent = chat
@@ -162,6 +183,11 @@ export const chatAgent = chat
       onError: (error) => {
         if (isModelUnavailable(error)) return MODEL_UNAVAILABLE_ERROR
         const message = error instanceof Error ? error.message : ""
+        // The person's own key failed: say so in their provider's name
+        const provider = ownKeyProvider()
+        if (provider && APICallError.isInstance(error))
+          return ownModelErrorMessage(provider, error.statusCode)
+        if (isOwnModelError(message)) return message
         return [
           USAGE_LIMIT_ERROR,
           CHATGPT_LIMIT_ERROR,
@@ -186,7 +212,7 @@ export const chatAgent = chat
         startedAt: Date.now(),
         messageId: "",
         usageKey: "",
-        chatgpt: false,
+        aiProvider: "krafty",
         composerText: "",
         mentions: [],
       })
@@ -206,7 +232,7 @@ export const chatAgent = chat
       turnModelUsage.computerOwner = undefined
       turnModelUsage.computerBusy = undefined
       turnModelUsage.startedAt = Date.now()
-      turnModelUsage.chatgpt = false
+      turnModelUsage.aiProvider = "krafty"
       turnModelUsage.followUps = undefined
       const latest = uiMessages.findLast((message) => message.role === "user")
       if (!latest) throw new Error("No task to delegate")
@@ -740,6 +766,28 @@ export const chatAgent = chat
           Sentry.captureException(routineError, { extra: { chatId, turn } })
         )
 
+      // An event's turn reports how it went, like a routine's
+      if (row && unattendedOrigin(turnModelUsage.messageId) === "event")
+        await recordTriggerOutcome(
+          row.userId,
+          turnModelUsage.messageId,
+          routineTurnOutcome({ error, refused, responseMessage })
+        ).catch((triggerError: unknown) =>
+          Sentry.captureException(triggerError, { extra: { chatId, turn } })
+        )
+
+      // A message from Slack gets its answer in the Slack thread
+      if (row && parseSlackMessageId(turnModelUsage.messageId))
+        await replyInSlack({
+          userId: row.userId,
+          chatId,
+          error,
+          refused,
+          responseMessage,
+        }).catch((slackError: unknown) =>
+          Sentry.captureException(slackError, { extra: { chatId, turn } })
+        )
+
       if (row)
         await reportUnattendedTurn({
           userId: row.userId,
@@ -764,7 +812,7 @@ export const chatAgent = chat
             : "completed",
         "trigger.task": "chat",
         "trigger.run": runId,
-        "usage.ai_provider": turnModelUsage.chatgpt ? "chatgpt" : "krafty",
+        "usage.ai_provider": turnModelUsage.aiProvider,
         ...(row && { "user.id": row.userId }),
         ...(usage && {
           "gen_ai.usage.input_tokens": usage.inputTokens ?? 0,
@@ -829,15 +877,16 @@ export const chatAgent = chat
       await assertBotAccess(row.userId, bot.id)
       if (usage.tier === "free" && group)
         throw new Error("Group chats require a paid plan.")
-      const chatgptSelected = await isChatGPTSelected(row.userId)
-      if (!canUseAI(usage.remaining.ai, chatgptSelected))
+      // Resolve from what the person saved, never browser clientData. A
+      // ChatGPT plan revalidates/refreshes its credential on every step; an
+      // own key that fails is reported, never swapped for Krafty's model.
+      const reply = await replyModelForUser(row.userId)
+      const ownModel = reply.kind !== "krafty"
+      if (!canUseAI(usage.remaining.ai, ownModel))
         throw new Error(USAGE_LIMIT_ERROR)
-      turnModelUsage.chatgpt = chatgptSelected
-      // Resolve from the authoritative connection, never browser clientData.
-      // Every tool step revalidates/refreshes this user's credential.
-      const subscriptionModel = chatgptSelected
-        ? await chatGPTModelForUser(row.userId)
-        : null
+      turnModelUsage.aiProvider =
+        reply.kind === "key" ? reply.provider : reply.kind
+      const subscriptionModel = reply.kind === "krafty" ? null : reply.model
       turnModelUsage.followUps = {
         signal,
       }
@@ -910,7 +959,7 @@ export const chatAgent = chat
 
         return streamText({
           model: subscriptionModel ?? chatModel(messages),
-          maxRetries: chatgptSelected ? 0 : undefined,
+          maxRetries: reply.kind === "chatgpt" ? 0 : undefined,
           // The managed streamText takes the prompt as `system` on every AI SDK version
           system: [
             buildChatInstructions(
@@ -967,7 +1016,7 @@ export const chatAgent = chat
             }
           },
           onStepEnd: async ({ usage, model }) => {
-            turnModelUsage.cost += appModelCost(chatgptSelected, () =>
+            turnModelUsage.cost += appModelCost(ownModel, () =>
               chatModelCost(usage, model.modelId)
             )
             // Hold what this turn has spent so far, so the account's other
@@ -1005,7 +1054,7 @@ export const chatAgent = chat
             // A long turn ends once it has spent what was left, counting the
             // account's other running turns
             () =>
-              !chatgptSelected &&
+              !ownModel &&
               (turnModelUsage.remaining <= 0 ||
                 turnModelUsage.cost +
                   turnModelUsage.webCost +
@@ -1060,6 +1109,53 @@ function routineTurnOutcome({
       detail: `${turnModelUsage.computerBusy} was using the computer.`,
     }
   return { status: "completed" as const }
+}
+
+// The turn's answer, posted back to the Slack thread its message came from
+async function replyInSlack(turn: {
+  userId: string
+  chatId: string
+  error: unknown
+  refused: boolean
+  responseMessage?: ChatUIMessage
+}) {
+  const parts = turn.responseMessage?.parts ?? []
+  const question = parts.findLast(
+    (part) => part.type === "tool-askUser" && part.state === "output-available"
+  )
+  const outcome: SlackTurnOutcome = turnModelUsage.approvalRequested
+    ? { kind: "approval" }
+    : question?.type === "tool-askUser" && question.state === "output-available"
+      ? { kind: "question", question: question.output.question }
+      : turn.refused
+        ? { kind: "failed", reason: "your AI allowance ran out." }
+        : turn.error
+          ? {
+              kind: "failed",
+              reason:
+                turn.error instanceof Error &&
+                isOwnModelError(turn.error.message)
+                  ? turn.error.message
+                  : "something went wrong. Open the chat to retry.",
+            }
+          : {
+              kind: "reply",
+              text: parts
+                .flatMap((part) => (part.type === "text" ? [part.text] : []))
+                .join("\n\n"),
+            }
+  const botId = turn.responseMessage?.metadata?.botId
+  const [bot] = botId
+    ? await db
+        .select({ name: botTable.name })
+        .from(botTable)
+        .where(and(eq(botTable.id, botId), eq(botTable.userId, turn.userId)))
+    : []
+  await postSlackTurnReply(turn.userId, turnModelUsage.messageId, {
+    chatId: turn.chatId,
+    botName: bot?.name ?? "Your bot",
+    outcome,
+  })
 }
 
 // A person who wasn't watching hears about the turn: work a routine, a
@@ -1137,7 +1233,7 @@ async function reportUnattendedTurn(turn: {
   const failed = turn.failed || turn.refused
   const title = failed
     ? `${name} couldn't finish`
-    : `${name} finished${origin === "routine" ? " a routine" : ""}`
+    : `${name} finished${origin === "routine" ? " a routine" : origin === "event" ? " work on an event" : ""}`
   const body = turn.refused
     ? "Your AI allowance ran out before the work was done."
     : failed

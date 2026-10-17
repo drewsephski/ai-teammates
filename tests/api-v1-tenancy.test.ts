@@ -355,6 +355,79 @@ test("B can't list or remove A's Always allow rules", async () => {
   assert.equal((await service.listApprovalRules(A)).length, 0)
 })
 
+test("B can't create on, change or remove A's triggers", async () => {
+  const service = await import("../services/triggers")
+  const origin = "https://krafty.test"
+  await db.insert(schema.botTriggers).values({
+    id: "trigger_a",
+    userId: A,
+    botId: "bot_a1",
+    chatId: "chat_a1",
+    kind: "webhook",
+    title: "A's hook",
+    prompt: "Do A's work",
+    token: "a".repeat(32),
+  })
+  await assert.rejects(
+    service.createTrigger(
+      B,
+      {
+        botId: "bot_a1",
+        kind: "webhook",
+        title: "Steal",
+        prompt: "x",
+        requestId: "steal",
+      },
+      origin
+    ),
+    /Bot not found/
+  )
+  assert.deepEqual(await service.listTriggers(B, origin), [])
+  assert.deepEqual(await service.listTriggers(B, origin, "bot_a1"), [])
+  await assert.rejects(
+    service.updateTrigger(B, "trigger_a", { enabled: false }, origin),
+    /Trigger not found/
+  )
+  await assert.rejects(
+    service.deleteTrigger(B, "trigger_a"),
+    /Trigger not found/
+  )
+  const [mine] = await service.listTriggers(A, origin)
+  assert.equal(mine.enabled, true)
+  assert.equal(mine.url, `${origin}/api/hooks/${"a".repeat(32)}`)
+})
+
+test("B can't pick A's bot to answer in Slack or remove A's model key", async () => {
+  const slack = await import("../services/slack")
+  const keys = await import("../services/model-keys")
+  await db.insert(schema.slackInstallations).values({
+    userId: B,
+    teamId: "TB",
+    teamName: "B's workspace",
+    slackUserId: "UB",
+    botUserId: "UAPP",
+    botToken: "sealed",
+  })
+  await assert.rejects(
+    slack.updateSlackSettings(B, { botId: "bot_a1" }),
+    /Bot not found/
+  )
+  assert.equal(
+    (await slack.updateSlackSettings(B, { botId: "bot_b1" })).botId,
+    "bot_b1"
+  )
+  await db.insert(schema.modelKeys).values({
+    userId: A,
+    provider: "openai",
+    apiKey: "sealed",
+    keyHint: "1234",
+    model: "gpt-5",
+  })
+  await assert.rejects(keys.deleteModelKey(B, "openai"), /Key not found/)
+  assert.deepEqual(await keys.listModelKeys(B), [])
+  assert.equal((await keys.listModelKeys(A)).length, 1)
+})
+
 test("every /api/v1 handler runs through apiRoute", () => {
   const root = join(import.meta.dirname, "../app/api/v1")
   const routes: string[] = []
@@ -430,6 +503,7 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
     disconnectApps: async (userId: string) => {
       calls.push(`apps:${userId}`)
     },
+    disconnectSlack: async (userId: string) => calls.push(`slack:${userId}`),
     deleteUser: async (userId: string) => calls.push(`clerk:${userId}`),
   })
 
@@ -476,6 +550,7 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
     `computer:${B}`,
     `chatgpt:${B}`,
     `apps:${B}`,
+    `slack:${B}`,
     `clerk:${B}`,
   ])
   assert.deepEqual(await bots.listBots(B), [])
@@ -487,6 +562,11 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
   )
   assert.deepEqual(
     (await db.select().from(schema.computers)).map((row) => row.userId),
+    [A]
+  )
+  assert.deepEqual(await db.select().from(schema.slackInstallations), [])
+  assert.deepEqual(
+    (await db.select().from(schema.modelKeys)).map((row) => row.userId),
     [A]
   )
 

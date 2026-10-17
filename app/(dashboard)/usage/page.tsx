@@ -14,8 +14,10 @@ import { Progress } from "@/components/ui/progress"
 import { AppPageHeader } from "@/components/app-page-header"
 import { formatClock } from "@/components/computer-status"
 import { freeComputerMinutes, freePlanIncludes } from "@/lib/marketing/site"
-import { getUsage } from "@/lib/usage"
 import { ChatGPTPlanCard } from "@/components/chatgpt-plan-card"
+import { ModelKeysCard } from "@/components/model-keys-card"
+import { credentialStorageReady } from "@/lib/credential-crypto"
+import { getUsageSummary } from "@/services/usage"
 import { chatGPTAuthMessages } from "@/components/chatgpt-auth-option"
 
 const dollars = new Intl.NumberFormat("en-US", {
@@ -66,7 +68,7 @@ export default async function Page({
 
   const [usage, params] = await Promise.all([
     // Fresh from Clerk: this is where people look right after upgrading
-    getUsage(userId, { fresh: true }),
+    getUsageSummary(userId),
     searchParams,
   ])
 
@@ -110,7 +112,7 @@ export default async function Page({
           )}
           <UsageMeter
             title="AI usage"
-            description="Krafty-funded model replies and web searches. ChatGPT subscription-backed model usage is excluded."
+            description="Krafty-funded model replies and web searches. Replies on your ChatGPT plan or your own API key are excluded."
             used={used.ai}
             limit={limits.ai}
             detail={`${dollars.format(used.ai / 1_000_000)} of ${dollars.format(limits.ai / 1_000_000)}`}
@@ -142,6 +144,11 @@ export default async function Page({
             See paid plans
           </Link>
         )}
+        <ModelKeysCard
+          keys={usage.modelKeys}
+          aiProvider={usage.aiProvider}
+          available={credentialStorageReady()}
+        />
         <ChatGPTPlanCard />
       </div>
     </section>

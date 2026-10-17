@@ -1,11 +1,13 @@
-import { usageKind, type UsageKind } from "@/db/schema"
+import { usageKind, type AIProviderChoice, type UsageKind } from "@/db/schema"
 import { getUsage } from "@/lib/usage"
-import { getChatGPTStatus, isChatGPTSelected } from "@/lib/chatgpt-connection"
+import { usesOwnModel } from "@/lib/ai-provider"
+import { getChatGPTStatus } from "@/lib/chatgpt-connection"
+import { listModelKeys } from "@/lib/model-keys"
 
 // Whether the user's billing period has any of this allowance left
 export async function hasUsageLeft(userId: string, kind: UsageKind) {
   if (!usageKind.enumValues.includes(kind)) throw new Error("Unknown usage")
-  if (kind === "ai" && (await isChatGPTSelected(userId))) return true
+  if (kind === "ai" && (await usesOwnModel(userId))) return true
 
   const usage = await getUsage(userId)
   return !!usage && usage.remaining[kind] > 0
@@ -13,11 +15,16 @@ export async function hasUsageLeft(userId: string, kind: UsageKind) {
 
 // The usage page's numbers: plan, period, and what is used and left
 export async function getUsageSummary(userId: string) {
-  const [usage, chatGPT] = await Promise.all([
+  const [usage, chatGPT, modelKeys] = await Promise.all([
     // Fresh from Clerk: this is where people look right after upgrading
     getUsage(userId, { fresh: true }),
     getChatGPTStatus(userId),
+    listModelKeys(userId),
   ])
+  const selectedKey = modelKeys.find((key) => key.selected)
+  const aiProvider: "chatgpt" | AIProviderChoice = chatGPT.enabled
+    ? "chatgpt"
+    : (selectedKey?.provider ?? "krafty")
   return {
     tier: usage.tier,
     period: usage.period,
@@ -32,5 +39,8 @@ export async function getUsageSummary(userId: string) {
       planAvailable: chatGPT.planAvailable,
       needsReconnect: chatGPT.needsReconnect,
     },
+    // Who pays for replies: krafty, chatgpt, or the provider of a saved key
+    aiProvider,
+    modelKeys,
   }
 }

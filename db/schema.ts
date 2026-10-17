@@ -18,11 +18,13 @@ import { nanoid } from "nanoid"
 import { z } from "zod"
 
 import { containsSecret } from "@/lib/memory-policy"
+import { modelProviders } from "@/lib/model-key-policy"
 import {
   routineScheduleSchema,
   timeZoneSchema,
   type RoutineSchedule,
 } from "@/lib/routine-policy"
+import { allowedSendersSchema } from "@/lib/trigger-policy"
 
 export const bots = pgTable(
   "bots",
@@ -561,6 +563,8 @@ export const activityKind = pgEnum("activity_kind", [
   "question_asked",
   "work_finished",
   "work_failed",
+  // An event trigger's event arrived but didn't wake the bot
+  "event_skipped",
 ])
 
 // What the person's bots did while nobody was watching, newest first
@@ -612,6 +616,135 @@ export const usageHolds = pgTable(
     updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("usage_holds_user_id_idx").on(table.userId)]
+)
+
+// Work a bot does when something happens outside Krafty: a webhook is called
+// (`/api/hooks/<token>`) or an email arrives at `<token>@INBOUND_EMAIL_DOMAIN`.
+// Each event posts into the trigger's chat as an unattended turn.
+export const botTriggerKind = pgEnum("bot_trigger_kind", ["webhook", "email"])
+
+export const botTriggers = pgTable(
+  "bot_triggers",
+  {
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    // Clerk user ID
+    userId: text().notNull(),
+    botId: text()
+      .notNull()
+      .references(() => bots.id, { onDelete: "cascade" }),
+    // Where each event reports. A direct chat with the bot.
+    chatId: text()
+      .notNull()
+      .references(() => chats.id, { onDelete: "cascade" }),
+    kind: botTriggerKind().notNull(),
+    title: text().notNull(),
+    // What the bot does with each event
+    prompt: text().notNull(),
+    // The secret in the webhook URL and the email address's local part
+    token: text().notNull().unique(),
+    // Email only: who may wake the bot. Empty accepts anyone.
+    allowedSenders: text().array().notNull().default([]),
+    enabled: boolean().notNull().default(true),
+    lastEventAt: timestamp({ withTimezone: true }),
+    // The latest event's message ID: an outcome reported for an older event
+    // never overwrites a newer one
+    lastEventId: text(),
+    // As for routines: started when posted, then the turn's own outcome
+    lastStatus: text({
+      enum: ["started", "skipped", "failed", "completed", "blocked"],
+    }),
+    lastError: text(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("bot_triggers_user_id_idx").on(table.userId)]
+)
+
+// One row per accepted event: a repeated delivery finds its row and posts
+// nothing, and the hourly count limits a noisy sender
+export const triggerEvents = pgTable(
+  "trigger_events",
+  {
+    // The message ID the event posted (`event_<triggerId>_<key>`)
+    id: text().primaryKey(),
+    triggerId: text()
+      .notNull()
+      .references(() => botTriggers.id, { onDelete: "cascade" }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("trigger_events_trigger_created_idx").on(
+      table.triggerId,
+      table.createdAt
+    ),
+  ]
+)
+
+export const modelProvider = pgEnum("model_provider", modelProviders)
+
+// A model API key the person brought (lib/model-keys.ts). Sealed with
+// CREDENTIAL_ENCRYPTION_KEY and never returned. At most one is selected; a
+// selected key pays for the person's replies instead of the Krafty allowance.
+export const modelKeys = pgTable(
+  "model_keys",
+  {
+    // Clerk user ID
+    userId: text().notNull(),
+    provider: modelProvider().notNull(),
+    apiKey: text().notNull(),
+    // The key's last four characters, to tell keys apart
+    keyHint: text().notNull(),
+    model: text().notNull(),
+    selected: boolean().notNull().default(false),
+    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.provider] })]
+)
+
+// The Slack workspace a person talks to their bots from (lib/slack.ts). Only
+// messages from the Slack member who installed it reach the bots.
+export const slackInstallations = pgTable(
+  "slack_installations",
+  {
+    // Clerk user ID
+    userId: text().primaryKey(),
+    teamId: text().notNull(),
+    teamName: text().notNull(),
+    // The installing member, the only one whose messages are answered
+    slackUserId: text().notNull(),
+    // The Krafty app's own Slack user, whose mentions are stripped
+    botUserId: text().notNull(),
+    // Sealed with CREDENTIAL_ENCRYPTION_KEY
+    botToken: text().notNull(),
+    // Who answers when a message doesn't name a bot; null is the first bot
+    botId: text().references(() => bots.id, { onDelete: "set null" }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("slack_installations_member_idx").on(
+      table.teamId,
+      table.slackUserId
+    ),
+  ]
+)
+
+// Which bot a Slack thread is with, so a reply there that doesn't name a bot
+// reaches the bot that has been answering
+export const slackThreads = pgTable(
+  "slack_threads",
+  {
+    teamId: text().notNull(),
+    channel: text().notNull(),
+    threadTs: text().notNull(),
+    botId: text()
+      .notNull()
+      .references(() => bots.id, { onDelete: "cascade" }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.teamId, table.channel, table.threadTs] }),
+  ]
 )
 
 // The last plan read from Clerk Billing, so hot paths don't call Clerk each time
@@ -793,6 +926,69 @@ export const routineUpdateSchema = createInsertSchema(routines, {
   })
   .partial()
 
+const triggerTitle = (schema: z.ZodString) =>
+  schema
+    .trim()
+    .min(1, "Give the trigger a name.")
+    .max(60, "Keep it under 60 characters.")
+const triggerPrompt = (schema: z.ZodString) =>
+  schema
+    .trim()
+    .min(1, "Tell the bot what to do with each event.")
+    .max(2000, "Keep it under 2000 characters.")
+
+// A new trigger. The chat it reports to is picked server-side from the bot.
+export const botTriggerInsertSchema = createInsertSchema(botTriggers, {
+  title: triggerTitle,
+  prompt: triggerPrompt,
+  allowedSenders: allowedSendersSchema,
+})
+  .pick({ botId: true, kind: true, title: true, prompt: true })
+  .required()
+  .extend({
+    allowedSenders: allowedSendersSchema.default([]),
+    requestId: z.string().min(1).max(100),
+  })
+
+export const botTriggerUpdateSchema = createInsertSchema(botTriggers, {
+  title: triggerTitle,
+  prompt: triggerPrompt,
+  allowedSenders: allowedSendersSchema,
+})
+  .pick({ title: true, prompt: true, allowedSenders: true, enabled: true })
+  .partial()
+
+// Saves a key, or changes the model of a saved one when apiKey is left out
+export const modelKeySaveSchema = createInsertSchema(modelKeys, {
+  apiKey: (schema) =>
+    schema
+      .trim()
+      .min(8, "Paste your API key.")
+      .max(500, "That key is too long."),
+  model: (schema) =>
+    schema.trim().min(1, "Pick a model.").max(200, "Pick a model."),
+})
+  .pick({ provider: true, apiKey: true, model: true })
+  .required()
+  .partial({ apiKey: true })
+
+// Lists the models a key can use, before it is saved
+export const modelCatalogSchema = modelKeySaveSchema.pick({
+  provider: true,
+  apiKey: true,
+})
+
+// Who pays for replies: Krafty's allowance or one of the person's saved keys
+export const aiProviderSchema = z.object({
+  provider: z.enum(["krafty", ...modelProviders]),
+})
+
+export const slackSettingsSchema = createInsertSchema(slackInstallations, {
+  botId: z.string().trim().min(1).max(100).nullable(),
+})
+  .pick({ botId: true })
+  .required()
+
 export const approvalDecisionSchema = z.object({
   decision: z.enum(["approve", "always", "deny"]),
 })
@@ -816,6 +1012,13 @@ export const pushDeviceSchema = createInsertSchema(pushDevices, {
 export type Routine = typeof routines.$inferSelect
 export type RoutineInsert = z.infer<typeof routineInsertSchema>
 export type RoutineUpdate = z.infer<typeof routineUpdateSchema>
+export type BotTrigger = typeof botTriggers.$inferSelect
+export type BotTriggerInsert = z.input<typeof botTriggerInsertSchema>
+export type BotTriggerUpdate = z.infer<typeof botTriggerUpdateSchema>
+export type ModelKeySave = z.infer<typeof modelKeySaveSchema>
+export type ModelCatalogRequest = z.infer<typeof modelCatalogSchema>
+export type AIProviderChoice = z.infer<typeof aiProviderSchema>["provider"]
+export type SlackSettings = z.infer<typeof slackSettingsSchema>
 export type Approval = typeof approvals.$inferSelect
 export type ApprovalDecision = z.infer<
   typeof approvalDecisionSchema

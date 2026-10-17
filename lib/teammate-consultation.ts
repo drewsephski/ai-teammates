@@ -11,8 +11,7 @@ import { createMemoryTools } from "@/lib/memory-tools"
 import { assertBotAccess, assertTeamAccess } from "@/lib/teammates"
 import { getUsage, recordUsage } from "@/lib/usage"
 import { chatModel, chatModelCost } from "@/lib/model"
-import { isChatGPTSelected } from "@/lib/chatgpt-connection"
-import { chatGPTModelForUser } from "@/lib/chatgpt-model"
+import { replyModelForUser } from "@/lib/ai-provider"
 import { appModelCost } from "@/lib/chatgpt-policy"
 import { USAGE_LIMIT_ERROR } from "@/lib/billing"
 
@@ -48,9 +47,11 @@ export function createTeammateConsultation(context: {
       if (!bot) throw new Error("Teammate not found")
       await assertTeamAccess(context.userId)
       await assertBotAccess(context.userId, bot.id)
-      const chatgpt = await isChatGPTSelected(context.userId)
+      // The person's ChatGPT plan or own key pays, when they chose one
+      const reply = await replyModelForUser(context.userId)
+      const ownModel = reply.kind !== "krafty"
       const usage = await getUsage(context.userId)
-      if (!chatgpt && usage.remaining.ai - context.unrecordedCost() < 10_000)
+      if (!ownModel && usage.remaining.ai - context.unrecordedCost() < 10_000)
         throw new Error(USAGE_LIMIT_ERROR)
       const [directChat] = await db
         .select({ id: chats.id })
@@ -82,9 +83,7 @@ export function createTeammateConsultation(context: {
         : undefined
       let step = 0
       const answer = await generateConsultation({
-        model: chatgpt
-          ? await chatGPTModelForUser(context.userId)
-          : chatModel(),
+        model: reply.kind === "krafty" ? chatModel() : reply.model,
         bot,
         prompt,
         recentConversation: followUpContext(
@@ -106,13 +105,13 @@ export function createTeammateConsultation(context: {
         beforeStep: async () => {
           const current = await getUsage(context.userId)
           if (
-            !chatgpt &&
+            !ownModel &&
             current.remaining.ai - context.unrecordedCost() < 2000
           )
             throw new Error(USAGE_LIMIT_ERROR)
         },
         onUsage: async (usage, modelId) => {
-          const amount = appModelCost(chatgpt, () =>
+          const amount = appModelCost(ownModel, () =>
             chatModelCost(usage, modelId)
           )
           if (amount > 0)
