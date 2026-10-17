@@ -51,7 +51,7 @@ Releasing
 
 - Railway deploys every push to `main` by itself (`pnpm install --frozen-lockfile`, `pnpm build`, `pnpm start`), so pushing `main` is a production release. Traffic moves to a new deployment once `/api/health` answers; keep that route free of database and service checks.
 - Trigger.dev does not deploy on push. A change to `trigger/` or anything it imports (`db/`, `neon.ts`, most of `lib/`) reaches production only through `npx trigger.dev@4.7.4 deploy --profile ai-teammates`. When a change touches that code, tell the user the worker needs a deploy too. Deploy only when asked.
-- Run the Trigger.dev CLI at the exact version of `@trigger.dev/sdk` in `package.json` (4.7.4 today), never `@latest`, and always with `--profile ai-teammates`, because this machine also has a `default` profile. The CLI aborts when the installed packages are newer than it is, so the older versions in `README.md`, `RAILWAY_TEMPLATE.md` and `.mcp.json` fail.
+- Run the Trigger.dev CLI at the exact version of `@trigger.dev/sdk` in `package.json` (4.7.4 today), never `@latest`, and always with `--profile ai-teammates`, because this machine also has a `default` profile. The CLI aborts when the installed packages are newer than it is, so the older version pinned in `.mcp.json` and `.codex/config.toml` (4.7.2) fails. Keep the commands in `README.md` and `RAILWAY_TEMPLATE.md` on the SDK version.
 - Keep the `build` and `start` scripts as they are. `pnpm start` runs the bundled `server.ts`, which also serves the desktop WebSocket gateway; `next start` cannot.
 - The Railway service sleeps when idle. A `SLEEPING` deployment is healthy, and the first request after idle is a cold start.
 
