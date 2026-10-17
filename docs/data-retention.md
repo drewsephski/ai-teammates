@@ -20,6 +20,18 @@ and for how long. Last checked October 17, 2026, against `@trigger.dev/sdk`
 - Deleting a single chat or bot also deletes that chat's history, since it
   cascades from `chats`.
 
+## Reporting capability dependency (separate candidate)
+
+The AI-content reporting workstream adds `ai_content_reports`: the reported
+assistant's visible text only, a reason, optional user-supplied details,
+account/chat/message identifiers, creation time and an optional review time.
+It does not copy prompts, tool outputs or the full transcript. Its chat foreign
+key cascades on chat deletion, including account deletion through the owned
+chats. These report rows are not billing records and have no retention exception.
+The privacy draft describes this conditional reporting behavior. This candidate
+has not been deployed; coordinate its approved schema and code release with the
+reporting PR before publishing that disclosure as current product behavior.
+
 ## Kept in Neon on purpose
 
 `usage_entries`, `sandbox_sessions` and `usage_holds` stay as the billing

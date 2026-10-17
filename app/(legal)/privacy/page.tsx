@@ -36,6 +36,13 @@ export default function PrivacyPage() {
           your teammates.
         </li>
         <li>
+          If you report an AI response, we store the reported response text,
+          your selected reason, any details you choose to add, the relevant
+          account and conversation identifiers, and report and review dates to
+          investigate the report. The report does not copy your full
+          conversation or tool results.
+        </li>
+        <li>
           Connected-service information and permissions you authorize, including
           connection identifiers and the data your teammates retrieve or act on
           when you request work.
@@ -129,8 +136,9 @@ export default function PrivacyPage() {
         When account deletion completes, we delete your teammates, conversations
         and their history, memories, settings, cloud computer, and app and
         ChatGPT connections, cancel any paid subscription, and delete your
-        sign-in account. We keep usage and billing records, which contain
-        amounts and identifiers but no message content, for accounting.
+        sign-in account. Reports of AI responses are removed with the reported
+        conversation or your account. We keep usage and billing records, which
+        contain amounts and identifiers but no message content, for accounting.
       </p>
       <p>
         Trigger.dev, which runs your teammates’ conversations, processes your
