@@ -388,9 +388,11 @@ test("chat never prompts a purchase, on any plan, because phone apps show it", (
       )
       assert.match(
         instructions,
-        /Never tell the person to upgrade, subscribe or buy a plan/
+        /Never tell the person to upgrade, subscribe or buy a Krafty plan/
       )
-      assert.match(instructions, /never link to a pricing page/)
+      assert.match(instructions, /never link to Krafty.s pricing page/)
+      assert.match(instructions, /applies only to Krafty.s plans and billing/)
+      assert.match(instructions, /can still compare third-party subscriptions/)
     }
   }
 })

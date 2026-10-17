@@ -54,7 +54,7 @@ const memoryOffInstructions =
 // companion where App Review doesn't allow purchase prompts (Guideline 3.1.3(f)).
 // The web keeps its own Upgrade and See plans controls.
 export const companionPurchaseInstructions =
-  "This conversation is also shown in Krafty's phone apps, where purchase prompts aren't allowed. Never tell the person to upgrade, subscribe or buy a plan, never quote Krafty prices, and never link to a pricing page, even when a tool message mentions upgrading. When a plan limit blocks something, say in one sentence that it isn't included in their current plan or what the limit is, and offer what they can do within it, such as disconnecting an app or deleting memories. If they ask about Krafty's plans, prices or billing, say you can't help with billing in chat."
+  "This conversation is also shown in Krafty's phone apps, where purchase prompts aren't allowed. Never tell the person to upgrade, subscribe or buy a Krafty plan, never quote Krafty prices, and never link to Krafty's pricing page, even when a tool message mentions upgrading Krafty. This restriction applies only to Krafty's plans and billing; you can still compare third-party subscriptions and explain technical software upgrades. When a plan limit blocks something, say in one sentence that it isn't included in their current plan or what the limit is, and offer what they can do within it, such as disconnecting an app or deleting memories. If they ask about Krafty's plans, prices or billing, say you can't help with billing in chat."
 
 export function buildChatInstructions(
   bot: Pick<Bot, "id" | "name" | "job" | "instructions" | "setupComplete">,
