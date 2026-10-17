@@ -71,7 +71,9 @@ test("at the free app limit the card explains the limit", async () => {
     await tools.askUser.execute!(input, call)
   )
   assert.equal(output.appConnection?.state, "planLimit")
-  assert.match(output.question, /free plan includes one connected app/)
+  assert.match(output.question, /current plan includes one connected app/)
+  // Shown in the phone app and its notifications, where upgrade prompts aren't allowed
+  assert.doesNotMatch(output.question, /upgrade/i)
   assert.deepEqual(output.options, APP_CONNECTION_OPTIONS)
   const model = await tools.askUser.toModelOutput!({
     toolCallId: call.toolCallId,

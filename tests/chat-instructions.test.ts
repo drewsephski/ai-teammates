@@ -375,3 +375,22 @@ test("routines are made in chat from the owner's clock, and procedures reuse mem
   assert.match(text, /call listRoutines first/)
   assert.match(text, /kind procedure and scope this/)
 })
+
+test("chat never prompts a purchase, on any plan, because phone apps show it", () => {
+  for (const paid of [false, true]) {
+    for (const setupComplete of [false, true]) {
+      const instructions = buildChatInstructions(
+        { ...bot, setupComplete },
+        undefined,
+        true,
+        paid,
+        true
+      )
+      assert.match(
+        instructions,
+        /Never tell the person to upgrade, subscribe or buy a plan/
+      )
+      assert.match(instructions, /never link to a pricing page/)
+    }
+  }
+})
