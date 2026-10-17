@@ -130,6 +130,7 @@ test("P1: a teammate a running turn creates mid-deletion doesn't outlive the acc
   const calls: string[] = []
   await account.deleteAccount(user, {
     cancelSubscriptions: async () => {},
+    revokeApple: async () => "none",
     closeChat: async (chatId) => void calls.push(`close:${chatId}`),
     deleteBot: (userId, botId) =>
       bots.deleteBot(userId, botId).catch(sentryLogOnly),
