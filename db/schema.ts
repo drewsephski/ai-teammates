@@ -84,6 +84,20 @@ export const chats = pgTable(
   (table) => [index("chats_user_id_idx").on(table.userId)]
 )
 
+// The chat agent's transcript (lib/chat-transcript-storage.ts), one document
+// per chat, so conversation history lives here instead of in Trigger.dev's
+// transcript snapshot and goes with the chat. `entries` and `state` are the
+// runtime's opaque transcript ({ id, final, message }[] and its bookkeeping).
+export const chatTranscripts = pgTable("chat_transcripts", {
+  chatId: text()
+    .primaryKey()
+    .references(() => chats.id, { onDelete: "cascade" }),
+  entries: jsonb().$type<unknown[]>().notNull(),
+  state: jsonb(),
+  cursors: jsonb().$type<{ lastOutEventId?: string; lastInEventId?: string }>(),
+  updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+})
+
 export const chatMembers = pgTable(
   "chat_members",
   {

@@ -11,7 +11,7 @@ export default function PrivacyPage() {
   return (
     <article>
       <h1>Privacy policy</h1>
-      <p>Last updated: October 15, 2026</p>
+      <p>Last updated: October 17, 2026</p>
       <p>
         Krafty provides AI teammates, connected tools, and cloud computers. This
         policy describes how information is handled when you use kraftybot.app
@@ -121,7 +121,25 @@ export default function PrivacyPage() {
         an integration does not by itself delete existing conversations, files,
         or memories. You can use available bot and conversation deletion
         controls. On iPhone, Account includes a Delete account control. You can
-        also request account or data deletion by contacting us.
+        also request deletion through the{" "}
+        <Link href="/delete-account">account deletion page</Link> or by
+        contacting us.
+      </p>
+      <p>
+        When account deletion completes, we delete your teammates, conversations
+        and their history, memories, settings, cloud computer, and app and
+        ChatGPT connections, cancel any paid subscription, and delete your
+        sign-in account. We keep usage and billing records, which contain
+        amounts and identifiers but no message content, for accounting.
+      </p>
+      <p>
+        Trigger.dev, which runs your teammates’ conversations, processes your
+        messages and replies. Copies of messages it handled can remain with
+        Trigger.dev after you delete your account or a conversation. Task logs
+        are retained according to our provider plan. We have not yet confirmed
+        the retention period for message streams, task records, and previously
+        saved conversation snapshots, or a supported way to erase those copies.
+        Closing a conversation session does not delete them.
       </p>
       <p>
         We retain information as needed to provide the service and meet
