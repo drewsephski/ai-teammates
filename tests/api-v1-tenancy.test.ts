@@ -3,6 +3,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { after, before, test } from "node:test"
 import { and, eq, inArray } from "drizzle-orm"
+import { NextRequest } from "next/server"
 
 import { startTestDatabase } from "./helpers/test-db"
 
@@ -23,6 +24,7 @@ let chats: typeof import("../services/chats")
 let bots: typeof import("../services/bots")
 let memory: typeof import("../services/memory")
 let connectors: typeof import("../services/connectors")
+let reports: typeof import("../services/ai-content-reports")
 
 const embedding = () => Array.from({ length: 1024 }, () => 0.01)
 
@@ -34,6 +36,7 @@ before(async () => {
   bots = await import("../services/bots")
   memory = await import("../services/memory")
   connectors = await import("../services/connectors")
+  reports = await import("../services/ai-content-reports")
 
   await db.insert(schema.bots).values([
     { id: "bot_a1", userId: A, name: "Quill", job: "Writer" },
@@ -141,6 +144,162 @@ test("B can't start, pause or reset A's computer", async () => {
   await rejects(chats.resetDesktop(caller(B), "group_a"), /Chat not found/)
   await rejects(chats.getComputerInUse(B, "chat_a1"), /Chat not found/)
   await rejects(chats.getComputerInUse(B, "group_a"), /Chat not found/)
+})
+
+test("AI report endpoint rejects cookies without a bearer token", async () => {
+  const { POST } =
+    await import("../app/api/v1/chats/[chatId]/messages/[messageId]/report/route")
+  const response = await POST(
+    new NextRequest(
+      "https://kraftybot.app/api/v1/chats/chat_a1/messages/reply/report",
+      {
+        method: "POST",
+        headers: {
+          cookie: "__session=untrusted",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ reason: "unsafe" }),
+      }
+    ),
+    { params: Promise.resolve({ chatId: "chat_a1", messageId: "reply" }) }
+  )
+  assert.equal(response.status, 401)
+  assert.equal((await response.json()).error.code, "unauthorized")
+  assert.equal(response.headers.get("cache-control"), "private, no-store")
+})
+
+test("B can't report A's assistant message or reach its provider transcript", async () => {
+  await rejects(
+    reports.reportAIContent(
+      B,
+      "chat_a1",
+      "reply_a",
+      { reason: "unsafe" },
+      {
+        loadTranscript: async () => {
+          throw new Error("Provider must not be reached")
+        },
+      }
+    ),
+    /Chat not found/
+  )
+  assert.equal((await db.select().from(schema.aiContentReports)).length, 0)
+})
+
+test("AI reports validate input, verify assistant messages, deduplicate and cascade", async () => {
+  await db.insert(schema.chats).values({ id: "chat_report", userId: A })
+  let loads = 0
+  const dependencies = {
+    loadTranscript: async (userId: string, chatId: string) => {
+      assert.equal(userId, A)
+      assert.equal(chatId, "chat_report")
+      loads++
+      return {
+        messages: [
+          {
+            id: "reply",
+            role: "assistant",
+            parts: [
+              { type: "text", text: "Reported response" },
+              { type: "tool-bash", input: { secret: "not captured" } },
+            ],
+          },
+          {
+            id: "question",
+            role: "user",
+            parts: [{ type: "text", text: "User text" }],
+          },
+        ],
+      }
+    },
+  }
+  for (const messageId of ["question", "missing"])
+    await rejects(
+      reports.reportAIContent(
+        A,
+        "chat_report",
+        messageId,
+        { reason: "unsafe" },
+        dependencies
+      ),
+      /Message not found/
+    )
+  await rejects(
+    reports.reportAIContent(
+      A,
+      "chat_report",
+      "reply",
+      { reason: "unsafe" },
+      {
+        loadTranscript: async () => {
+          throw new Error("Provider unavailable")
+        },
+      }
+    ),
+    /Provider unavailable/
+  )
+  assert.equal((await db.select().from(schema.aiContentReports)).length, 0)
+  for (const input of [
+    { reason: "unknown" },
+    { reason: "unsafe", details: "x".repeat(1001) },
+    { reason: "unsafe", userId: B },
+  ])
+    assert.equal(schema.aiContentReportSchema.safeParse(input).success, false)
+  assert.equal(
+    schema.aiContentReportSchema.safeParse({
+      reason: "other",
+      details: "x".repeat(1000),
+    }).success,
+    true
+  )
+  const results = await Promise.all([
+    reports.reportAIContent(
+      A,
+      "chat_report",
+      "reply",
+      { reason: "unsafe", details: " Please review " },
+      dependencies
+    ),
+    reports.reportAIContent(
+      A,
+      "chat_report",
+      "reply",
+      { reason: "unsafe", details: " Please review " },
+      dependencies
+    ),
+  ])
+  assert.deepEqual(results.map((result) => result.created).sort(), [
+    false,
+    true,
+  ])
+  const [saved] = await db
+    .select()
+    .from(schema.aiContentReports)
+    .where(eq(schema.aiContentReports.chatId, "chat_report"))
+  assert.equal(saved.userId, A)
+  assert.equal(saved.messageText, "Reported response")
+  assert.equal(saved.details, "Please review")
+  assert.equal(saved.reason, "unsafe")
+  const previousLoads = loads
+  assert.deepEqual(
+    await reports.reportAIContent(
+      A,
+      "chat_report",
+      "reply",
+      { reason: "other" },
+      {
+        loadTranscript: async () => {
+          throw new Error("Provider unavailable")
+        },
+      }
+    ),
+    { reported: true, created: false }
+  )
+  assert.equal(loads, previousLoads)
+  await db
+    .delete(schema.chats)
+    .where(and(eq(schema.chats.id, "chat_report"), eq(schema.chats.userId, A)))
+  assert.equal((await db.select().from(schema.aiContentReports)).length, 0)
 })
 
 test("B can't rename, re-staff or delete A's group chat", async () => {
@@ -445,6 +604,22 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
     .insert(schema.computers)
     .values([{ userId: A }, { userId: B }])
     .onConflictDoNothing()
+  await db.insert(schema.aiContentReports).values([
+    {
+      userId: A,
+      chatId: "chat_a1",
+      messageId: "reply_a",
+      reason: "unsafe",
+      messageText: "A's reported text",
+    },
+    {
+      userId: B,
+      chatId: "chat_b1",
+      messageId: "reply_b",
+      reason: "unsafe",
+      messageText: "B's reported text",
+    },
+  ])
 
   // A billing outage must not destroy the account or any workspace data.
   await rejects(
@@ -485,6 +660,14 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
   ])
   assert.deepEqual(await bots.listBots(B), [])
   assert.deepEqual(await chats.listChats(B), [])
+  assert.deepEqual(
+    (
+      await db
+        .select({ userId: schema.aiContentReports.userId })
+        .from(schema.aiContentReports)
+    ).map((row) => row.userId),
+    [A]
+  )
   assert.deepEqual((await memory.getMemoryOverview(B)).memories, [])
   assert.deepEqual(
     (await db.select().from(schema.forYouScans)).map((row) => row.userId),
