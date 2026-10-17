@@ -387,6 +387,20 @@ test("API-level and newer service errors map to their own statuses", () => {
       "upstream",
       true,
     ],
+    // services/apple.ts
+    [
+      new Error("Couldn't revoke Sign in with Apple. Try again."),
+      502,
+      "upstream",
+      true,
+    ],
+    [
+      new Error("Couldn't save your Sign in with Apple. Try again."),
+      502,
+      "upstream",
+      true,
+    ],
+    [new Error("Apple account not found"), 404, "not_found", true],
   ]
   for (const [error, status, code, expected] of cases) {
     const response = apiErrorResponse(error)
