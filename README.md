@@ -151,9 +151,8 @@ CREDENTIAL_ENCRYPTION_KEY=
 INBOUND_EMAIL_DOMAIN=
 INBOUND_EMAIL_SECRET=
 
-# Optional: Slack app (Events API at /api/slack/events, redirect URL
-# /api/slack/callback, bot scopes app_mentions:read chat:write im:history
-# im:read im:write, events app_mention and message.im)
+# Optional: Slack app. Create it from docs/slack-app-manifest.yml (Events
+# API at /api/slack/events, redirect URL /api/slack/callback)
 SLACK_CLIENT_ID=
 SLACK_CLIENT_SECRET=
 SLACK_SIGNING_SECRET=

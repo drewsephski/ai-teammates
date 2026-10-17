@@ -1,0 +1,41 @@
+# The Slack app Krafty expects (lib/slack.ts, lib/slack-policy.ts). Create it
+# at https://api.slack.com/apps > Create New App > From an app manifest, then
+# copy the Client ID, Client Secret and Signing Secret from Basic Information
+# into SLACK_CLIENT_ID, SLACK_CLIENT_SECRET and SLACK_SIGNING_SECRET on Railway.
+#
+# Slack checks the events URL when the app is created. Until a deployment
+# with SLACK_SIGNING_SECRET is live it can't answer, so retry the URL under
+# Event Subscriptions after deploying.
+#
+# Token rotation stays off: the bot token is stored sealed and never refreshed.
+display_information:
+  name: Krafty
+  description: Message your Krafty bots from Slack.
+  background_color: "#111111"
+features:
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: false
+  bot_user:
+    display_name: Krafty
+    always_online: true
+oauth_config:
+  redirect_urls:
+    - https://kraftybot.app/api/slack/callback
+  scopes:
+    bot:
+      - app_mentions:read
+      - chat:write
+      - im:history
+      - im:read
+      - im:write
+settings:
+  event_subscriptions:
+    request_url: https://kraftybot.app/api/slack/events
+    bot_events:
+      - app_mention
+      - message.im
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
