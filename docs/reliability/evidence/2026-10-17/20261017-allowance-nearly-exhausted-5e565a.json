@@ -1,0 +1,87 @@
+{
+  "state": {
+    "tag": "20261017-allowance-nearly-exhausted-5e565a",
+    "scenario": "allowance-nearly-exhausted",
+    "env": "prod",
+    "userId": "reliability-20261017-allowance-nearly-exhausted-5e565a",
+    "botId": "bot_cf4915c276bf1fc62bce9e56a0bb6789",
+    "chatId": "chat_cf4915c276bf1fc62bce9e56a0bb6789",
+    "routineId": "b25b5e99d361901b1ab066ed62113e4f",
+    "createdAt": "2026-10-17T17:55:28.242Z",
+    "commit": "400267f",
+    "dispatched": 1
+  },
+  "evidence": {
+    "routine": {
+      "lastStatus": "completed",
+      "lastError": null,
+      "lastRunAt": "2026-10-17T17:57:00.000Z",
+      "nextRunAt": null,
+      "enabled": false
+    },
+    "bot": {
+      "name": "Relay",
+      "job": "Reliability test assistant",
+      "setupComplete": true,
+      "instructions": "You are a test bot for Krafty's reliability harness. Keep replies short."
+    },
+    "routineCount": 1,
+    "activity": [
+      {
+        "kind": "routine_started",
+        "title": "A nearly spent allowance stops the turn and records the outc started",
+        "detail": null,
+        "dedupeKey": "routine_b25b5e99d361901b1ab066ed62113e4f_1792259820000",
+        "createdAt": "2026-10-17T17:58:02.785Z"
+      },
+      {
+        "kind": "work_finished",
+        "title": "Relay finished a routine",
+        "detail": "The History of the Telegraph The telegraph was the first technology to sever communication from transportation, allowing information to travel faster than any horse, ship, or train. Its origins lie in",
+        "dedupeKey": "turn:run_06gkm0rucns0euemm1rmi1bs01:0",
+        "createdAt": "2026-10-17T17:58:16.956Z"
+      }
+    ],
+    "usage": [
+      {
+        "kind": "ai",
+        "amount": 995000,
+        "key": "reliability:20261017-allowance-nearly-exhausted-5e565a:fixture"
+      },
+      {
+        "kind": "ai",
+        "amount": 1841,
+        "key": "ai:run_06gkm0rucns0euemm1rmi1bs01:0"
+      }
+    ],
+    "turns": [
+      "ai:run_06gkm0rucns0euemm1rmi1bs01:0"
+    ],
+    "runIds": [
+      "run_06gkm0rucns0euemm1rmi1bs01"
+    ],
+    "approvals": [],
+    "memories": [],
+    "chatPreview": "The History of the Telegraph The telegraph was the first technology to sever communication from transportation, allowing information to travel faster than any h",
+    "computer": null,
+    "overspendMicros": 0,
+    "duplicates": {
+      "extraTurns": 0,
+      "routineStartsOverOne": 0,
+      "approvalsExecutedOverOne": 0,
+      "duplicateMemories": 0,
+      "unattendedRoutineCreates": 0
+    },
+    "triggerRuns": [
+      {
+        "id": "run_06gkm0rucns0euemm1rmi1bs01",
+        "task": "chat",
+        "status": "COMPLETED",
+        "version": "20261017.1",
+        "created": "10/17/2026, 12:58:02 PM"
+      }
+    ],
+    "failures": [],
+    "result": "PASS"
+  }
+}

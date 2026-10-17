@@ -1,0 +1,145 @@
+{
+  "state": {
+    "tag": "20261017-computer-open-08bee1",
+    "scenario": "computer-open",
+    "env": "prod",
+    "userId": "reliability-20261017-computer-open-08bee1",
+    "botId": "bot_b0a984bf312627f612526ba824e49b11",
+    "chatId": "chat_b0a984bf312627f612526ba824e49b11",
+    "routineId": "d572338d098fe616c23f1e7ae6ebc273",
+    "createdAt": "2026-10-17T18:00:41.811Z",
+    "commit": "400267f",
+    "dispatched": 1
+  },
+  "evidence": {
+    "routine": {
+      "lastStatus": "completed",
+      "lastError": null,
+      "lastRunAt": "2026-10-17T18:02:00.000Z",
+      "nextRunAt": null,
+      "enabled": false
+    },
+    "routineCount": 1,
+    "activity": [
+      {
+        "kind": "routine_started",
+        "title": "Computer opens a site and writes a file (then pauses) started",
+        "detail": null,
+        "dedupeKey": "routine_d572338d098fe616c23f1e7ae6ebc273_1792260120000",
+        "createdAt": "2026-10-17T18:03:01.509Z"
+      },
+      {
+        "kind": "work_finished",
+        "title": "Relay finished a routine",
+        "detail": "Opened https://example.com without clicking. Main heading: Example Domain. Wrote it to ~/workspace/reliability/reliability/marker.txt.",
+        "dedupeKey": "turn:run_06gkm20d90i37gklaj5153hm01:0",
+        "createdAt": "2026-10-17T18:03:46.929Z"
+      }
+    ],
+    "usage": [
+      {
+        "kind": "sandbox",
+        "amount": 6,
+        "key": "sandbox:i5bvf4qdyfwkpiydhelp2:2026-10-17T18:03:09.644Z:6"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 1,
+        "key": "sandbox:i5bvf4qdyfwkpiydhelp2:2026-10-17T18:03:17.501Z:1"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 2,
+        "key": "sandbox:i5bvf4qdyfwkpiydhelp2:2026-10-17T18:03:17.501Z:3"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 1,
+        "key": "sandbox:i5bvf4qdyfwkpiydhelp2:2026-10-17T18:03:17.501Z:4"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 2,
+        "key": "sandbox:i5bvf4qdyfwkpiydhelp2:2026-10-17T18:03:17.501Z:6"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 1,
+        "key": "sandbox:i5bvf4qdyfwkpiydhelp2:2026-10-17T18:03:17.501Z:7"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 10,
+        "key": "sandbox:i5bvf4qdyfwkpiydhelp2:2026-10-17T18:03:17.501Z:17"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 3,
+        "key": "sandbox:i5bvf4qdyfwkpiydhelp2:2026-10-17T18:03:17.501Z:20"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 1,
+        "key": "sandbox:i5bvf4qdyfwkpiydhelp2:2026-10-17T18:03:17.501Z:21"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 2,
+        "key": "sandbox:i5bvf4qdyfwkpiydhelp2:2026-10-17T18:03:17.501Z:23"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 1,
+        "key": "sandbox:i5bvf4qdyfwkpiydhelp2:2026-10-17T18:03:17.501Z:24"
+      },
+      {
+        "kind": "ai",
+        "amount": 239,
+        "key": "ai:run_06gkm20d90i37gklaj5153hm01:0:follow-ups"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 4,
+        "key": "sandbox:i5bvf4qdyfwkpiydhelp2:2026-10-17T18:03:17.501Z:28"
+      },
+      {
+        "kind": "ai",
+        "amount": 7301,
+        "key": "ai:run_06gkm20d90i37gklaj5153hm01:0"
+      }
+    ],
+    "turns": [
+      "ai:run_06gkm20d90i37gklaj5153hm01:0"
+    ],
+    "runIds": [
+      "run_06gkm20d90i37gklaj5153hm01"
+    ],
+    "approvals": [],
+    "memories": [],
+    "chatPreview": "Opened https://example.com without clicking. Main heading: Example Domain. Wrote it to ~/workspace/reliability/reliability/marker.txt.",
+    "computer": {
+      "sandboxId": "i5bvf4qdyfwkpiydhelp2",
+      "exists": true,
+      "paused": true
+    },
+    "overspendMicros": 0,
+    "duplicates": {
+      "extraTurns": 0,
+      "routineStartsOverOne": 0,
+      "approvalsExecutedOverOne": 0,
+      "duplicateMemories": 0,
+      "unattendedRoutineCreates": 0
+    },
+    "triggerRuns": [
+      {
+        "id": "run_06gkm20d90i37gklaj5153hm01",
+        "task": "chat",
+        "status": "COMPLETED",
+        "version": "20261017.1",
+        "created": "10/17/2026, 1:03:01 PM"
+      }
+    ],
+    "failures": [],
+    "result": "PASS"
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "state": {
+    "tag": "20261017-disconnected-app-91eefa",
+    "scenario": "disconnected-app",
+    "env": "prod",
+    "userId": "reliability-20261017-disconnected-app-91eefa",
+    "botId": "bot_73cdb05a7ec7aca2070f22552a8ef9c8",
+    "chatId": "chat_73cdb05a7ec7aca2070f22552a8ef9c8",
+    "routineId": "88f6bd75cd3444d1b82e33501ac34a5c",
+    "createdAt": "2026-10-17T17:55:13.593Z",
+    "commit": "400267f",
+    "dispatched": 1
+  },
+  "evidence": {
+    "routine": {
+      "lastStatus": "blocked",
+      "lastError": "Connect Gmail so I can check your unread email count?",
+      "lastRunAt": "2026-10-17T17:56:00.000Z",
+      "nextRunAt": null,
+      "enabled": false
+    },
+    "routineCount": 1,
+    "activity": [
+      {
+        "kind": "routine_started",
+        "title": "Asks for a connection instead of acting on an unconnected ap started",
+        "detail": null,
+        "dedupeKey": "routine_88f6bd75cd3444d1b82e33501ac34a5c_1792259760000",
+        "createdAt": "2026-10-17T17:56:04.877Z"
+      },
+      {
+        "kind": "question_asked",
+        "title": "Relay has a question",
+        "detail": "Connect Gmail so I can check your unread email count?",
+        "dedupeKey": "turn:run_06gkm0dhjfo5pecl79vu20gg01:0",
+        "createdAt": "2026-10-17T17:56:19.412Z"
+      }
+    ],
+    "usage": [
+      {
+        "kind": "ai",
+        "amount": 3614,
+        "key": "ai:run_06gkm0dhjfo5pecl79vu20gg01:0"
+      }
+    ],
+    "turns": [
+      "ai:run_06gkm0dhjfo5pecl79vu20gg01:0"
+    ],
+    "runIds": [
+      "run_06gkm0dhjfo5pecl79vu20gg01"
+    ],
+    "approvals": [],
+    "memories": [],
+    "chatPreview": "Connect Gmail so I can check your unread email count?",
+    "computer": null,
+    "overspendMicros": 0,
+    "duplicates": {
+      "extraTurns": 0,
+      "routineStartsOverOne": 0,
+      "approvalsExecutedOverOne": 0,
+      "duplicateMemories": 0,
+      "unattendedRoutineCreates": 0
+    },
+    "triggerRuns": [
+      {
+        "id": "run_06gkm0dhjfo5pecl79vu20gg01",
+        "task": "chat",
+        "status": "COMPLETED",
+        "version": "20261017.1",
+        "created": "10/17/2026, 12:56:04 PM"
+      }
+    ],
+    "failures": [],
+    "result": "PASS"
+  }
+}

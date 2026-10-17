@@ -1,0 +1,57 @@
+{
+  "state": {
+    "tag": "20261017-downgraded-bot-463805",
+    "scenario": "downgraded-bot",
+    "env": "prod",
+    "userId": "reliability-20261017-downgraded-bot-463805",
+    "botId": "bot_0fc06c7dbb4c1e50f6f85d62996857f7",
+    "chatId": "chat_0fc06c7dbb4c1e50f6f85d62996857f7",
+    "routineId": "b2538cd7795fa2bdfb9b34c07b31dd96",
+    "createdAt": "2026-10-17T18:30:23.249Z",
+    "commit": "400267f",
+    "dispatched": 0
+  },
+  "evidence": {
+    "routine": {
+      "lastStatus": "skipped",
+      "lastError": "This bot isn't available on your current plan.",
+      "lastRunAt": "2026-10-17T18:32:00.000Z",
+      "nextRunAt": null,
+      "enabled": false
+    },
+    "bot": {
+      "name": "Relay",
+      "job": "Reliability test assistant",
+      "setupComplete": true,
+      "instructions": "You are a test bot for Krafty's reliability harness. Keep replies short."
+    },
+    "routineCount": 1,
+    "activity": [
+      {
+        "kind": "routine_skipped",
+        "title": "A bot beyond the free plan's limit is skipped, not run didn't run",
+        "detail": "This bot isn't available on your current plan.",
+        "dedupeKey": "routine_b2538cd7795fa2bdfb9b34c07b31dd96_1792261920000:skipped",
+        "createdAt": "2026-10-17T18:33:02.064Z"
+      }
+    ],
+    "usage": [],
+    "turns": [],
+    "runIds": [],
+    "approvals": [],
+    "memories": [],
+    "chatPreview": null,
+    "computer": null,
+    "overspendMicros": 0,
+    "duplicates": {
+      "extraTurns": 0,
+      "routineStartsOverOne": 0,
+      "approvalsExecutedOverOne": 0,
+      "duplicateMemories": 0,
+      "unattendedRoutineCreates": 0
+    },
+    "triggerRuns": [],
+    "failures": [],
+    "result": "PASS"
+  }
+}
