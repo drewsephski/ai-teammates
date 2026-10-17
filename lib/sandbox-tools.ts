@@ -96,7 +96,7 @@ export function createSandboxTools(
   ) => string | ComputerBusy | Promise<string | ComputerBusy>,
   // Checks every gesture or command that could commit an action outside the
   // computer, and holds it for the owner's approval (lib/computer-approval-tools.ts)
-  gate: ComputerGate,
+  gate: Pick<ComputerGate, "gesture" | "shell" | "complete">,
   options: {
     onScreenViewed?: () => void
     // Runs when a computer call ends, so the lease counts from the last call

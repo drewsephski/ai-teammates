@@ -8,6 +8,7 @@ import {
   approvalCovers,
   approvalRequiredMessage,
   computerApprovalInputSchema,
+  computerHostnameSchema,
   declinedComputerAction,
   DECLINED_ERROR,
   GUARD_CACHE_MS,
@@ -18,7 +19,14 @@ import {
   HUMAN_ONLY_ERROR,
   humanOnlyCategory,
   MAX_PREVIEW_BASE64,
+  MULTIPLE_ENTER_ERROR,
+  NOT_APPROVED_ERROR,
+  NOTHING_HELD_ERROR,
+  OPAQUE_COMMAND_ERROR,
+  shellApprovalRequiredMessage,
   shellCommandRisk,
+  shellRefusedMessage,
+  VIEW_SCREEN_FIRST_ERROR,
   windowOpen,
   type ComputerAction,
   type ComputerApprovalInput,
@@ -60,6 +68,14 @@ export type ComputerApprovalStore = {
   ) => Promise<void>
 }
 
+// A committing gesture the gate refused in this turn, as the guard saw it.
+// An approval request for a gesture stores this, never the bot's own label.
+export type HeldGesture = {
+  action: ComputerAction
+  // Read from the address bar by the guard; null when none was visible
+  hostname: string | null
+}
+
 export type ComputerGate = {
   // Inside the computer's lock, before a gesture that may commit: throws to
   // refuse; returns the approval it spent, to record the outcome on
@@ -77,10 +93,12 @@ export type ComputerGate = {
     approvalId: string,
     outcome: { ok: boolean; result: unknown }
   ) => Promise<void>
+  // The last committing gesture refused in this turn, if any
+  heldGesture: () => HeldGesture | undefined
+  // The action a shell command needs, if the shell refused exactly this
+  // command in this turn for want of an approval
+  heldCommand: (command: string) => ComputerAction | undefined
 }
-
-const NOT_APPROVED =
-  "That approvalId isn't an approved request for this step from this chat, or its time ran out. Nothing was done. Call requestComputerApproval for this step and stop."
 
 function hash(text: string) {
   return createHash("sha256").update(text).digest("hex")
@@ -114,6 +132,8 @@ export function createComputerGate({
   now?: () => number
 }): ComputerGate {
   let failures = 0
+  let held: HeldGesture | undefined
+  const heldCommands = new Map<string, ComputerAction>()
   // A retried step on an unchanged screen isn't checked, or charged, twice
   const cache = new Map<string, { verdict: GuardVerdict; at: number }>()
 
@@ -133,8 +153,10 @@ export function createComputerGate({
         (!options.once &&
           (approval.state === "running" || approval.state === "executed") &&
           windowOpen(approval, now())))
-    if (!approval || !usable || !covers(approval)) throw new Error(NOT_APPROVED)
-    if (!(await store.spend(approvalId, options))) throw new Error(NOT_APPROVED)
+    if (!approval || !usable || !covers(approval))
+      throw new Error(NOT_APPROVED_ERROR)
+    if (!(await store.spend(approvalId, options)))
+      throw new Error(NOT_APPROVED_ERROR)
     return approvalId
   }
 
@@ -192,51 +214,48 @@ export function createComputerGate({
         gesture.tool === "keyboardType" &&
         (gesture.text.match(/[\r\n]/g)?.length ?? 0) > 1
       )
-        throw new Error(
-          "This would press Enter more than once on a step that commits. Nothing was done. Type one line at a time."
-        )
+        throw new Error(MULTIPLE_ENTER_ERROR)
+      // Remembered before the approval check: a step refused with or without
+      // an approvalId is what the next approval request holds
+      held = { action, hostname: verdict.hostname }
       if (!approvalId) throw new Error(approvalRequiredMessage(verdict, action))
-      return {
-        claimed: await spend(approvalId, (approval) =>
-          approvalCovers(approval, verdict, title)
-        ),
-        verdict,
-      }
+      const claimed = await spend(approvalId, (approval) =>
+        approvalCovers(approval, verdict, title)
+      )
+      held = undefined
+      return { claimed, verdict }
     },
     shell: async (command, approvalId) => {
       const risk = shellCommandRisk(command)
       if (!risk) return {}
       if (risk.kind === "refuse")
-        throw new Error(
-          `This command ${risk.reason}, which isn't allowed. Nothing ran. Use the mouse, keyboard and screen tools instead.`
-        )
+        throw new Error(shellRefusedMessage(risk.reason))
       if (declinedComputerAction(declined(), risk.action))
         throw new Error(DECLINED_ERROR)
-      if (heldCommandOpaque(command))
-        throw new Error(
-          "Put the data this command sends inline in the command, not in a file or piped input, so the owner approves exactly what is sent. Nothing ran."
-        )
-      if (!approvalId)
-        throw new Error(
-          `Approval required: this command ${risk.reason}. Nothing ran. Call requestComputerApproval with action "${risk.action}", the destination's hostname, one sentence of what will happen and the exact command, then stop. After the owner approves, run that same command with the approvalId.`
-        )
+      if (heldCommandOpaque(command)) throw new Error(OPAQUE_COMMAND_ERROR)
+      heldCommands.set(command, risk.action)
+      if (!approvalId) throw new Error(shellApprovalRequiredMessage(risk))
       // A command runs once per approval: it can't be repeated in a window
-      return {
-        claimed: await spend(
-          approvalId,
-          (approval) =>
-            approval.action === risk.action && approval.command === command,
-          { once: true }
-        ),
-      }
+      const claimed = await spend(
+        approvalId,
+        (approval) =>
+          approval.action === risk.action && approval.command === command,
+        { once: true }
+      )
+      heldCommands.delete(command)
+      return { claimed }
     },
     complete: (approvalId, outcome) => store.complete(approvalId, outcome),
+    heldGesture: () => held,
+    heldCommand: (command) => heldCommands.get(command),
   }
 }
 
 export function createComputerApprovalTools(
   store: ComputerApprovalStore,
   options: {
+    // What this turn's computer gate refused, which is all an approval holds
+    gate: Pick<ComputerGate, "heldGesture" | "heldCommand">
     // The server's own screenshot for the owner; undefined when the computer
     // isn't available. Not taken for shell commands.
     preview?: () => Promise<ComputerScreenshot | undefined>
@@ -248,30 +267,43 @@ export function createComputerApprovalTools(
   return {
     requestComputerApproval: tool({
       description:
-        "Hold a committing step on the computer for the owner's approval: a click, key or command that sends, posts, submits (grades, forms, records, roster moves), deletes or buys something outside the computer. Use it when a computer tool says approval is required. Look at the screen with viewScreen first. Name the site's hostname and one plain sentence of exactly what will happen, including recipients, records or amounts; for a shell command, also pass the exact command. The turn stops; when the owner approves you get a message with the approvalId. Never use it to retry something the owner declined.",
+        "Hold a committing step on the computer for the owner's approval: a click, key or command that sends, posts, submits (grades, forms, records, roster moves), deletes or buys something outside the computer. Use it right after a computer tool says approval is required: it holds that step, recorded as the kind of action the safety check saw, so name it in your sentence. Look at the screen with viewScreen first. Name the site's hostname and one plain sentence of exactly what will happen, including recipients, records or amounts; for a shell command the bash tool held, also pass that exact command; never pass command for a click or key. The turn stops; when the owner approves you get a message with the approvalId. Never use it to retry something the owner declined.",
       inputSchema: computerApprovalInputSchema,
       execute: async (input) => {
         const parsed = computerApprovalInputSchema.parse(input)
-        if (
-          declinedComputerAction(
-            options.declined?.() ?? [],
-            parsed.action as ComputerAction
-          )
-        )
+        const declined = options.declined?.() ?? []
+        if (declinedComputerAction(declined, parsed.action as ComputerAction))
           throw new Error(DECLINED_ERROR)
-        if (parsed.command && heldCommandOpaque(parsed.command))
-          throw new Error(
-            "Put the data this command sends inline in the command, not in a file or piped input, so the owner approves exactly what is sent."
-          )
-        if (!parsed.command && !options.screenViewed())
-          throw new Error(
-            "Look at the screen with viewScreen first, so the owner sees the step they're approving."
-          )
-        const shot = parsed.command
+        // The approval holds what the server refused, as the server
+        // classified it (#33). A command counts only if the shell held that
+        // exact command; anything else in `command` on a click is dropped,
+        // so the card never shows prose as a command to run.
+        const commandAction = parsed.command
+          ? options.gate.heldCommand(parsed.command)
+          : undefined
+        const gesture = commandAction ? undefined : options.gate.heldGesture()
+        const action = commandAction ?? gesture?.action
+        if (!action) throw new Error(NOTHING_HELD_ERROR)
+        if (declinedComputerAction(declined, action))
+          throw new Error(DECLINED_ERROR)
+        const command = commandAction ? parsed.command : undefined
+        if (command && heldCommandOpaque(command))
+          throw new Error(OPAQUE_COMMAND_ERROR)
+        if (!command && !options.screenViewed())
+          throw new Error(VIEW_SCREEN_FIRST_ERROR)
+        // The site the guard read from the address bar, when it read one
+        const seen = gesture?.hostname
+          ? computerHostnameSchema.safeParse(gesture.hostname)
+          : undefined
+        const hostname = seen?.success ? seen.data : parsed.hostname
+        const shot = command
           ? undefined
           : await options.preview?.().catch(() => undefined)
         const held = await store.request({
-          ...parsed,
+          action,
+          summary: parsed.summary,
+          hostname,
+          ...(command && { command }),
           ...(shot &&
             shot.base64.length <= MAX_PREVIEW_BASE64 && {
               preview: `data:${shot.mediaType};base64,${shot.base64}`,
@@ -281,9 +313,9 @@ export function createComputerApprovalTools(
           status: "approval_required" as const,
           approvalId: held.approvalId,
           summary: held.summary,
-          toolkit: parsed.hostname,
-          message:
-            "Nothing was done. The owner has an approval card and a notification. Tell them in one sentence what will happen once they approve, then stop.",
+          toolkit: hostname,
+          action,
+          message: `Nothing was done. The owner has an approval card and a notification for a "${action}" step on ${hostname}. Tell them in one sentence what will happen once they approve, then stop.`,
         }
       },
     }),

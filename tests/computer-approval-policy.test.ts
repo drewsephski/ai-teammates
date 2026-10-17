@@ -4,10 +4,17 @@ import test from "node:test"
 import {
   actionForCategory,
   approvalCovers,
+  approvalRequiredMessage,
+  computerRefusalMessage,
+  DECLINED_ERROR,
   gestureNeedsCheck,
   guardVerdict,
+  NOT_APPROVED_ERROR,
+  NOTHING_HELD_ERROR,
   protectedPath,
+  shellApprovalRequiredMessage,
   shellCommandRisk,
+  shellRefusedMessage,
   windowOpen,
   type GuardOutput,
 } from "../lib/computer-approval-policy"
@@ -248,4 +255,28 @@ test("an approval never covers account security or desktop terminal commands", (
     ),
     false
   )
+})
+
+test("the gate's own refusals reach the tool card; anything else stays generic", () => {
+  const shown = (message: string) => computerRefusalMessage(new Error(message))
+  const held = approvalRequiredMessage(
+    { category: "purchase", reason: "Places an order" },
+    "buy"
+  )
+  const push = shellCommandRisk("git push origin main")
+  assert.equal(push?.kind, "approve")
+  for (const message of [
+    NOT_APPROVED_ERROR,
+    NOTHING_HELD_ERROR,
+    DECLINED_ERROR,
+    held,
+    shellApprovalRequiredMessage(
+      push as Extract<typeof push, { kind: "approve" }>
+    ),
+    shellRefusedMessage("drives the desktop's mouse or keyboard"),
+  ])
+    assert.equal(shown(message), message)
+  assert.equal(shown("connect ECONNREFUSED 10.0.0.1:5432"), undefined)
+  assert.equal(shown(shellRefusedMessage("leaks a secret sk-123")), undefined)
+  assert.equal(computerRefusalMessage("not an error"), undefined)
 })
