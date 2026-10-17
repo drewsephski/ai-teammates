@@ -1,10 +1,10 @@
 # Memory and personalization for Kraftybot
 
-Status: design proposal, October 2026. Nothing here is built yet.
+Status: design proposal, October 2026, now partly built. Memory lives in Neon Postgres with pgvector, and stored For You cards and routines have shipped. Implicit extraction, nightly maintenance, behavior signals and earned autonomy are still planned. See [Implementation status](#implementation-status) for what exists and where; the rest of this document is the original design.
 
 ## Summary
 
-Kraftybot forgets almost everything. The only memory that lasts across chats is a `MEMORY.md` file in each bot's E2B sandbox. Only paid bots have one, it's per bot, nothing is ranked, and resetting the sandbox wipes it (`lib/sandbox-tools.ts:161-193`, `lib/e2b.ts:116`). For You runs from scratch every time the page loads. Its only "activity" input is the 160-character preview of the user's last six chats (`actions/for-you.ts:54-64`). Nothing is stored and no feedback is collected.
+When this proposal was written, Kraftybot forgot almost everything. The only memory that lasts across chats is a `MEMORY.md` file in each bot's E2B sandbox. Only paid bots have one, it's per bot, nothing is ranked, and resetting the sandbox wipes it (`lib/sandbox-tools.ts:161-193`, `lib/e2b.ts:116`). For You runs from scratch every time the page loads. Its only "activity" input is the 160-character preview of the user's last six chats (`actions/for-you.ts:54-64`). Nothing is stored and no feedback is collected.
 
 The recommendation is to build memory into Neon Postgres ourselves, with Drizzle and pgvector, and to borrow the proven patterns rather than adopt a memory platform:
 
@@ -18,9 +18,35 @@ The recommendation is to build memory into Neon Postgres ourselves, with Drizzle
 | Memory treated as untrusted data in prompts; revision history and provenance; For You cards with fingerprints, dismiss and snooze, where memory only re-ranks verified items | Kith (`drewsephski/kith`) |
 | Memory list with view, edit and delete; temporary chats; a global off switch | ChatGPT, Claude, Gemini |
 
-## Current state
+## Implementation status
 
-| Area | Where | Today |
+Checked against `main` on 2026-10-17. Built items cite the implementing files.
+
+| Area | Status | Where |
+|---|---|---|
+| Schema: `memories`, `memory_events`, `user_settings`, `chats.memoryMode` | Built | `db/schema.ts` (`vector({ dimensions: 1024 })`, HNSW cosine index) |
+| Embeddings through the Neon gateway (`qwen3-embedding-0-6b`) | Built | `lib/memory.ts` (`embedText`) |
+| Explicit tools for every plan: `remember`, `recall`, `updateMemory`, `forget` | Built | `lib/memory-tools.ts`. Free plan capped at 50 active memories (`FREE_MEMORY_LIMIT`, `lib/memory-policy.ts`) |
+| Sandbox `MEMORY.md` tools | Removed | No `MEMORY_FILE` or `MEMORY.md` remains in `lib/` |
+| Core block plus recalled block, scored by cosine, recency, importance and confidence | Built | `lib/memory.ts` (`loadMemoryContext`, `searchMemories`), `lib/memory-policy.ts` (`selectCore`, `scoreMemory`, `formatMemoryBlock`), injected per answering bot in `trigger/chat.ts` |
+| Supersede instead of overwrite, with `memory_events` audit rows | Built | `lib/memory.ts` (`supersedeMemory`, `writeMemory`) |
+| Secrets scanner before insert | Built | `containsSecret` in `lib/memory-policy.ts`, used by `lib/memory.ts` and the schemas in `db/schema.ts` |
+| Sensitive memories excluded from consultation | Built | `includeSensitive: false` in `lib/teammate-consultation.ts`. Nothing sets `sensitivity: "sensitive"` yet, and the sensitive-category filter is planned |
+| `/memory` page: About you, search, edit, delete, pin, scope, memory on/off | Built | `app/(dashboard)/memory/page.tsx`, `components/memory/`, `services/memory.ts`, `actions/memory.ts`, sidebar link in `components/app-sidebar.tsx` |
+| Temporary chats | Partly built | `chats.memoryMode = "off"` disables memory tools and the block (`isMemoryOn` in `lib/memory.ts`), but no app path creates such a chat yet |
+| Account deletion removes memories, events and settings | Built | `services/account.ts` (`deleteAccount`) |
+| Stored For You cards with fingerprints, memory brief, commitment cards, ranking, dismiss reasons and snooze | Built | `db/schema.ts` (`forYouItems`, `forYouScans`), `services/for-you.ts`, `lib/for-you.ts`, `lib/generate-for-you.ts`. Cards refresh when the last scan is over 30 minutes old (`STALE_AFTER`) |
+| Routines | Built, differently from §5 | `routines` table in `db/schema.ts`, tools in `lib/routine-tools.ts`, every-minute claim cron in `trigger/routines.ts`. Runs report into the routine's chat, not For You |
+| Implicit extraction (`memory-extract`), "Saved to memory · Undo", setup answers as memories | Planned | No task in `trigger/`; nothing writes `source: "extracted"` or `"setup"` |
+| History view, Suggested tab, export, delete-all, chat-deletion cascade | Planned | Deleting a chat sets `sourceChatId` to null (`db/schema.ts`) |
+| `user_signals`, behavior aggregates, nightly `memory-maintain`, daily brief at `digestHour`, 👍/👎 | Planned | No table or task yet; `user_settings.behavior` is unused |
+| Proactivity settings, nudges, earned-autonomy grants | Planned | `user_settings` has the columns; no UI reads them. Current guardrails are in `docs/autonomy.md` |
+
+## State before this design
+
+This was the starting point in early October 2026. It no longer describes `main`; see the status table above.
+
+| Area | Where | Then |
 |---|---|---|
 | Memory | `lib/sandbox-tools.ts:161-193`, `lib/chat-instructions.ts:28-33` | `remember` appends a line to `/home/user/MEMORY.md` and `recall` reads the whole file. Paid tier only. |
 | Transcripts | `trigger/chat.ts:90` | Stored in Trigger.dev's default transcript storage. Postgres keeps only `chats.lastMessagePreview`. |
@@ -422,6 +448,8 @@ The research finding behind these rules is that users object to the *timing* and
 
 ### Routines
 
+> Status: built, with a different mechanism. Routines are rows in a `routines` table (`db/schema.ts`), claimed by `nextRunAt` from the every-minute `run-routines` cron (`trigger/routines.ts`, `lib/routines.ts`) rather than Trigger.dev imperative schedules. Bots manage them with `scheduleRoutine`, `listRoutines`, `updateRoutine` and `deleteRoutine` (`lib/routine-tools.ts`). Unattended runs cannot create or change routines (`trigger/chat.ts`). Results post into the routine's chat with an activity notification, not as For You cards. The proposal below is kept for reference.
+
 Remove the "schedules are unavailable" lines and add user-created recurring tasks, such as "Every Monday 9am, summarize my open Linear issues." Use Trigger.dev imperative schedules (`schedules.create({ task: "routine-run", cron, timezone, externalId: routineId, deduplicationKey })`) with a `routines` table. Two guardrails, from Kith:
 
 - A routine run cannot create routines.
@@ -504,38 +532,38 @@ Routine results land in For You as `category: "routine"` cards.
 
 Each phase ships on its own and leaves the app better.
 
-**P0: Durable memory foundation**
+**P0: Durable memory foundation** (built)
 
-1. Enable `vector` on Neon. Add `memories`, `memory_events`, `user_settings` and `chats.memoryMode`, then `npm run db:push`.
-2. Build `lib/memory.ts` (embed, search and score, write, supersede) and `lib/memory-tools.ts` (`remember`, `recall`, `forget`, `updateMemory`) for **all tiers**. Remove the sandbox `remember`/`recall` and `MEMORY_FILE` (`lib/sandbox-tools.ts`, `lib/sandbox-policy.ts`, `lib/e2b.ts`). There is no backfill; per `AGENTS.md`, the old data is disposable.
-3. Inject the core block and recalled block in `buildChatInstructions`, and update `memoryInstructions`.
-4. Build the `/memory` page: list, edit, delete, pin, scope, the memory on/off switch and "About you". Build `actions/memory.ts` following the Forms reference.
+1. Built: enable `vector` on Neon. Add `memories`, `memory_events`, `user_settings` and `chats.memoryMode`, then `npm run db:push` (`db/schema.ts`).
+2. Built: `lib/memory.ts` (embed, search and score, write, supersede) and `lib/memory-tools.ts` (`remember`, `recall`, `forget`, `updateMemory`) for **all tiers**. Remove the sandbox `remember`/`recall` and `MEMORY_FILE` (`lib/sandbox-tools.ts`, `lib/sandbox-policy.ts`, `lib/e2b.ts`). There is no backfill; per `AGENTS.md`, the old data is disposable.
+3. Built: inject the core block and recalled block in `buildChatInstructions`, and update `memoryInstructions` (`lib/chat-instructions.ts`, `trigger/chat.ts`).
+4. Built: the `/memory` page: list, edit, delete, pin, scope, the memory on/off switch and "About you" (`app/(dashboard)/memory/page.tsx`, `actions/memory.ts`, `services/memory.ts`).
 
-**P1: Learn automatically, safely**
+**P1: Learn automatically, safely** (planned)
 
-1. The `memory-extract` task, triggered from `onTurnComplete`, with extraction and reconciliation, the user-words-only rule, and the sensitive and secrets filters.
-2. The "Saved to memory · Undo" part, temporary chats, and chat-deletion cascade.
-3. Unit tests and the first 20 eval cases.
+1. Planned: the `memory-extract` task, triggered from `onTurnComplete`, with extraction and reconciliation, the user-words-only rule, and the sensitive and secrets filters.
+2. Planned: the "Saved to memory · Undo" part, a way to start temporary chats (the `memoryMode` read path is built), and chat-deletion cascade.
+3. Partly built: unit tests for scoring, core selection and the secrets filter (`tests/memory-policy.test.ts`). Eval cases are planned.
 
-**P2: For You v2**
+**P2: For You v2** (mostly built)
 
-1. `for_you_items` and `user_signals`. `getForYouSuggestion` reads stored items; `startForYouTask(itemId)` starts them.
-2. Generator changes: the memory brief, up to 5 candidates, commitment cards, deterministic ranking.
-3. The daily brief at `digestHour`, event-triggered refreshes, and Realtime updates.
-4. Dismiss reasons, snooze, 👍/👎, the "Why this?" popover with Edit and Forget links, and back-off rules.
+1. Built: `for_you_items`, read by `getForYou` and started by `startForYouItem` (`services/for-you.ts`). Planned: `user_signals`.
+2. Built: the memory brief, commitment cards and deterministic ranking (`services/for-you.ts`, `lib/for-you.ts`, `lib/generate-for-you.ts`).
+3. Planned: the daily brief at `digestHour`, event-triggered refreshes, and Realtime updates. Today cards refresh on demand when stale.
+4. Built: dismiss reasons and snooze (`services/for-you.ts`). Planned: 👍/👎, the "Why this?" popover with Edit and Forget links, and the full back-off rules.
 
-**P3: Sleep-time maintenance and wider personalization**
+**P3: Sleep-time maintenance and wider personalization** (planned)
 
 1. `memory-maintain`, hourly fan-out to users at their local 3am: expire, dedupe, reflect, aggregate, delete old signals.
 2. The weekly "Here's what I learned" card and the Suggested tab.
 3. Personalize bot setup, follow-up chips, consultation context and composer ordering.
 
-**P4: Earned autonomy**
+**P4: Earned autonomy** (planned, except routines)
 
 1. Proactivity settings: nudges, quiet hours, per-app suggestion toggles. An in-app nudge badge.
 2. L2 prepared work: meeting briefs and draft replies attached to cards.
 3. Earned-autonomy grants, revocable from `/memory`.
-4. Routines via Trigger.dev imperative schedules, with results as For You cards.
+4. Built differently: routines as a `routines` table with an every-minute claim cron, reporting into chat (`lib/routine-tools.ts`, `trigger/routines.ts`). See §5.
 5. Push or email notifications, only after in-app nudges show they are wanted.
 
 ## Sources
