@@ -36,10 +36,12 @@ export default function SupportPage() {
 
       <h2>Privacy and deletion</h2>
       <p>
-        On iPhone, open Account and choose Delete account to start account
-        deletion. You can also email us with privacy or deletion requests. See
-        our <Link href="/privacy">privacy policy</Link> for information about
-        data handling and retention, and our{" "}
+        To delete your Krafty account without the app, visit{" "}
+        <Link href="/delete-account">Delete your account</Link>, sign in, and
+        confirm deletion. On iPhone, open Account and choose Delete account. You
+        can also email us with privacy or deletion requests. See our{" "}
+        <Link href="/privacy">privacy policy</Link> for information about data
+        handling and retention, and our{" "}
         <Link href="/terms">terms of service</Link> for service terms.
       </p>
     </article>

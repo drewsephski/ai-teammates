@@ -13,6 +13,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/privacy", lastModified: legalUpdated, priority: 0.3 },
     { path: "/terms", lastModified: legalUpdated, priority: 0.3 },
     { path: "/support", lastModified: legalUpdated, priority: 0.3 },
+    { path: "/delete-account", lastModified: "2026-10-17", priority: 0.3 },
   ].map(({ path, lastModified, priority }) => ({
     url: new URL(path, siteUrl).href,
     lastModified,
