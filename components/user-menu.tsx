@@ -1,7 +1,7 @@
 "use client"
 
 import { UserButton } from "@clerk/nextjs"
-import { GaugeIcon, MoonIcon, SunIcon } from "lucide-react"
+import { GaugeIcon, MoonIcon, SunIcon, Trash2Icon } from "lucide-react"
 import { useTheme } from "next-themes"
 
 // The account button in the sidebar footer, with the usage page in its menu.
@@ -48,6 +48,11 @@ function UserMenu() {
           href="/usage"
         />
         <UserButton.Action label="signOut" />
+        <UserButton.Link
+          label="Delete account"
+          labelIcon={<Trash2Icon className="size-4" />}
+          href="/delete-account"
+        />
       </UserButton.MenuItems>
     </UserButton>
   )
