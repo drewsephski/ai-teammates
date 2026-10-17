@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
-import { after, before, test } from "node:test"
-import { eq } from "drizzle-orm"
+import { after, before, mock, test } from "node:test"
+import { and, eq, like } from "drizzle-orm"
 
 import { startTestDatabase } from "./helpers/test-db"
 
@@ -13,6 +13,9 @@ const OWNER = "user_owner"
 const OTHER = "user_other"
 const FREE = "user_free"
 const BIG = "user_big"
+// Runs that die mid-turn (#34), on an account of their own so the sweep's
+// pushes and activity can be counted exactly
+const STUCK = "user_stuck"
 
 let database: Awaited<ReturnType<typeof startTestDatabase>>
 let db: typeof import("../db").db
@@ -111,6 +114,7 @@ before(async () => {
     { userId: OTHER, tier: "paid", ...period, checkedAt: now },
     { userId: BIG, tier: "paid", ...period, checkedAt: now },
     { userId: FREE, tier: "free", checkedAt: now },
+    { userId: STUCK, tier: "paid", ...period, checkedAt: now },
   ])
   await db.insert(schema.bots).values([
     { id: "bot_owner", userId: OWNER, name: "Quill", job: "Writer" },
@@ -118,6 +122,7 @@ before(async () => {
     { id: "bot_other", userId: OTHER, name: "Scout", job: "Researcher" },
     { id: "bot_big", userId: BIG, name: "Atlas", job: "Planner" },
     { id: "bot_free", userId: FREE, name: "Solo", job: "Helper" },
+    { id: "bot_stuck", userId: STUCK, name: "Relay", job: "Runner" },
   ])
   await db.insert(schema.chats).values([
     { id: "chat_owner", userId: OWNER, kind: "direct" },
@@ -125,6 +130,7 @@ before(async () => {
     { id: "chat_other", userId: OTHER, kind: "direct" },
     { id: "chat_big", userId: BIG, kind: "direct" },
     { id: "chat_free", userId: FREE, kind: "direct" },
+    { id: "chat_stuck", userId: STUCK, kind: "direct" },
   ])
   await db.insert(schema.chatMembers).values([
     { chatId: "chat_owner", botId: "bot_owner" },
@@ -132,6 +138,7 @@ before(async () => {
     { chatId: "chat_other", botId: "bot_other" },
     { chatId: "chat_big", botId: "bot_big" },
     { chatId: "chat_free", botId: "bot_free" },
+    { chatId: "chat_stuck", botId: "bot_stuck" },
   ])
 })
 
@@ -509,4 +516,201 @@ test("a post that fails after the turn already reported leaves the outcome alone
   const after = await row(id)
   assert.equal(after.lastStatus, "blocked")
   await park(id)
+})
+
+// The sweep sees every account's started runs. Other tests' runs stay
+// "running" so only this account's are judged on the chat lookup.
+function stuckDeps(live: (chatId: string) => boolean | undefined) {
+  const looked: string[] = []
+  return {
+    looked,
+    deps: {
+      chatRunLive: async (chatId: string) => {
+        if (chatId !== "chat_stuck") return true
+        looked.push(chatId)
+        return live(chatId)
+      },
+    },
+  }
+}
+
+const activityFor = (dedupePrefix: string) =>
+  db
+    .select()
+    .from(schema.activityEvents)
+    .where(
+      and(
+        eq(schema.activityEvents.userId, STUCK),
+        like(schema.activityEvents.dedupeKey, `${dedupePrefix}%`)
+      )
+    )
+
+const later = (ms: number) => new Date(Date.now() + ms)
+
+test("#34: a run whose turn died is closed as failed once, with one activity and one push", async () => {
+  await db
+    .insert(schema.pushDevices)
+    .values({
+      token: "ExponentPushToken[stuck]",
+      userId: STUCK,
+      platform: "ios",
+    })
+  const pushes: string[] = []
+  const fetchMock = mock.method(
+    globalThis,
+    "fetch",
+    async (_url: unknown, init?: { body?: string }) => {
+      pushes.push(String(init?.body))
+      return new Response(JSON.stringify({ data: [{ status: "ok" }] }))
+    }
+  )
+  try {
+    const { id, due } = await dueRoutine(STUCK, "bot_stuck", "run_dies", 60_000)
+    assert.equal(
+      await lib.runRoutine(await row(id), due, fakeDeps().deps),
+      "started"
+    )
+    await park(id)
+    const messageId = policy.routineRunMessageId(id, due)
+    pushes.length = 0
+
+    // Just posted: the chat run may not be listed yet
+    const early = stuckDeps(() => false)
+    await lib.closeStoppedRoutineRuns(new Date(), early.deps)
+    assert.equal((await row(id)).lastStatus, "started")
+
+    // Its chat run is still going: leave it be
+    const busy = stuckDeps(() => true)
+    await lib.closeStoppedRoutineRuns(
+      later(policy.ROUTINE_RUN_START_GRACE_MS + 60_000),
+      busy.deps
+    )
+    assert.deepEqual(busy.looked, ["chat_stuck"])
+    assert.equal((await row(id)).lastStatus, "started")
+
+    // The run was cancelled (or crashed): nothing will ever report on it
+    const dead = stuckDeps(() => false)
+    const result = await lib.closeStoppedRoutineRuns(
+      later(policy.ROUTINE_RUN_START_GRACE_MS + 60_000),
+      dead.deps
+    )
+    assert.ok(result.stopped >= 1)
+    const closed = await row(id)
+    assert.equal(closed.lastStatus, "failed")
+    assert.equal(closed.lastError, policy.STOPPED_RUN_ERROR)
+    assert.equal(closed.lastRunAt?.getTime(), due.getTime())
+
+    const failures = await activityFor(`${messageId}:failed`)
+    assert.equal(failures.length, 1)
+    assert.equal(failures[0].kind, "routine_failed")
+    assert.equal(failures[0].chatId, "chat_stuck")
+    assert.equal(failures[0].detail, policy.STOPPED_RUN_ERROR)
+    assert.equal(pushes.length, 1)
+    assert.match(pushes[0], /ExponentPushToken\[stuck\]/)
+    assert.match(pushes[0], /Inbox check didn't finish/)
+
+    // Sweeping again, or a retried cron run, changes nothing and sends nothing
+    await lib.closeStoppedRoutineRuns(
+      later(policy.ROUTINE_RUN_START_GRACE_MS + 120_000),
+      stuckDeps(() => false).deps
+    )
+    assert.equal((await activityFor(`${messageId}:failed`)).length, 1)
+    assert.equal(pushes.length, 1)
+
+    // A late report from the turn itself still wins
+    await lib.recordRoutineRunOutcome(STUCK, messageId, { status: "completed" })
+    assert.equal((await row(id)).lastStatus, "completed")
+  } finally {
+    fetchMock.mock.restore()
+  }
+})
+
+test("#34: a run posted late is timed from its post, not from when it was due", async () => {
+  const { id } = await dueRoutine(STUCK, "bot_stuck", "run_late", 60_000)
+  // Due five hours ago (a one-off is still run that late), posted now
+  const due = new Date(Math.floor((Date.now() - 5 * 3_600_000) / 1000) * 1000)
+  assert.equal(
+    await lib.runRoutine(await row(id), due, fakeDeps().deps),
+    "started"
+  )
+  await park(id)
+  // Trigger.dev can't be reached: only the longest turn time closes it
+  const unknown = stuckDeps(() => undefined)
+  await lib.closeStoppedRoutineRuns(later(10 * 60_000), unknown.deps)
+  assert.equal((await row(id)).lastStatus, "started")
+  await lib.closeStoppedRoutineRuns(
+    later(policy.ROUTINE_RUN_MAX_MS + 60_000),
+    stuckDeps(() => undefined).deps
+  )
+  const closed = await row(id)
+  assert.equal(closed.lastStatus, "failed")
+  assert.equal(closed.lastError, policy.STOPPED_RUN_ERROR)
+})
+
+test("#34: a turn that reported but lost its outcome is settled from its report, without a second notice", async () => {
+  const { id, due } = await dueRoutine(
+    STUCK,
+    "bot_stuck",
+    "run_reported",
+    60_000
+  )
+  assert.equal(
+    await lib.runRoutine(await row(id), due, fakeDeps().deps),
+    "started"
+  )
+  await park(id)
+  const messageId = policy.routineRunMessageId(id, due)
+  // reportUnattendedTurn wrote (and pushed) this; recordRoutineRunOutcome failed
+  await db.insert(schema.activityEvents).values({
+    userId: STUCK,
+    kind: "question_asked",
+    title: "Relay has a question",
+    chatId: "chat_stuck",
+    dedupeKey: "turn:run_reported:0",
+  })
+  await lib.closeStoppedRoutineRuns(
+    later(policy.ROUTINE_RUN_START_GRACE_MS + 60_000),
+    stuckDeps(() => false).deps
+  )
+  const settled = await row(id)
+  assert.equal(settled.lastStatus, "blocked")
+  assert.equal(settled.lastError, "Waiting for you in the chat.")
+  assert.equal((await activityFor(`${messageId}:failed`)).length, 0)
+})
+
+test("#34: a run left started long ago is closed quietly, without a push", async () => {
+  const pushes: unknown[] = []
+  const fetchMock = mock.method(
+    globalThis,
+    "fetch",
+    async (...args: unknown[]) => {
+      pushes.push(args)
+      return new Response(JSON.stringify({ data: [{ status: "ok" }] }))
+    }
+  )
+  try {
+    const { id, due } = await dueRoutine(
+      STUCK,
+      "bot_stuck",
+      "run_ancient",
+      60_000
+    )
+    assert.equal(
+      await lib.runRoutine(await row(id), due, fakeDeps().deps),
+      "started"
+    )
+    await park(id)
+    pushes.length = 0
+    const messageId = policy.routineRunMessageId(id, due)
+    // Found by the first sweep after this fix ships, days after it died
+    await lib.closeStoppedRoutineRuns(
+      later(policy.STOPPED_RUN_NOTIFY_MS + 60_000),
+      stuckDeps(() => false).deps
+    )
+    assert.equal((await row(id)).lastStatus, "failed")
+    assert.equal((await activityFor(`${messageId}:failed`)).length, 1)
+    assert.equal(pushes.length, 0)
+  } finally {
+    fetchMock.mock.restore()
+  }
 })
