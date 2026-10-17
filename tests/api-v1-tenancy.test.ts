@@ -302,6 +302,36 @@ test("AI reports validate input, verify assistant messages, deduplicate and casc
   assert.equal((await db.select().from(schema.aiContentReports)).length, 0)
 })
 
+test("AI reports store whitespace-only optional details as null", async () => {
+  const chatId = "chat_report_blank"
+  await db.insert(schema.chats).values({ id: chatId, userId: A })
+  await reports.reportAIContent(
+    A,
+    chatId,
+    "reply",
+    { reason: "other", details: " \t\n " },
+    {
+      loadTranscript: async () => ({
+        messages: [
+          {
+            id: "reply",
+            role: "assistant",
+            parts: [{ type: "text", text: "Response" }],
+          },
+        ],
+      }),
+    }
+  )
+  const [saved] = await db
+    .select()
+    .from(schema.aiContentReports)
+    .where(eq(schema.aiContentReports.chatId, chatId))
+  assert.equal(saved.details, null)
+  await db
+    .delete(schema.chats)
+    .where(and(eq(schema.chats.id, chatId), eq(schema.chats.userId, A)))
+})
+
 test("B can't rename, re-staff or delete A's group chat", async () => {
   await rejects(
     chats.updateGroupChat(B, "group_a", {

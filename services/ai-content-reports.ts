@@ -68,6 +68,7 @@ export async function reportAIContent(
     .insert(aiContentReports)
     .values({
       ...values,
+      details: values.details || null,
       userId,
       chatId,
       messageId,
