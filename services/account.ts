@@ -1,6 +1,6 @@
 import { createClerkClient } from "@clerk/backend"
 import * as Sentry from "@sentry/nextjs"
-import { ApiError as TriggerApiError, sessions } from "@trigger.dev/sdk"
+import { ApiError as TriggerApiError, runs, sessions } from "@trigger.dev/sdk"
 import { eq } from "drizzle-orm"
 
 import { db } from "@/db"
@@ -10,7 +10,6 @@ import {
   bots,
   chatgptConnections,
   chats,
-  computers,
   connectorAuthAttempts,
   forYouScans,
   memories,
@@ -64,13 +63,24 @@ const providerSteps: Steps = {
     }
   },
   closeChat: async (chatId) => {
+    let runId: string | null | undefined
     try {
-      await sessions.close(chatId, { reason: "account_deleted" })
+      runId = (await sessions.close(chatId, { reason: "account_deleted" }))
+        .currentRunId
     } catch (cause) {
       if (cause instanceof TriggerApiError && cause.status === 404) return
       Sentry.captureException(cause)
       throw new Error("Couldn't close your conversations. Try again.")
     }
+    // Closing stops new messages, not a turn already running. Cancel it so it
+    // can't keep working (make a teammate, use the computer) while the account
+    // goes. Best effort: the bot checks in lib/account-computer.ts still hold.
+    if (runId)
+      await runs.cancel(runId).catch((cause: unknown) => {
+        if (cause instanceof TriggerApiError && (cause.status ?? 500) < 500)
+          return
+        Sentry.captureException(cause)
+      })
   },
   deleteComputer: deleteAccountComputer,
   deleteBot,
@@ -98,21 +108,22 @@ export async function deleteAccount(userId: string, steps = providerSteps) {
     .where(eq(chats.userId, userId))
   for (const chat of ownedChats) await steps.closeChat(chat.id)
 
-  const owned = await db
-    .select({ id: bots.id })
-    .from(bots)
-    .where(eq(bots.userId, userId))
-  for (const bot of owned) await steps.deleteBot(userId, bot.id)
-
-  // The computer after the bots: with no bot left, a turn still running can't
-  // create it again (lib/account-computer.ts). A failure here is retried by
-  // asking again; the row stays until it succeeds.
-  await steps.deleteComputer(userId)
+  // Until none are left: a turn still running may have made a teammate since
+  for (;;) {
+    const owned = await db
+      .select({ id: bots.id })
+      .from(bots)
+      .where(eq(bots.userId, userId))
+    if (owned.length === 0) break
+    for (const bot of owned) await steps.deleteBot(userId, bot.id)
+  }
 
   await steps.disconnectChatGPT(userId)
   await steps.disconnectApps(userId)
 
   await db.transaction(async (tx) => {
+    // A teammate made since the bots were deleted, by a turn still running
+    await tx.delete(bots).where(eq(bots.userId, userId))
     // Group chats; direct chats went with their bots, members cascade
     await tx.delete(chats).where(eq(chats.userId, userId))
     await tx.delete(memoryEvents).where(eq(memoryEvents.userId, userId))
@@ -133,10 +144,13 @@ export async function deleteAccount(userId: string, steps = providerSteps) {
     await tx.delete(activityEvents).where(eq(activityEvents.userId, userId))
     await tx.delete(pushDevices).where(eq(pushDevices.userId, userId))
     await tx.delete(accountPlans).where(eq(accountPlans.userId, userId))
-    // deleteComputer removed it. A computer created since becomes an orphan,
-    // which the metering cron deletes
-    await tx.delete(computers).where(eq(computers.userId, userId))
   })
+
+  // The computer last, once no bot is left: from here on nothing can create or
+  // register one (lib/account-computer.ts), and one registered before is
+  // removed under the account's lock. A failure here is retried by asking
+  // again; the row stays until it succeeds.
+  await steps.deleteComputer(userId)
 
   await steps.deleteUser(userId)
 }

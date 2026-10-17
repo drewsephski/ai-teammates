@@ -46,9 +46,16 @@ const e2b: ComputerProvider = {
 
 const lockKey = (userId: string) => `computer:${userId}`
 
+// The person still has a bot. Account deletion removes every bot before its
+// computer step, so this is what refuses a turn still running meanwhile.
+const hasBot = (userId: string) =>
+  sql`exists (select 1 from ${bots} where ${bots.userId} = ${userId})`
+
 // Only while the person still has a bot: a turn still running during account
 // deletion must not bring the computer back. One statement, so a deletion
-// can't land between the check and the insert.
+// can't land between the check and the insert. A row that already exists
+// counts only while a bot does too: a turn that took the lease before the
+// bots went must not reach the provider afterwards.
 async function ensureRow(userId: string) {
   await db
     .insert(computers)
@@ -73,7 +80,7 @@ async function ensureRow(userId: string) {
   const [row] = await db
     .select({ userId: computers.userId })
     .from(computers)
-    .where(eq(computers.userId, userId))
+    .where(and(eq(computers.userId, userId), hasBot(userId)))
   if (!row) throw new Error("Bot not found")
 }
 
@@ -117,7 +124,7 @@ export async function ensureAccountComputer(
           and(
             eq(computers.userId, userId),
             isNull(computers.sandboxId),
-            sql`exists (select 1 from ${bots} where ${bots.userId} = ${userId})`
+            hasBot(userId)
           )
         )
         .returning({ userId: computers.userId })
@@ -276,6 +283,36 @@ export async function releaseComputerLease(userId: string, runKey: string) {
     .where(and(eq(computers.userId, userId), eq(computers.leaseRunKey, runKey)))
 }
 
+type Executor = Pick<typeof db, "update">
+
+// Frees the computer when the chat or bot holding it is deleted. Call it in
+// the deleting transaction, before the delete: the foreign keys only null the
+// holder and leave the run key and expiry, which would keep the computer
+// locked for the person's other chats until the lease ran out.
+export async function releaseLeaseHeldBy(
+  executor: Executor,
+  userId: string,
+  holder: { chatId: string } | { botId: string }
+) {
+  await executor
+    .update(computers)
+    .set({
+      leaseBotId: null,
+      leaseChatId: null,
+      leaseRunKey: null,
+      leaseExpiresAt: null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(computers.userId, userId),
+        "chatId" in holder
+          ? eq(computers.leaseChatId, holder.chatId)
+          : eq(computers.leaseBotId, holder.botId)
+      )
+    )
+}
+
 // Only an unexpired lease counts as the computer being in use.
 export async function computerInUseBy(userId: string, now = Date.now()) {
   const held = await holderOf(userId)
@@ -300,6 +337,8 @@ export async function resetAccountComputer(
       throw new Error(
         "The computer still exists. Reconnect instead of resetting it."
       )
+    // Not while the account is being deleted (its bots went first)
+    await ensureRow(userId)
     const id = await provider.create(userId)
     try {
       const [updated] = await db
@@ -313,7 +352,11 @@ export async function resetAccountComputer(
           updatedAt: new Date(),
         })
         .where(
-          and(eq(computers.userId, userId), eq(computers.sandboxId, oldId))
+          and(
+            eq(computers.userId, userId),
+            eq(computers.sandboxId, oldId),
+            hasBot(userId)
+          )
         )
         .returning({ userId: computers.userId })
       if (!updated) throw new Error("Computer changed while resetting it")

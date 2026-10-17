@@ -422,8 +422,12 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
         .delete(schema.bots)
         .where(and(eq(schema.bots.id, botId), eq(schema.bots.userId, userId)))
     },
+    // lib/account-computer.deleteAccountComputer without the provider
     deleteComputer: async (userId: string) => {
       calls.push(`computer:${userId}`)
+      await db
+        .delete(schema.computers)
+        .where(eq(schema.computers.userId, userId))
     },
     disconnectChatGPT: async (userId: string) =>
       calls.push(`chatgpt:${userId}`),
@@ -472,10 +476,11 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
   await account.deleteAccount(B, steps())
   assert.equal(calls[0], `billing:${B}`)
   assert.deepEqual(calls.slice(1, 3).sort(), ["close:chat_b1", "close:group_b"])
+  // The computer goes last, once no bot is left to bring it back
   assert.deepEqual(calls.slice(3), [
-    `computer:${B}`,
     `chatgpt:${B}`,
     `apps:${B}`,
+    `computer:${B}`,
     `clerk:${B}`,
   ])
   assert.deepEqual(await bots.listBots(B), [])
