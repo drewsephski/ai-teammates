@@ -1,0 +1,81 @@
+{
+  "state": {
+    "tag": "20261017-routine-once-10bcaa",
+    "scenario": "routine-once",
+    "env": "prod",
+    "userId": "reliability-20261017-routine-once-10bcaa",
+    "botId": "bot_78dd2c739ba330129d8c630776f7fee5",
+    "chatId": "chat_78dd2c739ba330129d8c630776f7fee5",
+    "routineId": "9868276edf1af3ba9c0c0db0264bf36d",
+    "createdAt": "2026-10-17T17:52:22.572Z",
+    "commit": "400267f",
+    "dispatched": 1
+  },
+  "evidence": {
+    "routine": {
+      "lastStatus": "completed",
+      "lastError": null,
+      "lastRunAt": "2026-10-17T17:54:00.000Z",
+      "nextRunAt": null,
+      "enabled": false
+    },
+    "routineCount": 1,
+    "activity": [
+      {
+        "kind": "routine_started",
+        "title": "One-off routine fires and reports started",
+        "detail": null,
+        "dedupeKey": "routine_9868276edf1af3ba9c0c0db0264bf36d_1792259640000",
+        "createdAt": "2026-10-17T17:54:01.852Z"
+      },
+      {
+        "kind": "work_finished",
+        "title": "Relay finished a routine",
+        "detail": "PONG.",
+        "dedupeKey": "turn:run_06gklvuh6pjh17nddc85u8i601:0",
+        "createdAt": "2026-10-17T17:54:13.302Z"
+      }
+    ],
+    "usage": [
+      {
+        "kind": "ai",
+        "amount": 164,
+        "key": "ai:run_06gklvuh6pjh17nddc85u8i601:0:follow-ups"
+      },
+      {
+        "kind": "ai",
+        "amount": 2164,
+        "key": "ai:run_06gklvuh6pjh17nddc85u8i601:0"
+      }
+    ],
+    "turns": [
+      "ai:run_06gklvuh6pjh17nddc85u8i601:0"
+    ],
+    "runIds": [
+      "run_06gklvuh6pjh17nddc85u8i601"
+    ],
+    "approvals": [],
+    "memories": [],
+    "chatPreview": "PONG.",
+    "computer": null,
+    "overspendMicros": 0,
+    "duplicates": {
+      "extraTurns": 0,
+      "routineStartsOverOne": 0,
+      "approvalsExecutedOverOne": 0,
+      "duplicateMemories": 0,
+      "unattendedRoutineCreates": 0
+    },
+    "triggerRuns": [
+      {
+        "id": "run_06gklvuh6pjh17nddc85u8i601",
+        "task": "chat",
+        "status": "COMPLETED",
+        "version": "20261017.1",
+        "created": "10/17/2026, 12:54:01 PM"
+      }
+    ],
+    "failures": [],
+    "result": "PASS"
+  }
+}

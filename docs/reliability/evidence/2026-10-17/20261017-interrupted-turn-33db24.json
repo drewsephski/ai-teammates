@@ -1,0 +1,174 @@
+{
+  "state": {
+    "tag": "20261017-interrupted-turn-33db24",
+    "scenario": "interrupted-turn",
+    "env": "prod",
+    "userId": "reliability-20261017-interrupted-turn-33db24",
+    "botId": "bot_71cdf71bd0a629bda8ef9a76b7b433ca",
+    "chatId": "chat_71cdf71bd0a629bda8ef9a76b7b433ca",
+    "routineId": "9db5db49f3394835b5c6ecfd9eace3aa",
+    "createdAt": "2026-10-17T18:00:32.001Z",
+    "commit": "400267f",
+    "dispatched": 2
+  },
+  "evidence": {
+    "routine": {
+      "lastStatus": "completed",
+      "lastError": null,
+      "lastRunAt": "2026-10-17T18:10:00.000Z",
+      "nextRunAt": null,
+      "enabled": false
+    },
+    "routineCount": 1,
+    "activity": [
+      {
+        "kind": "routine_started",
+        "title": "A turn cancelled mid-run recovers on the next run started",
+        "detail": null,
+        "dedupeKey": "routine_9db5db49f3394835b5c6ecfd9eace3aa_1792260120000",
+        "createdAt": "2026-10-17T18:03:00.609Z"
+      },
+      {
+        "kind": "routine_started",
+        "title": "A turn cancelled mid-run recovers on the next run started",
+        "detail": null,
+        "dedupeKey": "routine_9db5db49f3394835b5c6ecfd9eace3aa_1792260600000",
+        "createdAt": "2026-10-17T18:10:59.658Z"
+      },
+      {
+        "kind": "work_finished",
+        "title": "Relay finished a routine",
+        "detail": "RECOVERED.",
+        "dedupeKey": "turn:run_06gkm3qp52ke85lasaq4a4k001:0",
+        "createdAt": "2026-10-17T18:11:12.746Z"
+      }
+    ],
+    "usage": [
+      {
+        "kind": "ai",
+        "amount": 8000,
+        "key": "ai:run_06gkm209otomj7g648smblc501:0:web:call_b4a2109d-0766-4147-a97b-5c812e9db21f"
+      },
+      {
+        "kind": "ai",
+        "amount": 8000,
+        "key": "ai:run_06gkm209otomj7g648smblc501:0:web:call_86c2c7a6-ff9b-47d6-8797-190140ce0697"
+      },
+      {
+        "kind": "ai",
+        "amount": 8000,
+        "key": "ai:run_06gkm209otomj7g648smblc501:0:web:call_260146b9-da76-4853-90f1-9caca12afa91"
+      },
+      {
+        "kind": "ai",
+        "amount": 8000,
+        "key": "ai:run_06gkm209otomj7g648smblc501:0:web:call_9843d979-80f0-4824-8d9e-db3aa5d7290e"
+      },
+      {
+        "kind": "ai",
+        "amount": 8000,
+        "key": "ai:run_06gkm209otomj7g648smblc501:0:web:call_0cedaaf0-8303-42cf-8b4d-e16f07fe948e"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 4,
+        "key": "sandbox:ivux4gp15i6xzitjbi32l:2026-10-17T18:03:18.847Z:4"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 15,
+        "key": "sandbox:ivux4gp15i6xzitjbi32l:2026-10-17T18:03:24.965Z:15"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 1,
+        "key": "sandbox:ivux4gp15i6xzitjbi32l:2026-10-17T18:03:24.965Z:16"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 8,
+        "key": "sandbox:ivux4gp15i6xzitjbi32l:2026-10-17T18:03:24.965Z:24"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 60,
+        "key": "sandbox:ivux4gp15i6xzitjbi32l:2026-10-17T18:03:24.965Z:84"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 60,
+        "key": "sandbox:ivux4gp15i6xzitjbi32l:2026-10-17T18:03:24.965Z:144"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 62,
+        "key": "sandbox:ivux4gp15i6xzitjbi32l:2026-10-17T18:03:24.965Z:206"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 60,
+        "key": "sandbox:ivux4gp15i6xzitjbi32l:2026-10-17T18:03:24.965Z:266"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 17,
+        "key": "sandbox:ivux4gp15i6xzitjbi32l:2026-10-17T18:03:24.965Z:283"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 14,
+        "key": "sandbox:ivux4gp15i6xzitjbi32l:2026-10-17T18:03:24.965Z:297"
+      },
+      {
+        "kind": "ai",
+        "amount": 256,
+        "key": "ai:run_06gkm3qp52ke85lasaq4a4k001:0:follow-ups"
+      },
+      {
+        "kind": "ai",
+        "amount": 3109,
+        "key": "ai:run_06gkm3qp52ke85lasaq4a4k001:0"
+      }
+    ],
+    "turns": [
+      "ai:run_06gkm3qp52ke85lasaq4a4k001:0"
+    ],
+    "runIds": [
+      "run_06gkm3qp52ke85lasaq4a4k001"
+    ],
+    "approvals": [],
+    "memories": [],
+    "chatPreview": "RECOVERED.",
+    "computer": {
+      "sandboxId": "ivux4gp15i6xzitjbi32l",
+      "exists": true,
+      "paused": true
+    },
+    "overspendMicros": 0,
+    "duplicates": {
+      "extraTurns": 0,
+      "routineStartsOverOne": 0,
+      "approvalsExecutedOverOne": 0,
+      "duplicateMemories": 0,
+      "unattendedRoutineCreates": 0
+    },
+    "triggerRuns": [
+      {
+        "id": "run_06gkm3qp52ke85lasaq4a4k001",
+        "task": "chat",
+        "status": "COMPLETED",
+        "version": "20261017.1",
+        "created": "10/17/2026, 1:10:59 PM"
+      },
+      {
+        "id": "run_06gkm209otomj7g648smblc501",
+        "task": "chat",
+        "status": "CANCELED",
+        "version": "20261017.1",
+        "created": "10/17/2026, 1:03:00 PM"
+      }
+    ],
+    "failures": [],
+    "result": "PASS"
+  }
+}
