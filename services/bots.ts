@@ -11,6 +11,7 @@ import {
   type BotInsert,
   type Bot,
 } from "@/db/schema"
+import { releaseLeaseHeldBy } from "@/lib/account-computer"
 import { provisionTeammate } from "@/lib/teammates"
 import { getUsage } from "@/lib/usage"
 import { createBotAvatar } from "@/lib/bot-avatar"
@@ -188,13 +189,16 @@ export async function updateBot(
 }
 
 export async function deleteBot(userId: string, botId: string) {
-  // The account computer stays; a lease this bot held is cleared by the FK.
+  // The account computer stays; a lease this bot held is released, so the
+  // person's other bots can use it right away.
   await db.transaction(async (tx) => {
     const [owned] = await tx
       .select({ id: bots.id })
       .from(bots)
       .where(and(eq(bots.id, botId), eq(bots.userId, userId)))
     if (!owned) throw new Error("Bot not found")
+
+    await releaseLeaseHeldBy(tx, userId, { botId })
 
     // A direct chat is nothing without its bot; memberships go with the bot
     await tx

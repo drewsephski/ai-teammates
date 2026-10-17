@@ -29,6 +29,7 @@ import {
   computerInUseBy,
   ensureAccountComputer,
   pauseAccountComputer,
+  releaseLeaseHeldBy,
   resetAccountComputer,
   touchComputer,
 } from "@/lib/account-computer"
@@ -378,18 +379,23 @@ export async function updateGroupChat(
 }
 
 export async function deleteGroupChat(userId: string, chatId: string) {
-  // Memberships go with the chat; the bots stay
-  const [chat] = await db
-    .delete(chats)
-    .where(
-      and(
-        eq(chats.id, chatId),
-        eq(chats.userId, userId),
-        eq(chats.kind, "group")
+  // Memberships go with the chat; the bots stay. A lease the chat held is
+  // released, so the person's other chats can use the computer right away.
+  const chat = await db.transaction(async (tx) => {
+    await releaseLeaseHeldBy(tx, userId, { chatId })
+    const [chat] = await tx
+      .delete(chats)
+      .where(
+        and(
+          eq(chats.id, chatId),
+          eq(chats.userId, userId),
+          eq(chats.kind, "group")
+        )
       )
-    )
-    .returning({ id: chats.id })
-  if (!chat) throw new Error("Chat not found")
+      .returning({ id: chats.id })
+    if (!chat) throw new Error("Chat not found")
+    return chat
+  })
 
   Sentry.logger.info("Group chat deleted", {
     "user.id": userId,
