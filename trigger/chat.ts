@@ -1,7 +1,6 @@
 import * as Sentry from "@sentry/node"
 import { metadata, sessions } from "@trigger.dev/sdk"
 import { chat } from "@trigger.dev/sdk/ai"
-import { isStepCount } from "ai"
 import { and, asc, eq, inArray } from "drizzle-orm"
 import { z } from "zod"
 
@@ -42,6 +41,14 @@ import {
   userTimeZone,
 } from "@/lib/routines"
 import { routineClock, unattendedOrigin } from "@/lib/routine-policy"
+import { postChatMessage } from "@/lib/chat-dispatch"
+import {
+  CONTINUATION_DISPLAY_PROMPT,
+  CONTINUATION_PROMPT,
+  continuationMessageId,
+  shouldContinueTurn,
+  TURN_STEP_LIMIT,
+} from "@/lib/turn-continuation"
 import {
   completeComputerApproval,
   declinedFor,
@@ -142,6 +149,9 @@ const turnModelUsage = chat.local<{
   computerOwner?: string
   // The bot that held the computer when this turn's tool gave up waiting
   computerBusy?: string
+  // The turn stopped at TURN_STEP_LIMIT, and why its last step ended
+  stepLimitReached: boolean
+  lastFinishReason?: string
   startedAt: number
   messageId: string
   usageKey: string
@@ -187,6 +197,7 @@ export const chatAgent = chat
         declined: [],
         guardCost: 0,
         computerCalls: 0,
+        stepLimitReached: false,
         startedAt: Date.now(),
         messageId: "",
         usageKey: "",
@@ -209,6 +220,8 @@ export const chatAgent = chat
       turnModelUsage.tier = undefined
       turnModelUsage.computerOwner = undefined
       turnModelUsage.computerBusy = undefined
+      turnModelUsage.stepLimitReached = false
+      turnModelUsage.lastFinishReason = undefined
       turnModelUsage.startedAt = Date.now()
       turnModelUsage.chatgpt = false
       turnModelUsage.followUps = undefined
@@ -745,7 +758,37 @@ export const chatAgent = chat
           Sentry.captureException(routineError, { extra: { chatId, turn } })
         )
 
-      if (row)
+      // A task cut off by the step cap carries on in a new turn, so long work
+      // doesn't stop midway. The next turn re-checks the allowance itself.
+      const continuing =
+        !!row &&
+        shouldContinueTurn({
+          stepLimitReached: turnModelUsage.stepLimitReached,
+          lastFinishReason: turnModelUsage.lastFinishReason,
+          failed: !!error,
+          approvalRequested: turnModelUsage.approvalRequested,
+          allowanceLeft:
+            turnModelUsage.chatgpt ||
+            (await getUsage(row.userId)).remaining.ai > 0,
+          messageId: turnModelUsage.messageId,
+          responsePartTypes:
+            responseMessage?.parts.map((part) => part.type) ?? [],
+        })
+      if (continuing)
+        await postChatMessage(
+          chatId,
+          {
+            id: continuationMessageId(turnModelUsage.messageId, runId, turn),
+            text: CONTINUATION_PROMPT,
+            displayPrompt: CONTINUATION_DISPLAY_PROMPT,
+          },
+          { botId: responseMessage?.metadata?.botId }
+        ).catch((continueError: unknown) =>
+          Sentry.captureException(continueError, { extra: { chatId, turn } })
+        )
+
+      // A continuing task reports when it's actually done
+      if (row && !continuing)
         await reportUnattendedTurn({
           userId: row.userId,
           chatId,
@@ -766,7 +809,9 @@ export const chatAgent = chat
           ? "usage_limit"
           : error
             ? "failed"
-            : "completed",
+            : continuing
+              ? "continuing"
+              : "completed",
         "trigger.task": "chat",
         "trigger.run": runId,
         "usage.ai_provider": turnModelUsage.chatgpt ? "chatgpt" : "krafty",
@@ -971,7 +1016,8 @@ export const chatAgent = chat
               }),
             }
           },
-          onStepEnd: async ({ usage, model }) => {
+          onStepEnd: async ({ usage, model, finishReason }) => {
+            turnModelUsage.lastFinishReason = finishReason
             turnModelUsage.cost += appModelCost(chatgptSelected, () =>
               chatModelCost(usage, model.modelId)
             )
@@ -1005,8 +1051,13 @@ export const chatAgent = chat
                   ].includes(result?.toolName ?? "")
                 )
               ),
-            // Desktop work is one small action per step
-            isStepCount(50),
+            // Desktop work is one small action per step. A task still going
+            // at the cap carries on in a continuation turn (onTurnComplete).
+            ({ steps }) => {
+              const reached = steps.length >= TURN_STEP_LIMIT
+              if (reached) turnModelUsage.stepLimitReached = true
+              return reached
+            },
             // A long turn ends once it has spent what was left, counting the
             // account's other running turns
             () =>
