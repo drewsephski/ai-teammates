@@ -1,6 +1,8 @@
 import Link from "next/link"
 import { formatDistanceToNowStrict } from "date-fns"
 
+import { listApprovalRules } from "@/actions/approvals"
+import { ApprovalRules } from "@/components/activity/approval-rules"
 import { RoutineDialog } from "@/components/activity/routine-dialog"
 import { RoutineList } from "@/components/activity/routine-list"
 import { AppPageHeader } from "@/components/app-page-header"
@@ -10,8 +12,8 @@ import { getSignedInActivity } from "@/queries/activity"
 import { getBots } from "@/queries/bots"
 
 export default async function Page() {
-  const [{ approvals, routines, events, bots: named }, bots] =
-    await Promise.all([getSignedInActivity(), getBots()])
+  const [{ approvals, routines, events, bots: named }, bots, rules] =
+    await Promise.all([getSignedInActivity(), getBots(), listApprovalRules()])
   const botFor = (id: string | null) => named.find((bot) => bot.id === id)
 
   return (
@@ -69,6 +71,21 @@ export default async function Page() {
               delete something, it waits here and on your phone.
             </p>
           )}
+        </section>
+
+        <section
+          aria-labelledby="always-allowed"
+          className="flex flex-col gap-3"
+        >
+          <div className="flex flex-col gap-1">
+            <h2 id="always-allowed" className="text-lg font-medium">
+              Always allowed
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Actions you let a bot take without asking each time.
+            </p>
+          </div>
+          <ApprovalRules rules={rules} />
         </section>
 
         <section aria-labelledby="routines" className="flex flex-col gap-3">

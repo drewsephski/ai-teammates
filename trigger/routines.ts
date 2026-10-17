@@ -24,7 +24,13 @@ export const runRoutines = schedules.task({
     const result = await dispatchDueRoutines()
     // Turns that died before onTurnComplete still spent what they held
     const settled = await settleAbandonedHolds()
-    if (result.started || result.skipped || result.failed || settled)
+    if (
+      result.started ||
+      result.skipped ||
+      result.failed ||
+      result.missed ||
+      settled
+    )
       Sentry.logger.info("Routines dispatched", { ...result, settled })
     return { ...result, settled }
   },

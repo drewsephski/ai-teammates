@@ -16,6 +16,8 @@ export const computerLoginSchema = z.object({
     .toLowerCase()
     .max(253)
     .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/),
+  // What blocks the work; absent means a sign-in. Installed apps strip it.
+  reason: z.enum(["sign-in", "verification", "captcha", "payment"]).optional(),
 })
 // The model names an app from findApps; the server fills in the rest
 export const appConnectionSchema = z.object({
@@ -25,6 +27,9 @@ export const appConnectionSchema = z.object({
 export const appConnectionCardSchema = appConnectionSchema.extend({
   logo: z.string().nullable(),
   state: z.enum(["connect", "planLimit"]),
+  // The person had this app connected, but the connection expired or was
+  // revoked. Installed apps strip it and show Connect.
+  reconnect: z.literal(true).optional(),
 })
 export type AppConnectionCard = z.infer<typeof appConnectionCardSchema>
 // Fixed, so installed apps without the card still get usable choices
@@ -57,6 +62,36 @@ export const botQuestionOutputSchema = z.object({
   appConnection: appConnectionCardSchema.optional(),
 })
 export type BotQuestion = z.infer<typeof botQuestionOutputSchema>
+
+// The card's wording per blocker. Options stay fixed per reason, so installed
+// apps that strip `reason` still get usable choices.
+export function computerLoginQuestion(
+  login: z.infer<typeof computerLoginSchema>
+) {
+  const service = login.service
+  switch (login.reason ?? "sign-in") {
+    case "verification":
+      return {
+        question: `Finish the ${service} verification step in Desktop, then return here so I can continue. Keep codes out of chat.`,
+        options: ["I'm done", "Cancel"],
+      }
+    case "captcha":
+      return {
+        question: `Complete the ${service} check in Desktop that proves you're a person, then return here so I can continue.`,
+        options: ["I'm done", "Cancel"],
+      }
+    case "payment":
+      return {
+        question: `Complete the ${service} payment step in Desktop yourself, then return here. I won't enter payment details.`,
+        options: ["I'm done", "Cancel"],
+      }
+    default:
+      return {
+        question: `Sign in to ${service} in Desktop, then return here so I can continue. Keep passwords and verification codes out of chat.`,
+        options: ["I'm signed in", "Cancel sign-in"],
+      }
+  }
+}
 export function createBotSetupTools(
   save: (profile: BotProfile) => Promise<BotProfile>,
   options: {
@@ -73,7 +108,7 @@ export function createBotSetupTools(
   return {
     askUser: tool({
       description:
-        "Ask one focused question only when a missing answer materially changes the work or confirmation is required. First use available tools to resolve facts such as a named contact's email address. Offer two to five short choices grounded in the conversation or actual tool results; never invent email addresses, identities, dates or other factual choices. For missing free-form data, offer generic choices such as 'I will type it' and 'Cancel'; the person can type their own answer. For a login, MFA or CAPTCHA blocking your computer work in a private chat, first open the requested website and inspect it with viewScreen, then include computerLogin with its service name and actual hostname. This renders a compact sign-in card and pauses the turn. Never request credentials in chat. When the work needs an app that findApps reports as connectable but not connected, include appConnection with its toolkit and name from findApps, and write the question as 'Connect <name> so I can <what you'll do>.'; this renders a Connect card with fixed choices and pauses the turn. Do not use this to ask permission for work already requested. Wait for the answer before continuing; never answer for them.",
+        "Ask one focused question only when a missing answer materially changes the work or confirmation is required. First use available tools to resolve facts such as a named contact's email address. Offer two to five short choices grounded in the conversation or actual tool results; never invent email addresses, identities, dates or other factual choices. For missing free-form data, offer generic choices such as 'I will type it' and 'Cancel'; the person can type their own answer. For a login, MFA, CAPTCHA or payment step blocking your computer work, first open the requested website and inspect it with viewScreen, then include computerLogin with its service name, actual hostname and reason (sign-in, verification, captcha or payment). This renders a compact sign-in card and pauses the turn. Never request credentials in chat. When the work needs an app that findApps reports as connectable but not connected, include appConnection with its toolkit and name from findApps, and write the question as 'Connect <name> so I can <what you'll do>.'; this renders a Connect card with fixed choices and pauses the turn. Do not use this to ask permission for work already requested. Wait for the answer before continuing; never answer for them.",
       inputSchema: botQuestionSchema,
       outputSchema: botQuestionOutputSchema,
       execute: async (input): Promise<BotQuestion> => {
@@ -86,7 +121,9 @@ export function createBotSetupTools(
             question:
               card.state === "planLimit"
                 ? `The free plan includes one connected app, and yours is in use. Disconnect it or upgrade to connect ${card.name}.`
-                : parsed.question,
+                : card.reconnect
+                  ? `Your ${card.name} connection expired. Reconnect it so I can continue.`
+                  : parsed.question,
             options: APP_CONNECTION_OPTIONS,
             appConnection: { toolkit: appConnection.toolkit, ...card },
           }
@@ -98,13 +135,12 @@ export function createBotSetupTools(
         // Keep the existing question/options contract usable by installed apps.
         return {
           ...parsed,
-          question: `Sign in to ${parsed.computerLogin.service} in Desktop, then return here so I can continue. Keep passwords and verification codes out of chat.`,
-          options: ["I'm signed in", "Cancel sign-in"],
+          ...computerLoginQuestion(parsed.computerLogin),
         }
       },
       toModelOutput: ({ output }) => ({
         type: "text" as const,
-        value: `Question displayed: ${output.question}\nChoices: ${output.options.join("; ")}\nWait for the person's next chat message. No answer has been supplied by this tool.${output.computerLogin ? " Stop computer actions now. After they report signing in, call viewScreen to verify access, then continue the original task without another permission question. A cancellation means stop this sign-in workflow." : ""}${output.appConnection ? ` A card to connect ${output.appConnection.name} is showing${output.appConnection.state === "planLimit" ? ", in its plan-limit state: the free plan's one app slot is taken, so they need to disconnect that app or upgrade first" : ""}. Stop now. When they connect it you'll get a message saying so: then discover its tools with searchAppTools and continue the original task without asking again. ${options.computerAvailable === false ? "If they choose the computer, explain in one sentence that the computer isn't available on their plan yet, and offer to continue another way." : "If they choose the computer, do the task on the computer's browser."} 'Not now' means stop this part of the task.` : ""}`,
+        value: `Question displayed: ${output.question}\nChoices: ${output.options.join("; ")}\nWait for the person's next chat message. No answer has been supplied by this tool.${output.computerLogin ? " Stop computer actions now. After they report signing in, call viewScreen to verify access, then continue the original task without another permission question. A cancellation means stop this sign-in workflow." : ""}${output.appConnection ? ` A card to ${output.appConnection.reconnect ? "reconnect" : "connect"} ${output.appConnection.name} is showing${output.appConnection.reconnect ? " because its earlier connection expired" : ""}${output.appConnection.state === "planLimit" ? ", in its plan-limit state: the free plan's one app slot is taken, so they need to disconnect that app or upgrade first" : ""}. Stop now. When they connect it you'll get a message saying so: then discover its tools with searchAppTools and continue the original task without asking again. ${options.computerAvailable === false ? "If they choose the computer, explain in one sentence that the computer isn't available on their plan yet, and offer to continue another way." : "If they choose the computer, do the task on the computer's browser."} 'Not now' means stop this part of the task.` : ""}`,
       }),
     }),
     configureBot: tool({

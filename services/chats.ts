@@ -30,6 +30,7 @@ import {
   ensureAccountComputer,
   pauseAccountComputer,
   resetAccountComputer,
+  touchComputer,
 } from "@/lib/account-computer"
 import { getComputerInfo } from "@/lib/e2b"
 import { SandboxMissingError } from "@/lib/sandbox-lifecycle"
@@ -241,9 +242,9 @@ export async function loadTranscript(userId: string, chatId: string) {
   return { ...transcript, messages: transcript.messages as ChatUIMessage[] }
 }
 
+// Every plan can view its computer while it has seconds left: the free plan
+// has a one-time allowance, so the check is the remaining time, not the plan.
 export async function getDesktopUrl(caller: Caller, chatId: string) {
-  assertFeature(caller, "sandboxes")
-
   // Any chat of the person's shows the account's one computer
   const chat = await ownedChat(caller.userId, chatId)
 
@@ -260,7 +261,10 @@ export async function getDesktopUrl(caller: Caller, chatId: string) {
 
   // The gateway authenticates again and keeps provider tokens server-side.
   try {
-    await getComputerInfo(await ensureAccountComputer(chat.userId))
+    const sandboxId = await ensureAccountComputer(chat.userId)
+    // Opening the screen is use: it restarts the free 30-day retention clock
+    await touchComputer(chat.userId)
+    await getComputerInfo(sandboxId)
   } catch (error) {
     if (error instanceof SandboxMissingError) return { missing: true as const }
     throw error
@@ -274,7 +278,6 @@ export async function getDesktopUrl(caller: Caller, chatId: string) {
 
 // Resets the computer for every bot of the account
 export async function resetDesktop(caller: Caller, chatId: string) {
-  assertFeature(caller, "sandboxes")
   await ownedChat(caller.userId, chatId)
   const usage = await getUsage(caller.userId)
   if (!usage || usage.remaining.sandbox <= 0)

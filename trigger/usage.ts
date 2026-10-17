@@ -1,16 +1,23 @@
 import * as Sentry from "@sentry/node"
 import { schedules } from "@trigger.dev/sdk"
 
-import { listComputerOwners } from "@/lib/account-computer"
+import { createRetention, listComputerOwners } from "@/lib/account-computer"
 import {
   deleteOrphanSandbox,
+  isSandboxPaused,
   listAppSandboxes,
   meterSandbox,
   meterListedSandbox,
   pauseComputer,
 } from "@/lib/e2b"
-import { getUsage } from "@/lib/usage"
+import { getUsage, isFreePlanVerified } from "@/lib/usage"
 import { runSandboxMetering } from "@/lib/sandbox-metering"
+
+const report = (error: unknown, id: string) =>
+  Sentry.captureException(error, {
+    tags: { "trigger.task": "meter-sandboxes" },
+    extra: { computerOrUserId: id },
+  })
 
 // Meter paused sessions too: actual endAt captures short runs between polls.
 export const meterSandboxes = schedules.task({
@@ -35,11 +42,19 @@ export const meterSandboxes = schedules.task({
       },
       pause: pauseComputer,
       kill: deleteOrphanSandbox,
-      report: (error, id) =>
-        Sentry.captureException(error, {
-          tags: { "trigger.task": "meter-sandboxes" },
-          extra: { computerOrUserId: id },
-        }),
+      // Free computers idle 30+ days are deleted, every tenth minute. Deleting
+      // is irreversible, so the plan is asked of Clerk directly (never the
+      // cache, which can be hours stale after an upgrade) and a failed
+      // lookup skips the account. Retries are safe: the row is cleared.
+      retention:
+        new Date().getUTCMinutes() % 10 === 0
+          ? createRetention({
+              isFree: (userId) => isFreePlanVerified(userId),
+              isPaused: isSandboxPaused,
+              report,
+            })
+          : undefined,
+      report,
     })
     Sentry.logger.info("E2B sessions metered", result)
     return result

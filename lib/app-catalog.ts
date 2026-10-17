@@ -1,8 +1,10 @@
 import {
   APP_AUTH_CACHE_MS,
   MAX_CATALOG_PAGE,
+  NO_APP_MATCH_MESSAGE,
   appCatalogEntry,
   appConnectionState,
+  refineCatalogQueries,
   type ToolkitAuth,
 } from "@/lib/app-catalog-policy"
 import type { FindAppsInput, FindAppsResult } from "@/lib/app-catalog-tools"
@@ -37,6 +39,14 @@ export type AppCatalogDeps = {
   projectToolkits: () => Promise<Set<string>>
   accounts: (userId: string) => Promise<AppAccount[]>
   tier: (userId: string) => Promise<PlanTier>
+  // Toolkits whose connection stopped working. Optional and best effort: a
+  // failure only means no reconnect hint.
+  reconnectToolkits?: (
+    userId: string,
+    accounts: AppAccount[]
+  ) => Promise<Set<string>>
+  // Apps whose account works but was refused for a missing permission
+  limitedToolkits?: (userId: string) => Promise<Set<string>>
 }
 
 // Per worker. Toolkit auth changes only when Composio adds managed auth or the
@@ -88,10 +98,31 @@ async function composioProjectToolkits() {
   return slugs
 }
 
+// One unfiltered discovery session per person is enough for a few minutes; a
+// refined search reuses it instead of creating another over the network.
+const SESSION_MS = 5 * 60_000
+const discoverySessions = new Map<
+  string,
+  { at: number; session: Promise<DiscoverySession> }
+>()
+type DiscoverySession = Awaited<
+  ReturnType<Awaited<ReturnType<typeof composio>>["createConnectorSession"]>
+>
+function discoverySession(userId: string) {
+  const cached = discoverySessions.get(userId)
+  if (cached && Date.now() - cached.at < SESSION_MS) return cached.session
+  const session = composio().then((module) =>
+    module.createConnectorSession(userId)
+  )
+  discoverySessions.set(userId, { at: Date.now(), session })
+  session.catch(() => discoverySessions.delete(userId))
+  return session
+}
+
 export const defaultAppCatalogDeps: AppCatalogDeps = {
   configured: () => Boolean(process.env.COMPOSIO_API_KEY),
   async searchToolkits(userId, query, limit) {
-    const session = await (await composio()).createConnectorSession(userId)
+    const session = await discoverySession(userId)
     const result = await session.toolkits({
       search: query,
       limit: Math.min(limit, MAX_CATALOG_PAGE),
@@ -105,6 +136,10 @@ export const defaultAppCatalogDeps: AppCatalogDeps = {
   getToolkitAuth: composioToolkitAuth,
   projectToolkits: composioProjectToolkits,
   accounts: async (userId) => (await composio()).activeAccounts(userId),
+  reconnectToolkits: async (userId, accounts) =>
+    (await composio()).reconnectToolkits(userId, accounts),
+  limitedToolkits: async (userId) =>
+    (await composio()).limitedConnectorToolkits(userId),
   async tier(userId) {
     const { getAccountPlan } = await import("@/lib/usage")
     return (await getAccountPlan(userId)).tier
@@ -157,6 +192,54 @@ async function toolkitPolicyAuth(
   }
 }
 
+async function reconnectSets(
+  userId: string,
+  accounts: AppAccount[],
+  deps: Pick<AppCatalogDeps, "reconnectToolkits" | "limitedToolkits">
+) {
+  const best = async (load?: () => Promise<Set<string>>) => {
+    try {
+      return (await load?.()) ?? new Set<string>()
+    } catch {
+      return new Set<string>()
+    }
+  }
+  const [reconnect, limited] = await Promise.all([
+    best(
+      deps.reconnectToolkits &&
+        (() => deps.reconnectToolkits!(userId, accounts))
+    ),
+    best(deps.limitedToolkits && (() => deps.limitedToolkits!(userId))),
+  ])
+  return { reconnect, limited }
+}
+
+// The first search, and for a thin result a few refined ones (see
+// refineCatalogQueries). Capped at MAX_CATALOG_SEARCHES provider calls.
+async function searchCatalog(
+  userId: string,
+  query: string,
+  limit: number,
+  deps: Pick<AppCatalogDeps, "searchToolkits">
+) {
+  const merged = new Map<string, CatalogToolkit>()
+  const searched = [query]
+  for (const app of await deps.searchToolkits(userId, query, limit))
+    merged.set(app.slug, app)
+  if (merged.size < 2)
+    for (const refined of refineCatalogQueries(query)) {
+      if (merged.size >= limit) break
+      searched.push(refined)
+      try {
+        for (const app of await deps.searchToolkits(userId, refined, limit))
+          if (!merged.has(app.slug)) merged.set(app.slug, app)
+      } catch {
+        // The first search already answered; a refinement is a bonus
+      }
+    }
+  return { found: [...merged.values()], searched }
+}
+
 export async function findApps(
   userId: string,
   input: FindAppsInput,
@@ -164,16 +247,21 @@ export async function findApps(
 ): Promise<FindAppsResult> {
   if (!deps.configured()) return { configured: false, apps: [] }
   const limit = Math.max(1, Math.min(input.limit, MAX_CATALOG_PAGE))
-  const [found, accounts, tier] = await Promise.all([
-    deps.searchToolkits(userId, input.query, limit),
+  const [search, accounts, tier] = await Promise.all([
+    searchCatalog(userId, input.query, limit, deps),
     deps.accounts(userId),
     deps.tier(userId),
   ])
-  const matches = found.slice(0, limit)
-  const auth = await toolkitAuth(
-    matches.map((app) => app.slug),
-    deps
-  )
+  const matches = search.found.slice(0, limit)
+  const [auth, { reconnect, limited }] = await Promise.all([
+    toolkitAuth(
+      matches.map((app) => app.slug),
+      deps
+    ),
+    matches.length
+      ? reconnectSets(userId, accounts, deps)
+      : { reconnect: new Set<string>(), limited: new Set<string>() },
+  ])
   const apps = []
   for (const app of matches) {
     // A toolkit without catalog details can't be connected from here
@@ -185,11 +273,19 @@ export async function findApps(
           ? await toolkitPolicyAuth(app.slug, details, deps)
           : { projectConfigured: false },
         accounts,
-        tier
+        tier,
+        reconnect,
+        limited
       )
     )
   }
-  return { configured: true, apps }
+  return {
+    configured: true,
+    apps,
+    // Which queries ran, only when the first was refined
+    ...(search.searched.length > 1 && { searched: search.searched }),
+    ...(!apps.length && { message: NO_APP_MATCH_MESSAGE }),
+  }
 }
 
 // The card's name, logo and state, from the catalog and never from the model.
@@ -212,14 +308,23 @@ export async function prepareAppConnection(
     deps.accounts(userId),
     deps.tier(userId),
   ])
+  const { reconnect, limited } = await reconnectSets(userId, accounts, deps)
   const entry = appCatalogEntry(
     { toolkit: app.toolkit, name: auth.name ?? app.name, logo: auth.logo },
     await toolkitPolicyAuth(app.toolkit, auth, deps),
     accounts,
-    tier
+    tier,
+    reconnect,
+    limited
   )
   const state = appConnectionState(entry)
-  return { name: entry.name, logo: entry.logo, state }
+  // `reconnect` is set only for an app that was connected and stopped working
+  return {
+    name: entry.name,
+    logo: entry.logo,
+    state,
+    ...(entry.needsReconnect && { reconnect: true as const }),
+  }
 }
 
 // A toolkit's display name, best effort

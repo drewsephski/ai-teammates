@@ -13,6 +13,7 @@ import {
   ToolInput,
   ToolOutput,
 } from "@/components/ai-elements/tool"
+import { computerHold, type ComputerHold } from "@/components/computer-hold"
 import { isComputerBusy } from "@/lib/computer-lease-policy"
 import type { ChatUIMessage } from "@/lib/sandbox-tools"
 import {
@@ -42,6 +43,7 @@ import {
   CalendarClockIcon,
   CalendarXIcon,
   ListChecksIcon,
+  ShieldAlertIcon,
   ShieldCheckIcon,
 } from "lucide-react"
 
@@ -124,6 +126,11 @@ const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
     "Running approved action",
     "Ran approved action",
   ],
+  "tool-requestComputerApproval": [
+    "Request approval",
+    "Requesting approval",
+    "Approval requested",
+  ],
   "tool-scheduleRoutine": [
     "Schedule routine",
     "Scheduling routine",
@@ -174,6 +181,7 @@ const toolIcons: Record<ToolPart["type"], LucideIcon> = {
   "tool-getAppToolSchema": FileTextIcon,
   "tool-executeAppTool": ArrowDownUpIcon,
   "tool-runApprovedAction": ShieldCheckIcon,
+  "tool-requestComputerApproval": ShieldAlertIcon,
   "tool-scheduleRoutine": CalendarClockIcon,
   "tool-listRoutines": ListChecksIcon,
   "tool-updateRoutine": CalendarClockIcon,
@@ -220,6 +228,17 @@ function appToolError(part: ToolPart): string | undefined {
 
 // The approval a held app action is waiting on, from its tool result
 export function pendingApproval(part: ToolPart) {
+  // A step on the computer: the output is the held request itself
+  if (
+    part.type === "tool-requestComputerApproval" &&
+    part.state === "output-available" &&
+    part.output.status === "approval_required"
+  )
+    return {
+      approvalId: part.output.approvalId,
+      summary: part.output.summary,
+      toolkit: part.output.toolkit,
+    }
   if (part.type !== "tool-executeAppTool" || part.state !== "output-available")
     return undefined
   try {
@@ -241,6 +260,20 @@ export function pendingApproval(part: ToolPart) {
   }
 }
 
+// A step the computer refused on purpose, shown as a status, not a failure
+function heldStep(part: ToolPart): ComputerHold | undefined {
+  return part.state === "output-error"
+    ? computerHold(part.errorText)
+    : undefined
+}
+
+// How a held step reads in the tool row's status badge
+const holdStates = {
+  held: "approval-requested",
+  declined: "approval-responded",
+  unchecked: "output-available",
+} as const
+
 function routineError(part: ToolPart) {
   if (
     (part.type === "tool-scheduleRoutine" ||
@@ -258,6 +291,8 @@ function toolSummary(part: ToolPart): string | undefined {
   if (routineFailure) return preview(routineFailure)
   const appError = appToolError(part)
   if (appError) return preview(appError)
+  const hold = heldStep(part)
+  if (hold) return hold.summary
   if (part.state === "output-error") return preview(part.errorText)
   if (part.state === "output-denied") return "Execution was not approved"
 
@@ -334,15 +369,17 @@ function toolSummary(part: ToolPart): string | undefined {
       return preview(part.input?.slug)
     case "tool-runApprovedAction":
       return undefined
+    case "tool-requestComputerApproval":
+      return preview(part.input?.summary)
     case "tool-scheduleRoutine":
       return part.state === "output-available" &&
         part.output.status === "scheduled"
-        ? `${part.output.title} · ${part.output.when}`
+        ? `${part.output.title} · ${part.output.when}${part.output.nextRunLocal ? ` · Next: ${part.output.nextRunLocal}` : ""}`
         : preview(part.input?.title)
     case "tool-updateRoutine":
       return part.state === "output-available" &&
         part.output.status === "updated"
-        ? `${part.output.title} · ${part.output.enabled ? part.output.when : "Paused"}`
+        ? `${part.output.title} · ${part.output.enabled ? `${part.output.when}${part.output.nextRunLocal ? ` · Next: ${part.output.nextRunLocal}` : ""}` : "Paused"}`
         : undefined
     case "tool-listRoutines":
       return part.state === "output-available" && part.output.status === "ok"
@@ -356,7 +393,7 @@ function toolSummary(part: ToolPart): string | undefined {
 // One line for an exported transcript, with the title and summary the chat shows
 export function toolCallText(part: ToolPart) {
   const failed =
-    part.state === "output-error" ||
+    (part.state === "output-error" && !heldStep(part)) ||
     !!appToolError(part) ||
     !!routineError(part) ||
     (part.type === "tool-bash" &&
@@ -437,19 +474,28 @@ export function ToolCall({ part }: { part: ToolPart }) {
     )
   }
 
-  const state =
-    appToolError(part) ||
-    routineError(part) ||
-    (part.type === "tool-bash" &&
-      part.state === "output-available" &&
-      part.output.exitCode !== 0)
+  const hold = heldStep(part)
+  const state = hold
+    ? holdStates[hold.kind]
+    : appToolError(part) ||
+        routineError(part) ||
+        (part.type === "tool-bash" &&
+          part.state === "output-available" &&
+          part.output.exitCode !== 0)
       ? "output-error"
       : part.state
   const titles = toolTitles[part.type]
   const Icon = toolIcons[part.type]
+  // A held step didn't happen, so it keeps the present-tense title
   const title =
     titles[
-      state === "output-available" ? 2 : state === "input-available" ? 1 : 0
+      hold
+        ? 0
+        : state === "output-available"
+          ? 2
+          : state === "input-available"
+            ? 1
+            : 0
     ]
 
   return (
@@ -469,6 +515,18 @@ export function ToolCall({ part }: { part: ToolPart }) {
 }
 
 function ToolCallDetails({ part }: { part: ToolPart }) {
+  const hold = heldStep(part)
+  if (hold)
+    return (
+      <>
+        {part.input === undefined ? null : <ToolInput input={part.input} />}
+        <ToolOutput
+          label="Status"
+          errorText={undefined}
+          output={textResult(hold.detail)}
+        />
+      </>
+    )
   const error =
     routineError(part) ??
     appToolError(part) ??
@@ -549,6 +607,24 @@ const resultLabels: Partial<Record<ToolPart["type"], string>> = {
   "tool-readFile": "File content",
   "tool-writeFile": "Saved file",
   "tool-listFiles": "Files found",
+}
+
+const routineStatusLabels: Record<string, string> = {
+  started: "Started",
+  completed: "Ran",
+  blocked: "Waiting for you since",
+  failed: "Didn't finish",
+  skipped: "Skipped",
+}
+
+function routineLastRun(routine: {
+  lastRunLocal?: string | null
+  lastStatus?: string | null
+}) {
+  const label =
+    (routine.lastStatus && routineStatusLabels[routine.lastStatus]) ??
+    "Last ran"
+  return `${label} ${routine.lastRunLocal}`
 }
 
 function textResult(text: string) {
@@ -652,6 +728,44 @@ function toolResult(part: ToolPart) {
         </ul>
       ) : (
         textResult("This folder is empty.")
+      )
+    case "tool-scheduleRoutine":
+      return part.output.status === "scheduled"
+        ? textResult(
+            `Scheduled: ${part.output.title} — ${part.output.when}.${part.output.nextRunLocal ? `\nNext: ${part.output.nextRunLocal}` : ""}`
+          )
+        : undefined
+    case "tool-updateRoutine":
+      return part.output.status === "updated"
+        ? textResult(
+            `Updated: ${part.output.title} — ${part.output.enabled ? part.output.when : "paused"}.${part.output.enabled && part.output.nextRunLocal ? `\nNext: ${part.output.nextRunLocal}` : ""}`
+          )
+        : undefined
+    case "tool-listRoutines":
+      if (part.output.status !== "ok") return undefined
+      return part.output.routines.length ? (
+        <ul className="space-y-2 p-2.5">
+          {part.output.routines.map((routine) => (
+            <li key={routine.routineId} className="space-y-0.5">
+              <p className="font-medium break-words">{routine.title}</p>
+              <p className="text-xs text-muted-foreground">
+                {routine.when}
+                {routine.enabled
+                  ? routine.nextRunLocal
+                    ? ` · Next: ${routine.nextRunLocal}`
+                    : ""
+                  : " · Paused"}
+              </p>
+              {routine.lastRunLocal && (
+                <p className="text-xs text-muted-foreground">
+                  {routineLastRun(routine)}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        textResult("No routines yet.")
       )
     case "tool-keyboardType":
       return textResult(`Typed ${part.output.typed} characters.`)

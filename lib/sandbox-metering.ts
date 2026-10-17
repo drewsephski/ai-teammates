@@ -1,3 +1,10 @@
+import {
+  retentionBatch,
+  retentionCandidates,
+  shouldDeleteComputer,
+  type RetentionRow,
+} from "./computer-retention-policy"
+
 type Computer = {
   sandboxId: string
   state: "running" | "paused"
@@ -6,6 +13,15 @@ type Computer = {
   endAt?: Date
 }
 type Owner = { sandboxId: string; userId: string }
+
+// Free-plan retention (lib/computer-retention-policy.ts)
+export type Retention = {
+  rows: () => Promise<RetentionRow[]>
+  // Throws when the plan can't be read; that account is skipped this run
+  tier: (userId: string) => Promise<"free" | "paid">
+  // Deletes the computer and clears its row, rechecking under the account lock
+  expire: (row: RetentionRow) => Promise<boolean>
+}
 
 type Dependencies<C extends Computer> = {
   list: () => Promise<C[]>
@@ -18,6 +34,8 @@ type Dependencies<C extends Computer> = {
   kill?: (id: string) => Promise<unknown>
   report: (error: unknown, id: string) => void
   now?: () => number
+  // Left out on runs that skip retention
+  retention?: Retention
 }
 
 // A paused computer that hasn't run for this long has nothing left to meter.
@@ -58,6 +76,7 @@ export async function runSandboxMetering<C extends Computer>(
   let missing = 0
   let paused = 0
   let removed = 0
+  let expired = 0
   async function attempt(id: string, operation: () => Promise<void>) {
     try {
       await operation()
@@ -115,10 +134,37 @@ export async function runSandboxMetering<C extends Computer>(
       }
     })
   )
+
+  if (deps.retention) {
+    const retention = deps.retention
+    const rows = await retention.rows()
+    const candidates = retentionBatch(retentionCandidates(rows, byId, now), now)
+    await each(candidates, (row) =>
+      attempt(row.sandboxId, async () => {
+        let tier: "free" | "paid" | undefined
+        try {
+          tier = await retention.tier(row.userId)
+        } catch (error) {
+          // Clerk failing never deletes files: leave this account for a later run
+          deps.report(error, row.userId)
+          return
+        }
+        const state = byId.get(row.sandboxId)!.state
+        if (!shouldDeleteComputer(tier, row, state, now)) return
+        if (await retention.expire(row)) expired++
+      })
+    )
+  }
   if (errors.length)
     throw new AggregateError(
       errors,
       "Some computers could not be metered or paused"
     )
-  return { metered, missing, paused, removed }
+  return {
+    metered,
+    missing,
+    paused,
+    removed,
+    ...(deps.retention && { expired }),
+  }
 }

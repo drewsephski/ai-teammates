@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs"
-import { and, eq, gt, lt } from "drizzle-orm"
+import { and, eq, gt, isNull, lt } from "drizzle-orm"
 import { z } from "zod"
 
 import { db } from "@/db"
@@ -73,6 +73,30 @@ async function checkedConnectContext(userId: string, values?: ConnectContext) {
   return context
 }
 
+async function storeAttempt(attempt: {
+  state: string
+  userId: string
+  accountId: string
+  toolkit: string
+  returnUrl: string
+  chat: ConnectContext
+}) {
+  await db
+    .delete(connectorAuthAttempts)
+    .where(lt(connectorAuthAttempts.expiresAt, new Date()))
+  await db.insert(connectorAuthAttempts).values({
+    state: attempt.state,
+    userId: attempt.userId,
+    accountId: attempt.accountId,
+    toolkit: attempt.toolkit,
+    returnUrl: attempt.returnUrl,
+    chatId: attempt.chat.chatId,
+    questionId: attempt.chat.questionId,
+    botId: attempt.chat.botId,
+    expiresAt: new Date(Date.now() + MOBILE_CONNECTOR_ATTEMPT_MS),
+  })
+}
+
 // Starts the provider's OAuth flow back to /workspace on `origin`. The caller
 // keeps `attempt` somewhere only this user can present it again, keyed by state.
 export async function beginAppConnection(
@@ -86,6 +110,17 @@ export async function beginAppConnection(
     apps: "connect",
   })
   if (!started.ok) return started
+  // The cookie carries the attempt; this row stores the result, so a retried
+  // completion (a lost response) gets the same answer. Its return URL is the
+  // page itself, on this origin, and is only read by the mobile bridge.
+  await storeAttempt({
+    state: started.state,
+    userId,
+    accountId: started.accountId,
+    toolkit: started.toolkit,
+    returnUrl: new URL("/workspace", started.callback).href,
+    chat,
+  })
   return {
     ok: true as const,
     url: started.url,
@@ -118,19 +153,13 @@ export async function beginMobileAppConnection(
     MOBILE_CONNECTOR_CALLBACK_PATH
   )
   if (!started.ok) return started
-  await db
-    .delete(connectorAuthAttempts)
-    .where(lt(connectorAuthAttempts.expiresAt, new Date()))
-  await db.insert(connectorAuthAttempts).values({
+  await storeAttempt({
     state: started.state,
     userId,
     accountId: started.accountId,
     toolkit: started.toolkit,
     returnUrl: input.returnUrl,
-    chatId: chat.chatId,
-    questionId: chat.questionId,
-    botId: chat.botId,
-    expiresAt: new Date(Date.now() + MOBILE_CONNECTOR_ATTEMPT_MS),
+    chat,
   })
   return {
     ok: true as const,
@@ -156,23 +185,20 @@ export async function mobileConnectionReturnUrl(state: string) {
   return attempt?.returnUrl ?? null
 }
 
-// Consumes this user's stored attempt, even on failure, then verifies it the
-// same way as the web flow.
+// Verifies this user's stored attempt the same way as the web flow. A
+// verified attempt is kept, marked completed with its result, so a retried
+// completion (the app lost the response) gets the same answer without waking
+// the bot again. An attempt that could not be verified (the provider was
+// unreachable) is kept for a retry, and one the provider didn't confirm is
+// consumed.
 export async function finishMobileAppConnection(
   userId: string,
-  values: ConnectorCallback
+  values: ConnectorCallback,
+  deps?: FinishDeps
 ) {
   const callback = connectorCallbackSchema.parse(values)
   const [attempt] = await db
-    .delete(connectorAuthAttempts)
-    .where(
-      and(
-        eq(connectorAuthAttempts.state, callback.state),
-        eq(connectorAuthAttempts.userId, userId),
-        gt(connectorAuthAttempts.expiresAt, new Date())
-      )
-    )
-    .returning({
+    .select({
       userId: connectorAuthAttempts.userId,
       accountId: connectorAuthAttempts.accountId,
       toolkit: connectorAuthAttempts.toolkit,
@@ -180,12 +206,24 @@ export async function finishMobileAppConnection(
       questionId: connectorAuthAttempts.questionId,
       botId: connectorAuthAttempts.botId,
     })
+    .from(connectorAuthAttempts)
+    .where(ownedAttempt(userId, callback.state))
   return finishAppConnection(
     userId,
     callback,
-    attempt ? JSON.stringify(attempt) : undefined
+    attempt ? JSON.stringify(attempt) : undefined,
+    deps
   )
 }
+
+const ownedAttempt = (userId: string, state: string) =>
+  and(
+    eq(connectorAuthAttempts.state, state),
+    eq(connectorAuthAttempts.userId, userId),
+    gt(connectorAuthAttempts.expiresAt, new Date())
+  )
+
+type Completion = { connected: boolean; woke?: boolean; inputSeq?: number }
 
 async function authorizeApp(
   userId: string,
@@ -227,46 +265,78 @@ async function authorizeApp(
   }
 }
 
+// Provider and wake calls, injectable so tests run offline
+export type FinishDeps = {
+  loadAccounts?: Parameters<typeof verifyConnectorCallback>[3]
+  wake?: typeof wakeAfterConnect
+}
+
+// Web and mobile both end here. The first verified completion is stored on
+// the attempt, and the same owner and state get that result back afterwards.
 export async function finishAppConnection(
   userId: string,
   values: ConnectorCallback,
-  stored: string | undefined
-) {
+  stored: string | undefined,
+  deps: FinishDeps = {}
+): Promise<Completion> {
   const parsed = connectorCallbackSchema.safeParse(values)
   if (!parsed.success) return { connected: false }
+  const state = parsed.data.state
+  const [done] = await db
+    .select({ completion: connectorAuthAttempts.completion })
+    .from(connectorAuthAttempts)
+    .where(ownedAttempt(userId, state))
+  if (done?.completion) return done.completion
   let connected: boolean
   try {
     connected = await verifyConnectorCallback(
       userId,
       parsed.data,
       stored,
-      (owner, toolkit, cursor) =>
-        getComposio().connectedAccounts.list({
-          userIds: [owner],
-          toolkitSlugs: [toolkit],
-          accountType: "PRIVATE",
-          statuses: ["ACTIVE"],
-          limit: 100,
-          cursor,
-        })
+      deps.loadAccounts ??
+        ((owner, toolkit, cursor) =>
+          getComposio().connectedAccounts.list({
+            userIds: [owner],
+            toolkitSlugs: [toolkit],
+            accountType: "PRIVATE",
+            statuses: ["ACTIVE"],
+            limit: 100,
+            cursor,
+          }))
     )
   } catch (error) {
     Sentry.captureException(error)
     throw new Error("Couldn't verify the connection. Please refresh Apps.")
   }
-  if (!connected) return { connected }
+  if (!connected) {
+    // Not confirmed (cancelled, failed, or not active): the attempt is spent
+    if (stored)
+      await db.delete(connectorAuthAttempts).where(ownedAttempt(userId, state))
+    return { connected }
+  }
   // Started from a connect card: wake the bot that asked. `woke` is absent
   // for a connection started from Apps.
   const attempt = parseConnectorAttempt(stored)
-  if (!attempt?.chatId) return { connected }
-  const { woke, inputSeq } = await wakeAfterConnect(userId, {
-    state: parsed.data.state,
-    chatId: attempt.chatId,
-    questionId: attempt.questionId,
-    botId: attempt.botId,
-    toolkit: attempt.toolkit,
-  })
-  return { connected, woke, inputSeq }
+  let result: Completion = { connected }
+  if (attempt?.chatId) {
+    const { woke, inputSeq } = await (deps.wake ?? wakeAfterConnect)(userId, {
+      state,
+      chatId: attempt.chatId,
+      questionId: attempt.questionId,
+      botId: attempt.botId,
+      toolkit: attempt.toolkit,
+    })
+    result = { connected, woke, ...(inputSeq !== undefined && { inputSeq }) }
+  }
+  // Only the first writer stores; a concurrent duplicate already woke with the
+  // same message ID
+  await db
+    .update(connectorAuthAttempts)
+    .set({ completedAt: new Date(), completion: result })
+    .where(
+      and(ownedAttempt(userId, state), isNull(connectorAuthAttempts.completion))
+    )
+  return result
 }
 
 export async function disconnectApp(userId: string, accountId: string) {

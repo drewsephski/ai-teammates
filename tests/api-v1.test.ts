@@ -75,6 +75,7 @@ test("service errors map to stable codes and statuses without leaking internals"
     [new Error("Usage limit reached"), 429, "usage_limit"],
     [new Error("Chat not found"), 404, "not_found"],
     [new Error("Bot not found"), 404, "not_found"],
+    [new Error("Rule not found"), 404, "not_found"],
     [new Error("Conversations changed. Try again."), 409, "conflict"],
     [new Error("Pinned bots changed. Try again."), 409, "conflict"],
     [new Error("This recommendation expired. Refresh For you."), 409, "stale"],
@@ -484,4 +485,43 @@ test("the complete route returns the service's { connected, woke } result", asyn
     "utf8"
   )
   assert.match(source, /return result/)
+})
+
+test("computer capacity and allowance messages map to retryable, calm responses", () => {
+  const cases: [string, number, string][] = [
+    // E2B quota, rate limit or concurrency cap (lib/e2b.ts mapProviderError)
+    [
+      "Computers are busy right now. Try again in a few minutes.",
+      503,
+      "upstream",
+    ],
+    // Computer time spent: the same 429 as the other usage limits
+    [
+      "Your free computer time is used up. Upgrade to keep using the computer.",
+      429,
+      "usage_limit",
+    ],
+    [
+      "Your computer time for this billing period is used up. It resets when your next period starts.",
+      429,
+      "usage_limit",
+    ],
+    ["Your computer time is used up.", 429, "usage_limit"],
+    // Unchanged
+    ["Usage limit reached", 429, "usage_limit"],
+    [
+      "The computer is busy with another operation. Try again shortly.",
+      409,
+      "conflict",
+    ],
+  ]
+  for (const [message, status, code] of cases) {
+    const response = apiErrorResponse(new Error(message))
+    assert.deepEqual(
+      [response.status, response.body.error.code, response.body.error.message],
+      [status, code, message]
+    )
+    // Already reported where it happened; not a server fault to page on
+    assert.equal(response.expected, true)
+  }
 })

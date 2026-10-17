@@ -9,15 +9,18 @@ import { hasUsageLeft } from "@/actions/usage"
 import { toast } from "@/components/ui/toast"
 import type { UsageKind } from "@/db/schema"
 import type { Feature } from "@/lib/billing"
+import { freeComputerMinutes } from "@/lib/marketing/site"
 
 const planMessages: Record<Feature, string> = {
   bots: "Choose a plan to start using your bot.",
-  sandboxes: "Sandboxes are part of the paid plan.",
+  // The free plan includes a little computer time, once; the paid plan renews it
+  sandboxes: `The free plan includes ${freeComputerMinutes} minutes of computer time, once. Upgrade for hours each billing period.`,
 }
 
 const usageMessages: Record<UsageKind, string> = {
   ai: "Your AI allowance is used up. View your usage or upgrade to continue.",
-  sandbox: "Your sandbox hours for this billing period are used up.",
+  sandbox:
+    "Your computer time is used up. View your usage or upgrade to continue.",
 }
 
 // Checks to run before a billable action. Each returns whether it may go ahead,

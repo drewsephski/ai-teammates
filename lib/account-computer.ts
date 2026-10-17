@@ -10,13 +10,21 @@ import {
   leaseExpiry,
   type LeaseHolder,
 } from "@/lib/computer-lease-policy"
+import type { Retention } from "@/lib/sandbox-metering"
+import {
+  isRetentionExpired,
+  type RetentionRow,
+} from "@/lib/computer-retention-policy"
 import {
   createAccountSandbox,
   deleteSandbox,
+  meterSandbox,
   pauseComputer,
   sandboxExists,
 } from "@/lib/e2b"
 import { withSandboxLock } from "@/lib/sandbox-lock"
+import { LOW_ALLOWANCE_SECONDS } from "@/lib/sandbox-policy"
+import { getUsage } from "@/lib/usage"
 
 // Every person has one computer, shared by all their bots. Importable from
 // Trigger.dev and plain Node: no next/*, @sentry/nextjs or server-only.
@@ -77,6 +85,14 @@ export async function accountComputerId(userId: string) {
   return row?.sandboxId ?? null
 }
 
+// A viewer connecting or opening the screen is use too (a lease is the other).
+export async function touchComputer(userId: string, now = Date.now()) {
+  await db
+    .update(computers)
+    .set({ lastUsedAt: new Date(now) })
+    .where(eq(computers.userId, userId))
+}
+
 // Serialized with reset and delete. No fake or placeholder computer IDs.
 export async function ensureAccountComputer(
   userId: string,
@@ -91,8 +107,19 @@ export async function ensureAccountComputer(
     try {
       const [saved] = await db
         .update(computers)
-        .set({ sandboxId, updatedAt: new Date() })
-        .where(and(eq(computers.userId, userId), isNull(computers.sandboxId)))
+        // A new computer counts as used now, so the 30-day free retention
+        // clock starts at provisioning, not at an older row's creation.
+        // Registering also needs a bot: once the account's bots are gone
+        // (account deletion) a computer can never be registered again, even
+        // by a provisioning that started earlier.
+        .set({ sandboxId, lastUsedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(computers.userId, userId),
+            isNull(computers.sandboxId),
+            sql`exists (select 1 from ${bots} where ${bots.userId} = ${userId})`
+          )
+        )
         .returning({ userId: computers.userId })
       if (saved) return sandboxId
       // Registered meanwhile (account deleted, or another writer): keep theirs.
@@ -343,4 +370,142 @@ export async function listComputerOwners() {
     })
     .from(computers)
     .where(isNotNull(computers.sandboxId))
+}
+
+type AllowanceDeps = {
+  provider?: ComputerProvider
+  // Brings metering up to date; false when the provider no longer has it
+  meter?: (sandboxId: string) => Promise<boolean>
+  remainingSeconds?: (userId: string) => Promise<number | null>
+  inUse?: (userId: string) => Promise<unknown>
+  thresholdSeconds?: number
+}
+
+// Called at a turn's end, after the turn's lease is released. Pauses the
+// account's computer right away when little or no computer time is left
+// (60 seconds or less), instead of letting it idle until the provider's
+// timeout. Leaves it running when another turn holds it. Metering is brought
+// up to date first, so the decision uses the real figure. Returns whether it
+// paused and the seconds left (null when unknown).
+export async function pauseComputerIfLowAllowance(
+  userId: string,
+  deps: AllowanceDeps = {}
+) {
+  const provider = deps.provider ?? e2b
+  const sandboxId = await accountComputerId(userId)
+  if (!sandboxId) return { paused: false, remainingSeconds: null }
+  if (await (deps.inUse ?? computerInUseBy)(userId))
+    return { paused: false, remainingSeconds: null }
+  const present = await (deps.meter ?? meterSandbox)(sandboxId)
+  if (!present) return { paused: false, remainingSeconds: null }
+  const remainingSeconds = await (
+    deps.remainingSeconds ??
+    (async (id: string) => (await getUsage(id))?.remaining.sandbox ?? null)
+  )(userId)
+  if (
+    remainingSeconds === null ||
+    remainingSeconds > (deps.thresholdSeconds ?? LOW_ALLOWANCE_SECONDS)
+  )
+    return { paused: false, remainingSeconds }
+  await provider.pause(sandboxId)
+  return { paused: true, remainingSeconds }
+}
+
+// Free-plan retention: every registered computer with what the policy needs
+export async function listComputerRetentionRows(): Promise<RetentionRow[]> {
+  const rows = await db
+    .select({
+      userId: computers.userId,
+      sandboxId: computers.sandboxId,
+      lastUsedAt: computers.lastUsedAt,
+      createdAt: computers.createdAt,
+      leaseExpiresAt: computers.leaseExpiresAt,
+    })
+    .from(computers)
+    .where(isNotNull(computers.sandboxId))
+  return rows.flatMap((row) =>
+    row.sandboxId ? [{ ...row, sandboxId: row.sandboxId }] : []
+  )
+}
+
+// Deletes the account's expired, paused computer and clears its row, so the
+// next use provisions a new, empty one. Rechecks everything under the account
+// lock: a turn that took the computer since the list was read keeps it. Safe
+// to run again: a computer already gone from the provider is no error.
+export async function expireAccountComputer(
+  userId: string,
+  sandboxId: string,
+  options: {
+    provider?: ComputerProvider
+    now?: number
+    // The provider's view of the computer, read after the lock is held
+    isPaused?: (sandboxId: string) => Promise<boolean>
+    // Whether the owner is on the free plan, asked of Clerk directly (never a
+    // cached plan) after the lock is held and right before the kill. Required:
+    // deleting is irreversible. An answer that is not a plain yes, or that
+    // fails, keeps the computer.
+    confirmFree: () => Promise<boolean>
+    report?: (error: unknown) => void
+  }
+) {
+  const provider = options.provider ?? e2b
+  return withSandboxLock(lockKey(userId), async () => {
+    const [row] = await db
+      .select()
+      .from(computers)
+      .where(eq(computers.userId, userId))
+    if (!row || row.sandboxId !== sandboxId) return false
+    const paused = options.isPaused ? await options.isPaused(sandboxId) : true
+    if (
+      !isRetentionExpired(
+        row,
+        paused ? "paused" : "running",
+        options.now ?? Date.now()
+      )
+    )
+      return false
+    try {
+      if ((await options.confirmFree()) !== true) return false
+    } catch (error) {
+      options.report?.(error)
+      return false
+    }
+    await provider.remove(sandboxId)
+    await db
+      .update(computers)
+      .set({
+        sandboxId: null,
+        leaseBotId: null,
+        leaseChatId: null,
+        leaseRunKey: null,
+        leaseExpiresAt: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(computers.userId, userId), eq(computers.sandboxId, sandboxId))
+      )
+    return true
+  })
+}
+
+// The metering cron's retention step. `isFree` must read the plan from Clerk
+// directly: it decides twice (a pre-filter, then again under the account lock
+// right before the kill), and an error or a "no" keeps the computer.
+export function createRetention(deps: {
+  isFree: (userId: string) => Promise<boolean>
+  isPaused: (sandboxId: string) => Promise<boolean>
+  report: (error: unknown, id: string) => void
+  provider?: ComputerProvider
+}): Retention {
+  return {
+    rows: listComputerRetentionRows,
+    tier: async (userId) => ((await deps.isFree(userId)) ? "free" : "paid"),
+    expire: (row) =>
+      expireAccountComputer(row.userId, row.sandboxId, {
+        provider: deps.provider,
+        isPaused: deps.isPaused,
+        confirmFree: () => deps.isFree(row.userId),
+        report: (error) => deps.report(error, row.userId),
+      }),
+  }
 }

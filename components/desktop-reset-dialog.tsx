@@ -17,13 +17,26 @@ import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
 
-export function DesktopResetDialog({ reset }: { reset: () => Promise<void> }) {
+export function DesktopResetDialog({
+  reset,
+}: {
+  // Expected refusals (time used up, computers busy) come back as data
+  reset: () => Promise<{ ok: true } | { ok: false; message: string }>
+}) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
   async function confirm() {
     setPending(true)
     try {
-      await reset()
+      const result = await reset()
+      if (!result.ok) {
+        toast.add({
+          type: "error",
+          title: "Couldn't reset the computer",
+          description: result.message,
+        })
+        return
+      }
       setOpen(false)
       toast.add({ type: "success", title: "Computer reset" })
     } catch {

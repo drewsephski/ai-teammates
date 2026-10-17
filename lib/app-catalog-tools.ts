@@ -20,7 +20,14 @@ export const findAppsInputSchema = z.object({
     .default(FIND_APPS_LIMIT.default),
 })
 export type FindAppsInput = z.infer<typeof findAppsInputSchema>
-export type FindAppsResult = { configured: boolean; apps: AppCatalogEntry[] }
+export type FindAppsResult = {
+  configured: boolean
+  apps: AppCatalogEntry[]
+  // Only when a thin first search was retried: every query that ran
+  searched?: string[]
+  // Only when nothing matched
+  message?: string
+}
 
 // Catalog discovery across every app, connected or not. `find` is injected so
 // tests run offline (lib/app-catalog.ts has the Composio-backed one).
@@ -30,7 +37,7 @@ export function createAppCatalogTools(
   return {
     findApps: tool({
       description:
-        "Find apps in Krafty's catalog of integrations, connected or not. Use it when the work needs an app or service that isn't among the person's connected apps, or to check whether one exists. Each match says whether it's connected, connectable from chat, and blocked by the free plan's one-app limit. A missing match means no integration exists for it.",
+        "Find apps in Krafty's catalog of integrations, connected or not. Use it when the work needs an app or service that isn't among the person's connected apps, or to check whether one exists. Each match says whether it's connected, connectable from chat, and blocked by the free plan's one-app limit; needsReconnect: true means they connected it before and the connection stopped working, so offer a reconnect card instead of a first connect. Matching is by keyword, so an empty or poor result for a description 'school grades' doesn't prove no integration exists: search again with the service's own name. It never loads tools; use searchAppTools for those.",
       inputSchema: findAppsInputSchema,
       execute: (input) => find(findAppsInputSchema.parse(input)),
     }),

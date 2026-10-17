@@ -4,11 +4,29 @@ import { z } from "zod"
 
 import { withComputer, runSandboxCommand } from "@/lib/e2b"
 import { isComputerBusy, type ComputerBusy } from "@/lib/computer-lease-policy"
+import {
+  gestureNeedsCheck,
+  protectedPath,
+  shellCommandRisk,
+  type ComputerGesture,
+} from "@/lib/computer-approval-policy"
+import type { ComputerGate } from "@/lib/computer-approval-tools"
 import { sandboxPath } from "@/lib/sandbox-policy"
 import type { HandoffTools } from "@/lib/handoff-tool"
 
 // Enough for a model to work with, without one noisy command filling its context
 const MAX_TEXT_LENGTH = 20_000
+
+// The browser's profile and the places that run things later stay off limits
+// to the file tools, as they are to the shell
+function allowedPath(path: string) {
+  const resolved = sandboxPath(path)
+  if (protectedPath(resolved) || protectedPath(path))
+    throw new Error(
+      "That path holds the browser's sign-ins or start-up settings, which bots can't read or change. Nothing was done."
+    )
+  return resolved
+}
 
 function truncate(text: string) {
   if (text.length <= MAX_TEXT_LENGTH) return text
@@ -19,8 +37,17 @@ const point = {
   x: z.number().int().describe("Pixels from the left edge of the screen"),
   y: z.number().int().describe("Pixels from the top edge of the screen"),
 }
+// Only after the owner approved this exact step (requestComputerApproval)
+const approvalId = z
+  .string()
+  .min(1)
+  .max(100)
+  .optional()
+  .describe(
+    "The approvalId from the owner's approval message, only when repeating the step they approved"
+  )
 
-async function takeScreenshot(sandbox: Sandbox) {
+export async function takeScreenshot(sandbox: Sandbox) {
   const [shot, screen] = await Promise.all([
     sandbox.screenshot(),
     sandbox.getScreenSize(),
@@ -67,6 +94,9 @@ export function createSandboxTools(
   getComputer: (
     holdMs?: number
   ) => string | ComputerBusy | Promise<string | ComputerBusy>,
+  // Checks every gesture or command that could commit an action outside the
+  // computer, and holds it for the owner's approval (lib/computer-approval-tools.ts)
+  gate: ComputerGate,
   options: {
     onScreenViewed?: () => void
     // Runs when a computer call ends, so the lease counts from the last call
@@ -101,6 +131,43 @@ export function createSandboxTools(
     }
   }
 
+  // Runs a gesture once the gate let it through, and records the outcome on
+  // the approval it spent, if any
+  async function guarded<T>(
+    sandbox: Sandbox,
+    gesture: ComputerGesture,
+    approval: string | undefined,
+    context: { toolCallId: string; abortSignal?: AbortSignal },
+    run: () => Promise<T>
+  ) {
+    const { claimed, verdict } = gestureNeedsCheck(gesture)
+      ? await gate.gesture(sandbox, gesture, approval, {
+          toolCallId: context.toolCallId,
+          signal: context.abortSignal,
+        })
+      : {}
+    try {
+      const result = await run()
+      if (claimed)
+        await gate.complete(claimed, {
+          ok: true,
+          result: { gesture, verdict },
+        })
+      return result
+    } catch (error) {
+      if (claimed)
+        await gate.complete(claimed, {
+          ok: false,
+          result: {
+            gesture,
+            verdict,
+            error: error instanceof Error ? error.message : "failed",
+          },
+        })
+      throw error
+    }
+  }
+
   return {
     bash: tool({
       description:
@@ -115,26 +182,57 @@ export function createSandboxTools(
           .max(600)
           .optional()
           .describe("Seconds to wait before giving up. Defaults to 60."),
+        approvalId,
       }),
-      execute: async ({ command, cwd, timeout = 60 }, { abortSignal }) =>
-        runInSandbox(
+      execute: async (
+        { command, cwd, timeout = 60, approvalId },
+        { abortSignal }
+      ) => {
+        // A held command is refused before the computer is touched
+        if (!approvalId && shellCommandRisk(command))
+          await gate.shell(command, undefined)
+        return runInSandbox(
           async (sandbox) => {
-            // Stop kills the command: the computer is shared with other bots
-            const response = await runSandboxCommand(
-              sandbox,
-              command,
-              cwd ? sandboxPath(cwd) : undefined,
-              timeout * 1000,
-              abortSignal
-            )
-            return {
-              exitCode: response.exitCode,
-              output: truncate(response.stdout + response.stderr),
+            // Spent only once this turn has the computer, so a busy computer
+            // never burns an approval
+            const { claimed } = approvalId
+              ? await gate.shell(command, approvalId)
+              : {}
+            try {
+              // Stop kills the command: the computer is shared with other bots
+              const response = await runSandboxCommand(
+                sandbox,
+                command,
+                cwd ? allowedPath(cwd) : undefined,
+                timeout * 1000,
+                abortSignal
+              )
+              const result = {
+                exitCode: response.exitCode,
+                output: truncate(response.stdout + response.stderr),
+              }
+              if (claimed)
+                await gate.complete(claimed, {
+                  ok: response.exitCode === 0,
+                  result: { command, exitCode: response.exitCode },
+                })
+              return result
+            } catch (error) {
+              if (claimed)
+                await gate.complete(claimed, {
+                  ok: false,
+                  result: {
+                    command,
+                    error: error instanceof Error ? error.message : "failed",
+                  },
+                })
+              throw error
             }
           },
           Math.max(5 * 60_000, (timeout + 30) * 1000),
           (timeout + 30) * 1000
-        ),
+        )
+      },
     }),
 
     readFile: tool({
@@ -146,7 +244,7 @@ export function createSandboxTools(
       }),
       execute: async ({ path }) =>
         runInSandbox(async (sandbox) => {
-          const file = await sandbox.files.read(sandboxPath(path))
+          const file = await sandbox.files.read(allowedPath(path))
           return { content: truncate(file) }
         }),
     }),
@@ -163,7 +261,7 @@ export function createSandboxTools(
       execute: async ({ path, content }) =>
         runInSandbox(async (sandbox) => {
           const file = Buffer.from(content, "utf8")
-          await sandbox.files.write(sandboxPath(path), content)
+          await sandbox.files.write(allowedPath(path), content)
           return { path, bytes: file.byteLength }
         }),
     }),
@@ -180,7 +278,7 @@ export function createSandboxTools(
       }),
       execute: async ({ path }) =>
         runInSandbox(async (sandbox) => {
-          const files = await sandbox.files.list(sandboxPath(path))
+          const files = await sandbox.files.list(allowedPath(path))
           return {
             files: files.map((file) => ({
               name: file.name,
@@ -198,22 +296,31 @@ export function createSandboxTools(
         ...point,
         button: z.enum(["left", "right", "middle"]).default("left"),
         double: z.boolean().default(false).describe("Double-click"),
+        approvalId,
       }),
-      execute: async ({ x, y, button, double }) =>
-        runInSandbox(async (sandbox) => {
-          const click =
-            button === "right"
-              ? sandbox.rightClick.bind(sandbox)
-              : button === "middle"
-                ? sandbox.middleClick.bind(sandbox)
-                : sandbox.leftClick.bind(sandbox)
-          if (double && button === "left") await sandbox.doubleClick(x, y)
-          else {
-            await click(x, y)
-            if (double) await click(x, y)
-          }
-          return { x, y }
-        }),
+      execute: async ({ x, y, button, double, approvalId }, context) =>
+        runInSandbox((sandbox) =>
+          guarded(
+            sandbox,
+            { tool: "mouseClick", x, y, button, double },
+            approvalId,
+            context,
+            async () => {
+              const click =
+                button === "right"
+                  ? sandbox.rightClick.bind(sandbox)
+                  : button === "middle"
+                    ? sandbox.middleClick.bind(sandbox)
+                    : sandbox.leftClick.bind(sandbox)
+              if (double && button === "left") await sandbox.doubleClick(x, y)
+              else {
+                await click(x, y)
+                if (double) await click(x, y)
+              }
+              return { x, y }
+            }
+          )
+        ),
     }),
 
     mouseMove: tool({
@@ -235,12 +342,21 @@ export function createSandboxTools(
         startY: point.y,
         endX: point.x,
         endY: point.y,
+        approvalId,
       }),
-      execute: async ({ startX, startY, endX, endY }) =>
-        runInSandbox(async (sandbox) => {
-          await sandbox.drag([startX, startY], [endX, endY])
-          return { x: endX, y: endY }
-        }),
+      execute: async ({ startX, startY, endX, endY, approvalId }, context) =>
+        runInSandbox((sandbox) =>
+          guarded(
+            sandbox,
+            { tool: "mouseDrag", startX, startY, endX, endY },
+            approvalId,
+            context,
+            async () => {
+              await sandbox.drag([startX, startY], [endX, endY])
+              return { x: endX, y: endY }
+            }
+          )
+        ),
     }),
 
     mouseScroll: tool({
@@ -270,35 +386,58 @@ export function createSandboxTools(
         "Type text into whatever has keyboard focus on the computer's desktop. Newlines are typed as Enter.",
       inputSchema: z.object({
         text: z.string().describe("The text to type"),
+        approvalId,
       }),
-      execute: async ({ text }) =>
-        runInSandbox(async (sandbox) => {
-          await sandbox.write(text)
-          return { typed: text.length }
-        }),
+      execute: async ({ text, approvalId }, context) =>
+        runInSandbox((sandbox) =>
+          guarded(
+            sandbox,
+            { tool: "keyboardType", text },
+            approvalId,
+            context,
+            async () => {
+              await sandbox.write(text)
+              return { typed: text.length }
+            }
+          )
+        ),
     }),
 
     keyboardPress: tool({
       description:
         "Press a single key on the computer's desktop, optionally with modifiers held, e.g. key 'enter', or key 'c' with modifiers ['ctrl'].",
       inputSchema: z.object({
+        // A keysym name only: the key reaches xdotool on the computer's shell
         key: z
           .string()
+          .regex(
+            /^[A-Za-z0-9_]{1,32}$/,
+            "Use a single key name such as enter, tab or a."
+          )
           .describe(
             "A key name: a letter or digit, enter, escape, tab, backspace, delete, space, up, down, left, right, home, end, pageup, pagedown, f1-f12"
           ),
         modifiers: z.array(z.enum(["ctrl", "alt", "shift", "cmd"])).default([]),
+        approvalId,
       }),
-      execute: async ({ key, modifiers }) =>
-        runInSandbox(async (sandbox) => {
-          await sandbox.press([
-            ...modifiers.map((modifier) =>
-              modifier === "cmd" ? "super" : modifier
-            ),
-            key,
-          ])
-          return { key, modifiers }
-        }),
+      execute: async ({ key, modifiers, approvalId }, context) =>
+        runInSandbox((sandbox) =>
+          guarded(
+            sandbox,
+            { tool: "keyboardPress", key, modifiers },
+            approvalId,
+            context,
+            async () => {
+              await sandbox.press([
+                ...modifiers.map((modifier) =>
+                  modifier === "cmd" ? "super" : modifier
+                ),
+                key,
+              ])
+              return { key, modifiers }
+            }
+          )
+        ),
     }),
 
     viewScreen: tool({
@@ -352,6 +491,7 @@ export type ChatUIMessage = UIMessage<
       import("@/lib/composio").ConnectorTools &
       import("@/lib/app-catalog-tools").AppCatalogTools &
       import("@/lib/web-tools").WebTools &
-      import("@/lib/routine-tools").RoutineTools
+      import("@/lib/routine-tools").RoutineTools &
+      import("@/lib/computer-approval-tools").ComputerApprovalTools
   >
 >

@@ -23,6 +23,7 @@ import { JsonLd } from "@/components/json-ld"
 import { homeJsonLd } from "@/lib/marketing/json-ld"
 import {
   brandName,
+  freePlanIncludes,
   siteDescription,
   siteTitle,
   socialImage,
@@ -119,9 +120,8 @@ export default async function LandingPage() {
           <p className={styles.pricingNote}>
             Founding offer: the first 50 new Pro subscribers can use code{" "}
             <strong>FOUNDING50</strong> for $8/month instead of $20/month while
-            their subscription stays on that plan. Start free with one bot, one
-            connected app, and a one-time $1 AI allowance. Cloud computers
-            require a paid plan.{" "}
+            their subscription stays on that plan. Start free with{" "}
+            {freePlanIncludes}. Hours of computer time require a paid plan.{" "}
             <Link href={appHref("/usage")} prefetch={false}>
               View your usage <ArrowUpRightIcon size={13} className="inline" />
             </Link>

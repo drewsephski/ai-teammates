@@ -18,9 +18,18 @@ export const socialImage = {
  * Bump when the public marketing pages change meaningfully so the sitemap's
  * lastmod stays honest.
  */
-export const marketingUpdated = "2026-10-14"
+export const marketingUpdated = "2026-10-16"
 
 const usd = (millionths: number) => millionths / 1_000_000
+
+/** The free plan's one-time computer time, in minutes. */
+export const freeComputerMinutes = planLimits.free.sandbox / 60
+
+/**
+ * What the free plan includes, as one phrase for sentences. Derived from
+ * billing-policy so the pages can't drift from the limits.
+ */
+export const freePlanIncludes = `one bot, one connected app, a one-time $${usd(planLimits.free.ai)} AI allowance, and ${freeComputerMinutes} minutes of computer time, once`
 
 /** Public plan summary. Limits come from billing-policy so copy can't drift. */
 export const publicPlans = [
@@ -33,6 +42,7 @@ export const publicPlans = [
       `${planLimits.free.bots} bot`,
       `${planLimits.free.apps} connected app`,
       `One-time $${usd(planLimits.free.ai)} AI allowance`,
+      `${freeComputerMinutes} minutes of computer time, once`,
       "Built-in web research",
     ],
   },
@@ -40,7 +50,7 @@ export const publicPlans = [
     name: "Pro",
     price: 20,
     period: "month",
-    summary: "A full team with cloud computers.",
+    summary: "A full team with hours of computer time.",
     features: [
       `Up to ${planLimits.paid.bots} bots`,
       "Unlimited connected apps",

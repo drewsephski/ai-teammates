@@ -205,7 +205,7 @@ test("a decided or expired request can't be decided again", async () => {
 })
 
 test("only the asking bot, on its owner's account, can run an approved call, once", async () => {
-  await seedApproval("apr_run", { state: "approved" })
+  await seedApproval("apr_run", { state: "approved", decidedAt: new Date() })
   assert.equal(
     await approvalLib.claimApproval(B, "bot_a1", "apr_run"),
     undefined
@@ -214,7 +214,17 @@ test("only the asking bot, on its owner's account, can run an approved call, onc
     await approvalLib.claimApproval(A, "bot_other", "apr_run"),
     undefined
   )
-  const claimed = await approvalLib.claimApproval(A, "bot_a1", "apr_run")
+  // Only from the chat it was asked in
+  assert.equal(
+    await approvalLib.claimApproval(A, "bot_a1", "apr_run", "chat_other"),
+    undefined
+  )
+  const claimed = await approvalLib.claimApproval(
+    A,
+    "bot_a1",
+    "apr_run",
+    "chat_a1"
+  )
   assert.deepEqual(claimed?.arguments, { to: "sam@example.com" })
   assert.equal(
     await approvalLib.claimApproval(A, "bot_a1", "apr_run"),

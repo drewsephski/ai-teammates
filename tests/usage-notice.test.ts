@@ -10,11 +10,11 @@ const paid = (remaining: { ai: number; sandbox: number }) => ({
   limits: planLimits.paid,
   remaining,
 })
-const free = (ai: number) => ({
+const free = (ai: number, sandbox: number = planLimits.free.sandbox) => ({
   tier: "free" as const,
   period: { end: null },
   limits: planLimits.free,
-  remaining: { ai, sandbox: 0 },
+  remaining: { ai, sandbox },
 })
 
 test("nothing is shown while every allowance has more than a fifth left", () => {
@@ -82,5 +82,22 @@ test("copy states what is left and leads paid users to usage, free users to plan
   assert.equal(
     usageNoticeCopy({ kind: "ai", level: "out" }, free(0)).message,
     "Your free AI allowance is used up."
+  )
+})
+
+test("the free computer time is one-time, so its notices never mention a period", () => {
+  assert.deepEqual(usageNotice(free(500_000, 0)), {
+    kind: "sandbox",
+    level: "out",
+  })
+  assert.equal(
+    usageNoticeCopy({ kind: "sandbox", level: "out" }, free(500_000, 0))
+      .message,
+    "Your free computer time is used up."
+  )
+  assert.equal(
+    usageNoticeCopy({ kind: "sandbox", level: "low" }, free(500_000, 50))
+      .message,
+    "1 computer minute left of your free computer time."
   )
 })

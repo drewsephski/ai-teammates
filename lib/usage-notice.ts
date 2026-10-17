@@ -26,7 +26,7 @@ export function usageNotice(
   const notices = kinds.flatMap((kind): UsageNotice[] => {
     const limit = usage.limits[kind]
     const left = usage.remaining[kind]
-    // Free plans have no computer hours to run out of
+    // An allowance the plan doesn't include can't run out
     if (limit <= 0) return []
     if (left <= 0) return [{ kind, level: "out" }]
     if (left <= limit * LOW_USAGE_RATIO) return [{ kind, level: "low" }]
@@ -63,8 +63,12 @@ export function usageNoticeCopy(notice: UsageNotice, usage: UsageSnapshot) {
           ? `${dollars.format(left / 1_000_000)} of AI usage left this period.`
           : `${dollars.format(left / 1_000_000)} of your free AI allowance left.`
       : notice.level === "out"
-        ? `Computer hours are used up${until}.`
-        : `${timeLeft(left)} left this period.`
+        ? paid
+          ? `Computer hours are used up${until}.`
+          : "Your free computer time is used up."
+        : paid
+          ? `${timeLeft(left)} left this period.`
+          : `${timeLeft(left)} left of your free computer time.`
 
   return {
     message,

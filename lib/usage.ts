@@ -77,6 +77,17 @@ export async function getAccountPlan(
   return plan
 }
 
+// Whether the account is on the free plan right now, asked of Clerk directly.
+// For irreversible decisions (deleting a free computer): a cached plan can be
+// served stale for hours during an outage, after someone upgraded. A failed
+// lookup throws and never falls back to the cache, so callers skip the account.
+export async function isFreePlanVerified(
+  userId: string,
+  getPlan: typeof getAccountPlan = getAccountPlan
+) {
+  return (await getPlan(userId, { fresh: true })).tier === "free"
+}
+
 // Free credit is lifetime usage, so deleting bots, reconnecting apps, or
 // switching plans cannot reset the starter allowance. AI spend that running
 // turns hold but haven't written yet counts too.

@@ -3,17 +3,25 @@
 import * as React from "react"
 import type RFB from "@novnc/novnc"
 import * as Sentry from "@sentry/nextjs"
+import Link from "next/link"
 import { MonitorIcon, PauseIcon, RefreshCwIcon } from "lucide-react"
 
 import {
   getComputerInUse,
+  getComputerTime,
   getDesktopUrl,
   pauseDesktop,
   resetDesktop,
 } from "@/actions/chat"
+import { hasUsageLeft } from "@/actions/usage"
+import {
+  desktopCloseKind,
+  formatClock,
+  showComputerClock,
+} from "@/components/computer-status"
 import { DesktopResetDialog } from "@/components/desktop-reset-dialog"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -25,8 +33,8 @@ import {
 import { ResizableHandle, ResizablePanel } from "@/components/ui/resizable"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
-import { usePaywall } from "@/hooks/use-paywall"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { computerTimeUsedUpMessage } from "@/lib/sandbox-policy"
 
 type DesktopStatus =
   | "idle"
@@ -36,6 +44,22 @@ type DesktopStatus =
   | "paused"
   | "pausing"
   | "missing"
+  // The computer time is used up
+  | "exhausted"
+  // The session ended on the server (paused or replaced): reconnect by hand
+  | "ended"
+  // Computers are busy, or another operation holds this one
+  | "unavailable"
+
+// What the last attempt to open the computer said, when it said no
+type ResetResult = Awaited<ReturnType<typeof resetDesktop>>
+
+type ComputerTime = {
+  tier: "free" | "paid"
+  remainingSeconds: number
+  // When the server reported it, to count down from
+  at: number
+}
 
 type DesktopPanelContextValue = {
   open: boolean
@@ -45,11 +69,15 @@ type DesktopPanelContextValue = {
   toggle: () => void
   close: () => void
   status: DesktopStatus
+  // The server's reason when the computer couldn't be opened
+  notice: string | null
+  // The account's computer time, from the server
+  time: ComputerTime | null
   // The bot currently working on the shared computer, from the last connect
   inUseBy: { botId: string; name: string } | null
   connect: () => void
   pause: () => void
-  reset: () => Promise<void>
+  reset: () => Promise<ResetResult>
   // Moves the one live screen into the given element
   attachScreen: (slot: HTMLElement) => void
   // Whether the screen takes mouse and keyboard input or is only watched
@@ -87,7 +115,16 @@ function DesktopPanelProvider({
     botId: string
     name: string
   } | null>(null)
-  const { checkPlan, checkUsage } = usePaywall()
+  const [notice, setNotice] = React.useState<string | null>(null)
+  const [time, setTime] = React.useState<ComputerTime | null>(null)
+
+  const refreshTime = React.useCallback(() => {
+    getComputerTime().then(
+      ({ tier, remainingSeconds }) =>
+        setTime({ tier, remainingSeconds, at: Date.now() }),
+      () => {}
+    )
+  }, [])
 
   // The VNC client draws into this element. It is never rendered by React, so
   // it can be moved between the panel and the dialog without reconnecting.
@@ -119,6 +156,14 @@ function DesktopPanelProvider({
         import("@novnc/novnc"),
       ])
       if (attempt !== attemptRef.current) return
+      if (!connection.ok) {
+        // Expected outcomes arrive as data: production hides error text
+        setInUseBy(null)
+        setNotice(connection.message)
+        setStatus(connection.reason === "usage" ? "exhausted" : "unavailable")
+        if (connection.reason === "usage") refreshTime()
+        return
+      }
       if (connection.missing) {
         setInUseBy(null)
         setStatus("missing")
@@ -128,13 +173,21 @@ function DesktopPanelProvider({
 
       const address = new URL(connection.url, window.location.origin)
       address.protocol = address.protocol === "https:" ? "wss:" : "ws:"
-      const rfb = new RFB(getScreen(), address.toString())
+      // Our own socket, so the close code tells a spent allowance from a drop
+      const socket = new WebSocket(address.toString())
+      let closeCode: number | undefined
+      socket.addEventListener("close", (event) => {
+        closeCode = event.code
+      })
+      const rfb = new RFB(getScreen(), socket)
       rfb.scaleViewport = true
       rfb.background = "transparent"
       rfb.viewOnly = !interactiveRef.current
       rfb.addEventListener("connect", () => {
         if (attempt !== attemptRef.current) return
+        setNotice(null)
         setStatus("connected")
+        refreshTime()
         Sentry.logger.info("Desktop connected", {
           "chat.id": chatId,
           "desktop.connect_ms": Date.now() - startedAt,
@@ -144,9 +197,19 @@ function DesktopPanelProvider({
       rfb.addEventListener("disconnect", (event) => {
         if (attempt !== attemptRef.current) return
         rfbRef.current = null
-        setStatus("disconnected")
+        const kind = desktopCloseKind(closeCode)
+        if (kind === "exhausted") {
+          setNotice(null)
+          setStatus("exhausted")
+          refreshTime()
+        } else if (kind === "ended") {
+          // No automatic retry: the person reconnects when they want to
+          setStatus("ended")
+        } else {
+          setStatus("disconnected")
+        }
         // Unclean is the connection dropping, or never opening at all
-        if (!event.detail.clean) {
+        if (kind === "dropped" && !event.detail.clean) {
           Sentry.logger.warn("Desktop connection lost", { "chat.id": chatId })
         }
       })
@@ -159,7 +222,7 @@ function DesktopPanelProvider({
         ...(error instanceof Error && { "error.message": error.message }),
       })
     }
-  }, [chatId, getScreen])
+  }, [chatId, getScreen, refreshTime])
 
   const disconnect = React.useCallback(() => {
     toggleRequestRef.current++
@@ -170,6 +233,7 @@ function DesktopPanelProvider({
   const close = React.useCallback(() => {
     disconnect()
     setStatus("idle")
+    setNotice(null)
     setInUseBy(null)
     setOpen(false)
     setFullscreen(false)
@@ -181,13 +245,21 @@ function DesktopPanelProvider({
       return false
     }
     const request = ++toggleRequestRef.current
-    // Showing the desktop starts the sandbox
-    if (!checkPlan("sandboxes") || !(await checkUsage("sandbox"))) return false
+    // Showing the desktop starts the sandbox, on every plan while there is
+    // time left. Without it the panel opens to say so.
+    const hasTime = await hasUsageLeft("sandbox").catch(() => true)
     if (request !== toggleRequestRef.current) return false
+    if (!hasTime) {
+      setNotice(null)
+      setStatus("exhausted")
+      setOpen(true)
+      refreshTime()
+      return false
+    }
     if (status !== "connected" && status !== "connecting") connect()
     setOpen(true)
     return true
-  }, [open, status, connect, checkPlan, checkUsage, close])
+  }, [open, status, connect, refreshTime, close])
 
   const openForLogin = React.useCallback(async () => {
     if (open || (await toggle())) setFullscreen(true)
@@ -196,7 +268,16 @@ function DesktopPanelProvider({
   const pause = React.useCallback(async () => {
     setStatus("pausing")
     try {
-      await pauseDesktop(chatId)
+      const result = await pauseDesktop(chatId)
+      if (!result.ok) {
+        setStatus(rfbRef.current ? "connected" : "disconnected")
+        toast.add({
+          type: "error",
+          title: "Couldn't pause the computer",
+          description: result.message,
+        })
+        return
+      }
       attemptRef.current++
       rfbRef.current?.disconnect()
       rfbRef.current = null
@@ -214,8 +295,9 @@ function DesktopPanelProvider({
 
   const reset = React.useCallback(async () => {
     const attempt = ++attemptRef.current
-    await resetDesktop(chatId)
-    if (attempt === attemptRef.current) await connect()
+    const result = await resetDesktop(chatId)
+    if (result.ok && attempt === attemptRef.current) await connect()
+    return result
   }, [chatId, connect])
 
   const attachScreen = React.useCallback(
@@ -249,6 +331,13 @@ function DesktopPanelProvider({
     return () => clearInterval(timer)
   }, [chatId, open, status])
 
+  // The clock counts down from the server's figure, so refresh it now and then
+  React.useEffect(() => {
+    if (!open || status !== "connected") return
+    const timer = setInterval(refreshTime, 60_000)
+    return () => clearInterval(timer)
+  }, [open, status, refreshTime])
+
   const value = React.useMemo(
     () => ({
       open,
@@ -258,6 +347,8 @@ function DesktopPanelProvider({
       toggle,
       close,
       status,
+      notice,
+      time,
       inUseBy,
       connect,
       pause,
@@ -272,6 +363,8 @@ function DesktopPanelProvider({
       toggle,
       close,
       status,
+      notice,
+      time,
       inUseBy,
       connect,
       pause,
@@ -284,10 +377,33 @@ function DesktopPanelProvider({
   return <DesktopPanelContext value={value}>{children}</DesktopPanelContext>
 }
 
+// Time left on the computer: always for the one-time free allowance, and for a
+// paid account once the period's time is nearly gone
+function DesktopClock() {
+  const { time, status } = useDesktopPanel()
+  const running = status === "connected"
+  const [now, setNow] = React.useState(() => Date.now())
+  React.useEffect(() => {
+    if (!running) return
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [running])
+  if (!time || !showComputerClock(time.tier, time.remainingSeconds)) return null
+  const left = running
+    ? time.remainingSeconds - Math.max(0, now - time.at) / 1000
+    : time.remainingSeconds
+  return (
+    <span className="mr-1 shrink-0 text-xs text-muted-foreground tabular-nums">
+      {formatClock(left)} left
+    </span>
+  )
+}
+
 function DesktopControls() {
   const { status, connect, pause } = useDesktopPanel()
   return (
     <div className="flex shrink-0 items-center gap-1">
+      <DesktopClock />
       <Button
         variant="ghost"
         size="sm"
@@ -304,7 +420,8 @@ function DesktopControls() {
         disabled={
           status === "connecting" ||
           status === "pausing" ||
-          status === "missing"
+          status === "missing" ||
+          status === "exhausted"
         }
         onClick={connect}
       >
@@ -319,17 +436,64 @@ function DesktopInUse({ className }: { className?: string }) {
   if (!inUseBy || status !== "connected") return null
   return (
     <p role="status" className={className}>
-      In use by {inUseBy.name}
+      {inUseBy.name} is using the computer
     </p>
   )
 }
 
+function DesktopExhausted() {
+  const { notice, time } = useDesktopPanel()
+  const tier = time?.tier
+  return (
+    <div
+      role="status"
+      className="flex flex-col items-center gap-3 px-4 text-center"
+    >
+      <p>{notice ?? computerTimeUsedUpMessage(tier)}</p>
+      {tier === "paid" ? (
+        <Link href="/usage" className={buttonVariants({ variant: "outline" })}>
+          View usage
+        </Link>
+      ) : (
+        <Link
+          href="/pricing"
+          className={buttonVariants({ variant: "outline" })}
+        >
+          See plans
+        </Link>
+      )}
+    </div>
+  )
+}
+
 function DesktopPlaceholder() {
-  const { status, connect, reset } = useDesktopPanel()
+  const { status, notice, connect, reset } = useDesktopPanel()
   if (status === "connected") return null
   return (
     <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-      {status === "missing" ? (
+      {status === "exhausted" ? (
+        <DesktopExhausted />
+      ) : status === "unavailable" ? (
+        <div
+          role="status"
+          className="flex flex-col items-center gap-3 px-4 text-center"
+        >
+          <p>{notice}</p>
+          <Button variant="outline" onClick={connect}>
+            Try again
+          </Button>
+        </div>
+      ) : status === "ended" ? (
+        <div
+          role="status"
+          className="flex flex-col items-center gap-3 px-4 text-center"
+        >
+          <p>This computer session ended.</p>
+          <Button variant="outline" onClick={connect}>
+            Reconnect
+          </Button>
+        </div>
+      ) : status === "missing" ? (
         <div className="flex flex-col items-center gap-3 px-4 text-center">
           <p>Your computer no longer exists.</p>
           <DesktopResetDialog reset={reset} />

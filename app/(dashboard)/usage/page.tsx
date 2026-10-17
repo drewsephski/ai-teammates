@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { AppPageHeader } from "@/components/app-page-header"
+import { formatClock } from "@/components/computer-status"
+import { freeComputerMinutes, freePlanIncludes } from "@/lib/marketing/site"
 import { getUsage } from "@/lib/usage"
 import { ChatGPTPlanCard } from "@/components/chatgpt-plan-card"
 import { chatGPTAuthMessages } from "@/components/chatgpt-auth-option"
@@ -88,7 +90,7 @@ export default async function Page({
                 .
               </>
             ) : (
-              "Your free plan includes a one-time $1 AI allowance, one bot, and one connected app. Upgrade for a renewing allowance and cloud computers."
+              `Your free plan includes ${freePlanIncludes}. Upgrade for allowances that renew each billing period.`
             )}
           </p>
         </div>
@@ -113,15 +115,24 @@ export default async function Page({
             limit={limits.ai}
             detail={`${dollars.format(used.ai / 1_000_000)} of ${dollars.format(limits.ai / 1_000_000)}`}
           />
-          {limits.sandbox > 0 && (
-            <UsageMeter
-              title="Sandbox hours"
-              description="The time your bots' sandboxes were running."
-              used={used.sandbox}
-              limit={limits.sandbox}
-              detail={`${hours.format(used.sandbox / 3600)} of ${hours.format(limits.sandbox / 3600)} hours`}
-            />
-          )}
+          {limits.sandbox > 0 &&
+            (usage.tier === "free" ? (
+              <UsageMeter
+                title="Computer time"
+                description="Time your computer was running. The free allowance is one-time and doesn't renew."
+                used={used.sandbox}
+                limit={limits.sandbox}
+                detail={`${formatClock(used.sandbox)} of ${freeComputerMinutes} minutes, once`}
+              />
+            ) : (
+              <UsageMeter
+                title="Computer hours"
+                description="Time your computer was running this billing period."
+                used={used.sandbox}
+                limit={limits.sandbox}
+                detail={`${hours.format(used.sandbox / 3600)} of ${hours.format(limits.sandbox / 3600)} hours`}
+              />
+            ))}
         </div>
         {usage.tier === "free" && (
           <Link

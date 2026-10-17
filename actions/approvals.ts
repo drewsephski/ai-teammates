@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
 
 import { EMAIL_CHANGED_ERROR, type EmailDraftAction } from "@/lib/email-draft"
-import type { ApprovalDecision } from "@/db/schema"
+import type { ApprovalDecision, ApprovalRuleRevoke } from "@/db/schema"
 import {
   APPROVAL_DECIDED_ERROR,
   APPROVAL_EXPIRED_ERROR,
@@ -18,9 +18,42 @@ async function signedIn() {
 }
 
 export async function getApproval(approvalId: string) {
-  const { state, summary, toolkit, expiresAt, emailDraft } =
-    await service.getApproval(await signedIn(), approvalId)
-  return { state, summary, toolkit, expiresAt, emailDraft }
+  const {
+    state,
+    summary,
+    toolkit,
+    expiresAt,
+    emailDraft,
+    kind,
+    hostname,
+    action,
+    alwaysAllowed,
+    preview,
+    command,
+  } = await service.getApproval(await signedIn(), approvalId)
+  return {
+    state,
+    summary,
+    toolkit,
+    expiresAt,
+    emailDraft,
+    kind,
+    hostname,
+    action,
+    alwaysAllowed,
+    preview,
+    command,
+  }
+}
+
+export async function listApprovalRules() {
+  return service.listApprovalRules(await signedIn())
+}
+
+export async function revokeApprovalRule(input: ApprovalRuleRevoke) {
+  const result = await service.revokeApprovalRule(await signedIn(), input)
+  revalidatePath("/activity")
+  return result
 }
 
 // Outcomes the card explains come back as data: production hides error text

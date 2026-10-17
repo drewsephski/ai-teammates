@@ -33,7 +33,14 @@ export const routineScheduleSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("once"),
-    at: z.iso.datetime({ offset: true, message: "Pick a date and time." }),
+    // An instant with an offset ("2026-10-20T09:00:00-04:00" or "...Z"), or a
+    // wall-clock time without one ("2026-10-20T09:00") that is read in the
+    // routine's timezone. Stored routines are normalised to the instant.
+    at: z.iso.datetime({
+      offset: true,
+      local: true,
+      message: "Pick a date and time.",
+    }),
   }),
 ])
 export type RoutineSchedule = z.infer<typeof routineScheduleSchema>
@@ -132,6 +139,33 @@ export function zonedTime(
   return new Date(exact.length ? exact[0] : candidates[candidates.length - 1])
 }
 
+const LOCAL_DATETIME =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/
+
+// The instant a one-off routine runs. An offset is taken as written; a
+// wall-clock time is read in the routine's zone. Null when unreadable.
+export function resolveOnceInstant(at: string, zone: string) {
+  const local = LOCAL_DATETIME.exec(at)
+  if (!local) {
+    const instant = new Date(at)
+    return Number.isNaN(instant.getTime()) ? null : instant
+  }
+  const [year, month, day, hour, minute, second] = local.slice(1).map(Number)
+  const start = zonedTime({ year, month, day }, hour, minute, zone)
+  return new Date(start.getTime() + (second || 0) * 1000)
+}
+
+// The same schedule with a one-off's wall-clock time turned into an instant,
+// which is what gets stored. Other schedules come back unchanged.
+export function normalizeSchedule(
+  schedule: RoutineSchedule,
+  zone: string
+): RoutineSchedule {
+  if (schedule.kind !== "once") return schedule
+  const instant = resolveOnceInstant(schedule.at, zone)
+  return instant ? { kind: "once", at: instant.toISOString() } : schedule
+}
+
 // When a routine runs next, strictly after `after`. Null when it never will.
 export function nextRunAt(
   schedule: RoutineSchedule,
@@ -140,8 +174,8 @@ export function nextRunAt(
 ): Date | null {
   switch (schedule.kind) {
     case "once": {
-      const at = new Date(schedule.at)
-      return at > after ? at : null
+      const at = resolveOnceInstant(schedule.at, zone)
+      return at && at > after ? at : null
     }
     case "interval":
       return new Date(after.getTime() + schedule.hours * 3_600_000)
@@ -194,7 +228,7 @@ export function describeSchedule(schedule: RoutineSchedule, zone: string) {
         day: "numeric",
         hour: "numeric",
         minute: "2-digit",
-      }).format(new Date(schedule.at))
+      }).format(resolveOnceInstant(schedule.at, zone) ?? new Date(NaN))
       return `Once, ${at}`
     }
     case "daily": {
@@ -212,6 +246,62 @@ export function describeSchedule(schedule: RoutineSchedule, zone: string) {
   }
 }
 
+const zoneNames = new Map<string, Intl.DateTimeFormat>()
+function zoneAbbreviation(instant: Date, zone: string) {
+  let format = zoneNames.get(zone)
+  if (!format) {
+    format = new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      timeZoneName: "short",
+    })
+    zoneNames.set(zone, format)
+  }
+  return format.formatToParts(instant).find((p) => p.type === "timeZoneName")
+    ?.value
+}
+
+const months = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+]
+
+// "Mon Oct 19, 8:00 AM CDT": an instant as the owner reads it. The tools
+// return this so the bot confirms times that were really saved.
+export function formatLocalTime(instant: Date, zone: string) {
+  const p = zonedParts(instant, zone)
+  const hour = p.hour % 12 === 0 ? 12 : p.hour % 12
+  const minute = String(p.minute).padStart(2, "0")
+  const period = p.hour < 12 ? "AM" : "PM"
+  const name = zoneAbbreviation(instant, zone)
+  return `${weekdays[p.weekday]} ${months[p.month - 1]} ${p.day}, ${hour}:${minute} ${period}${name ? ` ${name}` : ""}`
+}
+
+// The line that tells the model when "now" is for the owner. It only knows
+// the UTC date otherwise, so "tomorrow afternoon" would drift.
+export function routineClock(
+  timezone: string,
+  now: Date,
+  options: { assumed?: boolean } = {}
+) {
+  const p = zonedParts(now, timezone)
+  const pad = (value: number, size = 2) => String(value).padStart(size, "0")
+  const local = `${weekdays[p.weekday]} ${pad(p.year, 4)}-${pad(p.month)}-${pad(p.day)} ${pad(p.hour)}:${pad(p.minute)}`
+  const name = zoneAbbreviation(now, timezone)
+  return options.assumed
+    ? `Owner's timezone is not set, so UTC is assumed. Ask where they are before scheduling by clock time. UTC time now: ${local}.`
+    : `Owner's timezone: ${timezone}. Local time now: ${local}${name ? ` ${name}` : ""}.`
+}
+
 export function assertRoutineCapacity(tier: "free" | "paid", count: number) {
   if (count >= ROUTINE_LIMITS[tier])
     throw new Error(
@@ -222,6 +312,68 @@ export function assertRoutineCapacity(tier: "free" | "paid", count: number) {
 // The message a scheduled run posts. Its ID marks the turn as unattended.
 export function routineRunMessageId(routineId: string, scheduledAt: Date) {
   return `routine_${routineId}_${scheduledAt.getTime()}`
+}
+
+// Reads a run's message ID back into its routine and the time it was due.
+// Routine IDs are hex, but the last segment is what is trusted.
+export function parseRoutineRunMessageId(messageId: string | undefined) {
+  const match = /^routine_(.+)_(\d{10,16})$/.exec(messageId ?? "")
+  if (!match) return undefined
+  const scheduledAt = new Date(Number(match[2]))
+  if (Number.isNaN(scheduledAt.getTime())) return undefined
+  return { routineId: match[1], scheduledAt }
+}
+
+// How a finished run is recorded on its routine
+export type RoutineRunOutcome = {
+  status: "completed" | "blocked" | "failed"
+  detail?: string
+}
+
+export function routineOutcomeError(outcome: RoutineRunOutcome) {
+  if (outcome.status === "completed") return null
+  const detail = outcome.detail?.replace(/\s+/g, " ").trim().slice(0, 300)
+  if (detail) return detail
+  return outcome.status === "blocked"
+    ? "Waiting for you in the chat."
+    : "The run didn't finish."
+}
+
+export const MISSED_RUN_ERROR = "Missed while Krafty was unavailable"
+
+// How late a run may start and still be worth doing. A morning brief at nine
+// is no use at noon, an hourly check an hour late is the next one anyway, and
+// a one-off reminder is better late than never.
+export function missedRunGraceMs(schedule: RoutineSchedule) {
+  switch (schedule.kind) {
+    case "once":
+      return 6 * 3_600_000
+    case "daily":
+      return 3_600_000
+    case "interval":
+      return Math.min(3_600_000, schedule.hours * 1_800_000)
+  }
+}
+
+// What to do with a routine found due. A run inside its grace window goes
+// ahead; a staler one is recorded as missed. Either way the next run is the
+// first one after `now`, counted from the time it was due so intervals don't
+// drift, and the runs in between are never replayed.
+export function planDueRun(
+  routine: { schedule: RoutineSchedule; timezone: string },
+  dueAt: Date,
+  now: Date
+) {
+  let next = nextRunAt(routine.schedule, routine.timezone, dueAt)
+  while (next && next <= now)
+    next = nextRunAt(routine.schedule, routine.timezone, next)
+  return {
+    action:
+      now.getTime() - dueAt.getTime() <= missedRunGraceMs(routine.schedule)
+        ? ("run" as const)
+        : ("missed" as const),
+    next,
+  }
 }
 
 export function routineRunPrompt(routine: { title: string; prompt: string }) {

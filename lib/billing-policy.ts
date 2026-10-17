@@ -8,8 +8,12 @@ export const ACTIVE_PLAN_ERROR =
 export const FREE_APP_LIMIT_ERROR =
   "The free plan includes one connected app. Disconnect your current app or upgrade to connect another."
 
+// Free allowances are one-time: the free period has no start, so usage is
+// summed over the account's whole life (lib/usage.ts). `sandbox` is seconds.
+export const FREE_SANDBOX_SECONDS = 300
+
 export const planLimits = {
-  free: { ai: 1_000_000, sandbox: 0, bots: 1, apps: 1 },
+  free: { ai: 1_000_000, sandbox: FREE_SANDBOX_SECONDS, bots: 1, apps: 1 },
   paid: {
     ai: 10_000_000,
     sandbox: 50 * 60 * 60,

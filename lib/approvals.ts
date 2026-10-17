@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/node"
-import { and, desc, eq, gt, lt } from "drizzle-orm"
+import { and, count, desc, eq, gt, gte, inArray, lt, sql } from "drizzle-orm"
 
 import { db } from "@/db"
 import {
@@ -15,6 +15,8 @@ import {
   approvalDecisionPrompt,
   approvalDisplayPrompt,
   approvalMessageId,
+  approvalRuleApplies,
+  standingRuleAllowed,
 } from "@/lib/approval-policy"
 import {
   EMAIL_CHANGED_ERROR,
@@ -22,19 +24,87 @@ import {
   type EmailContent,
 } from "@/lib/email-draft"
 import { postChatMessage } from "@/lib/chat-dispatch"
+import {
+  APPROVAL_WINDOW_MS,
+  APPROVAL_WINDOW_USES,
+  COMPUTER_APPROVAL_FRESH_MS,
+  computerDecisionPrompt,
+  MAX_PENDING_COMPUTER_APPROVALS,
+  type DeclinedAction,
+} from "@/lib/computer-approval-policy"
 import { recordActivity } from "@/lib/notify"
 
-export async function hasApprovalRule(botId: string, toolSlug: string) {
+// Whether the owner's "Always allow" covers this call: the same bot, action
+// and connected account, and never a high-risk action
+// How long a declined app call is refused outright when asked again unchanged
+export const DECLINE_MEMORY_MS = 24 * 3_600_000
+export const DECLINED_REPEAT_ERROR =
+  "The owner declined this exact request in the last day. Nothing was done. Don't ask again or try another way; tell them what you can do instead."
+
+export async function hasApprovalRule(
+  botId: string,
+  toolSlug: string,
+  accountId: string,
+  tags?: readonly string[]
+) {
   const [rule] = await db
-    .select({ botId: approvalRules.botId })
+    .select({
+      toolSlug: approvalRules.toolSlug,
+      accountId: approvalRules.accountId,
+    })
     .from(approvalRules)
     .where(
       and(eq(approvalRules.botId, botId), eq(approvalRules.toolSlug, toolSlug))
     )
-  return !!rule
+  return (
+    !!rule && approvalRuleApplies(rule, { slug: toolSlug, accountId, tags })
+  )
 }
 
-// Holds a connected-app call for the owner and tells their phone
+// The owner's standing rules, for review and revocation
+export async function listApprovalRules(userId: string) {
+  return db
+    .select({
+      botId: approvalRules.botId,
+      botName: bots.name,
+      toolSlug: approvalRules.toolSlug,
+      accountId: approvalRules.accountId,
+      createdAt: approvalRules.createdAt,
+    })
+    .from(approvalRules)
+    .innerJoin(bots, eq(bots.id, approvalRules.botId))
+    .where(eq(approvalRules.userId, userId))
+    .orderBy(desc(approvalRules.createdAt))
+}
+
+export async function revokeApprovalRule(
+  userId: string,
+  botId: string,
+  toolSlug: string
+) {
+  const [row] = await db
+    .delete(approvalRules)
+    .where(
+      and(
+        eq(approvalRules.userId, userId),
+        eq(approvalRules.botId, botId),
+        eq(approvalRules.toolSlug, toolSlug)
+      )
+    )
+    .returning({ botId: approvalRules.botId })
+  if (!row) throw new Error("Rule not found")
+  await recordActivity({
+    userId,
+    kind: "approval_decided",
+    title: "Always allow removed",
+    detail: toolSlug,
+    botId,
+    dedupeKey: `approval-rule:${botId}:${toolSlug}:revoked:${Date.now()}`,
+  })
+}
+
+// Holds a connected-app call, or a committing computer action, for the owner
+// and tells their phone
 export async function requestApproval(call: {
   userId: string
   botId: string
@@ -44,7 +114,47 @@ export async function requestApproval(call: {
   accountId: string
   arguments: Record<string, unknown>
   summary: string
+  kind?: "app" | "computer"
+  hostname?: string
+  action?: "submit" | "post" | "send" | "delete" | "buy"
+  preview?: string
 }) {
+  if ((call.kind ?? "app") === "app") {
+    // The owner already said no to exactly this: refuse without a new card
+    const [declined] = await db
+      .select({ id: approvals.id })
+      .from(approvals)
+      .where(
+        and(
+          eq(approvals.userId, call.userId),
+          eq(approvals.botId, call.botId),
+          eq(approvals.toolSlug, call.toolSlug),
+          eq(approvals.accountId, call.accountId),
+          eq(approvals.state, "denied"),
+          gt(approvals.decidedAt, new Date(Date.now() - DECLINE_MEMORY_MS)),
+          eq(approvals.arguments, call.arguments)
+        )
+      )
+      .limit(1)
+    if (declined) throw new Error(DECLINED_REPEAT_ERROR)
+  } else {
+    const [{ pending }] = await db
+      .select({ pending: count() })
+      .from(approvals)
+      .where(
+        and(
+          eq(approvals.userId, call.userId),
+          eq(approvals.chatId, call.chatId),
+          eq(approvals.kind, "computer"),
+          eq(approvals.state, "pending"),
+          gt(approvals.expiresAt, new Date())
+        )
+      )
+    if (pending >= MAX_PENDING_COMPUTER_APPROVALS)
+      throw new Error(
+        "Several computer steps are already waiting for the owner in this chat. Wait for their decision."
+      )
+  }
   const [row] = await db
     .insert(approvals)
     .values({ ...call, expiresAt: new Date(Date.now() + APPROVAL_TTL_MS) })
@@ -75,11 +185,13 @@ export async function requestApproval(call: {
   return row
 }
 
-// The stored call, exactly once, for the bot that asked
+// The stored call, exactly once, for the bot that asked. App approvals only:
+// a computer approval can't be spent on an app call, or the other way round.
 export async function claimApproval(
   userId: string,
   botId: string,
-  approvalId: string
+  approvalId: string,
+  chatId?: string
 ) {
   const [row] = await db
     .update(approvals)
@@ -89,11 +201,143 @@ export async function claimApproval(
         eq(approvals.id, approvalId),
         eq(approvals.userId, userId),
         eq(approvals.botId, botId),
-        eq(approvals.state, "approved")
+        chatId ? eq(approvals.chatId, chatId) : undefined,
+        eq(approvals.kind, "app"),
+        eq(approvals.state, "approved"),
+        // Approved within the request's lifetime; never months later
+        gt(approvals.decidedAt, new Date(Date.now() - APPROVAL_TTL_MS))
       )
     )
     .returning()
   return row
+}
+
+// A computer approval for this bot and chat, as it stands
+export async function readComputerApproval(
+  userId: string,
+  botId: string,
+  chatId: string,
+  approvalId: string
+) {
+  const [row] = await db
+    .select({
+      state: approvals.state,
+      action: approvals.action,
+      hostname: approvals.hostname,
+      claimedAt: approvals.claimedAt,
+      uses: approvals.uses,
+      decidedAt: approvals.decidedAt,
+      arguments: approvals.arguments,
+    })
+    .from(approvals)
+    .where(
+      and(
+        eq(approvals.id, approvalId),
+        eq(approvals.userId, userId),
+        eq(approvals.botId, botId),
+        eq(approvals.chatId, chatId),
+        eq(approvals.kind, "computer")
+      )
+    )
+  if (!row) return undefined
+  const { arguments: stored, ...approval } = row
+  // A shell approval runs only the command the owner saw
+  const command = typeof stored.command === "string" ? stored.command : null
+  return { ...approval, command }
+}
+
+// Spends one gesture of a computer approval, atomically: the first spend
+// claims it (approved, decided within the hour); later ones must fall inside
+// its window. Returns false when nothing is left to spend.
+export async function spendComputerApproval(
+  userId: string,
+  botId: string,
+  chatId: string,
+  approvalId: string,
+  // Only an unspent approval: a shell command runs once
+  options: { once?: boolean } = {}
+) {
+  const now = new Date()
+  const owned = and(
+    eq(approvals.id, approvalId),
+    eq(approvals.userId, userId),
+    eq(approvals.botId, botId),
+    eq(approvals.chatId, chatId),
+    eq(approvals.kind, "computer")
+  )
+  const [claimed] = await db
+    .update(approvals)
+    .set({ state: "running", claimedAt: now, uses: 1 })
+    .where(
+      and(
+        owned,
+        eq(approvals.state, "approved"),
+        gt(approvals.expiresAt, now),
+        gt(
+          approvals.decidedAt,
+          new Date(now.getTime() - COMPUTER_APPROVAL_FRESH_MS)
+        )
+      )
+    )
+    .returning({ id: approvals.id })
+  if (claimed || options.once) return !!claimed
+  const [again] = await db
+    .update(approvals)
+    .set({ uses: sql`${approvals.uses} + 1` })
+    .where(
+      and(
+        owned,
+        inArray(approvals.state, ["running", "executed"]),
+        gte(approvals.claimedAt, new Date(now.getTime() - APPROVAL_WINDOW_MS)),
+        lt(approvals.uses, APPROVAL_WINDOW_USES)
+      )
+    )
+    .returning({ id: approvals.id })
+  return !!again
+}
+
+// Records each spent gesture's outcome. Any success makes the approval
+// executed; it is failed only when nothing it covered succeeded.
+export async function completeComputerApproval(
+  approvalId: string,
+  outcome: { ok: boolean; result: unknown }
+) {
+  await db
+    .update(approvals)
+    .set({
+      state: outcome.ok
+        ? "executed"
+        : sql`case when ${approvals.state} = 'executed' then 'executed'::approval_state else 'failed'::approval_state end`,
+      result: sql`coalesce(${approvals.result}, '[]'::jsonb) || ${JSON.stringify([outcome])}::jsonb`,
+    })
+    .where(eq(approvals.id, approvalId))
+}
+
+// What the owner declined that this turn must not retry: read from the
+// database by the decision message's approval ID, never from the ID alone
+export async function declinedFor(
+  userId: string,
+  approvalId: string
+): Promise<DeclinedAction[]> {
+  const [row] = await db
+    .select({
+      kind: approvals.kind,
+      toolkit: approvals.toolkit,
+      action: approvals.action,
+      hostname: approvals.hostname,
+    })
+    .from(approvals)
+    .where(
+      and(
+        eq(approvals.id, approvalId),
+        eq(approvals.userId, userId),
+        eq(approvals.state, "denied")
+      )
+    )
+  if (!row) return []
+  return row.kind === "computer"
+    ? [{ kind: "computer", action: row.action, hostname: row.hostname }]
+    : [{ kind: "app", toolkit: row.toolkit }]
 }
 
 export async function completeApproval(
@@ -123,6 +367,9 @@ export async function listApprovals(
       chatId: true,
       toolkit: true,
       toolSlug: true,
+      kind: true,
+      hostname: true,
+      action: true,
       summary: true,
       state: true,
       expiresAt: true,
@@ -193,11 +440,24 @@ export async function decideApproval(
     // A double tap from the phone and the web lands here; the first one won
     throw new Error(email ? EMAIL_CHANGED_ERROR : APPROVAL_DECIDED_ERROR)
   }
-  if (decision === "always")
+  // "Always allow" saves a rule only for a low-risk app action, bound to its
+  // account. On a computer or high-risk approval it is a plain approval, so
+  // installed apps' Always allow button stays safe.
+  const saveRule = decision === "always" && standingRuleAllowed(row)
+  if (saveRule)
     await db
       .insert(approvalRules)
-      .values({ userId, botId: row.botId, toolSlug: row.toolSlug })
-      .onConflictDoNothing()
+      .values({
+        userId,
+        botId: row.botId,
+        toolSlug: row.toolSlug,
+        accountId: row.accountId,
+      })
+      .onConflictDoUpdate({
+        target: [approvalRules.botId, approvalRules.toolSlug],
+        set: { accountId: row.accountId, createdAt: new Date() },
+      })
+  const effective = decision === "always" && !saveRule ? "approve" : decision
 
   await recordActivity({
     userId,
@@ -214,8 +474,14 @@ export async function decideApproval(
       row.chatId,
       {
         id: approvalMessageId(row.id, decision),
-        text: approvalDecisionPrompt(row, decision),
-        displayPrompt: approvalDisplayPrompt(decision),
+        text:
+          row.kind === "computer"
+            ? computerDecisionPrompt(
+                row,
+                effective === "deny" ? "deny" : "approve"
+              )
+            : approvalDecisionPrompt(row, effective),
+        displayPrompt: approvalDisplayPrompt(effective),
       },
       { botId: row.botId }
     )

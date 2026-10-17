@@ -7,8 +7,11 @@ import {
 } from "@e2b/desktop"
 
 import {
+  ComputerAllowanceSpentError,
+  ComputerSessionEndedError,
   createSandboxLifecycle,
   SandboxMissingError,
+  type ComputerAllowance,
 } from "../lib/sandbox-lifecycle"
 import { IDLE_TIMEOUT_MS, SESSION_LIMIT_MS } from "../lib/sandbox-policy"
 
@@ -33,6 +36,7 @@ function setup() {
   let failConnect = false
   let failFinalMeter = false
   let infoError: Error | undefined
+  let allowance: ComputerAllowance | null | Error | undefined
   const sandbox = {
     setTimeout: async (timeout: number) => {
       calls.push(`timeout:${timeout}`)
@@ -70,6 +74,12 @@ function setup() {
     report: (error) => {
       reports.push(error)
     },
+    allowance:
+      // Absent unless a test sets one: the default behavior has no allowance
+      async () => {
+        if (allowance instanceof Error) throw allowance
+        return allowance ?? null
+      },
   })
   return {
     lifecycle,
@@ -78,6 +88,9 @@ function setup() {
     meters,
     get info() {
       return info
+    },
+    setAllowance: (value: ComputerAllowance | null | Error) => {
+      allowance = value
     },
     configure: (options: {
       busy?: boolean
@@ -230,4 +243,125 @@ test("passive operations cannot wake a paused computer", async () => {
     /Computer paused/
   )
   assert.deepEqual(state.calls, [])
+})
+
+const timeouts = (calls: string[]) =>
+  calls
+    .filter((call) => call.startsWith("timeout:"))
+    .map((call) => +call.slice(8))
+
+test("a free account's computer idles a quarter of its allowance after a call", async () => {
+  const state = setup()
+  state.setAllowance({ seconds: 300, tier: "free" })
+  await state.lifecycle.run("computer", async () => {})
+  const [first, last] = timeouts(state.calls)
+  // The lease is the five-minute default, capped by the 300 seconds left
+  assert.equal(first, IDLE_TIMEOUT_MS)
+  // After the call it idles for ~75 seconds, not another five minutes
+  assert.ok(last <= 75_000 && last > 70_000, `idle was ${last}`)
+})
+
+test("paid accounts with hours left keep the five-minute idle", async () => {
+  const state = setup()
+  state.setAllowance({ seconds: 50 * 3600, tier: "paid" })
+  await state.lifecycle.run("computer", async () => {})
+  assert.deepEqual(timeouts(state.calls), [IDLE_TIMEOUT_MS, IDLE_TIMEOUT_MS])
+})
+
+test("a long command's lease is capped by the allowance, so the provider pauses it at zero", async () => {
+  const state = setup()
+  state.setAllowance({ seconds: 90, tier: "free" })
+  await state.lifecycle.run("computer", async () => {}, 600_000)
+  assert.equal(timeouts(state.calls)[0], 90_000)
+})
+
+test("a spent allowance pauses a running computer and refuses the call", async () => {
+  const state = setup()
+  state.setAllowance({ seconds: 0, tier: "free" })
+  let ran = false
+  await assert.rejects(
+    state.lifecycle.run("computer", async () => {
+      ran = true
+    }),
+    (error) =>
+      error instanceof ComputerAllowanceSpentError &&
+      /free computer time is used up/.test(error.message)
+  )
+  assert.equal(ran, false)
+  assert.deepEqual(state.calls, ["pause"])
+  // A paused computer is not resumed to be told no
+  const paused = setup()
+  paused.configure({ state: "paused" })
+  paused.setAllowance({ seconds: 0, tier: "paid" })
+  await assert.rejects(
+    paused.lifecycle.run("computer", async () => {}),
+    ComputerAllowanceSpentError
+  )
+  assert.deepEqual(paused.calls, [])
+})
+
+test("the computer pauses after a call that used up the allowance", async () => {
+  const state = setup()
+  state.setAllowance({ seconds: 1, tier: "free" })
+  await state.lifecycle.run("computer", async () => {
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  })
+  assert.ok(state.calls.includes("pause"))
+})
+
+test("an unreadable allowance keeps the default behavior and is reported", async () => {
+  const state = setup()
+  state.setAllowance(new Error("clerk down"))
+  await state.lifecycle.run("computer", async () => {})
+  assert.deepEqual(timeouts(state.calls), [IDLE_TIMEOUT_MS, IDLE_TIMEOUT_MS])
+  assert.equal(state.reports.length, 1)
+})
+
+test("a viewer's renewal meters, shortens idle for a small allowance and reports what is left", async () => {
+  const state = setup()
+  state.setAllowance({ seconds: 300, tier: "free" })
+  const left = await state.lifecycle.renewDesktop(
+    "computer",
+    state.info.startedAt
+  )
+  assert.equal(left, 300)
+  assert.deepEqual(timeouts(state.calls), [75_000])
+  assert.equal(state.meters.length, 1)
+})
+
+test("a viewer is cut off, with the computer paused, when the allowance is spent", async () => {
+  const state = setup()
+  state.setAllowance({ seconds: 0, tier: "free" })
+  await assert.rejects(
+    state.lifecycle.renewDesktop("computer", state.info.startedAt),
+    ComputerAllowanceSpentError
+  )
+  assert.deepEqual(state.calls, ["pause"])
+})
+
+test("a viewer behind a running tool reads no allowance", async () => {
+  const state = setup()
+  state.setAllowance({ seconds: 5, tier: "free" })
+  state.configure({ busy: true })
+  assert.equal(
+    await state.lifecycle.renewDesktop("computer", state.info.startedAt),
+    null
+  )
+  assert.deepEqual(state.calls, [])
+})
+
+test("viewer session errors are typed so the gateway can say why it closed", async () => {
+  const state = setup()
+  const session = state.info.startedAt
+  state.configure({ state: "paused" })
+  await assert.rejects(
+    state.lifecycle.renewDesktop("computer", session),
+    ComputerSessionEndedError
+  )
+  const capped = setup()
+  capped.configure({ age: SESSION_LIMIT_MS - 1000 })
+  await assert.rejects(
+    capped.lifecycle.renewDesktop("computer", capped.info.startedAt),
+    ComputerSessionEndedError
+  )
 })

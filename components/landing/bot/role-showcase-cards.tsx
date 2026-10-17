@@ -84,7 +84,7 @@ export function MiniDesktop({
     <Link
       className={styles.computerPreview}
       href={workspaceHref}
-      aria-label="Open your bot's computer"
+      aria-label="Open your shared computer"
     >
       <span
         className={styles.desktopWallpaper}

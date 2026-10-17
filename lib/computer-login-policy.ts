@@ -1,16 +1,18 @@
-// Sign-in needs an interactive viewer and a screen observed in this turn.
-// Provider access and remaining allowance are checked separately by the caller.
+import { computerTimeUsedUpMessage } from "@/lib/sandbox-policy"
+
+// Sign-in needs computer time left and a screen observed in this turn. It works
+// in direct and group chats, on every plan. Provider access is checked
+// separately by the caller. `tier` only words the used-up message.
 export function assertComputerLoginReady({
-  paid,
-  direct,
+  remainingSeconds,
   screenViewed,
+  tier,
 }: {
-  paid: boolean
-  direct: boolean
+  remainingSeconds: number
   screenViewed: boolean
+  tier?: "free" | "paid"
 }) {
-  if (!paid || !direct)
-    throw new Error("Computer sign-in is available in a paid private chat.")
+  if (!(remainingSeconds > 0)) throw new Error(computerTimeUsedUpMessage(tier))
   if (!screenViewed)
     throw new Error(
       "Open the website and call viewScreen before requesting sign-in."

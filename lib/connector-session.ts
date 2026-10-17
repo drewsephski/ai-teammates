@@ -46,10 +46,12 @@ export function createSessionRuntime(
   options: { readOnly?: boolean } = {}
 ): ConnectorRuntime {
   const sessions = new Map<string, Promise<Session>>()
-  function sessionFor(owned: AppAccount[]) {
+  function sessionFor(owned: AppAccount[], chosen?: AppAccount) {
     const bindings: Record<string, string[]> = {}
-    // Match executeAppTool's first-account selection; never leave account choice
-    // to the provider or accidentally expose an unselected second account.
+    // Discovery sees one account per toolkit. Execution is pinned to the account
+    // the call chose, so the provider never picks one and a second account is
+    // never exposed by accident.
+    if (chosen) bindings[chosen.toolkit] = [chosen.id]
     for (const account of owned) bindings[account.toolkit] ??= [account.id]
     const key = JSON.stringify(bindings)
     let session = sessions.get(key)
@@ -131,10 +133,12 @@ export function createSessionRuntime(
       if (options.readOnly && marksRead(input))
         throw new Error("Read-only discovery cannot mark records as read")
       const owned = await accounts(userId)
-      if (owned.find((a) => a.toolkit === account.toolkit)?.id !== account.id)
+      if (
+        !owned.some((a) => a.toolkit === account.toolkit && a.id === account.id)
+      )
         throw new Error("Connected app account is no longer available")
       signal?.throwIfAborted()
-      const session = await sessionFor(owned)
+      const session = await sessionFor(owned, account)
       signal?.throwIfAborted()
       // SDK session.execute disables automatic transport retries for writes.
       return session.execute(slug, input, undefined, { signal })

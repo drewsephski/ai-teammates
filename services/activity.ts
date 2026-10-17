@@ -2,14 +2,14 @@ import { and, count, desc, eq, gt, inArray } from "drizzle-orm"
 
 import { db } from "@/db"
 import { activityEvents, approvals as approvalTable, bots } from "@/db/schema"
-import { listApprovals } from "@/lib/approvals"
+import { listPendingApprovals } from "@/services/approvals"
 import { listRoutines } from "@/lib/routines"
 
 // Everything the person's bots are doing on their own: requests waiting for a
 // decision, scheduled routines, and what happened recently.
 export async function getActivity(userId: string) {
   const [approvals, routines, events] = await Promise.all([
-    listApprovals(userId, { state: "pending" }),
+    listPendingApprovals(userId),
     listRoutines(userId),
     db
       .select({

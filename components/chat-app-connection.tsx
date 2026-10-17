@@ -62,6 +62,8 @@ export function AppConnectionCardView({
   })
   const disabled = busy || submitting
   const planLimit = connection.state === "planLimit"
+  // The app was connected before, but the connection expired or was revoked
+  const reconnect = connection.reconnect === true
 
   async function answer(text: string) {
     if (locked.current || disabled) return
@@ -131,7 +133,7 @@ export function AppConnectionCardView({
         : connecting
           ? "Opening the connection…"
           : failed
-            ? "The connection wasn't completed. Try Connect again."
+            ? "The connection wasn't completed. Nothing was changed. Try again."
             : started
               ? "Connecting… finish in the new window."
               : ""
@@ -142,7 +144,6 @@ export function AppConnectionCardView({
       className="flex max-w-sm flex-col gap-3 rounded-xl bg-muted/40 p-3"
       aria-label={`Connect ${connection.name}`}
     >
-      <p className="text-sm">{question}</p>
       <div className="flex items-center gap-3">
         <ConnectorLogo
           app={{
@@ -151,11 +152,23 @@ export function AppConnectionCardView({
             logo: connection.logo ?? undefined,
           }}
         />
-        <p className="text-sm font-medium">{connection.name}</p>
+        <div className="min-w-0">
+          <p className="text-sm font-medium">{connection.name}</p>
+          <p className="text-xs text-muted-foreground">
+            {reconnect ? "Connection expired" : "Not connected"}
+          </p>
+        </div>
       </div>
+      <p className="text-sm">{question}</p>
       <p
         role="status"
-        className={status ? "text-xs text-muted-foreground" : "sr-only"}
+        className={
+          failed && !settled
+            ? "text-xs text-destructive"
+            : status
+              ? "text-xs text-muted-foreground"
+              : "sr-only"
+        }
       >
         {status}
       </p>
@@ -188,7 +201,7 @@ export function AppConnectionCardView({
                 onClick={() => void connectNow()}
               >
                 {connecting && <Spinner data-icon="inline-start" />}
-                Connect
+                {failed ? "Try again" : reconnect ? "Reconnect" : "Connect"}
               </Button>
               {(started || queued || otherTab) && (
                 <Button

@@ -30,10 +30,22 @@ type RoutineBot = Pick<Bot, "id" | "name" | "avatar">
 function lastRun(routine: PublicRoutine) {
   if (!routine.lastRunAt) return "Hasn't run yet"
   const ago = formatDistanceToNowStrict(routine.lastRunAt, { addSuffix: true })
-  if (routine.lastStatus === "skipped")
-    return `Skipped ${ago}${routine.lastError ? `: ${routine.lastError}` : ""}`
-  if (routine.lastStatus === "failed") return `Couldn't start ${ago}`
-  return `Last ran ${ago}`
+  const reason = routine.lastError ? `: ${routine.lastError}` : ""
+  switch (routine.lastStatus) {
+    case "skipped":
+      return `Skipped ${ago}${reason}`
+    case "failed":
+      // The run never started, or started and didn't finish
+      return routine.lastError === "Couldn't start the run."
+        ? `Couldn't start ${ago}`
+        : `Didn't finish ${ago}${reason}`
+    case "blocked":
+      return `Waiting for you since ${ago}${reason}`
+    case "started":
+      return `Started ${ago}`
+    default:
+      return `Last ran ${ago}`
+  }
 }
 
 function RoutineRow({

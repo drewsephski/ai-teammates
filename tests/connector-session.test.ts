@@ -224,12 +224,37 @@ test("partial discovery schemas require exact lookup rather than execution", asy
   assert.equal(await runtime.schema("GMAIL_SEND_DRAFT", [account]), undefined)
 })
 
-test("an account added ahead of the selected account cannot silently change the sender", async () => {
+test("execution is pinned to the chosen account, never to the first by ID", async () => {
   const owned = [{ id: "new-first-account", toolkit: "gmail" }, account]
-  let created = false
+  const bindings: Record<string, string[]>[] = []
+  const executed: string[] = []
   const runtime = createSessionRuntime(
     "alice",
     async () => owned,
+    async (_user, _toolkits, accounts) => {
+      bindings.push(accounts)
+      return {
+        search: async () => searchResult,
+        execute: async () => {
+          executed.push(JSON.stringify(accounts))
+          return { resultType: "completed" }
+        },
+      }
+    }
+  )
+  await runtime.execute("alice", "GMAIL_SEND_DRAFT", {}, account)
+  assert.deepEqual(bindings, [{ gmail: [account.id] }])
+  assert.deepEqual(executed, [JSON.stringify({ gmail: [account.id] })])
+  // Discovery still binds one account per toolkit
+  await runtime.search("send", owned)
+  assert.deepEqual(bindings[1], { gmail: ["new-first-account"] })
+})
+
+test("an account that isn't among the person's current accounts never executes", async () => {
+  let created = false
+  const runtime = createSessionRuntime(
+    "alice",
+    async () => [{ id: "other-gmail", toolkit: "gmail" }],
     async () => {
       created = true
       throw new Error("must not create")

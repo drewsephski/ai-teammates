@@ -111,6 +111,76 @@ export function appToolRisk(slug: string, tags?: readonly string[]) {
   return "write" as const
 }
 
+// Verbs whose effect leaves the person's account: sending, publishing, paying,
+// deleting, granting access. These always wait for an approval, even when the
+// owner chose "Always allow" for the bot before.
+const HIGH_RISK = new Set([
+  "SEND",
+  "POST",
+  "PUBLISH",
+  "REPLY",
+  "FORWARD",
+  "DELETE",
+  "REMOVE",
+  "TRASH",
+  "EMPTY",
+  "CLEAR",
+  "INVITE",
+  "SHARE",
+  "TRANSFER",
+  "PAY",
+  "CHARGE",
+  "REFUND",
+  "ORDER",
+  "PURCHASE",
+  "BUY",
+  "BOOK",
+  "SUBMIT",
+  "REVOKE",
+  "BAN",
+  "KICK",
+  "MERGE",
+])
+// Nouns that make any write consequential: messages and posts other people
+// see, money, grades, rosters, access
+const HIGH_RISK_SUBJECTS =
+  /(?:^|_)(?:MESSAGES?|EMAILS?|MAILS?|SMS|TWEETS?|POSTS?|COMMENTS?|REPL(?:Y|IES)|SHARING|PUBLIC|PAYMENTS?|PAYOUTS?|INVOICES?|CHARGES?|TRANSFERS?|REFUNDS?|ORDERS?|PURCHASES?|SUBSCRIPTIONS?|GRADES?|GRADEBOOK|SCORES?|SUBMISSIONS?|ROSTERS?|TRADES?|WAIVERS?|LINEUPS?|PERMISSIONS?|ROLES?|MEMBERS?|USERS?|ACCOUNTS?|BANK|WIRE|TRANSACTIONS?|LEDGER|JOURNAL_ENTR(?:Y|IES))(?:_|$)/
+
+// Whether an app action is too consequential for a standing "Always allow"
+// rule. Pure; an unknown action counts as high risk.
+export function appToolHighRisk(slug: string, tags?: readonly string[]) {
+  if (tags?.includes("destructiveHint")) return true
+  if (appToolRisk(slug, tags) === "read") return false
+  const words = slug.toUpperCase().split("_").slice(1)
+  const verbs = words.map(verb)
+  if (!verbs.some(Boolean)) return true
+  if (verbs.some((word) => word && HIGH_RISK.has(word))) return true
+  return HIGH_RISK_SUBJECTS.test(words.join("_"))
+}
+
+// A saved "Always allow" rule applies only to the account it was granted for,
+// and never to high-risk actions
+export function approvalRuleApplies(
+  rule: { toolSlug: string; accountId: string | null },
+  call: { slug: string; accountId: string; tags?: readonly string[] }
+) {
+  return (
+    rule.toolSlug === call.slug &&
+    rule.accountId !== null &&
+    rule.accountId === call.accountId &&
+    !appToolHighRisk(call.slug, call.tags)
+  )
+}
+
+// Whether "Always allow" on this approval may save a standing rule: only for
+// a low-risk connected-app action. Elsewhere it counts as a plain approval.
+export function standingRuleAllowed(approval: {
+  kind: "app" | "computer"
+  toolSlug: string
+}) {
+  return approval.kind === "app" && !appToolHighRisk(approval.toolSlug)
+}
+
 // What the approval card says when the bot gave no summary
 export function fallbackSummary(slug: string, input: Record<string, unknown>) {
   const name = slug

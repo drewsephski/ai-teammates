@@ -1,6 +1,7 @@
 import { PricingTable } from "@clerk/nextjs"
 import { auth } from "@clerk/nextjs/server"
 import { AppPageHeader } from "@/components/app-page-header"
+import { freePlanIncludes } from "@/lib/marketing/site"
 
 export default async function Page() {
   await auth.protect()
@@ -14,8 +15,8 @@ export default async function Page() {
             Pricing
           </h1>
           <p className="text-sm text-muted-foreground sm:text-base">
-            Start free with one bot, one connected app, and a one-time $1 AI
-            allowance. Upgrade for more teammates and cloud computers.
+            Start free with {freePlanIncludes}. Upgrade for more teammates and
+            hours of computer time.
           </p>
         </div>
         {/* Checkout happens in Clerk's drawer, then lands back in the app */}

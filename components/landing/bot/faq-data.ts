@@ -1,4 +1,5 @@
 import { planLimits } from "@/lib/billing-policy"
+import { freePlanIncludes } from "@/lib/marketing/site"
 
 // Shared by the FAQ accordion and the homepage FAQPage structured data.
 export const faqs = [
@@ -8,7 +9,7 @@ export const faqs = [
   ],
   [
     "Who is Krafty Bot available for today?",
-    "Anyone can start free with one bot, one connected app, and a one-time $1 AI allowance. More teammates and cloud computers require a paid plan. See the available plans in your workspace.",
+    `Anyone can start free with ${freePlanIncludes}. More teammates and hours of computer time require a paid plan. See the available plans in your workspace.`,
   ],
   [
     "Where do I talk to Krafty Bot?",

@@ -241,11 +241,56 @@ test("a queued answer waits while busy, then sends once", async () => {
   await waitFor(() => assert.deepEqual(answers, [APP_CONNECTION_OPTIONS[0]]))
 })
 
-test("a failure shows an error and keeps Connect", async () => {
+test("a failure shows an error and offers to try again", async () => {
   const view = setup("connect")
   postAppConnection({ questionId: "q_1", connected: false })
   await waitFor(() => view.getByText(/wasn't completed/))
-  assert.ok(view.getByRole("button", { name: "Connect" }))
+  assert.ok(view.getByRole("button", { name: "Try again" }))
+  assert.equal(view.queryByRole("button", { name: "Connect" }), null)
+})
+
+test("trying again after a failure starts the connection once more", async () => {
+  let calls = 0
+  const view = setup("connect", {
+    connect: async () => {
+      calls++
+      return { ok: true as const, url: "https://example.com/a", accountId: "a" }
+    },
+  })
+  postAppConnection({ questionId: "q_1", connected: false })
+  fireEvent.click(await view.findByRole("button", { name: "Try again" }))
+  await waitFor(() => assert.equal(calls, 1))
+  await waitFor(() => view.getByText(/finish in the new window/))
+  assert.equal(view.queryByText(/wasn't completed/), null)
+})
+
+test("a lapsed connection offers Reconnect and says it expired", () => {
+  const view = render(
+    <AppRouterContext.Provider value={router}>
+      <AppConnectionCardView
+        connection={{ ...base, state: "connect", reconnect: true }}
+        question="Reconnect Gmail so I can read mail."
+        busy={false}
+        chatId="chat_1"
+        questionId="q_1"
+        botId="bot_1"
+        onAnswer={() => {}}
+      />
+    </AppRouterContext.Provider>
+  )
+  assert.ok(view.getByRole("button", { name: "Reconnect" }))
+  assert.equal(view.queryByRole("button", { name: "Connect" }), null)
+  assert.ok(view.getByText("Connection expired"))
+  assert.ok(view.getByText("Reconnect Gmail so I can read mail."))
+  // The computer is a valid way out on every plan
+  assert.ok(view.getByRole("button", { name: APP_CONNECTION_OPTIONS[1] }))
+  assert.ok(view.getByRole("button", { name: APP_CONNECTION_OPTIONS[2] }))
+})
+
+test("a first connection says it isn't connected yet", () => {
+  const view = setup("connect")
+  assert.ok(view.getByText("Not connected"))
+  assert.ok(view.getByText("Gmail"))
 })
 
 test("a woken turn is resumed from its input sequence, else the person is asked to refresh", () => {

@@ -1,5 +1,9 @@
 import { EMAIL_CHANGED_ERROR } from "@/lib/email-draft"
-import { SANDBOX_BUSY_ERROR } from "@/lib/sandbox-policy"
+import {
+  COMPUTER_TIME_USED_UP_ERRORS,
+  COMPUTERS_BUSY_ERROR,
+  SANDBOX_BUSY_ERROR,
+} from "@/lib/sandbox-policy"
 import { ZodError } from "zod"
 
 import {
@@ -78,8 +82,14 @@ export function apiErrorResponse(error: unknown): {
     message === PAID_ROUTINE_LIMIT_ERROR
   )
     return fail(403, "plan_limit", message)
-  if (message === "Usage limit reached")
+  if (
+    message === "Usage limit reached" ||
+    (COMPUTER_TIME_USED_UP_ERRORS as readonly string[]).includes(message)
+  )
     return fail(429, "usage_limit", message)
+  // E2B's rate limit, quota or concurrent-sandbox cap: wait a few minutes.
+  // `upstream` is an existing code that apps already show as a retryable failure.
+  if (message === COMPUTERS_BUSY_ERROR) return fail(503, "upstream", message)
   if (/ not found$/i.test(message)) return fail(404, "not_found", message)
   if (
     message === "Conversations changed. Try again." ||

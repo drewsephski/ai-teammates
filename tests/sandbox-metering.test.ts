@@ -209,3 +209,98 @@ test("owners come from computers: an old per-bot sandbox is an orphan", async ()
   assert.deepEqual(paused, [])
   assert.deepEqual(output, { metered: 1, missing: 0, paused: 0, removed: 1 })
 })
+
+const retentionRow = (sandboxId: string, userId: string, age: number) => ({
+  userId,
+  sandboxId,
+  lastUsedAt: new Date(Date.now() - age),
+  createdAt: new Date(Date.now() - 100 * 24 * 3_600_000),
+  leaseExpiresAt: null,
+})
+const days = (n: number) => n * 24 * 3_600_000
+
+function retentionRun(options: {
+  rows: ReturnType<typeof retentionRow>[]
+  listed: ReturnType<typeof computer>[]
+  tiers: Record<string, "free" | "paid" | Error>
+  expired?: string[]
+  reports?: unknown[]
+}) {
+  return runSandboxMetering({
+    list: async () => options.listed,
+    owners: async () =>
+      options.rows.map(({ sandboxId, userId }) => ({ sandboxId, userId })),
+    meter: async () => true,
+    hasUsage: async () => true,
+    pause: async () => {},
+    report: (error) => void options.reports?.push(error),
+    retention: {
+      rows: async () => options.rows,
+      tier: async (userId) => {
+        const tier = options.tiers[userId]
+        if (tier instanceof Error) throw tier
+        return tier
+      },
+      expire: async (row) => {
+        options.expired?.push(row.sandboxId)
+        return true
+      },
+    },
+  })
+}
+
+test("retention deletes only old, paused, free-plan computers", async () => {
+  const expired: string[] = []
+  const output = await retentionRun({
+    rows: [
+      retentionRow("free-old", "free", days(31)),
+      retentionRow("paid-old", "paid", days(31)),
+      retentionRow("free-new", "free2", days(5)),
+      retentionRow("free-running", "free3", days(40)),
+    ],
+    listed: [
+      computer("free-old", days(31), "paused"),
+      computer("paid-old", days(31), "paused"),
+      computer("free-new", days(5), "paused"),
+      computer("free-running", days(40), "running"),
+    ],
+    tiers: { free: "free", paid: "paid", free2: "free", free3: "free" },
+    expired,
+  })
+  assert.deepEqual(expired, ["free-old"])
+  assert.equal(output.expired, 1)
+})
+
+test("a plan lookup that fails skips that account and never deletes it", async () => {
+  const expired: string[] = []
+  const reports: unknown[] = []
+  const output = await retentionRun({
+    rows: [
+      retentionRow("down", "down", days(45)),
+      retentionRow("ok", "ok", days(45)),
+    ],
+    listed: [
+      computer("down", days(45), "paused"),
+      computer("ok", days(45), "paused"),
+    ],
+    tiers: { down: new Error("clerk down"), ok: "free" },
+    expired,
+    reports,
+  })
+  assert.deepEqual(expired, ["ok"])
+  assert.equal(reports.length, 1)
+  // Not a failed run: the account is simply left for the next one
+  assert.equal(output.expired, 1)
+})
+
+test("runs without retention report no expired count and ask for no plans", async () => {
+  const output = await runSandboxMetering({
+    list: async () => [],
+    owners: async () => [],
+    meter: async () => true,
+    hasUsage: async () => true,
+    pause: async () => {},
+    report: () => {},
+  })
+  assert.equal("expired" in output, false)
+})

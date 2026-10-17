@@ -70,3 +70,87 @@ test("sign-in controls are unavailable while the agent is running", () => {
   for (const button of view.getAllByRole("button"))
     assert.equal((button as HTMLButtonElement).disabled, true)
 })
+
+test("each blocker has its own wording and answers the options the server wrote", async () => {
+  const cases = [
+    {
+      reason: "verification" as const,
+      title: "Finish verification on ESPN Fantasy",
+      done: "I’m done",
+      answer: "I'm done",
+      cancel: "Cancel",
+    },
+    {
+      reason: "captcha" as const,
+      title: "Complete the check on ESPN Fantasy",
+      done: "I’m done",
+      answer: "I'm done",
+      cancel: "Cancel",
+    },
+    {
+      reason: "payment" as const,
+      title: "Complete the payment on ESPN Fantasy",
+      done: "I’m done",
+      answer: "I'm done",
+      cancel: "Cancel",
+    },
+    {
+      reason: "sign-in" as const,
+      title: "Sign in to ESPN Fantasy",
+      done: "I’m signed in",
+      answer: "I'm signed in",
+      cancel: "Cancel sign-in",
+    },
+  ]
+  for (const item of cases) {
+    const answers: string[] = []
+    const view = render(
+      <ComputerLoginCard
+        login={{ ...login, reason: item.reason }}
+        busy={false}
+        onOpen={() => {}}
+        onAnswer={(answer) => {
+          answers.push(answer)
+        }}
+      />
+    )
+    assert.ok(view.getByText(item.title))
+    await act(async () => {
+      fireEvent.click(view.getByRole("button", { name: item.done }))
+    })
+    assert.deepEqual(answers, [item.answer])
+    view.unmount()
+    const second = render(
+      <ComputerLoginCard
+        login={{ ...login, reason: item.reason }}
+        busy={false}
+        onOpen={() => {}}
+        onAnswer={(answer) => {
+          answers.push(answer)
+        }}
+      />
+    )
+    await act(async () => {
+      fireEvent.click(second.getByRole("button", { name: item.cancel }))
+    })
+    assert.equal(answers[1], item.cancel)
+    second.unmount()
+  }
+})
+
+test("only a sign-in says sign-in, and other blockers open Desktop", () => {
+  const view = render(
+    <ComputerLoginCard
+      login={{ ...login, reason: "payment" }}
+      busy={false}
+      onOpen={() => {}}
+      onAnswer={() => {}}
+    />
+  )
+  assert.equal(view.queryByRole("button", { name: "Open sign-in" }), null)
+  assert.ok(view.getByRole("button", { name: "Open Desktop" }))
+  assert.match(
+    view.getByText(/won’t enter payment details/).textContent ?? "",
+    /payment/
+  )
+})

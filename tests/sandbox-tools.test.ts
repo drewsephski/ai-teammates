@@ -18,11 +18,19 @@ after(async () => {
 })
 
 const call = { toolCallId: "t", messages: [], context: {} }
+// Lets every gesture through; the gate itself is tested in
+// tests/computer-approval-tools.test.ts
+const open = {
+  gesture: async () => ({}),
+  shell: async () => ({}),
+  complete: async () => {},
+}
 
 test("a busy computer is reported without touching it", async () => {
   let viewed = 0
   const set = tools.createSandboxTools(
     async () => policy.busyResult("Researcher"),
+    open,
     { onScreenViewed: () => void viewed++ }
   )
   const ran = await set.bash.execute!({ command: "ls", timeout: 60 }, call)
@@ -68,7 +76,7 @@ test("a short call never shortens a long call's lease in the same step", async (
         releaseFirst = resolve
       })
     return policy.busyResult("Researcher")
-  })
+  }, open)
   const long = set.bash.execute!({ command: "sleep 500", timeout: 600 }, call)
   await set.viewScreen.execute!({}, call)
   releaseFirst(policy.busyResult("Researcher"))
@@ -85,8 +93,58 @@ test("a busy call doesn't renew a lease it never had", async () => {
   let renewed = 0
   const set = tools.createSandboxTools(
     async () => policy.busyResult("Researcher"),
+    open,
     { afterCall: () => void renewed++ }
   )
   await set.bash.execute!({ command: "ls", timeout: 60 }, call)
   assert.equal(renewed, 0)
+})
+
+test("a held shell command is refused before the computer is touched", async () => {
+  const gate = await import("../lib/computer-approval-tools")
+  let touched = 0
+  const set = tools.createSandboxTools(
+    () => {
+      touched++
+      throw new Error("The computer was touched")
+    },
+    gate.createComputerGate({
+      store: {
+        request: async () => ({ approvalId: "x", summary: "x" }),
+        read: async () => undefined,
+        spend: async () => false,
+        complete: async () => {},
+      },
+      check: async () => {
+        throw new Error("no guard here")
+      },
+      takeScreenshot: async () => {
+        throw new Error("no screen here")
+      },
+    })
+  )
+  await assert.rejects(
+    Promise.resolve(
+      set.bash.execute!({ command: "xdotool click 1", timeout: 60 }, call)
+    ),
+    /isn't allowed/
+  )
+  await assert.rejects(
+    Promise.resolve(
+      set.bash.execute!({ command: "git push origin main", timeout: 60 }, call)
+    ),
+    /Approval required/
+  )
+  assert.equal(touched, 0)
+})
+
+test("a key name can't smuggle a shell command to the computer", () => {
+  const set = tools.createSandboxTools(() => "unused", open)
+  const schema = set.keyboardPress.inputSchema as unknown as {
+    safeParse: (value: unknown) => { success: boolean }
+  }
+  assert.equal(schema.safeParse({ key: "Return" }).success, true)
+  assert.equal(schema.safeParse({ key: "KP_Enter" }).success, true)
+  for (const key of ["tab;curl x", "a b", "$(id)", "Return`id`", ""])
+    assert.equal(schema.safeParse({ key }).success, false, key)
 })

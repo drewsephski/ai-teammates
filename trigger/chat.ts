@@ -11,7 +11,11 @@ import { USAGE_LIMIT_ERROR } from "@/lib/billing"
 import { isModelUnavailable, MODEL_UNAVAILABLE_ERROR } from "@/lib/chat-turn"
 import { createHandoffTool, type Handoff } from "@/lib/handoff-tool"
 import { chatModel, chatModelCost } from "@/lib/model"
-import { createSandboxTools, type ChatUIMessage } from "@/lib/sandbox-tools"
+import {
+  createSandboxTools,
+  takeScreenshot,
+  type ChatUIMessage,
+} from "@/lib/sandbox-tools"
 import { isMemoryOn, loadMemoryContext, touchMemories } from "@/lib/memory"
 import { createMemoryTools } from "@/lib/memory-tools"
 import { getUsage, holdUsage, recordUsage, type Usage } from "@/lib/usage"
@@ -32,10 +36,40 @@ import {
   createRoutine,
   deleteRoutine,
   listRoutines,
+  recordRoutineRunOutcome,
+  savedTimeZone,
   updateRoutine,
   userTimeZone,
 } from "@/lib/routines"
-import { unattendedOrigin } from "@/lib/routine-policy"
+import { routineClock, unattendedOrigin } from "@/lib/routine-policy"
+import {
+  completeComputerApproval,
+  declinedFor,
+  readComputerApproval,
+  requestApproval,
+  spendComputerApproval,
+} from "@/lib/approvals"
+import {
+  COMPUTER_ACCOUNT,
+  COMPUTER_TOOLKIT,
+  computerApprovalSlug,
+  DECLINED_ERROR,
+  GUARD_RESERVE,
+  GUARD_TURN_BUDGET,
+  type DeclinedAction,
+} from "@/lib/computer-approval-policy"
+import {
+  createComputerApprovalTools,
+  createComputerGate,
+  type ComputerApprovalStore,
+} from "@/lib/computer-approval-tools"
+import { checkComputerGesture } from "@/lib/computer-guard"
+import { withComputer } from "@/lib/e2b"
+import {
+  computerTimeUsedUpMessage,
+  FREE_COMPUTER_CALLS_PER_TURN,
+  LOW_ALLOWANCE_SECONDS,
+} from "@/lib/sandbox-policy"
 import { recordActivity } from "@/lib/notify"
 import { createBotSetupTools, botSetupMessageId } from "@/lib/bot-setup-tools"
 import { configureBotProfile } from "@/lib/bot-profile"
@@ -45,6 +79,7 @@ import { chatPreview } from "@/lib/chat-preview"
 import {
   acquireComputerLease,
   ensureAccountComputer,
+  pauseComputerIfLowAllowance,
   releaseComputerLease,
   renewComputerLease,
 } from "@/lib/account-computer"
@@ -94,6 +129,13 @@ const turnModelUsage = chat.local<{
   // The account's AI allowance left after every running turn's holds
   remaining: number
   approvalRequested: boolean
+  // What the owner declined, when this turn is their decline (looked up in
+  // the database): no new approval may be asked for in it
+  declined: DeclinedAction[]
+  // Spent on the computer guard's checks, already recorded
+  guardCost: number
+  computerCalls: number
+  tier?: "free" | "paid"
   // Whose computer lease this turn may hold, so the release never depends on
   // the chat still existing
   computerOwner?: string
@@ -138,6 +180,9 @@ export const chatAgent = chat
         held: 0,
         remaining: Infinity,
         approvalRequested: false,
+        declined: [],
+        guardCost: 0,
+        computerCalls: 0,
         startedAt: Date.now(),
         messageId: "",
         usageKey: "",
@@ -154,6 +199,10 @@ export const chatAgent = chat
       turnModelUsage.held = 0
       turnModelUsage.remaining = Infinity
       turnModelUsage.approvalRequested = false
+      turnModelUsage.declined = []
+      turnModelUsage.guardCost = 0
+      turnModelUsage.computerCalls = 0
+      turnModelUsage.tier = undefined
       turnModelUsage.computerOwner = undefined
       turnModelUsage.computerBusy = undefined
       turnModelUsage.startedAt = Date.now()
@@ -188,7 +237,15 @@ export const chatAgent = chat
       let checkedAt = 0
       let screenViewed = false
       const getComputerId = async (holdMs?: number) => {
-        if (Date.now() - checkedAt > 60_000) {
+        if (
+          plan.tier === "free" &&
+          ++turnModelUsage.computerCalls > FREE_COMPUTER_CALLS_PER_TURN
+        )
+          throw new Error(
+            `The free plan allows ${FREE_COMPUTER_CALLS_PER_TURN} computer steps per reply. Stop using the computer now and report what you've done so far.`
+          )
+        // A free allowance is minutes, so it's checked on every call
+        if (plan.tier === "free" || Date.now() - checkedAt > 60_000) {
           const usage = await getUsage(userId)
           if (!usage || usage.remaining.sandbox <= 0) {
             Sentry.logger.warn("Sandbox tool blocked: usage limit reached", {
@@ -197,9 +254,7 @@ export const chatAgent = chat
               "bot.id": current.id,
               "usage.kind": "sandbox",
             })
-            throw new Error(
-              "The sandbox hours for this billing period are used up, so the sandbox can't be used until the period resets."
-            )
+            throw new Error(computerTimeUsedUpMessage(plan.tier))
           }
           checkedAt = Date.now()
         }
@@ -227,7 +282,91 @@ export const chatAgent = chat
         // A reset changes the ID while this durable turn/session may survive.
         return ensureAccountComputer(userId)
       }
-      const sandboxTools = createSandboxTools(getComputerId, {
+      // Committing computer steps wait for the owner (lib/computer-approval-tools.ts)
+      const computerApprovals: ComputerApprovalStore = {
+        request: async ({ action, summary, hostname, command, preview }) => {
+          if (turnModelUsage.declined.length) throw new Error(DECLINED_ERROR)
+          const row = await requestApproval({
+            userId,
+            botId: current.id,
+            chatId,
+            kind: "computer",
+            toolkit: COMPUTER_TOOLKIT,
+            toolSlug: computerApprovalSlug(action),
+            accountId: COMPUTER_ACCOUNT,
+            arguments: { hostname, action, ...(command && { command }) },
+            summary,
+            hostname,
+            action,
+            preview,
+          })
+          turnModelUsage.approvalRequested = true
+          return { approvalId: row.id, summary }
+        },
+        read: (approvalId) =>
+          readComputerApproval(userId, current.id, chatId, approvalId),
+        spend: (approvalId, options) =>
+          spendComputerApproval(
+            userId,
+            current.id,
+            chatId,
+            approvalId,
+            options
+          ),
+        complete: completeComputerApproval,
+      }
+      const computerGate = createComputerGate({
+        store: computerApprovals,
+        takeScreenshot,
+        windowTitle: async (sandbox) =>
+          (
+            await sandbox.commands.run(
+              "xdotool getactivewindow getwindowname",
+              { timeoutMs: 3000 }
+            )
+          ).stdout.trim() || undefined,
+        declined: () => turnModelUsage.declined,
+        // The guard is app-funded on every plan and counts against the
+        // Krafty allowance, like web search
+        canCheck: () =>
+          turnModelUsage.guardCost < GUARD_TURN_BUDGET &&
+          Math.min(
+            plan.remaining.ai - turnModelUsage.guardCost,
+            turnModelUsage.remaining
+          ) -
+            (turnModelUsage.cost - turnModelUsage.held) >=
+            GUARD_RESERVE,
+        check: ({ toolCallId, ...input }) =>
+          checkComputerGesture({
+            ...input,
+            onUsage: async (usage, modelId) => {
+              const cost = chatModelCost(usage, modelId)
+              if (cost <= 0) return
+              turnModelUsage.guardCost += cost
+              await recordUsage([
+                {
+                  userId,
+                  kind: "ai",
+                  amount: cost,
+                  idempotencyKey: `${turnModelUsage.usageKey}:guard:${toolCallId}`,
+                },
+              ])
+            },
+          }),
+      })
+      const computerApprovalTools = createComputerApprovalTools(
+        computerApprovals,
+        {
+          screenViewed: () => screenViewed,
+          declined: () => turnModelUsage.declined,
+          preview: async () => {
+            const computer = await getComputerId()
+            if (typeof computer !== "string") return undefined
+            return withComputer(computer, takeScreenshot)
+          },
+        }
+      )
+      const sandboxTools = createSandboxTools(getComputerId, computerGate, {
         onScreenViewed: () => {
           screenViewed = true
         },
@@ -276,6 +415,8 @@ export const chatAgent = chat
             approvals: {
               ...approvalGate,
               request: async (call) => {
+                if (turnModelUsage.declined.length)
+                  throw new Error(DECLINED_ERROR)
                 const held = await approvalGate.request(call)
                 turnModelUsage.approvalRequested = true
                 return held
@@ -351,9 +492,9 @@ export const chatAgent = chat
         {
           prepareComputerLogin: async () => {
             assertComputerLoginReady({
-              paid: plan.tier === "paid",
-              direct: kind === "direct",
+              remainingSeconds: (await getUsage(userId)).remaining.sandbox,
               screenViewed,
+              tier: plan.tier,
             })
             const computer = await getComputerId()
             if (typeof computer !== "string")
@@ -364,7 +505,7 @@ export const chatAgent = chat
           ...(process.env.COMPOSIO_API_KEY && {
             prepareAppConnection: (app) => prepareAppConnection(userId, app),
           }),
-          computerAvailable: plan.tier === "paid",
+          computerAvailable: plan.remaining.sandbox > 0,
         }
       )
       // Every plan; none at all when memory is off or the chat is temporary
@@ -376,8 +517,9 @@ export const chatAgent = chat
             free: plan.tier === "free",
           })
         : {}
+      const computerTools = { ...sandboxTools, ...computerApprovalTools }
       const sharedTools = {
-        ...sandboxTools,
+        ...computerTools,
         ...memoryTools,
         ...teamTools,
         ...consultationTools,
@@ -387,8 +529,11 @@ export const chatAgent = chat
         ...setupTools,
         ...routineTools,
       }
+      // The free plan gets the computer for its one-time allowance; teammates,
+      // consultation and handoffs stay paid
       if (plan.tier === "free")
         return {
+          ...(plan.remaining.sandbox > 0 && computerTools),
           ...connectorTools,
           ...catalogTools,
           ...webTools,
@@ -538,6 +683,15 @@ export const chatAgent = chat
         ).catch((leaseError: unknown) =>
           Sentry.captureException(leaseError, { extra: { chatId, turn } })
         )
+      // Don't let an idle computer run down a small allowance: free computers
+      // pause when the turn ends, others when they're nearly out of time
+      if (turnModelUsage.computerOwner)
+        await pauseComputerIfLowAllowance(turnModelUsage.computerOwner, {
+          thresholdSeconds:
+            turnModelUsage.tier === "free" ? Infinity : LOW_ALLOWANCE_SECONDS,
+        }).catch((pauseError: unknown) =>
+          Sentry.captureException(pauseError, { extra: { chatId, turn } })
+        )
 
       const [row] = await db
         .select({ userId: chats.userId })
@@ -571,6 +725,20 @@ export const chatAgent = chat
           },
         ])
       }
+
+      // A routine's run reports how it went, so its status is the truth
+      if (row && unattendedOrigin(turnModelUsage.messageId) === "routine")
+        await recordRoutineRunOutcome(
+          row.userId,
+          turnModelUsage.messageId,
+          routineTurnOutcome({
+            error,
+            refused,
+            responseMessage,
+          })
+        ).catch((routineError: unknown) =>
+          Sentry.captureException(routineError, { extra: { chatId, turn } })
+        )
 
       if (row)
         await reportUnattendedTurn({
@@ -647,6 +815,17 @@ export const chatAgent = chat
 
       // Every turn, as a session outlives the plan it was started on
       const usage = await getUsage(row.userId)
+      // Set here, not in tools(), which the SDK resolves before onTurnStart
+      // has this turn's message
+      turnModelUsage.tier = usage.tier
+      // The owner's decline wakes the bot: read what they declined from the
+      // database, never from the message ID alone
+      const declinedId = /^approval_(.+)_deny$/.exec(
+        turnModelUsage.messageId
+      )?.[1]
+      turnModelUsage.declined = declinedId
+        ? await declinedFor(row.userId, declinedId)
+        : []
       await assertBotAccess(row.userId, bot.id)
       if (usage.tier === "free" && group)
         throw new Error("Group chats require a paid plan.")
@@ -695,6 +874,11 @@ export const chatAgent = chat
         return block
       }
       const memory = await memoryFor(bot.id)
+      // Schedules are worked out in the owner's clock, never the UTC date
+      const zone = await savedTimeZone(row.userId)
+      const clock = routineClock(zone ?? "UTC", new Date(), {
+        assumed: !zone,
+      })
 
       function respond(usage: Usage) {
         // Keep the conversation/session, but release this worker after the turn.
@@ -705,6 +889,7 @@ export const chatAgent = chat
         const appToolsAvailable =
           "searchAppTools" in tools && "executeAppTool" in tools
         const webToolsAvailable = "searchWeb" in tools && "readWebPage" in tools
+        const computerAvailable = "bash" in tools && usage.remaining.sandbox > 0
 
         // Stamped on the reply and kept in the transcript with it
         chat.setUIMessageStreamOptions({
@@ -732,9 +917,10 @@ export const chatAgent = chat
               bot,
               group,
               appToolsAvailable,
-              usage.tier === "paid",
+              computerAvailable,
               webToolsAvailable,
-              memory
+              memory,
+              { paid: usage.tier === "paid", clock }
             ),
             composerContext,
           ]
@@ -746,13 +932,13 @@ export const chatAgent = chat
           prepareStep: async ({ steps, messages }) => {
             const handoff = steps
               .flatMap((step) => step.toolResults)
-              .findLast((result) => result.toolName === "handoff")
+              .findLast((result) => result?.toolName === "handoff")
             const current =
               handoff &&
               bots.find((bot) => bot.id === (handoff.output as Handoff).botId)
             const configured = steps.some((step) =>
               step.toolResults.some(
-                (result) => result.toolName === "configureBot"
+                (result) => result?.toolName === "configureBot"
               )
             )
             const updated = configured
@@ -768,9 +954,10 @@ export const chatAgent = chat
                     updated,
                     group,
                     appToolsAvailable,
-                    usage.tier === "paid",
+                    computerAvailable,
                     webToolsAvailable,
-                    await memoryFor(updated.id)
+                    await memoryFor(updated.id),
+                    { paid: usage.tier === "paid", clock }
                   ),
                   composerContext,
                 ]
@@ -797,7 +984,9 @@ export const chatAgent = chat
           stopWhen: [
             ({ steps }) =>
               steps.some((step) =>
-                step.toolResults.some((result) => result.toolName === "askUser")
+                step.toolResults.some(
+                  (result) => result?.toolName === "askUser"
+                )
               ),
             // An external action is waiting for the owner's decision
             () => turnModelUsage.approvalRequested,
@@ -808,7 +997,7 @@ export const chatAgent = chat
                     "createTeammate",
                     "createGroupChat",
                     "delegateToTeammate",
-                  ].includes(result.toolName)
+                  ].includes(result?.toolName ?? "")
                 )
               ),
             // Desktop work is one small action per step
@@ -831,6 +1020,47 @@ export const chatAgent = chat
       return respond(usage)
     },
   })
+
+// How a routine's run ended: stopped for the owner, failed, or done
+function routineTurnOutcome({
+  error,
+  refused,
+  responseMessage,
+}: {
+  error: unknown
+  refused: boolean
+  responseMessage?: ChatUIMessage
+}) {
+  const question = responseMessage?.parts.findLast(
+    (part) => part.type === "tool-askUser" && part.state === "output-available"
+  )
+  if (turnModelUsage.approvalRequested)
+    return { status: "blocked" as const, detail: "Waiting for your approval" }
+  if (
+    question?.type === "tool-askUser" &&
+    question.state === "output-available"
+  )
+    return {
+      status: "blocked" as const,
+      detail: question.output.question.slice(0, 300),
+    }
+  if (refused)
+    return {
+      status: "failed" as const,
+      detail: "Your AI allowance ran out before the run finished.",
+    }
+  if (error)
+    return {
+      status: "failed" as const,
+      detail: "Something went wrong during the run. Open the chat to retry.",
+    }
+  if (turnModelUsage.computerBusy)
+    return {
+      status: "failed" as const,
+      detail: `${turnModelUsage.computerBusy} was using the computer.`,
+    }
+  return { status: "completed" as const }
+}
 
 // A person who wasn't watching hears about the turn: work a routine, a
 // delegation, an approval or a task started, and any turn long enough that

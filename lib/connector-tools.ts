@@ -1,8 +1,31 @@
 import { tool } from "ai"
 import { z } from "zod"
 import { emailContextSchema, stageEmailDraft } from "@/lib/email-draft"
+import {
+  ambiguousToolkits,
+  selectAccount,
+} from "@/lib/connector-account-policy"
+import {
+  CONNECTION_EXPIRED_MESSAGE,
+  INSUFFICIENT_PERMISSIONS_MESSAGE,
+  UNKNOWN_OUTCOME_MESSAGE,
+  classifyEnvelope,
+  classifyThrown,
+  type ConnectorFailure,
+} from "@/lib/connector-failure-policy"
+import {
+  accountExpired,
+  expiredToolkits,
+  flagAccountRejected,
+} from "@/lib/connection-health"
 
-export type AppAccount = { id: string; toolkit: string }
+// `label` and `connectedAt` only help the person tell two accounts apart
+export type AppAccount = {
+  id: string
+  toolkit: string
+  label?: string
+  connectedAt?: string
+}
 export type AppTool = {
   slug: string
   toolkit: string
@@ -38,7 +61,7 @@ export type ConnectorRuntime = {
 // External writes wait for the owner. Reads, and actions the owner chose to
 // always allow for this bot, run straight away.
 export type ApprovalGate = {
-  required: (tool: AppTool) => Promise<boolean>
+  required: (tool: AppTool, accountId: string) => Promise<boolean>
   request: (call: {
     slug: string
     toolkit: string
@@ -130,17 +153,95 @@ function outcomeMessage(status: string) {
     : "Execution failed. Inspect error and data; do not claim success or repeat unchanged arguments."
 }
 
-function thrownOutcome(error: unknown) {
+// What the model is told about a finished or failed execution. Auth failures
+// become a reconnect hand-off; provider outages become an unknown outcome.
+function failureFields(
+  userId: string,
+  toolkit: string,
+  accountId: string,
+  failure: ConnectorFailure
+): Record<string, unknown> | undefined {
+  if (failure === "connection_expired") {
+    flagAccountRejected(userId, toolkit, accountId, "expired")
+    return {
+      status: "failed",
+      code: "CONNECTION_EXPIRED",
+      reconnect: { toolkit },
+      message: CONNECTION_EXPIRED_MESSAGE,
+    }
+  }
+  if (failure === "insufficient_permissions") {
+    // The account keeps working for what it may do; only the offer changes
+    flagAccountRejected(userId, toolkit, accountId, "insufficient")
+    return {
+      status: "failed",
+      code: "INSUFFICIENT_PERMISSIONS",
+      reconnect: { toolkit },
+      message: INSUFFICIENT_PERMISSIONS_MESSAGE,
+    }
+  }
+  if (failure === "unknown_outcome")
+    return {
+      status: "unknown",
+      code: "OUTCOME_UNKNOWN",
+      message: UNKNOWN_OUTCOME_MESSAGE,
+    }
+  return undefined
+}
+
+function describeResult(
+  userId: string,
+  toolkit: string,
+  accountId: string,
+  result: unknown
+) {
+  const { envelope, status } = executionStatus(result)
+  const fields =
+    status === "succeeded"
+      ? undefined
+      : failureFields(userId, toolkit, accountId, classifyEnvelope(envelope))
+  return {
+    ok: status === "succeeded",
+    value: {
+      ...envelope,
+      status,
+      toolkit,
+      accountId,
+      ...(status !== "succeeded" && {
+        ...(status === "unknown" && { code: "OUTCOME_UNKNOWN" }),
+        message: outcomeMessage(status),
+        ...fields,
+      }),
+    },
+  }
+}
+
+function thrownOutcome(
+  userId: string,
+  toolkit: string,
+  accountId: string,
+  error: unknown
+) {
   // Transport exceptions can happen after the provider committed a write.
   // Do not expose raw SDK exceptions (which can include request secrets).
   const requiresInput =
     error instanceof Error && error.name === "ComposioToolInputRequiredError"
+  if (requiresInput)
+    return {
+      status: "requires_input",
+      ...diagnosticIds(error),
+      message:
+        "The provider requires user input or approval. The action is not confirmed; ask the user to resolve it.",
+    }
+  const failure = classifyThrown(error)
   return {
-    status: requiresInput ? "requires_input" : "unknown",
+    // A rejected credential never reached the action; anything else may have
+    status: "unknown",
+    code: "OUTCOME_UNKNOWN",
     ...diagnosticIds(error),
-    message: requiresInput
-      ? "The provider requires user input or approval. The action is not confirmed; ask the user to resolve it."
-      : "The provider did not return a confirmed outcome. Verify external state with a read tool before retrying any write. Do not switch sending methods.",
+    message:
+      "The provider did not return a confirmed outcome. Verify external state with a read tool before retrying any write. Do not switch sending methods.",
+    ...failureFields(userId, toolkit, accountId, failure),
   }
 }
 
@@ -149,11 +250,14 @@ export function createAppTools(
   runtime: ConnectorRuntime,
   gate?: ApprovalGate
 ) {
-  const discovered = new Map<string, { tool: AppTool; accountId: string }>()
+  // The accounts each schema was loaded under, so a replaced account is caught
+  const discovered = new Map<string, { tool: AppTool; accountIds: string[] }>()
   function remember(entry: AppTool, accounts: AppAccount[]) {
-    const account = accounts.find((a) => a.toolkit === entry.toolkit)
-    if (entry.inputSchema && account)
-      discovered.set(entry.slug, { tool: entry, accountId: account.id })
+    const ids = accounts
+      .filter((a) => a.toolkit === entry.toolkit)
+      .map((a) => a.id)
+    if (entry.inputSchema && ids.length)
+      discovered.set(entry.slug, { tool: entry, accountIds: ids })
   }
   return {
     searchAppTools: tool({
@@ -168,7 +272,7 @@ export function createAppTools(
             tools: [],
             connectedApps: [],
             message:
-              "No apps connected. Open Apps for a supported integration, or use the official website for browser-based work if computer tools are available.",
+              "No apps connected. Call findApps to see whether an integration exists and can be connected from a card, or use the official website for browser-based work if computer tools are available.",
           })
         let results: AppToolSearch
         try {
@@ -191,9 +295,13 @@ export function createAppTools(
             description,
           }))
         for (const entry of tools) remember(entry, accounts)
+        const choices = ambiguousToolkits(accounts)
         return boundedResult({
           tools,
           connectedApps: [...allowed],
+          // Only when a toolkit has two or more accounts: executeAppTool then
+          // needs the person's pick, passed as accountId
+          ...(choices.length && { accountsToChoose: choices }),
           guidance:
             JSON.stringify(results.guidance ?? null).length <= 20_000
               ? results.guidance
@@ -203,7 +311,7 @@ export function createAppTools(
                 },
           message: tools.length
             ? "Use exact schemas with executeAppTool. If inputSchema is absent, call getAppToolSchema first."
-            : "No matching tools in your connected apps. Refine the search if useful. For a browser-based task, use the official website if computer tools are available; a missing connector does not make the website unavailable.",
+            : "No matching tools in your connected apps. One narrow search proves nothing: refine it with different words (the action, the object, the service) before concluding. If the connector still lacks the action, use the official website if computer tools are available; a missing connector does not make the website unavailable.",
         })
       },
     }),
@@ -228,7 +336,7 @@ export function createAppTools(
         if (!entry || !accounts.some((a) => a.toolkit === entry.toolkit))
           return failure(
             "TOOL_NOT_AVAILABLE",
-            "Tool not found in connected apps. Refine searchAppTools or reconnect the app in Apps."
+            "Tool not found in connected apps. That doesn't prove the app can't do it: refine searchAppTools with different words, or use the computer if it's available. If the app might be disconnected, call findApps to check."
           )
         if (!entry.inputSchema || JSON.stringify(entry).length > 70_000)
           return failure(
@@ -241,10 +349,18 @@ export function createAppTools(
     }),
     executeAppTool: tool({
       description:
-        "Run a tool whose full schema was loaded this turn through searchAppTools or getAppToolSchema. Match the schema exactly. Perform writes only when requested. Writes such as sending, posting, creating or deleting may return approval_required: Krafty then shows the owner an approval card and notifies their phone, so don't ask for confirmation in text first. Check status and provider data before claiming success. An unknown outcome must be verified with a read tool before retrying a write.",
+        "Run a tool whose full schema was loaded this turn through searchAppTools or getAppToolSchema. Match the schema exactly. Perform writes only when requested. Writes such as sending, posting, creating or deleting may return approval_required: Krafty then shows the owner an approval card and notifies their phone, so don't ask for confirmation in text first. Check status and provider data before claiming success. An unknown outcome must be verified with a read tool before retrying a write. If the person has more than one account for the app, this returns status=requires_input with the accounts: ask which one with askUser, then call again with that accountId.",
       inputSchema: z.object({
         slug: slugSchema,
         arguments: z.record(z.string(), z.unknown()),
+        accountId: z
+          .string()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe(
+            "Which connected account to use, from a requires_input result's accounts. Omit it when the app has one account."
+          ),
         prepareOnly: z
           .boolean()
           .optional()
@@ -262,7 +378,14 @@ export function createAppTools(
           ),
       }),
       execute: async (
-        { slug, arguments: input, summary, prepareOnly, emailContext },
+        {
+          slug,
+          arguments: input,
+          summary,
+          prepareOnly,
+          emailContext,
+          accountId: requestedAccountId,
+        },
         { abortSignal }
       ) => {
         const loaded = discovered.get(slug)
@@ -272,15 +395,48 @@ export function createAppTools(
             "SCHEMA_REQUIRED",
             "Load the full schema with getAppToolSchema (for a known slug) or searchAppTools before executing. This attempt did not run."
           )
-        const account = (await runtime.accounts(userId)).find(
-          (account) => account.toolkit === entry.toolkit
+        const expired = (accountId?: string) =>
+          boundedResult({
+            status: "failed",
+            code: "CONNECTION_EXPIRED",
+            toolkit: entry.toolkit,
+            ...(accountId && { accountId }),
+            reconnect: { toolkit: entry.toolkit },
+            message: CONNECTION_EXPIRED_MESSAGE,
+          })
+        // Only the account that was rejected: the person's other accounts for
+        // this app stay usable
+        if (requestedAccountId && accountExpired(userId, requestedAccountId))
+          return expired(requestedAccountId)
+        const selection = selectAccount(
+          await runtime.accounts(userId),
+          entry.toolkit,
+          requestedAccountId
         )
-        if (!account)
-          return failure(
-            "APP_DISCONNECTED",
-            "This app is no longer connected. Reconnect it in Apps. This attempt did not run."
-          )
-        if (account.id !== loaded?.accountId)
+        if (!selection.ok && selection.reason === "none")
+          return expiredToolkits(userId).has(entry.toolkit)
+            ? expired()
+            : failure(
+                "APP_DISCONNECTED",
+                "This app is no longer connected. Call findApps and show a connect card, or tell the person to reconnect it in Apps. This attempt did not run."
+              )
+        if (!selection.ok)
+          return boundedResult({
+            status: "requires_input",
+            code:
+              selection.reason === "unknown"
+                ? "ACCOUNT_NOT_FOUND"
+                : "ACCOUNT_CHOICE_REQUIRED",
+            toolkit: entry.toolkit,
+            accounts: selection.choices,
+            message:
+              selection.reason === "unknown"
+                ? "That accountId isn't one of the person's connected accounts for this app. This attempt did not run. Ask which account to use with askUser, naming the accounts by label, then call again with the accountId."
+                : "The person has more than one account connected for this app, so nothing ran. Ask which one to use with askUser, naming the accounts by label (and connectedAt if labels are missing), then call again with that accountId. Never pick one yourself.",
+          })
+        const account = selection.account
+        if (accountExpired(userId, account.id)) return expired(account.id)
+        if (!requestedAccountId && !loaded?.accountIds.includes(account.id))
           return failure(
             "ACCOUNT_CHANGED",
             "The connected account changed. Reload the schema and verify the intended account before executing. This attempt did not run."
@@ -325,7 +481,7 @@ export function createAppTools(
             "APPROVALS_UNAVAILABLE",
             "Email review is unavailable in this chat. Nothing was sent."
           )
-        if (gate && (email || (await gate.required(entry)))) {
+        if (gate && (email || (await gate.required(entry, account.id)))) {
           const held = await gate.request({
             slug,
             toolkit: entry.toolkit,
@@ -350,17 +506,14 @@ export function createAppTools(
             account,
             abortSignal
           )
-          const { envelope, status } = executionStatus(result)
-          return boundedResult({
-            ...envelope,
-            status,
-            toolkit: entry.toolkit,
-            accountId: account.id,
-            ...(status !== "succeeded" && { message: outcomeMessage(status) }),
-          })
+          return boundedResult(
+            describeResult(userId, entry.toolkit, account.id, result).value
+          )
         } catch (error) {
           abortSignal?.throwIfAborted()
-          return boundedResult(thrownOutcome(error))
+          return boundedResult(
+            thrownOutcome(userId, entry.toolkit, account.id, error)
+          )
         }
       },
     }),
@@ -384,9 +537,10 @@ export function createAppTools(
         // never reads as done when nothing ran
         try {
           const account = (await runtime.accounts(userId)).find(
-            (account) => account.toolkit === call.toolkit
+            (account) =>
+              account.toolkit === call.toolkit && account.id === call.accountId
           )
-          if (!account || account.id !== call.accountId) {
+          if (!account) {
             const result = {
               status: "failed",
               code: "ACCOUNT_CHANGED",
@@ -403,20 +557,24 @@ export function createAppTools(
             account,
             abortSignal
           )
-          const { envelope, status } = executionStatus(result)
+          const described = describeResult(
+            userId,
+            call.toolkit,
+            account.id,
+            result
+          )
           await gate.complete(approvalId, {
-            ok: status === "succeeded",
-            result: { status },
+            ok: described.ok,
+            result: { status: described.value.status },
           })
-          return boundedResult({
-            ...envelope,
-            status,
-            toolkit: call.toolkit,
-            accountId: account.id,
-            ...(status !== "succeeded" && { message: outcomeMessage(status) }),
-          })
+          return boundedResult(described.value)
         } catch (error) {
-          const outcome = thrownOutcome(error)
+          const outcome = thrownOutcome(
+            userId,
+            call.toolkit,
+            call.accountId,
+            error
+          )
           await gate
             .complete(approvalId, { ok: false, result: outcome })
             .catch(() => {})

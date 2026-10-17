@@ -16,9 +16,9 @@ The mobile session reads this table. `planned` means the shapes below may still 
 
 | Phase | Scope                                                                                                                                     | Status       |
 | ----- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| 1     | `findApps`, connect card (`askUser.appConnection`), connection attempts with `chatId`/`questionId`/`botId`, wake on connect               | server ready |
-| 2     | One computer per account, turn lease, `inUseBy`, desktop in group chats                                                                   | server ready |
-| 3     | Free computer allowance, `requestComputerApproval`, `commits`, `approvals.kind`, `computerLogin.reason`                                   | planned      |
+| 1     | `findApps`, connect card (`askUser.appConnection`), connection attempts with `chatId`/`questionId`/`botId`, wake on connect               | shipped      |
+| 2     | One computer per account, turn lease, `inUseBy`, desktop in group chats                                                                   | shipped      |
+| 3     | Free computer allowance, `requestComputerApproval`, server-checked computer gestures, `approvals.kind`, `computerLogin.reason`, rules API | server ready |
 | 4     | Workflows (routes, tools, routine link), app preferences (proactive opt-out, work apps), attachments (computer upload plus inline images) | planned      |
 
 ## Message ID prefixes
@@ -108,6 +108,7 @@ The bot asks with `appConnection: { toolkit, name }`. The server checks that the
   - for `state: "planLimit"`, the plan-limit state (upgrade, or manage apps), the same as the Apps screen's.
   - Either way, "Use the computer instead" and "Not now" answer the question like normal options (`metadata.questionId` = `toolCallId`).
 - **After Connect succeeds,** the server wakes the bot with `connect_<state>`, which answers the card. The app sends nothing else. If `POST apps/connections/complete` returns `woke: false`, the app sends "I've connected it" as the answer itself.
+- **Reconnect (server ready):** the card may carry `reconnect: true` when the person's earlier connection expired or was revoked. New builds label the button **Reconnect**; the question already says the connection expired. Old builds strip it and show Connect, which works the same.
 - **Old builds** see a plain question with the three options. "I've connected it" makes the bot check the connection and continue. "Use the computer instead" makes it use the computer.
 
 **`computerLogin.reason` (Phase 3): handoff for any blocking step.**
@@ -127,25 +128,29 @@ computerLogin: {
 
 ### Approvals from the computer (Phase 3)
 
-`requestComputerApproval` holds a committing computer action (submit, post, send, delete, buy) for the owner. Input:
+The server checks every click, drag, Enter and non-navigation key, and risky shell commands, before they run (`docs/autonomy.md`, "Computer approvals"). It doesn't rely on the model declaring anything: the planned `commits` field was dropped.
+
+`requestComputerApproval` holds a committing computer step for the owner. Input:
 
 ```ts
 {
   action: "submit" | "post" | "send" | "delete" | "buy"
   summary: string // 1-300 chars, one sentence of what will happen
   hostname: string // the site, same rule as computerLogin.hostname
+  command?: string // a shell command needing approval; only this exact command runs
 }
 ```
 
-Output, the same shape as `executeAppTool`'s held result, so **current builds already render it as an approval card**:
+Output, the same shape as `executeAppTool`'s held result:
 
 ```ts
-{ status: "approval_required", approvalId: string, summary: string, toolkit: string /* the hostname */ }
+{ status: "approval_required", approvalId: string, summary: string, toolkit: string /* the hostname */, message: string }
 ```
 
-The computer input tools (`mouseClick`, `keyboardPress`, `keyboardType`) gain optional input fields `commits?: boolean` and `approvalId?: string`. Their output doesn't change. When `commits` is true and the approval isn't approved for that bot and chat, the tool fails with an error (`output-error`) that current builds already show.
+- **Installed builds** render `approval_required` as a card only for `executeAppTool` (`src/lib/chat/rows.ts`), so they show `requestComputerApproval` as a generic row. The approval still reaches them through the push notification and the Activity screen, where it can be decided. New builds render it as an approval card.
+- The computer input tools (`mouseClick`, `mouseDrag`, `keyboardPress`, `keyboardType`) and `bash` gain an optional input field `approvalId`. Their output doesn't change. A held step fails with an error (`output-error`) whose text starts "Approval required:", or says the owner declined this kind of action, or that the safety check couldn't run. New builds should show these as calm status rows ("Waiting for your approval"), not failures.
 
-Accepting wakes the bot with the existing `approval_<id>_approve` message. The bot checks the screen again before acting, and asks again if the screen changed.
+Accepting wakes the bot with the existing `approval_<id>_approve` message. The bot checks the screen again, then repeats the step with the `approvalId`, which covers that step and a confirmation right after it (at most three checked steps within 90 seconds).
 
 ### Computer tools while another bot has the computer (Phase 2)
 
@@ -187,6 +192,7 @@ Every route keeps `apiRoute` auth (`Authorization: Bearer <Clerk session token>`
 
 - Body unchanged: `{ state, status, accountId }`.
 - Response gains `woke` and `inputSeq`: `{ connected: boolean, woke?: boolean, inputSeq?: number }`.
+- A retried completion of an attempt that already completed (for example after a lost response) returns the same stored result, without waking the bot again.
   - `woke` is present only when the attempt had a `chatId`.
   - `woke: true` means the bot was woken with `connect_<state>`.
   - `woke: false` means the connection was saved but the bot couldn't be reached. The app should send "I've connected it" as the question's answer.
@@ -218,22 +224,39 @@ Any desktop route, and account deletion, may return 409 `conflict` "The computer
 {
   kind: "app" | "computer" // always present; rows from before Phase 3 are "app"
   hostname: string | null // computer approvals only
-  action: "submit" | "post" | "send" | "delete" | "buy" | null // computer approvals only
+  action: string | null // computer approvals: "submit" | "post" | "send" | "delete" | "buy"; treat others as generic
+  alwaysAllowed: boolean // false: "Always allow" acts as a plain approval and saves nothing, so hide it
 }
 ```
+
+`GET /api/v1/approvals/:id` (and `GET /api/v1/activity` approvals, without the image) also carry `preview: string | null` on the detail route: a `data:image/png;base64,…` screenshot the server took when the bot asked, for computer approvals, and `command: string | null`: for a held shell command, the exact command that will run once. Show it verbatim before Accept.
 
 For `kind: "computer"`:
 
 - `toolkit` is `"computer"`, `toolSlug` is `"COMPUTER_<ACTION>"` (e.g. `COMPUTER_SUBMIT`), and `arguments` is `{ hostname, action }`.
 - `summary` is the bot's one-sentence description, as for app approvals.
 
-`PATCH /api/v1/approvals/:id` is unchanged. For a computer approval, `"always"` counts as `"approve"` and saves no rule, so old builds' "Always allow" button and notification action stay safe. New builds should offer only **Accept** and **Decline** for `kind: "computer"`.
+`PATCH /api/v1/approvals/:id` is unchanged. For a computer approval, and for a high-risk app action (sending, posting, paying, deleting, anything touching money, grades, rosters or access), `"always"` counts as `"approve"` and saves no rule, so old builds' "Always allow" button and notification action stay safe. New builds offer only **Accept** and **Decline** for `kind: "computer"`, and hide Always allow when `alwaysAllowed` is false.
+
+Standing rules (server ready):
+
+| Route                            | Body                  | Response                                                                          |
+| -------------------------------- | --------------------- | --------------------------------------------------------------------------------- |
+| `GET /api/v1/approvals/rules`    |                       | `{ rules: { botId, botName, toolSlug, accountId: string \| null, createdAt }[] }` |
+| `DELETE /api/v1/approvals/rules` | `{ botId, toolSlug }` | `{ revoked: true }`; 404 `not_found` "Rule not found"                             |
+
+Rules are bound to the connected account they were granted for; a rule with a null account (saved before this change) is never applied.
 
 Push for a computer approval uses the existing `approval` category and `data.approvalId`.
 
 ### Phase 3: usage
 
-`GET /api/v1/usage` is unchanged in shape. The free plan's `limits.sandbox` becomes `300` seconds, one-time, like the free AI allowance. App copy that says the free plan has no computer must change.
+`GET /api/v1/usage` is unchanged in shape. The free plan's `limits.sandbox` is `300` seconds, one-time, like the free AI allowance. App copy that says the free plan has no computer must change.
+
+- Desktop routes work on the free plan while seconds remain, in any owned chat. With none left they return 429 `usage_limit` ("Your free computer time is used up. …").
+- The desktop socket may close with code `4429` (reason `usage_limit`): the time ran out while viewing. Code `4410` (`session_ended`): the session was paused, rotated or replaced; fetch a new ticket to reconnect.
+- E2B capacity errors return 503 `upstream` "Computers are busy right now. Try again in a few minutes."
+- A free computer unused for 30 days is deleted with its files.
 
 ### Phase 4: workflows
 
@@ -357,6 +380,14 @@ metadata: {
 
 **Copied by hand:** the limits above live in `lib/attachment-policy.ts`.
 
+### Phase 3: connectors and routines (server ready)
+
+Tool shapes (all additive):
+
+- `findApps` app entries may carry `needsReconnect: true` (a connection existed but expired, was revoked or failed in this run; it can also sit on a `connected: true` entry whose account works but lacks a permission the bot needed). The output may carry `searched: string[]` (refined queries) and `message`.
+- `executeAppTool` input gains optional `accountId`. Its output may be `status: "requires_input"` with `code: "ACCOUNT_CHOICE_REQUIRED" | "ACCOUNT_NOT_FOUND"` and `accounts: { accountId, label?, connectedAt? }[]`; `status: "failed"` with `code: "CONNECTION_EXPIRED" | "INSUFFICIENT_PERMISSIONS"`, `reconnect: { toolkit }` and the failing `accountId`; or `status: "unknown"` with `code: "OUTCOME_UNKNOWN"` (the bot verifies before any retry). `searchAppTools` may add `accountsToChoose`.
+- Routine schedules: `once.at` also accepts a wall-clock time without an offset (`"2026-10-17T15:00"`), read in the routine's timezone; stored values always carry an offset. `lastStatus` gains `completed` and `blocked`; `lastRunAt` is when the run was due. Routine tool outputs gain `timezone`, `nextRunLocal`, `lastRunLocal` and `lastError`.
+
 ## How old builds degrade, in one place
 
 | Feature                                                    | Current build                                                                                                                      |
@@ -368,7 +399,10 @@ metadata: {
 | `inUseBy`                                                  | Ignored.                                                                                                                           |
 | Shared reset and pause                                     | Old confirmation copy talks about "this bot's computer". The action resets the account computer.                                   |
 | Desktop in group chats                                     | Old builds may hide the Desktop button in group chats. Nothing breaks.                                                             |
-| Computer approvals                                         | Approval card and Activity screen work. "Always allow" acts as Accept.                                                             |
+| Computer approvals                                         | A generic tool row in chat; push and the Activity screen decide it. "Always allow" acts as Accept.                                 |
+| Held computer steps                                        | The tool row shows the error text ("Approval required: …").                                                                        |
+| Routine `completed` / `blocked`, `nextRunLocal`            | Unknown status drops the "Last run" suffix; extra fields ignored.                                                                  |
+| Account choice, `CONNECTION_EXPIRED`                       | Tool rows only; the bot explains in text.                                                                                          |
 | `computerLogin.reason`                                     | Stripped. The sign-in card opens Desktop for every reason.                                                                         |
 | Free computer allowance                                    | Old copy may say the free plan has no computer. Usage numbers are correct.                                                         |
 | Workflows                                                  | Not visible in the app. They still run on schedule through routines and from chat in any build.                                    |
@@ -378,12 +412,14 @@ metadata: {
 
 When these change, the mobile app needs the matching change. The table lists only what this work changes.
 
-| Source here                                          | What changes         | Phase   |
-| ---------------------------------------------------- | -------------------- | ------- |
-| `lib/bot-setup-tools.ts` `computerLoginSchema`       | adds `reason`        | 3       |
-| `lib/bot-setup-tools.ts` `appConnectionSchema` (new) | new card             | 1       |
-| `lib/billing-policy.ts` `planLimits.free.sandbox`    | 0 to 300             | 3       |
-| `db/schema.ts` workflow form limits                  | new                  | 4       |
-| `lib/api-response.ts` error messages                 | "Workflow not found" | 4       |
-| `lib/attachment-policy.ts` limits and image types    | new                  | 4       |
-| `components/chat-tool-call.tsx` tool titles          | the five tools above | 1, 3, 4 |
+| Source here                                          | What changes           | Phase   |
+| ---------------------------------------------------- | ---------------------- | ------- |
+| `lib/bot-setup-tools.ts` `computerLoginSchema`       | adds `reason`          | 3       |
+| `lib/bot-setup-tools.ts` `appConnectionCardSchema`   | adds `reconnect`       | 3       |
+| `db/schema.ts` `routines.lastStatus`                 | `completed`, `blocked` | 3       |
+| `lib/bot-setup-tools.ts` `appConnectionSchema` (new) | new card               | 1       |
+| `lib/billing-policy.ts` `planLimits.free.sandbox`    | 0 to 300               | 3       |
+| `db/schema.ts` workflow form limits                  | new                    | 4       |
+| `lib/api-response.ts` error messages                 | "Workflow not found"   | 4       |
+| `lib/attachment-policy.ts` limits and image types    | new                    | 4       |
+| `components/chat-tool-call.tsx` tool titles          | the five tools above   | 1, 3, 4 |

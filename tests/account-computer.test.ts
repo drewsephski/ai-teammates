@@ -54,9 +54,20 @@ before(async () => {
     { id: "bot_a2", userId: A, name: "Ledger", job: "Analyst" },
     { id: "bot_b1", userId: B, name: "Scout", job: "Researcher" },
     // A computer exists only for someone with a bot
-    ...["user_ensure", "user_reset", "user_alive", "user_pause"].map(
-      (userId) => ({ id: `bot_${userId}`, userId, name: "Bot", job: "Helps" })
-    ),
+    ...[
+      "user_ensure",
+      "user_reset",
+      "user_alive",
+      "user_pause",
+      "user_low",
+      "user_expire",
+      "user_touch",
+    ].map((userId) => ({
+      id: `bot_${userId}`,
+      userId,
+      name: "Bot",
+      job: "Helps",
+    })),
   ])
   await db.insert(schema.chats).values([
     { id: "chat_a1", userId: A, kind: "direct" },
@@ -379,7 +390,12 @@ test("a computer being created while the account is deleted doesn't survive it",
   await db.delete(schema.bots).where(eq(schema.bots.userId, user))
   const deletion = computer.deleteAccountComputer(user, provider)
   finishCreate()
-  await ensure
+  // Either the registration is refused (no bot left) or it lands and the
+  // deletion step removes it; both leave nothing behind.
+  await ensure.then(
+    () => {},
+    (error: Error) => assert.match(error.message, /account was deleted/)
+  )
   await deletion
   await db.delete(schema.computers).where(eq(schema.computers.userId, user))
   assert.deepEqual(removed, ["sbx_during_delete"])
@@ -394,4 +410,306 @@ test("a computer being created while the account is deleted doesn't survive it",
     computer.ensureAccountComputer(user, provider),
     /Bot not found/
   )
+})
+
+const days = (n: number) => n * 24 * 3_600_000
+const yes = async () => true
+
+async function row(userId: string) {
+  const [found] = await db
+    .select()
+    .from(schema.computers)
+    .where(eq(schema.computers.userId, userId))
+  return found
+}
+
+test("provisioning a computer counts as using it", async () => {
+  const { provider } = fakeProvider()
+  const before = Date.now()
+  await computer.ensureAccountComputer("user_touch", provider)
+  const found = await row("user_touch")
+  assert.ok(found.lastUsedAt && found.lastUsedAt.getTime() >= before - 1000)
+  await db
+    .update(schema.computers)
+    .set({ lastUsedAt: new Date(Date.now() - days(20)) })
+    .where(eq(schema.computers.userId, "user_touch"))
+  await computer.touchComputer("user_touch")
+  assert.ok(
+    (await row("user_touch")).lastUsedAt!.getTime() >= before - 1000,
+    "opening the screen restarts the retention clock"
+  )
+})
+
+test("P1: a provisioning that outlives the account's bots cannot register a computer", async () => {
+  const user = "user_race"
+  await db
+    .insert(schema.bots)
+    .values({ id: "bot_user_race", userId: user, name: "Bot", job: "Helps" })
+  const { provider, calls } = fakeProvider()
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => (release = resolve))
+  let started!: () => void
+  const running = new Promise<void>((resolve) => (started = resolve))
+  const slow = {
+    ...provider,
+    create: async () => {
+      started()
+      await gate
+      return "sbx_race"
+    },
+  }
+  const provisioning = computer.ensureAccountComputer(user, slow)
+  const outcome = provisioning.then(
+    (id) => ({ id }),
+    (error: Error) => ({ error })
+  )
+  await running
+  // The account's bots go while the provider is still creating the VM,
+  // and the row (inserted before the create) is still there
+  await db.delete(schema.bots).where(eq(schema.bots.userId, user))
+  release()
+  const result = await outcome
+  assert.ok(
+    "error" in result && /account was deleted/.test(result.error.message)
+  )
+  assert.deepEqual(
+    calls.filter((call) => call === "remove:sbx_race"),
+    ["remove:sbx_race"]
+  )
+  assert.equal(await computer.accountComputerId(user), null)
+  assert.deepEqual(
+    (await computer.listComputerOwners()).filter((o) => o.userId === user),
+    []
+  )
+  await db.delete(schema.computers).where(eq(schema.computers.userId, user))
+})
+
+test("turn-end pause: low or spent allowance pauses, plenty or a held lease does not", async () => {
+  const user = "user_low"
+  const { provider, calls } = fakeProvider()
+  const id = await computer.ensureAccountComputer(user, provider)
+  calls.length = 0
+  const run = (seconds: number | null, extra = {}) =>
+    computer.pauseComputerIfLowAllowance(user, {
+      provider,
+      meter: async () => true,
+      remainingSeconds: async () => seconds,
+      ...extra,
+    })
+  assert.deepEqual(await run(300), { paused: false, remainingSeconds: 300 })
+  assert.deepEqual(await run(null), { paused: false, remainingSeconds: null })
+  assert.deepEqual(calls, [])
+  assert.deepEqual(await run(60), { paused: true, remainingSeconds: 60 })
+  assert.deepEqual(await run(0), { paused: true, remainingSeconds: 0 })
+  assert.deepEqual(calls, [`pause:${id}`, `pause:${id}`])
+  // The caller can pause at every turn's end by raising the threshold
+  calls.length = 0
+  assert.equal((await run(300, { thresholdSeconds: Infinity })).paused, true)
+  // Another bot's turn holds the computer: leave it running
+  calls.length = 0
+  assert.deepEqual(await run(0, { inUse: async () => ({ name: "Ledger" }) }), {
+    paused: false,
+    remainingSeconds: null,
+  })
+  // A computer the provider no longer has needs no pause
+  assert.equal((await run(0, { meter: async () => false })).paused, false)
+  assert.deepEqual(calls, [])
+  // No computer yet
+  assert.equal(
+    (await computer.pauseComputerIfLowAllowance("user_gone", { provider }))
+      .paused,
+    false
+  )
+})
+
+test("retention deletes an expired paused computer, clears the row and is repeatable", async () => {
+  const user = "user_expire"
+  const { provider, calls } = fakeProvider()
+  const id = await computer.ensureAccountComputer(user, provider)
+  const age = (n: number) =>
+    db
+      .update(schema.computers)
+      .set({ lastUsedAt: new Date(Date.now() - n) })
+      .where(eq(schema.computers.userId, user))
+  calls.length = 0
+
+  // Recent use, a held lease, a running computer or another ID: all kept
+  await age(days(29))
+  assert.equal(
+    await computer.expireAccountComputer(user, id, {
+      confirmFree: yes,
+      provider,
+    }),
+    false
+  )
+  await age(days(31))
+  await db
+    .update(schema.computers)
+    .set({
+      leaseRunKey: "ai:run_x:1",
+      leaseExpiresAt: new Date(Date.now() + 60_000),
+    })
+    .where(eq(schema.computers.userId, user))
+  assert.equal(
+    await computer.expireAccountComputer(user, id, {
+      confirmFree: yes,
+      provider,
+    }),
+    false
+  )
+  await db
+    .update(schema.computers)
+    .set({ leaseRunKey: null, leaseExpiresAt: null })
+    .where(eq(schema.computers.userId, user))
+  assert.equal(
+    await computer.expireAccountComputer(user, id, {
+      confirmFree: yes,
+      provider,
+      isPaused: async () => false,
+    }),
+    false
+  )
+  assert.equal(
+    await computer.expireAccountComputer(user, "sbx_other", {
+      confirmFree: yes,
+      provider,
+    }),
+    false
+  )
+  assert.deepEqual(calls, [])
+
+  const rows = await computer.listComputerRetentionRows()
+  assert.equal(rows.find((r) => r.userId === user)?.sandboxId, id)
+
+  assert.equal(
+    await computer.expireAccountComputer(user, id, {
+      confirmFree: yes,
+      provider,
+      isPaused: async () => true,
+    }),
+    true
+  )
+  assert.deepEqual(calls, [`remove:${id}`])
+  assert.equal(await computer.accountComputerId(user), null)
+  assert.equal(
+    (await computer.listComputerRetentionRows()).some((r) => r.userId === user),
+    false
+  )
+  // A retry finds nothing to delete
+  assert.equal(
+    await computer.expireAccountComputer(user, id, {
+      confirmFree: yes,
+      provider,
+    }),
+    false
+  )
+  assert.deepEqual(calls, [`remove:${id}`])
+
+  // The next use provisions a new, empty computer, which is not itself expired
+  const fresh = await computer.ensureAccountComputer(user, provider)
+  assert.notEqual(fresh, id)
+  assert.equal(
+    await computer.expireAccountComputer(user, fresh, {
+      confirmFree: yes,
+      provider,
+    }),
+    false
+  )
+})
+
+// An account whose computer is expired and paused; returns what is needed to
+// try deleting it
+async function expiredComputer(user: string) {
+  await db
+    .insert(schema.bots)
+    .values({ id: `bot_${user}`, userId: user, name: "Bot", job: "Helps" })
+  const { provider, calls } = fakeProvider()
+  const id = await computer.ensureAccountComputer(user, provider)
+  await db
+    .update(schema.computers)
+    .set({ lastUsedAt: new Date(Date.now() - days(45)) })
+    .where(eq(schema.computers.userId, user))
+  calls.length = 0
+  return { provider, calls, id }
+}
+
+test("retention never deletes when the fresh plan lookup fails", async () => {
+  const { provider, calls, id } = await expiredComputer("user_clerk_down")
+  const reports: unknown[] = []
+  // Pre-filter: a failing lookup throws, so the metering step skips the account
+  const retention = computer.createRetention({
+    isFree: async () => {
+      throw new Error("clerk down")
+    },
+    isPaused: async () => true,
+    report: (error) => void reports.push(error),
+    provider,
+  })
+  await assert.rejects(retention.tier("user_clerk_down"), /clerk down/)
+  const row = (await retention.rows()).find(
+    (r) => r.userId === "user_clerk_down"
+  )!
+  // Even if something called expire directly, the recheck under the lock fails
+  assert.equal(await retention.expire(row), false)
+  assert.equal(reports.length, 1)
+  assert.deepEqual(calls, [])
+  assert.equal(await computer.accountComputerId("user_clerk_down"), id)
+})
+
+test("retention keeps a computer whose owner upgraded after the pre-filter said free", async () => {
+  const { provider, calls, id } = await expiredComputer("user_upgraded")
+  const answers = [true, false]
+  const retention = computer.createRetention({
+    // First the cron's pre-filter (free), then the recheck under the lock,
+    // after the upgrade (paid)
+    isFree: async () => answers.shift() ?? false,
+    isPaused: async () => true,
+    report: () => {},
+    provider,
+  })
+  assert.equal(await retention.tier("user_upgraded"), "free")
+  const row = (await retention.rows()).find(
+    (r) => r.userId === "user_upgraded"
+  )!
+  assert.equal(await retention.expire(row), false)
+  assert.deepEqual(calls, [])
+  assert.equal(await computer.accountComputerId("user_upgraded"), id)
+})
+
+test("retention deletes only when the fresh plan says free at both checks", async () => {
+  const { provider, calls, id } = await expiredComputer("user_still_free")
+  const asked: string[] = []
+  const retention = computer.createRetention({
+    isFree: async (userId) => {
+      asked.push(userId)
+      return true
+    },
+    isPaused: async () => true,
+    report: () => {},
+    provider,
+  })
+  const row = (await retention.rows()).find(
+    (r) => r.userId === "user_still_free"
+  )!
+  assert.equal(await retention.expire(row), true)
+  assert.deepEqual(calls, [`remove:${id}`])
+  assert.deepEqual(asked, ["user_still_free"])
+  assert.equal(await computer.accountComputerId("user_still_free"), null)
+})
+
+test("anything but a plain yes from the plan check keeps the computer", async () => {
+  const { provider, calls } = await expiredComputer("user_maybe")
+  const row = (await computer.listComputerRetentionRows()).find(
+    (r) => r.userId === "user_maybe"
+  )!
+  for (const answer of [false, undefined, null, "free", 1]) {
+    assert.equal(
+      await computer.expireAccountComputer("user_maybe", row.sandboxId, {
+        provider,
+        confirmFree: (async () => answer) as unknown as () => Promise<boolean>,
+      }),
+      false
+    )
+  }
+  assert.deepEqual(calls, [])
 })

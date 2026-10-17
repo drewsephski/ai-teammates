@@ -1,5 +1,17 @@
 import * as Sentry from "@sentry/node"
-import { and, asc, count, desc, eq, lte } from "drizzle-orm"
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  lte,
+  ne,
+  notInArray,
+  or,
+} from "drizzle-orm"
 
 import { db } from "@/db"
 import {
@@ -21,9 +33,15 @@ import { recordActivity } from "@/lib/notify"
 import {
   assertRoutineCapacity,
   describeSchedule,
+  MISSED_RUN_ERROR,
   nextRunAt,
+  normalizeSchedule,
+  parseRoutineRunMessageId,
+  planDueRun,
+  routineOutcomeError,
   routineRunMessageId,
   routineRunPrompt,
+  type RoutineRunOutcome,
 } from "@/lib/routine-policy"
 import { teamOperationId } from "@/lib/team-policy"
 import { assertBotAccess } from "@/lib/teammates"
@@ -70,12 +88,17 @@ async function ownedRoutine(userId: string, routineId: string, botId?: string) {
   return row
 }
 
-export async function userTimeZone(userId: string) {
+// The timezone the owner saved, or null when they never did
+export async function savedTimeZone(userId: string) {
   const [row] = await db
     .select({ timezone: userSettings.timezone })
     .from(userSettings)
     .where(eq(userSettings.userId, userId))
-  return row?.timezone || "UTC"
+  return row?.timezone || null
+}
+
+export async function userTimeZone(userId: string) {
+  return (await savedTimeZone(userId)) ?? "UTC"
 }
 
 // The chat a routine reports to: the one asked for, if the bot is in it, or
@@ -157,7 +180,9 @@ export async function createRoutine(
   assertRoutineCapacity(plan.tier, total)
 
   const chatId = await routineChat(userId, bot.id, id, options.chatId)
-  const next = nextRunAt(values.schedule, values.timezone, new Date())
+  // A one-off given as a wall-clock time is stored as the instant it means
+  const schedule = normalizeSchedule(values.schedule, values.timezone)
+  const next = nextRunAt(schedule, values.timezone, new Date())
   if (!next) throw new Error("Pick a time in the future.")
   const [row] = await db
     .insert(routines)
@@ -168,7 +193,7 @@ export async function createRoutine(
       chatId,
       title: values.title,
       prompt: values.prompt,
-      schedule: values.schedule,
+      schedule,
       timezone: values.timezone,
       nextRunAt: next,
     })
@@ -185,7 +210,13 @@ export async function updateRoutine(
 ) {
   const patch = routineUpdateSchema.parse(input)
   const current = await ownedRoutine(userId, routineId, options.botId)
-  const merged = { ...current, ...patch }
+  const timezone = patch.timezone ?? current.timezone
+  const merged = {
+    ...current,
+    ...patch,
+    timezone,
+    schedule: normalizeSchedule(patch.schedule ?? current.schedule, timezone),
+  }
   // Rescheduling or resuming starts the clock from now
   const reschedule =
     patch.schedule !== undefined ||
@@ -199,7 +230,11 @@ export async function updateRoutine(
   if (merged.enabled && !next) throw new Error("Pick a time in the future.")
   const [row] = await db
     .update(routines)
-    .set({ ...patch, nextRunAt: next })
+    .set({
+      ...patch,
+      ...(patch.schedule && { schedule: merged.schedule }),
+      nextRunAt: next,
+    })
     .where(and(eq(routines.id, routineId), eq(routines.userId, userId)))
     .returning()
   if (!row) throw new Error("Routine not found")
@@ -224,15 +259,47 @@ export async function deleteRoutine(
   if (!row) throw new Error("Routine not found")
 }
 
+// What a run needs from outside the database. Injected so tests can prove a
+// claimed routine is dispatched without Trigger.dev, Clerk or a model.
+export type RoutineRunDeps = {
+  post: typeof postChatMessage
+  // A reason to skip this run (worded for the owner), or undefined to go on
+  check: (routine: Routine) => Promise<string | undefined>
+}
+
+async function checkRoutineRun(routine: Routine) {
+  try {
+    await assertBotAccess(routine.userId, routine.botId)
+  } catch {
+    // Plan-neutral: this reaches the phone, where upgrade copy isn't allowed
+    return "This bot isn't available on your current plan."
+  }
+  const usage = await getUsage(routine.userId)
+  if (!canUseAI(usage.remaining.ai, await isChatGPTSelected(routine.userId)))
+    return "Your AI allowance is used up until it resets."
+  return undefined
+}
+
+const liveRunDeps: RoutineRunDeps = {
+  post: postChatMessage,
+  check: checkRoutineRun,
+}
+
 // Posts one run into the routine's chat, after the checks a person's own
 // message would pass. Returns what happened, and never throws for the owner's
-// plan or allowance: those are recorded as a skipped run.
-export async function runRoutine(routine: Routine, scheduledAt: Date) {
+// plan or allowance: those are recorded as a skipped run. lastRunAt is the
+// time the run was due, which is how its outcome finds it again
+// (recordRoutineRunOutcome).
+export async function runRoutine(
+  routine: Routine,
+  scheduledAt: Date,
+  deps: RoutineRunDeps = liveRunDeps
+) {
   const messageId = routineRunMessageId(routine.id, scheduledAt)
   const skip = async (reason: string) => {
     await db
       .update(routines)
-      .set({ lastStatus: "skipped", lastError: reason, lastRunAt: new Date() })
+      .set({ lastStatus: "skipped", lastError: reason, lastRunAt: scheduledAt })
       .where(eq(routines.id, routine.id))
     await recordActivity(
       {
@@ -253,18 +320,29 @@ export async function runRoutine(routine: Routine, scheduledAt: Date) {
     return "skipped" as const
   }
 
-  try {
-    await assertBotAccess(routine.userId, routine.botId)
-  } catch {
-    // Plan-neutral: this reaches the phone, where upgrade copy isn't allowed
-    return skip("This bot isn't available on your current plan.")
-  }
-  const usage = await getUsage(routine.userId)
-  if (!canUseAI(usage.remaining.ai, await isChatGPTSelected(routine.userId)))
-    return skip("Your AI allowance is used up until it resets.")
+  const reason = await deps.check(routine)
+  if (reason) return skip(reason)
+
+  // Mark the run started before it is posted: the turn can finish, and report
+  // its outcome, before the append request returns. A retry of a run that has
+  // already reported (completed or blocked) leaves that outcome alone.
+  await db
+    .update(routines)
+    .set({ lastStatus: "started", lastError: null, lastRunAt: scheduledAt })
+    .where(
+      and(
+        eq(routines.id, routine.id),
+        or(
+          isNull(routines.lastRunAt),
+          ne(routines.lastRunAt, scheduledAt),
+          isNull(routines.lastStatus),
+          notInArray(routines.lastStatus, ["completed", "blocked"])
+        )
+      )
+    )
 
   try {
-    await postChatMessage(
+    await deps.post(
       routine.chatId,
       {
         id: messageId,
@@ -277,12 +355,14 @@ export async function runRoutine(routine: Routine, scheduledAt: Date) {
     Sentry.captureException(error, { extra: { routineId: routine.id } })
     await db
       .update(routines)
-      .set({
-        lastStatus: "failed",
-        lastError: "Couldn't start the run.",
-        lastRunAt: new Date(),
-      })
-      .where(eq(routines.id, routine.id))
+      .set({ lastStatus: "failed", lastError: "Couldn't start the run." })
+      .where(
+        and(
+          eq(routines.id, routine.id),
+          eq(routines.lastRunAt, scheduledAt),
+          eq(routines.lastStatus, "started")
+        )
+      )
     await recordActivity({
       userId: routine.userId,
       kind: "routine_failed",
@@ -293,10 +373,6 @@ export async function runRoutine(routine: Routine, scheduledAt: Date) {
     })
     return "failed" as const
   }
-  await db
-    .update(routines)
-    .set({ lastStatus: "started", lastError: null, lastRunAt: new Date() })
-    .where(eq(routines.id, routine.id))
   await recordActivity({
     userId: routine.userId,
     kind: "routine_started",
@@ -308,21 +384,76 @@ export async function runRoutine(routine: Routine, scheduledAt: Date) {
   return "started" as const
 }
 
+// How a routine's run ended, reported by the turn that did the work (its
+// message ID is `routine_<id>_<scheduledAt>`). Only that owner's routine, and
+// only while that run is still the latest: a late report from an earlier run
+// never overwrites a newer one. Safe to call twice.
+export async function recordRoutineRunOutcome(
+  userId: string,
+  messageId: string | undefined,
+  outcome: RoutineRunOutcome
+) {
+  const run = parseRoutineRunMessageId(messageId)
+  if (!run) return { updated: false as const }
+  const rows = await db
+    .update(routines)
+    .set({
+      lastStatus: outcome.status,
+      lastError: routineOutcomeError(outcome),
+    })
+    .where(
+      and(
+        eq(routines.id, run.routineId),
+        eq(routines.userId, userId),
+        eq(routines.lastRunAt, run.scheduledAt),
+        // A skipped run never posted a message, so nothing can report on it
+        inArray(routines.lastStatus, [
+          "started",
+          "completed",
+          "blocked",
+          "failed",
+        ])
+      )
+    )
+    .returning({ id: routines.id })
+  return { updated: rows.length > 0 }
+}
+
 // "Run now" from the routine list. A double click inside ten seconds is one run.
-export async function runRoutineNow(userId: string, routineId: string) {
+export async function runRoutineNow(
+  userId: string,
+  routineId: string,
+  deps: RoutineRunDeps = liveRunDeps
+) {
   const routine = await ownedRoutine(userId, routineId)
   const result = await runRoutine(
     routine,
-    new Date(Math.floor(Date.now() / 10_000) * 10_000)
+    new Date(Math.floor(Date.now() / 10_000) * 10_000),
+    deps
   )
   return { status: result, chatId: routine.chatId }
 }
 
 // Claims due routines one at a time and advances each before it runs, so two
-// cron runs never take the same one. Missed runs aren't replayed: the next
-// time is computed from now.
-export async function dispatchDueRoutines(now = new Date(), limit = 200) {
-  const results = { started: 0, skipped: 0, failed: 0 }
+// cron runs never take the same one. The post is keyed by the run's message ID
+// (the due time), so even a repeated dispatch lands once. A run found stale
+// (the worker was down) is recorded as missed instead of run; see
+// planDueRun. The next time is computed from the due time, never from now.
+export async function dispatchDueRoutines(
+  now = new Date(),
+  limit = 200,
+  deps: RoutineRunDeps = liveRunDeps
+) {
+  const results: {
+    started: number
+    skipped: number
+    failed: number
+    missed?: number
+  } = {
+    started: 0,
+    skipped: 0,
+    failed: 0,
+  }
   for (let index = 0; index < limit; index++) {
     const claimed = await db.transaction(async (tx) => {
       const [row] = await tx
@@ -332,24 +463,44 @@ export async function dispatchDueRoutines(now = new Date(), limit = 200) {
         .orderBy(asc(routines.nextRunAt))
         .limit(1)
         .for("update", { skipLocked: true })
-      if (!row) return undefined
-      // From the time it was due, so "every hour" doesn't slip by the cron's
-      // latency each run; skip over any runs missed while workers were down
-      let next = nextRunAt(row.schedule, row.timezone, row.nextRunAt ?? now)
-      while (next && next <= now)
-        next = nextRunAt(row.schedule, row.timezone, next)
+      if (!row || !row.nextRunAt) return undefined
+      const dueAt = row.nextRunAt
+      const plan = planDueRun(row, dueAt, now)
       await tx
         .update(routines)
-        .set({ nextRunAt: next, enabled: next !== null, lastRunAt: now })
+        .set({
+          nextRunAt: plan.next,
+          enabled: plan.next !== null,
+          lastRunAt: dueAt,
+          ...(plan.action === "missed" && {
+            lastStatus: "skipped" as const,
+            lastError: MISSED_RUN_ERROR,
+          }),
+        })
         .where(eq(routines.id, row.id))
-      return row
+      return { row, dueAt, action: plan.action }
     })
     if (!claimed) break
+    const { row, dueAt } = claimed
     try {
-      results[await runRoutine(claimed, claimed.nextRunAt ?? now)]++
+      if (claimed.action === "missed") {
+        results.missed = (results.missed ?? 0) + 1
+        // Quiet on purpose: after an outage this could be every routine
+        await recordActivity({
+          userId: row.userId,
+          kind: "routine_skipped",
+          title: `${row.title} didn't run`,
+          detail: MISSED_RUN_ERROR,
+          botId: row.botId,
+          chatId: row.chatId,
+          dedupeKey: `${routineRunMessageId(row.id, dueAt)}:missed`,
+        })
+      } else {
+        results[await runRoutine(row, dueAt, deps)]++
+      }
     } catch (error) {
       results.failed++
-      Sentry.captureException(error, { extra: { routineId: claimed.id } })
+      Sentry.captureException(error, { extra: { routineId: row.id } })
     }
   }
   return results

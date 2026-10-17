@@ -17,6 +17,15 @@ import { createSessionRuntime } from "@/lib/connector-session"
 import { allowedAppAccounts, assertAppCapacity } from "@/lib/billing-policy"
 import { getAccountPlan } from "@/lib/usage"
 import { withSandboxLock } from "@/lib/sandbox-lock"
+import {
+  RECONNECT_STATUSES,
+  holdsAppSlot,
+} from "@/lib/connector-account-policy"
+import {
+  expiredAccountIds,
+  expiredToolkits,
+  limitedToolkits,
+} from "@/lib/connection-health"
 export type { ConnectorTools } from "@/lib/connector-tools"
 
 export const toolkitSlugSchema = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,99}$/)
@@ -34,6 +43,8 @@ export type ConnectorApp = {
   accountId?: string
   status?: string
   noAuth: boolean
+  // The person had this app connected and the connection no longer works
+  needsReconnect?: boolean
 }
 
 let client: Composio | undefined
@@ -83,6 +94,10 @@ export async function connectorCatalog(
       accountId: app.connection?.connectedAccount?.id,
       status: app.connection?.connectedAccount?.status,
       noAuth: app.isNoAuth,
+      ...(!app.connection?.isActive &&
+        ["EXPIRED", "REVOKED", "INACTIVE"].includes(
+          app.connection?.connectedAccount?.status ?? ""
+        ) && { needsReconnect: true }),
     })),
   }
 }
@@ -101,15 +116,65 @@ export async function activeAccounts(userId: string): Promise<AppAccount[]> {
     accounts.push(
       ...page.items
         .filter((account) => account.status === "ACTIVE" && !account.isDisabled)
-        .map((account) => ({ id: account.id, toolkit: account.toolkit.slug }))
+        .map((account) => ({
+          id: account.id,
+          toolkit: account.toolkit.slug,
+          ...((account.alias || account.wordId) && {
+            label: account.alias ?? account.wordId ?? undefined,
+          }),
+          connectedAt: account.createdAt,
+        }))
     )
     cursor = page.nextCursor ?? undefined
   } while (cursor)
   const plan = await getAccountPlan(userId)
+  // An account this run saw rejected doesn't count while Composio still
+  // calls it ACTIVE; the person's other accounts for the app do
+  const rejected = expiredAccountIds(userId)
   return allowedAppAccounts(
     plan.tier,
-    accounts.sort((a, b) => a.id.localeCompare(b.id))
+    accounts
+      .filter((account) => !rejected.has(account.id))
+      .sort((a, b) => a.id.localeCompare(b.id))
   )
+}
+
+// Toolkits the person connected once whose connection stopped working (expired,
+// revoked or inactive), plus any this run just saw rejected. A toolkit with a
+// working account is never listed. Best effort: a provider failure gives the
+// run's own flags only.
+export async function reconnectToolkits(
+  userId: string,
+  active: { toolkit: string }[]
+): Promise<Set<string>> {
+  const toolkits = new Set(expiredToolkits(userId))
+  try {
+    let cursor: string | undefined
+    // Three pages of 100 bound the calls
+    for (let pages = 0; pages < 3; pages++) {
+      const page = await getComposio().connectedAccounts.list({
+        userIds: [userId],
+        statuses: [...RECONNECT_STATUSES],
+        accountType: "PRIVATE",
+        limit: 100,
+        cursor,
+      })
+      for (const account of page.items) toolkits.add(account.toolkit.slug)
+      cursor = page.nextCursor ?? undefined
+      if (!cursor) break
+    }
+  } catch {
+    // The status is advice for the card, not a gate
+  }
+  const working = new Set(active.map((account) => account.toolkit))
+  // A working account for the app means nothing needs redoing
+  for (const toolkit of working) toolkits.delete(toolkit)
+  return toolkits
+}
+
+// Apps whose account works but was refused for a missing permission this run
+export async function limitedConnectorToolkits(userId: string) {
+  return limitedToolkits(userId)
 }
 
 export async function authorizeConnector(
@@ -133,10 +198,12 @@ export async function authorizeConnector(
           cursor,
         })
         accounts.push(
-          ...page.items.map((account) => ({
-            id: account.id,
-            toolkit: account.toolkit.slug,
-          }))
+          ...page.items
+            .filter((account) => holdsAppSlot(account))
+            .map((account) => ({
+              id: account.id,
+              toolkit: account.toolkit.slug,
+            }))
         )
         cursor = page.nextCursor ?? undefined
       } while (cursor)
@@ -183,9 +250,13 @@ export function createApprovalGate(context: {
   botId: () => string
 }): ApprovalGate {
   return {
-    required: async (tool) =>
-      appToolRisk(tool.slug, await appToolTags(tool.slug)) === "write" &&
-      !(await hasApprovalRule(context.botId(), tool.slug)),
+    required: async (tool, accountId) => {
+      const tags = await appToolTags(tool.slug)
+      return (
+        appToolRisk(tool.slug, tags) === "write" &&
+        !(await hasApprovalRule(context.botId(), tool.slug, accountId, tags))
+      )
+    },
     request: async (call) => {
       const summary = call.summary || fallbackSummary(call.slug, call.input)
       const row = await requestApproval({
@@ -201,10 +272,12 @@ export function createApprovalGate(context: {
       return { approvalId: row.id, summary }
     },
     claim: async (approvalId) => {
+      // Only from the chat it was asked in
       const row = await claimApproval(
         context.userId,
         context.botId(),
-        approvalId
+        approvalId,
+        context.chatId
       )
       return (
         row && {

@@ -10,9 +10,15 @@ import { eq } from "drizzle-orm"
 
 import { db } from "@/db"
 import { computers, sandboxSessions, usageEntries } from "@/db/schema"
-import { IDLE_TIMEOUT_MS, runningSeconds } from "@/lib/sandbox-policy"
+import {
+  COMPUTERS_BUSY_ERROR,
+  IDLE_TIMEOUT_MS,
+  isProviderCapacityError,
+  runningSeconds,
+} from "@/lib/sandbox-policy"
 import { createSandboxLifecycle } from "@/lib/sandbox-lifecycle"
 import { withSandboxLock, tryWithSandboxLock } from "@/lib/sandbox-lock"
+import { getUsage } from "@/lib/usage"
 
 const APP = "ai-teammates"
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
@@ -80,15 +86,48 @@ function meterInfo(info: SandboxInfo) {
   return db.transaction((tx) => meterSession(tx, info, sampledAt))
 }
 
+// E2B's rate limit, quota and cap on sandboxes running at once all read the
+// same to a person: wait a few minutes. Anything else passes through.
+export function mapProviderError(error: unknown) {
+  if (!isProviderCapacityError(error)) return error
+  Sentry.captureException(error, {
+    level: "warning",
+    tags: { "sandbox.operation": "capacity" },
+  })
+  return new Error(COMPUTERS_BUSY_ERROR, { cause: error })
+}
+
+async function mapped<T>(operation: () => Promise<T>) {
+  try {
+    return await operation()
+  } catch (error) {
+    throw mapProviderError(error)
+  }
+}
+
+// What the computer's owner has left, read right after metering. The lifecycle
+// caps each lease, idle pause and viewer renewal by it, so a computer pauses
+// itself when the allowance runs out instead of waiting for the cron.
+export async function computerAllowance(sandboxId: string) {
+  const [owner] = await db
+    .select({ userId: computers.userId })
+    .from(computers)
+    .where(eq(computers.sandboxId, sandboxId))
+  if (!owner) return null
+  const usage = await getUsage(owner.userId)
+  return usage ? { seconds: usage.remaining.sandbox, tier: usage.tier } : null
+}
+
 const lifecycle = createSandboxLifecycle({
-  getInfo: (id) => Sandbox.getInfo(id, providerOptions),
+  getInfo: (id) => mapped(() => Sandbox.getInfo(id, providerOptions)),
   connect: (id, timeoutMs) =>
-    Sandbox.connect(id, { ...providerOptions, timeoutMs }),
-  pause: (id) => Sandbox.pause(id, providerOptions),
+    mapped(() => Sandbox.connect(id, { ...providerOptions, timeoutMs })),
+  pause: (id) => mapped(() => Sandbox.pause(id, providerOptions)),
   meter: meterInfo,
   lock: withSandboxLock,
   tryLock: tryWithSandboxLock,
   report: reportMaintenance,
+  allowance: computerAllowance,
 })
 
 export const withComputer = lifecycle.run
@@ -129,7 +168,7 @@ export async function createAccountSandbox(userId: string) {
     } catch (cleanupError) {
       reportMaintenance(cleanupError, sandbox?.sandboxId ?? creationId)
     }
-    throw error
+    throw mapProviderError(error)
   }
 }
 
@@ -180,6 +219,17 @@ export async function sandboxExists(id: string) {
     return true
   } catch (error) {
     if (error instanceof SandboxNotFoundError) return false
+    throw error
+  }
+}
+
+// Whether the provider has the computer paused. One that is gone counts as
+// paused: there is nothing running to protect.
+export async function isSandboxPaused(id: string) {
+  try {
+    return (await Sandbox.getInfo(id, providerOptions)).state === "paused"
+  } catch (error) {
+    if (error instanceof SandboxNotFoundError) return true
     throw error
   }
 }

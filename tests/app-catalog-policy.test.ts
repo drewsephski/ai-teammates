@@ -88,3 +88,63 @@ test("only https logos are shown", () => {
   assert.equal(httpsLogo("javascript:alert(1)"), null)
   assert.equal(httpsLogo(undefined), null)
 })
+
+test("refineCatalogQueries is deterministic, bounded and never repeats the query", async () => {
+  const { refineCatalogQueries, MAX_CATALOG_SEARCHES } =
+    await import("../lib/app-catalog-policy")
+  assert.deepEqual(refineCatalogQueries("find my school grades"), [
+    "school grades",
+    "canvas",
+  ])
+  assert.deepEqual(refineCatalogQueries("school grades"), [
+    "canvas",
+    "google classroom",
+  ])
+  assert.deepEqual(refineCatalogQueries("fantasy football league"), [
+    "football",
+    "fantasy",
+  ])
+  assert.deepEqual(refineCatalogQueries("real estate listings"), [
+    "listing",
+    "estate",
+  ])
+  assert.deepEqual(refineCatalogQueries("spreadsheet"), [
+    "google sheets",
+    "excel",
+  ])
+  // A brand name has nothing to refine
+  assert.deepEqual(refineCatalogQueries("zillow"), [])
+  assert.deepEqual(refineCatalogQueries("the app"), [])
+  for (const query of [
+    "a very long query about calendars email files tasks and chat",
+    "x",
+    "",
+  ])
+    assert.ok(refineCatalogQueries(query).length < MAX_CATALOG_SEARCHES)
+  assert.deepEqual(
+    refineCatalogQueries("school grades"),
+    refineCatalogQueries("school grades")
+  )
+})
+
+test("an entry is flagged for reconnect only when it isn't connected", async () => {
+  const { appCatalogEntry } = await import("../lib/app-catalog-policy")
+  const app = { toolkit: "gmail", name: "Gmail" }
+  const auth = { managedSchemes: ["OAUTH2"], projectConfigured: false }
+  assert.equal(
+    appCatalogEntry(app, auth, [], "paid", new Set(["gmail"])).needsReconnect,
+    true
+  )
+  const connected = appCatalogEntry(
+    app,
+    auth,
+    [{ toolkit: "gmail" }],
+    "paid",
+    new Set(["gmail"])
+  )
+  assert.equal("needsReconnect" in connected, false)
+  assert.equal(
+    "needsReconnect" in appCatalogEntry(app, auth, [], "paid"),
+    false
+  )
+})

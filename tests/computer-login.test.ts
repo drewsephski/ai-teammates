@@ -8,21 +8,41 @@ import {
 import { canSuggestFollowUps } from "../lib/chat-follow-ups"
 import { assertComputerLoginReady } from "../lib/computer-login-policy"
 
-test("sign-in requires a paid private chat and a screen inspected during this turn", () => {
-  for (const paid of [false, true]) {
-    for (const direct of [false, true]) {
-      for (const screenViewed of [false, true]) {
-        const check = () =>
-          assertComputerLoginReady({ paid, direct, screenViewed })
-        if (paid && direct && screenViewed) assert.doesNotThrow(check)
-        else
-          assert.throws(
-            check,
-            paid && direct ? /call viewScreen/ : /paid private chat/
-          )
-      }
+test("sign-in needs computer time left and a screen inspected during this turn, in any chat on any plan", () => {
+  for (const remainingSeconds of [300, 1]) {
+    assert.doesNotThrow(() =>
+      assertComputerLoginReady({ remainingSeconds, screenViewed: true })
+    )
+    assert.throws(
+      () => assertComputerLoginReady({ remainingSeconds, screenViewed: false }),
+      /call viewScreen/
+    )
+  }
+  for (const remainingSeconds of [0, -5, Number.NaN]) {
+    for (const screenViewed of [false, true]) {
+      assert.throws(
+        () => assertComputerLoginReady({ remainingSeconds, screenViewed }),
+        /computer time is used up/i
+      )
     }
   }
+})
+
+test("the used-up message names the upgrade only where the tier is known", () => {
+  const message = (tier?: "free" | "paid") => {
+    try {
+      assertComputerLoginReady({
+        remainingSeconds: 0,
+        screenViewed: true,
+        tier,
+      })
+    } catch (error) {
+      return (error as Error).message
+    }
+  }
+  assert.match(message("free")!, /free computer time is used up\. Upgrade/)
+  assert.match(message("paid")!, /billing period.*resets/)
+  assert.equal(message(), "Your computer time is used up.")
 })
 
 const input = {

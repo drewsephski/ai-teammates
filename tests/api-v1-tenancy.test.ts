@@ -243,6 +243,43 @@ test("B can't complete or consume A's app connection attempt", async () => {
   )
 })
 
+test("B can't finish a connection with A's account ID, even one the provider reports active", async () => {
+  const state = "6f1c1c55-2f63-4b8b-9b0e-0a3c2f4f1e22"
+  await db.insert(schema.connectorAuthAttempts).values({
+    state,
+    userId: B,
+    accountId: "ca_b",
+    toolkit: "gmail",
+    returnUrl: "krafty://apps/connected",
+    expiresAt: new Date(Date.now() + 60_000),
+  })
+  const asked: string[] = []
+  assert.deepEqual(
+    await connectors.finishMobileAppConnection(
+      B,
+      { state, status: "success", accountId: "ca_a" },
+      {
+        loadAccounts: async (owner) => {
+          asked.push(owner)
+          return {
+            items: [
+              {
+                id: "ca_a",
+                status: "ACTIVE",
+                isDisabled: false,
+                toolkit: { slug: "gmail" },
+              },
+            ],
+          }
+        },
+      }
+    ),
+    { connected: false }
+  )
+  // The attempt's own account ID decides, and the lookup was B's alone
+  assert.equal(asked.length, 0)
+})
+
 test("B can't start a connection from A's chat or with a bot outside the chat", async () => {
   const origin = "https://example.test"
   const input = { slug: "gmail", returnUrl: "krafty://apps/connected" }
@@ -294,6 +331,30 @@ test("B can't start a connection from A's chat or with a bot outside the chat", 
 
 // Every handler's identity comes from apiRoute (the Clerk session), so no
 // route can act for a userId taken from the request
+test("B can't list or remove A's Always allow rules", async () => {
+  const service = await import("../services/approvals")
+  await db.insert(schema.approvalRules).values({
+    userId: A,
+    botId: "bot_a1",
+    toolSlug: "NOTION_UPDATE_PAGE",
+    accountId: "ca_a",
+  })
+  assert.deepEqual(await service.listApprovalRules(B), [])
+  await assert.rejects(
+    service.revokeApprovalRule(B, {
+      botId: "bot_a1",
+      toolSlug: "NOTION_UPDATE_PAGE",
+    }),
+    /Rule not found/
+  )
+  assert.equal((await service.listApprovalRules(A)).length, 1)
+  await service.revokeApprovalRule(A, {
+    botId: "bot_a1",
+    toolSlug: "NOTION_UPDATE_PAGE",
+  })
+  assert.equal((await service.listApprovalRules(A)).length, 0)
+})
+
 test("every /api/v1 handler runs through apiRoute", () => {
   const root = join(import.meta.dirname, "../app/api/v1")
   const routes: string[] = []

@@ -215,6 +215,14 @@ export const connectorAuthAttempts = pgTable(
     questionId: text(),
     botId: text(),
     expiresAt: timestamp({ withTimezone: true }).notNull(),
+    // Set once the attempt is verified, with what completing it returned, so
+    // a retried completion (a lost response) gets the same answer again
+    completedAt: timestamp({ withTimezone: true }),
+    completion: jsonb().$type<{
+      connected: boolean
+      woke?: boolean
+      inputSeq?: number
+    }>(),
   },
   (table) => [index("connector_auth_expiry_idx").on(table.expiresAt)]
 )
@@ -452,7 +460,11 @@ export const routines = pgTable(
     // Null once a one-off routine has run, or while it is paused
     nextRunAt: timestamp({ withTimezone: true }),
     lastRunAt: timestamp({ withTimezone: true }),
-    lastStatus: text({ enum: ["started", "skipped", "failed"] }),
+    // started: posted into the chat. completed, blocked (stopped for an
+    // approval or a question) and failed come back from the run's turn.
+    lastStatus: text({
+      enum: ["started", "skipped", "failed", "completed", "blocked"],
+    }),
     lastError: text(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
@@ -473,6 +485,10 @@ export const approvalState = pgEnum("approval_state", [
   "failed",
 ])
 
+// What an approval holds: a connected-app call, or a committing action on the
+// account computer (a click or key that sends, posts, submits, deletes or buys)
+export const approvalKind = pgEnum("approval_kind", ["app", "computer"])
+
 // An external action a bot wants to take, held until its owner decides. The
 // stored call is what runs on approval; the model can't change it afterwards.
 export const approvals = pgTable(
@@ -489,12 +505,26 @@ export const approvals = pgTable(
     chatId: text()
       .notNull()
       .references(() => chats.id, { onDelete: "cascade" }),
+    kind: approvalKind().notNull().default("app"),
+    // Computer approvals fill the app columns with sentinels: toolkit
+    // "computer", toolSlug COMPUTER_<ACTION>, accountId "computer"
     toolkit: text().notNull(),
     toolSlug: text().notNull(),
     accountId: text().notNull(),
     arguments: jsonb().$type<Record<string, unknown>>().notNull(),
     // One sentence, in the bot's words, of what will happen
     summary: text().notNull(),
+    // Computer approvals only: the site and the kind of committing action
+    // (submit, post, send, delete, buy; apps treat other values as generic)
+    hostname: text(),
+    action: text(),
+    // The server's screenshot when the bot asked, so the owner sees what the
+    // step acts on. Base64 PNG; dropped when too large.
+    preview: text(),
+    // Computer approvals: when the first gesture spent it, and how many
+    // checked gestures it has covered (lib/computer-approval-policy.ts)
+    claimedAt: timestamp({ withTimezone: true }),
+    uses: integer().notNull().default(0),
     state: approvalState().notNull().default("pending"),
     result: jsonb(),
     expiresAt: timestamp({ withTimezone: true }).notNull(),
@@ -504,7 +534,9 @@ export const approvals = pgTable(
   (table) => [index("approvals_user_state_idx").on(table.userId, table.state)]
 )
 
-// "Always allow": an app action this bot may take without asking again
+// "Always allow": an app action this bot may take without asking again.
+// Bound to the connected account it was granted for; a rule for another
+// account, or for a high-risk action, is never applied (lib/approval-policy.ts).
 export const approvalRules = pgTable(
   "approval_rules",
   {
@@ -513,6 +545,8 @@ export const approvalRules = pgTable(
       .notNull()
       .references(() => bots.id, { onDelete: "cascade" }),
     toolSlug: text().notNull(),
+    // Null on rules saved before rules were bound to an account; never applied
+    accountId: text(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.botId, table.toolSlug] })]
@@ -762,6 +796,15 @@ export const routineUpdateSchema = createInsertSchema(routines, {
 export const approvalDecisionSchema = z.object({
   decision: z.enum(["approve", "always", "deny"]),
 })
+
+// Removes one "Always allow" rule
+export const approvalRuleRevokeSchema = createInsertSchema(approvalRules, {
+  botId: z.string().trim().min(1).max(100),
+  toolSlug: z.string().trim().min(1).max(200),
+})
+  .pick({ botId: true, toolSlug: true })
+  .required()
+export type ApprovalRuleRevoke = z.infer<typeof approvalRuleRevokeSchema>
 
 export const pushDeviceSchema = createInsertSchema(pushDevices, {
   token: z

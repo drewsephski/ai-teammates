@@ -124,7 +124,10 @@ test("complex website work is owned through discovery, computer fallback and ver
     true,
     true
   )
-  assert.match(group, /Do not emit a computerLogin card in this group/)
+  // Sign-in cards work in group chats too, with a reason for the blocker
+  assert.match(group, /This works in group chats too/)
+  assert.match(group, /reason: sign-in, verification, captcha or payment/)
+  assert.doesNotMatch(group, /Do not emit a computerLogin card/)
 })
 
 test("saved profiles and group handoffs retain role and capability guidance", () => {
@@ -275,9 +278,100 @@ test("the computer is shared by the person's bots, who take turns", () => {
     true
   )
   assert.match(group, /all of you share the person's one computer/)
-  assert.match(group, /the sign-in carries over here/)
+  assert.match(group, /may already be signed in/)
   assert.match(
     connectedAppInstructions(true, true),
     /app connection does not sign the desktop browser in/i
   )
+})
+
+test("connected apps: one failed search, reconnects, accounts and approvals", () => {
+  for (const computer of [true, false]) {
+    const text = connectedAppInstructions(true, computer)
+    assert.match(text, /not proof that the app or the action is unavailable/)
+    assert.match(text, /Never assume every catalog app is connected/)
+    assert.match(text, /needsReconnect: true/)
+    assert.match(text, /CONNECTION_EXPIRED/)
+    assert.match(text, /Never ask for a connection that is already connected/)
+    assert.match(text, /Connecting is not finishing/)
+    assert.match(text, /check the actual result/)
+    assert.match(text, /requires_input with accounts/)
+    assert.match(text, /Never pick an account yourself/)
+    assert.match(text, /OUTCOME_UNKNOWN/)
+    assert.match(
+      text,
+      /never reach the same result another way: not through the computer, the shell/
+    )
+  }
+  const paid = connectedAppInstructions(true, true)
+  assert.match(paid, /lacks the action you need after refined searches/)
+  assert.match(
+    paid,
+    /never call the app unavailable or work around the lapsed connection on the computer/
+  )
+})
+
+test("free accounts get the computer for their one-time allowance", () => {
+  const configured = { ...bot, setupComplete: true, job: "Analyst" }
+  const free = buildChatInstructions(
+    configured,
+    undefined,
+    true,
+    true,
+    true,
+    undefined,
+    { paid: false, clock: "Owner's timezone: America/Chicago." }
+  )
+  assert.match(free, /5 minutes of computer time, once/)
+  assert.match(free, /prefer bash and reading text over screenshots/)
+  assert.match(free, /Own the task from start to verified result/)
+  assert.match(free, /Owner's timezone: America\/Chicago/)
+  assert.doesNotMatch(free, /You can consult existing teammates/)
+  const spent = buildChatInstructions(
+    configured,
+    undefined,
+    true,
+    false,
+    true,
+    undefined,
+    { paid: false }
+  )
+  assert.match(spent, /one-time computer time is used up/)
+  assert.doesNotMatch(spent, /Own the task from start/)
+  const paidSpent = buildChatInstructions(
+    configured,
+    undefined,
+    true,
+    false,
+    true,
+    undefined,
+    { paid: true }
+  )
+  assert.match(paidSpent, /resets/)
+  assert.match(paidSpent, /You can consult existing teammates/)
+})
+
+test("committing computer steps wait for the owner and declines aren't worked around", () => {
+  const configured = { ...bot, setupComplete: true, job: "Teacher aide" }
+  const text = buildChatInstructions(configured, undefined, true, true, true)
+  assert.match(text, /requestComputerApproval/)
+  assert.match(text, /submitting grades/)
+  assert.match(
+    text,
+    /not through the browser, the shell, a connected app or another teammate/
+  )
+  assert.match(
+    text,
+    /never claim something was submitted until you see the confirmation/
+  )
+  assert.match(text, /can't approve anything/)
+})
+
+test("routines are made in chat from the owner's clock, and procedures reuse memory", () => {
+  const configured = { ...bot, setupComplete: true, job: "Analyst" }
+  const text = buildChatInstructions(configured, undefined, true, true, true)
+  assert.match(text, /never from the UTC date/)
+  assert.match(text, /quote nextRunLocal/)
+  assert.match(text, /call listRoutines first/)
+  assert.match(text, /kind procedure and scope this/)
 })

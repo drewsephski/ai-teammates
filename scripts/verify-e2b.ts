@@ -55,7 +55,12 @@ await mkdir(directory, { recursive: true })
 const userId = `verify-${randomUUID()}`
 let sandboxId = await createAccountSandbox(userId)
 const createdIds = new Set([sandboxId])
-const tools = createSandboxTools(() => sandboxId)
+// This check performs no committing step, so every gesture is let through
+const tools = createSandboxTools(() => sandboxId, {
+  gesture: async () => ({}),
+  shell: async () => ({}),
+  complete: async () => {},
+})
 const options = { toolCallId: "verification", messages: [], context: {} }
 const report: Record<string, unknown> = {
   sandboxId,
