@@ -1,0 +1,286 @@
+{
+  "state": {
+    "tag": "20261017-computer-approval-91ec13",
+    "scenario": "computer-approval",
+    "env": "dev",
+    "userId": "reliability-20261017-computer-approval-91ec13",
+    "botId": "bot_ebc74b10a9c63d5c2693b8921375f914",
+    "chatId": "chat_ebc74b10a9c63d5c2693b8921375f914",
+    "routineId": "5035caaad437551f6cc5ea059d53771c",
+    "createdAt": "2026-10-17T18:19:00.220Z",
+    "commit": "400267f",
+    "dispatched": 2
+  },
+  "evidence": {
+    "routine": {
+      "lastStatus": "blocked",
+      "lastError": "Waiting for your approval",
+      "lastRunAt": "2026-10-17T18:19:00.000Z",
+      "nextRunAt": null,
+      "enabled": false
+    },
+    "bot": {
+      "name": "Relay",
+      "job": "Reliability test assistant",
+      "setupComplete": true,
+      "instructions": "You are a test bot for Krafty's reliability harness. Keep replies short."
+    },
+    "routineCount": 1,
+    "activity": [
+      {
+        "kind": "routine_started",
+        "title": "A committing click is held for approval; approval runs it on started",
+        "detail": null,
+        "dedupeKey": "routine_5035caaad437551f6cc5ea059d53771c_1792261140000",
+        "createdAt": "2026-10-17T18:19:04.577Z"
+      },
+      {
+        "kind": "approval_requested",
+        "title": "Relay needs your approval",
+        "detail": "Submit the httpbin pizza order form with Customer name set to Reliability Test.",
+        "dedupeKey": "approval:YbC6UcoSu2GUb6tm64gZI:requested",
+        "createdAt": "2026-10-17T18:20:15.706Z"
+      },
+      {
+        "kind": "approval_decided",
+        "title": "Request approved",
+        "detail": "Submit the httpbin pizza order form with Customer name set to Reliability Test.",
+        "dedupeKey": "approval:YbC6UcoSu2GUb6tm64gZI:decided",
+        "createdAt": "2026-10-17T18:21:02.962Z"
+      },
+      {
+        "kind": "approval_requested",
+        "title": "Relay needs your approval",
+        "detail": "Submit the httpbin form with Customer name set to Reliability Test.",
+        "dedupeKey": "approval:-Jv5axDKtLtKfJ-2Vsr2G:requested",
+        "createdAt": "2026-10-17T18:21:28.652Z"
+      }
+    ],
+    "usage": [
+      {
+        "kind": "sandbox",
+        "amount": 4,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:11.662Z:4"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 1,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:1"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 4,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:5"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 2,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:7"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 1,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:8"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 3,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:11"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 2,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:13"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 10,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:23"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 6,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:29"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 1,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:30"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 1,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:31"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 4,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:35"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 2,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:37"
+      },
+      {
+        "kind": "ai",
+        "amount": 470,
+        "key": "ai:run_06gkm5lu412e0bkbk305ch3h01:0:guard:call_rc1G5vWZHhfNM8HGDbr9xj9x"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 3,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:40"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 3,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:43"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 2,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:45"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 1,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:46"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 4,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:50"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 1,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:51"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 1,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:52"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 6,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:58"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 1,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:19:18.390Z:59"
+      },
+      {
+        "kind": "ai",
+        "amount": 6984,
+        "key": "ai:run_06gkm5lu412e0bkbk305ch3h01:0"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 2,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:21:13.225Z:2"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 4,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:21:13.225Z:6"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 1,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:21:13.225Z:7"
+      },
+      {
+        "kind": "ai",
+        "amount": 502,
+        "key": "ai:run_06gkm64g8hdttmf1i1k98lag01:0:guard:call_YEHo1cQsnGOnvRBC1jHEfEQf"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 4,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:21:13.225Z:11"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 5,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:21:13.225Z:16"
+      },
+      {
+        "kind": "sandbox",
+        "amount": 1,
+        "key": "sandbox:ij7ltrimagzqevedfn4cf:2026-10-17T18:21:13.225Z:17"
+      },
+      {
+        "kind": "ai",
+        "amount": 5846,
+        "key": "ai:run_06gkm64g8hdttmf1i1k98lag01:0"
+      }
+    ],
+    "turns": [
+      "ai:run_06gkm5lu412e0bkbk305ch3h01:0",
+      "ai:run_06gkm64g8hdttmf1i1k98lag01:0"
+    ],
+    "runIds": [
+      "run_06gkm5lu412e0bkbk305ch3h01",
+      "run_06gkm64g8hdttmf1i1k98lag01"
+    ],
+    "approvals": [
+      {
+        "id": "-Jv5axDKtLtKfJ-2Vsr2G",
+        "kind": "computer",
+        "state": "pending",
+        "toolSlug": "COMPUTER_SUBMIT",
+        "action": "submit",
+        "hostname": "httpbin.org",
+        "uses": 0,
+        "result": null,
+        "summary": "Submit the httpbin form with Customer name set to Reliability Test."
+      },
+      {
+        "id": "YbC6UcoSu2GUb6tm64gZI",
+        "kind": "computer",
+        "state": "approved",
+        "toolSlug": "COMPUTER_SUBMIT",
+        "action": "submit",
+        "hostname": "httpbin.org",
+        "uses": 0,
+        "result": null,
+        "summary": "Submit the httpbin pizza order form with Customer name set to Reliability Test."
+      }
+    ],
+    "memories": [],
+    "chatPreview": null,
+    "computer": null,
+    "overspendMicros": 0,
+    "duplicates": {
+      "extraTurns": 0,
+      "routineStartsOverOne": 0,
+      "approvalsExecutedOverOne": 0,
+      "duplicateMemories": 0,
+      "unattendedRoutineCreates": 0
+    },
+    "triggerRuns": [
+      {
+        "id": "run_06gkm64g8hdttmf1i1k98lag01",
+        "task": "chat",
+        "status": "COMPLETED",
+        "version": "20261017.1",
+        "created": "10/17/2026, 1:21:03 PM"
+      },
+      {
+        "id": "run_06gkm5lu412e0bkbk305ch3h01",
+        "task": "chat",
+        "status": "COMPLETED",
+        "version": "20261017.1",
+        "created": "10/17/2026, 1:19:04 PM"
+      }
+    ],
+    "failures": [
+      "0 approvals executed after approval",
+      "asked for approval again"
+    ],
+    "result": "FAIL"
+  }
+}

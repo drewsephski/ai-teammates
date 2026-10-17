@@ -1,0 +1,51 @@
+{
+  "state": {
+    "tag": "20261017-missed-run-c33e13",
+    "scenario": "missed-run",
+    "env": "prod",
+    "userId": "reliability-20261017-missed-run-c33e13",
+    "botId": "bot_95773df1d88117593b143c3c45d273ed",
+    "chatId": "chat_95773df1d88117593b143c3c45d273ed",
+    "routineId": "a9a3b9a188472018012c0a1309f5d2b2",
+    "createdAt": "2026-10-17T18:00:22.006Z",
+    "commit": "400267f",
+    "dispatched": 0
+  },
+  "evidence": {
+    "routine": {
+      "lastStatus": "skipped",
+      "lastError": "Missed while Krafty was unavailable",
+      "lastRunAt": "2026-10-17T11:00:00.000Z",
+      "nextRunAt": null,
+      "enabled": false
+    },
+    "routineCount": 1,
+    "activity": [
+      {
+        "kind": "routine_skipped",
+        "title": "A run found past its grace window is skipped, not replayed didn't run",
+        "detail": "Missed while Krafty was unavailable",
+        "dedupeKey": "routine_a9a3b9a188472018012c0a1309f5d2b2_1792234800000:missed",
+        "createdAt": "2026-10-17T18:01:05.912Z"
+      }
+    ],
+    "usage": [],
+    "turns": [],
+    "runIds": [],
+    "approvals": [],
+    "memories": [],
+    "chatPreview": null,
+    "computer": null,
+    "overspendMicros": 0,
+    "duplicates": {
+      "extraTurns": 0,
+      "routineStartsOverOne": 0,
+      "approvalsExecutedOverOne": 0,
+      "duplicateMemories": 0,
+      "unattendedRoutineCreates": 0
+    },
+    "triggerRuns": [],
+    "failures": [],
+    "result": "PASS"
+  }
+}

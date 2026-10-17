@@ -1,0 +1,113 @@
+{
+  "state": {
+    "tag": "20261017-memory-recall-3cd113",
+    "scenario": "memory-recall",
+    "env": "prod",
+    "userId": "reliability-20261017-memory-recall-3cd113",
+    "botId": "bot_cc79bf87773d05043e5e21ecdc102169",
+    "chatId": "chat_3f34e2fe5e237535b38cf82623eb6f70",
+    "routineId": "979cf6159f4c7044ee2c4bc99ae59883",
+    "createdAt": "2026-10-17T18:00:36.751Z",
+    "commit": "400267f",
+    "dispatched": 2
+  },
+  "evidence": {
+    "routine": {
+      "lastStatus": "completed",
+      "lastError": null,
+      "lastRunAt": "2026-10-17T18:07:00.000Z",
+      "nextRunAt": null,
+      "enabled": false
+    },
+    "routineCount": 1,
+    "activity": [
+      {
+        "kind": "routine_started",
+        "title": "A memory saved in one chat is recalled in a new chat started",
+        "detail": null,
+        "dedupeKey": "routine_4819f280232c0925047853ef2be86182_1792260120000",
+        "createdAt": "2026-10-17T18:03:01.066Z"
+      },
+      {
+        "kind": "work_finished",
+        "title": "Relay finished a routine",
+        "detail": "Saved and verified: your test project is codenamed GREY-OWL-4 — it's in shared memory, so it'll be recalled in any future chat.",
+        "dedupeKey": "turn:run_06gkm20bghe50bjkooqef51601:0",
+        "createdAt": "2026-10-17T18:03:19.628Z"
+      },
+      {
+        "kind": "routine_started",
+        "title": "A memory saved in one chat is recalled in a new chat started",
+        "detail": null,
+        "dedupeKey": "routine_979cf6159f4c7044ee2c4bc99ae59883_1792260420000",
+        "createdAt": "2026-10-17T18:07:59.865Z"
+      },
+      {
+        "kind": "work_finished",
+        "title": "Relay finished a routine",
+        "detail": "Your test project's codename is GREY-OWL-4.",
+        "dedupeKey": "turn:run_06gkm34qp1gfg9cp20r4rpig01:0",
+        "createdAt": "2026-10-17T18:08:09.693Z"
+      }
+    ],
+    "usage": [
+      {
+        "kind": "ai",
+        "amount": 239,
+        "key": "ai:run_06gkm20bghe50bjkooqef51601:0:follow-ups"
+      },
+      {
+        "kind": "ai",
+        "amount": 1999,
+        "key": "ai:run_06gkm20bghe50bjkooqef51601:0"
+      },
+      {
+        "kind": "ai",
+        "amount": 234,
+        "key": "ai:run_06gkm34qp1gfg9cp20r4rpig01:0:follow-ups"
+      },
+      {
+        "kind": "ai",
+        "amount": 1057,
+        "key": "ai:run_06gkm34qp1gfg9cp20r4rpig01:0"
+      }
+    ],
+    "turns": [
+      "ai:run_06gkm20bghe50bjkooqef51601:0",
+      "ai:run_06gkm34qp1gfg9cp20r4rpig01:0"
+    ],
+    "runIds": [
+      "run_06gkm20bghe50bjkooqef51601",
+      "run_06gkm34qp1gfg9cp20r4rpig01"
+    ],
+    "approvals": [],
+    "memories": [
+      {
+        "content": "The owner's test project is codenamed GREY-OWL-4.",
+        "kind": "project",
+        "status": "active"
+      }
+    ],
+    "chatPreview": "Your test project's codename is GREY-OWL-4.",
+    "computer": null,
+    "overspendMicros": 0,
+    "duplicates": {
+      "extraTurns": 0,
+      "routineStartsOverOne": 0,
+      "approvalsExecutedOverOne": 0,
+      "duplicateMemories": 0,
+      "unattendedRoutineCreates": 0
+    },
+    "triggerRuns": [
+      {
+        "id": "run_06gkm34qp1gfg9cp20r4rpig01",
+        "task": "chat",
+        "status": "COMPLETED",
+        "version": "20261017.1",
+        "created": "10/17/2026, 1:07:59 PM"
+      }
+    ],
+    "failures": [],
+    "result": "PASS"
+  }
+}
