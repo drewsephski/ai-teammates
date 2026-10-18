@@ -62,25 +62,57 @@ export const appleDeps: AppleDeps = {
 
 const tags = { area: "apple-signin" }
 
-// If the lock died while Apple issued a token, do not silently abandon it.
-// This is best effort: an Apple outage at the same time still needs follow-up.
-async function requireAppleLock(
-  assertHeld: () => void,
+// Called only after ownership is checked. Any failure after token issuance
+// must attempt compensation once, including encryption, lost lock, and storage.
+async function persistOwnedAppleGrant(
+  userId: string,
+  grant: { subject: string; refreshToken: string },
   config: Extract<AppleConfigResult, { ok: true }>["config"],
-  token: string,
-  deps: AppleDeps
+  deps: AppleDeps,
+  assertHeld: () => void,
+  errorMessage: string
 ) {
   try {
+    const refreshToken = encryptAppleRefreshToken(
+      grant.refreshToken,
+      userId,
+      config.clientId,
+      config.encryptionKey
+    )
     assertHeld()
+    await db
+      .insert(appleSignInGrants)
+      .values({
+        userId,
+        clientId: config.clientId,
+        subject: grant.subject,
+        refreshToken,
+      })
+      .onConflictDoUpdate({
+        target: [appleSignInGrants.userId, appleSignInGrants.clientId],
+        set: { subject: grant.subject, refreshToken, updatedAt: sql`now()` },
+      })
   } catch {
+    // Driver exceptions may contain SQL parameters. Report static metadata,
+    // never the exception, token, authorization code, or ciphertext.
+    Sentry.captureMessage("Apple grant persistence failed", {
+      level: "error",
+      tags: { ...tags, step: "persist" },
+    })
     try {
-      await revokeAppleToken(config, config.clientId, token, deps.fetcher)
-    } catch (cause) {
-      Sentry.captureException(cause, {
-        tags: { ...tags, step: "lost_lock_revoke" },
+      await revokeAppleToken(
+        config,
+        config.clientId,
+        grant.refreshToken,
+        deps.fetcher
+      )
+    } catch {
+      Sentry.captureMessage("Apple issued token cleanup failed", {
+        level: "error",
+        tags: { ...tags, step: "persistence_compensation" },
       })
     }
-    throw new Error(APPLE_REVOKE_ERROR)
+    throw new Error(errorMessage)
   }
 }
 
@@ -141,25 +173,14 @@ async function saveAppleAuthorizationLocked(
 
   if (!subjects.includes(grant.subject)) throw new Error(APPLE_ACCOUNT_ERROR)
 
-  const refreshToken = encryptAppleRefreshToken(
-    grant.refreshToken,
+  await persistOwnedAppleGrant(
     userId,
-    config.clientId,
-    config.encryptionKey
+    grant,
+    config,
+    deps,
+    assertHeld,
+    APPLE_SAVE_ERROR
   )
-  await requireAppleLock(assertHeld, config, grant.refreshToken, deps)
-  await db
-    .insert(appleSignInGrants)
-    .values({
-      userId,
-      clientId: config.clientId,
-      subject: grant.subject,
-      refreshToken,
-    })
-    .onConflictDoUpdate({
-      target: [appleSignInGrants.userId, appleSignInGrants.clientId],
-      set: { subject: grant.subject, refreshToken, updatedAt: sql`now()` },
-    })
 }
 
 type Token = { clientId: string; subject: string; refreshToken: string }
@@ -253,29 +274,14 @@ export async function revokeAppleSignIn(
       if (owned) {
         // The code is single-use. Keep the token before revoking so an outage
         // or a later deletion failure can retry without another Apple sheet.
-        const refreshToken = encryptAppleRefreshToken(
-          fresh.refreshToken,
+        await persistOwnedAppleGrant(
           userId,
-          config.clientId,
-          config.encryptionKey
+          fresh,
+          config,
+          deps,
+          assertHeld,
+          APPLE_REVOKE_ERROR
         )
-        await requireAppleLock(assertHeld, config, fresh.refreshToken, deps)
-        await db
-          .insert(appleSignInGrants)
-          .values({
-            userId,
-            clientId: config.clientId,
-            subject: fresh.subject,
-            refreshToken,
-          })
-          .onConflictDoUpdate({
-            target: [appleSignInGrants.userId, appleSignInGrants.clientId],
-            set: {
-              subject: fresh.subject,
-              refreshToken,
-              updatedAt: sql`now()`,
-            },
-          })
         tokens.push({ clientId: config.clientId, ...fresh })
       } else
         Sentry.captureMessage("Apple code belongs to another Apple ID", {

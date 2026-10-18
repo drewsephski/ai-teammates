@@ -39,10 +39,13 @@ Clerk has no Apple refresh token for native sign-ins that it could revoke.
    cleanup; the deletion transaction checks again before commit. This is runtime
    serialization, not a durable deletion fence: a connection failure can be
    detected late, and app writes use a separate database connection. Stronger
-   fencing would require additional persistent state. If loss is detected after
-   Apple issues a token, the server attempts to revoke that token immediately.
-   A simultaneous Apple outage can still leave this token without a stored
-   grant; strict recovery would require a broader durable-operation design.
+   fencing would require additional persistent state. If encryption, lock
+   validation, or database persistence fails after Apple issues an owned token,
+   the server attempts revocation exactly once and returns a generic retryable
+   service error. Persistence errors are reported with static telemetry, without
+   driver errors or SQL parameters. A simultaneous Apple outage can still leave
+   this token without a stored grant; strict recovery would require a broader
+   durable-operation design.
 
 Grant cleanup runs after Clerk deletion, with at most three immediate attempts.
 Computer or Clerk failures retain encrypted grants, so a retry can revoke again

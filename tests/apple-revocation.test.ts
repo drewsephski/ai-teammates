@@ -432,7 +432,7 @@ test("detected lock loss during exchange revokes the new token instead of persis
   })
   await assert.rejects(
     apple.saveAppleAuthorization(A, "code_a", injected),
-    /Couldn't revoke Sign in with Apple/
+    /Couldn't save your Sign in with Apple/
   )
   assert.deepEqual(apple_.revoked, ["refresh_for_code_a"])
   assert.deepEqual(await db.select().from(schema.appleSignInGrants), [])
@@ -557,3 +557,53 @@ test("exhausted post-Clerk cleanup reports failure with the encrypted grant reta
   assert.equal(linked.has(A), false)
   assert.equal((await db.select().from(schema.appleSignInGrants)).length, 1)
 })
+
+for (const operation of ["save", "deletion"] as const) {
+  for (const compensationOutage of [false, true]) {
+    test(`${operation} compensates a rejected grant upsert once (revoke outage: ${compensationOutage})`, async () => {
+      // Fail a real database insert after Apple has issued the refresh token.
+      // The driver error intentionally contains fake token-like text, which
+      // must never escape through the service error or telemetry.
+      await database.pool
+        .query(`CREATE FUNCTION reject_apple_grant() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'fake_refresh_secret_in_database_error'; END $$`)
+      await database.pool
+        .query(`CREATE TRIGGER reject_apple_grant BEFORE INSERT OR UPDATE ON apple_sign_in_grants
+        FOR EACH ROW EXECUTE FUNCTION reject_apple_grant()`)
+      let revokeAttempts = 0
+      const injected = deps({
+        fetcher: (async (...args: Parameters<typeof fetch>) => {
+          if (String(args[0]).endsWith("/auth/revoke")) revokeAttempts++
+          return fetcher(...args)
+        }) as typeof fetch,
+      })
+      apple_.revokeMode = compensationOutage ? "outage" : "ok"
+      try {
+        const expected =
+          operation === "save"
+            ? apple.APPLE_SAVE_ERROR
+            : apple.APPLE_REVOKE_ERROR
+        await assert.rejects(
+          operation === "save"
+            ? apple.saveAppleAuthorization(A, "code_a", injected)
+            : apple.revokeAppleSignIn(A, "code_a", injected),
+          (error: unknown) =>
+            error instanceof Error &&
+            error.message === expected &&
+            error.cause === undefined
+        )
+        assert.equal(revokeAttempts, 1)
+        assert.deepEqual(
+          apple_.revoked,
+          compensationOutage ? [] : ["refresh_for_code_a"]
+        )
+        assert.deepEqual(await db.select().from(schema.appleSignInGrants), [])
+      } finally {
+        await database.pool.query(
+          "DROP TRIGGER reject_apple_grant ON apple_sign_in_grants"
+        )
+        await database.pool.query("DROP FUNCTION reject_apple_grant()")
+      }
+    })
+  }
+}
