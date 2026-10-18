@@ -582,9 +582,15 @@ test("every /api/v1 handler runs through apiRoute", () => {
 test("deleting B's account removes B's data and nothing of A's", async () => {
   const account = await import("../services/account")
   const calls: string[] = []
+  // Kept apart from `calls`, whose order the assertions below check
+  const appleCalls: string[] = []
   const steps = () => ({
     cancelSubscriptions: async (userId: string) => {
       calls.push(`billing:${userId}`)
+    },
+    revokeApple: async (userId: string) => {
+      appleCalls.push(userId)
+      return "none" as const
     },
     closeChat: async (chatId: string) => {
       calls.push(`close:${chatId}`)
@@ -634,6 +640,14 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
     .insert(schema.computers)
     .values([{ userId: A }, { userId: B }])
     .onConflictDoNothing()
+  await db.insert(schema.appleSignInGrants).values(
+    [A, B].map((userId) => ({
+      userId,
+      clientId: "app.kraftybot.mobile",
+      subject: `apple_${userId}`,
+      refreshToken: "v1.encrypted",
+    }))
+  )
   await db.insert(schema.aiContentReports).values([
     {
       userId: A,
@@ -678,7 +692,9 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
   assert.equal((await bots.listBots(B)).length, 2)
   assert.equal((await chats.listChats(B)).length, 2)
 
-  await account.deleteAccount(B, steps())
+  assert.deepEqual(await account.deleteAccount(B, steps()), {
+    appleSignIn: "none",
+  })
   assert.equal(calls[0], `billing:${B}`)
   assert.deepEqual(calls.slice(1, 3).sort(), ["close:chat_b1", "close:group_b"])
   // The computer goes last, once no bot is left to bring it back
@@ -688,6 +704,12 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
     `computer:${B}`,
     `clerk:${B}`,
   ])
+  // Each provider attempt revokes first; successful Clerk deletion gets a fresh sweep.
+  assert.deepEqual(appleCalls, [B, B, B])
+  assert.deepEqual(
+    (await db.select().from(schema.appleSignInGrants)).map((row) => row.userId),
+    [A]
+  )
   assert.deepEqual(await bots.listBots(B), [])
   assert.deepEqual(await chats.listChats(B), [])
   assert.deepEqual(

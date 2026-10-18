@@ -671,6 +671,24 @@ export const pushDevices = pgTable(
   (table) => [index("push_devices_user_id_idx").on(table.userId)]
 )
 
+// Sign in with Apple refresh tokens, one per Apple client (the iOS bundle ID),
+// kept only so account deletion can revoke the grant with Apple. The token is
+// AES-256-GCM encrypted, bound to the owner and client (lib/apple-signin.ts).
+export const appleSignInGrants = pgTable(
+  "apple_sign_in_grants",
+  {
+    // Clerk user ID
+    userId: text().notNull(),
+    clientId: text().notNull(),
+    // Apple's stable user ID (the ID token's `sub`)
+    subject: text().notNull(),
+    refreshToken: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.clientId] })]
+)
+
 // AI spend a turn has made but not yet written to the ledger. getUsage counts
 // it, so parallel turns see each other; a sweep books abandoned holds.
 export const usageHolds = pgTable(

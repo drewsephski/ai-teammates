@@ -151,6 +151,7 @@ it("account deletion removes the account's transcripts and no one else's", async
   const { and, eq, inArray } = await import("drizzle-orm")
   await account.deleteAccount("user_b", {
     cancelSubscriptions: async () => {},
+    revokeApple: async () => "none",
     closeChat: async () => {},
     deleteComputer: async () => {},
     // services/bots.deleteBot without its Sentry log

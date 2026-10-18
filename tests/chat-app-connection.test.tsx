@@ -2,6 +2,7 @@ import "./helpers/dom"
 import assert from "node:assert/strict"
 import { after, afterEach, test } from "node:test"
 import {
+  act,
   cleanup,
   configure,
   fireEvent,
@@ -184,7 +185,11 @@ test("a woken bot settles the card and resumes the turn", async () => {
 })
 
 const startConnect = async (view: ReturnType<typeof setup>) => {
-  fireEvent.click(view.getByRole("button", { name: "Connect" }))
+  // Flush the async connection update and passive handler-ref effect before
+  // the test's microtask channel can deliver the popup completion.
+  await act(async () => {
+    fireEvent.click(view.getByRole("button", { name: "Connect" }))
+  })
   await waitFor(() =>
     view.getByRole("button", { name: APP_CONNECTION_OPTIONS[0] })
   )
@@ -198,7 +203,9 @@ const connectOk = async () => ({
 test("the tab that started the connection answers when the bot wasn't woken", async () => {
   const view = setup("connect", { connect: connectOk })
   await startConnect(view)
-  postAppConnection({ questionId: "q_1", connected: true, woke: false })
+  await act(async () => {
+    postAppConnection({ questionId: "q_1", connected: true, woke: false })
+  })
   await waitFor(() =>
     assert.deepEqual(view.answers, [APP_CONNECTION_OPTIONS[0]])
   )

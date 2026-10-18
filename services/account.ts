@@ -1,12 +1,18 @@
 import { createClerkClient } from "@clerk/backend"
-import * as Sentry from "@sentry/nextjs"
+// Shares the Next server client and also supports service tests under tsx.
+import * as Sentry from "@sentry/node"
 import { ApiError as TriggerApiError, runs, sessions } from "@trigger.dev/sdk"
 import { eq } from "drizzle-orm"
 
 import { db } from "@/db"
 import {
+  withAppleAccountLock,
+  type AppleAccountLock,
+} from "@/lib/apple-account-lock"
+import {
   accountPlans,
   activityEvents,
+  appleSignInGrants,
   bots,
   chatgptConnections,
   chats,
@@ -22,10 +28,22 @@ import { cancelAccountSubscriptions } from "@/lib/account-billing"
 import { deleteAccountComputer } from "@/lib/account-computer"
 import { disconnectChatGPT } from "@/lib/chatgpt-connection"
 import { getComposio } from "@/lib/composio"
+import type { AppleRevocation } from "@/lib/apple-signin"
+import {
+  appleAuthorizationCodeSchema,
+  revokeAppleSignIn,
+} from "@/services/apple"
 import { deleteBot } from "@/services/bots"
 
 type Steps = {
+  deleteAppleGrants?: (userId: string, assertHeld: () => void) => Promise<void>
+  withAppleLock?: AppleAccountLock
   cancelSubscriptions: (userId: string) => Promise<void>
+  revokeApple: (
+    userId: string,
+    authorizationCode: string | undefined,
+    assertHeld: () => void
+  ) => Promise<AppleRevocation>
   closeChat: (chatId: string) => Promise<void>
   deleteComputer: (userId: string) => Promise<void>
   deleteBot: (userId: string, botId: string) => Promise<void>
@@ -54,6 +72,7 @@ const clerk = () =>
   createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
 
 const providerSteps: Steps = {
+  withAppleLock: withAppleAccountLock,
   cancelSubscriptions: async (userId) => {
     try {
       await cancelAccountSubscriptions(userId, clerk().billing)
@@ -82,11 +101,13 @@ const providerSteps: Steps = {
         Sentry.captureException(cause)
       })
   },
+  revokeApple: (userId, authorizationCode, assertHeld) =>
+    revokeAppleSignIn(userId, authorizationCode, undefined, assertHeld),
   deleteComputer: deleteAccountComputer,
   deleteBot,
   disconnectChatGPT,
   disconnectApps,
-  deleteUser: (userId) => clerk().users.deleteUser(userId),
+  deleteUser: (userId) => deleteClerkUser(userId, clerk().users),
 }
 
 // Deletes the account and what it owns: the computer, bots, chats, memories,
@@ -96,10 +117,75 @@ const providerSteps: Steps = {
 // unused user ID, as the billing record. Conversation history (chat_transcripts)
 // cascades with the chats. What Trigger.dev still holds (session streams, run
 // payloads and logs) has no supported delete; see docs/data-retention.md.
-export async function deleteAccount(userId: string, steps = providerSteps) {
+//
+// Sign in with Apple is revoked before data is deleted. An Apple outage stops
+// deletion for a retry; missing tokens return instructions for manual removal.
+export async function deleteAccount(
+  userId: string,
+  steps = providerSteps,
+  options: { appleAuthorizationCode?: string } = {}
+): Promise<{ appleSignIn: AppleRevocation }> {
+  const appleAuthorizationCode = appleAuthorizationCodeSchema
+    .optional()
+    .parse(options.appleAuthorizationCode)
+  const perform = (assertHeld: () => void = () => {}) =>
+    deleteAccountLocked(userId, steps, { appleAuthorizationCode }, assertHeld)
+  // Release the original lease before acquiring a new one: the session can
+  // disappear while Clerk deletion is in flight, admitting a late grant save.
+  const initial = steps.withAppleLock
+    ? await steps.withAppleLock(userId, perform)
+    : await perform()
+  let appleSignIn = initial.appleSignIn
+  const sweep = async (assertHeld: () => void = () => {}) => {
+    const final = await steps.revokeApple(userId, undefined, assertHeld)
+    appleSignIn =
+      appleSignIn === "manual" || final === "manual"
+        ? "manual"
+        : appleSignIn === "revoked" || final === "revoked"
+          ? "revoked"
+          : "none"
+    assertHeld()
+    await (steps.deleteAppleGrants ?? deleteAppleGrantRows)(userId, assertHeld)
+    assertHeld()
+    return final
+  }
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      if (steps.withAppleLock) await steps.withAppleLock(userId, sweep)
+      else await sweep()
+      return { appleSignIn }
+    } catch (cause) {
+      if (attempt < 3) continue
+      Sentry.captureMessage(
+        "Apple grant cleanup failed after account deletion",
+        {
+          level: "error",
+          tags: { area: "apple-signin", step: "post_account_cleanup" },
+          user: { id: userId },
+        }
+      )
+      throw cause
+    }
+  }
+  throw new Error("Account cleanup did not finish. Try again.")
+}
+
+async function deleteAccountLocked(
+  userId: string,
+  steps: Steps,
+  options: { appleAuthorizationCode?: string },
+  assertHeld: () => void
+): Promise<{ appleSignIn: AppleRevocation }> {
   // Do not leave a recurring charge attached to an account that cannot sign in.
   // A billing failure leaves the workspace intact so the person can retry.
   await steps.cancelSubscriptions(userId)
+
+  // While the stored grant still exists. Revoking again is harmless.
+  const appleSignIn = await steps.revokeApple(
+    userId,
+    options.appleAuthorizationCode,
+    assertHeld
+  )
 
   // Close sessions before their IDs disappear with the bots and group chats.
   // Closing prevents more messages; it does not erase Trigger.dev's records.
@@ -122,6 +208,7 @@ export async function deleteAccount(userId: string, steps = providerSteps) {
   await steps.disconnectChatGPT(userId)
   await steps.disconnectApps(userId)
 
+  assertHeld()
   await db.transaction(async (tx) => {
     // A teammate made since the bots were deleted, by a turn still running
     await tx.delete(bots).where(eq(bots.userId, userId))
@@ -145,7 +232,9 @@ export async function deleteAccount(userId: string, steps = providerSteps) {
     await tx.delete(activityEvents).where(eq(activityEvents.userId, userId))
     await tx.delete(pushDevices).where(eq(pushDevices.userId, userId))
     await tx.delete(accountPlans).where(eq(accountPlans.userId, userId))
+    assertHeld()
   })
+  assertHeld()
 
   // The computer last, once no bot is left: from here on nothing can create or
   // register one (lib/account-computer.ts), and one registered before is
@@ -153,5 +242,43 @@ export async function deleteAccount(userId: string, steps = providerSteps) {
   // again; the row stays until it succeeds.
   await steps.deleteComputer(userId)
 
+  assertHeld()
   await steps.deleteUser(userId)
+
+  return { appleSignIn }
+}
+
+async function deleteAppleGrantRows(userId: string, assertHeld: () => void) {
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(appleSignInGrants)
+      .where(eq(appleSignInGrants.userId, userId))
+    assertHeld()
+  })
+}
+
+// Confirm an uncertain provider response instead of treating a timeout as
+// proof of deletion. Only an authenticated Clerk lookup returning 404 qualifies.
+export async function deleteClerkUser(
+  userId: string,
+  users: {
+    deleteUser: (id: string) => Promise<unknown>
+    getUser: (id: string) => Promise<unknown>
+  }
+) {
+  try {
+    await users.deleteUser(userId)
+  } catch {
+    try {
+      await users.getUser(userId)
+    } catch (cause) {
+      if ((cause as { status?: number })?.status === 404) return
+    }
+    Sentry.captureMessage("Account deletion provider result is unconfirmed", {
+      level: "error",
+      tags: { area: "apple-signin", step: "delete_user" },
+      user: { id: userId },
+    })
+    throw new Error("Couldn't delete your account. Try again.")
+  }
 }
