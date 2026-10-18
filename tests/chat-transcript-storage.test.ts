@@ -325,3 +325,48 @@ it("a failed legacy read cannot promote a stream tail into authoritative Neon hi
     .where(eq(schema.chatTranscripts.chatId, chatId))
   assert.equal(rows.length, 0)
 })
+
+it("reporting reads an owned assistant reply from the authoritative Neon transcript", async () => {
+  const chatId = "report_neon_transcript"
+  const userId = "neon_report_owner"
+  await db.insert(schema.chats).values({ id: chatId, userId })
+  await db.insert(schema.bots).values({
+    id: "neon_report_bot",
+    userId,
+    name: "Reporter",
+    job: "Assistant",
+  })
+  await db
+    .insert(schema.chatMembers)
+    .values({ chatId, botId: "neon_report_bot" })
+  await transcriptStorage.save(context(chatId), {
+    ...changeset([]),
+    transcript: {
+      entries: [
+        {
+          id: "assistant_neon_reply",
+          final: true,
+          message: {
+            id: "assistant_neon_reply",
+            role: "assistant",
+            parts: [{ type: "text", text: "Assistant text from Neon" }],
+          },
+        },
+      ],
+      state: null,
+    },
+  })
+  const { reportAIContent } = await import("../services/ai-content-reports")
+  assert.deepEqual(
+    await reportAIContent(userId, chatId, "assistant_neon_reply", {
+      reason: "unsafe",
+    }),
+    { reported: true, created: true }
+  )
+  const { eq } = await import("drizzle-orm")
+  const [row] = await db
+    .select()
+    .from(schema.aiContentReports)
+    .where(eq(schema.aiContentReports.chatId, chatId))
+  assert.equal(row?.messageText, "Assistant text from Neon")
+})
