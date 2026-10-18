@@ -34,6 +34,13 @@ Clerk has no Apple refresh token for native sign-ins that it could revoke.
    ownership inside the lock before exchanging a code, so requests queued
    behind completed deletion cannot recreate a grant. No row lock or database
    transaction spans Apple or other remote provider calls.
+   Apple account leases use a lazy, separate direct-connection pool capped at
+   10 connections per application process. This adds at most 10 connections
+   above the existing 10-connection sandbox-lock pool (20 lock connections total,
+   excluding normal application queries). Deletion nests sandbox leases for
+   ChatGPT disconnect and computer removal; separate capacity prevents outer
+   account leases from starving those inner operations. Both pools reuse the
+   same acquisition, guard, unlock, and broken-connection release mechanism.
 
    Detected advisory-lock connection loss aborts grant persistence and deletion
    cleanup; the deletion transaction checks again before commit. This is runtime

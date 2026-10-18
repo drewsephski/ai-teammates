@@ -1,11 +1,34 @@
-import { withSandboxLock } from "@/lib/sandbox-lock"
+import type { Pool } from "pg"
+
+import { SandboxBusyError } from "@/lib/sandbox-lock"
+import { acquireSessionLock, createSessionLockPool } from "@/lib/session-lock"
 
 export type AppleAccountLock = <T>(
   userId: string,
   operation: (assertHeld: () => void) => Promise<T>
 ) => Promise<T>
 
-// Dedicated session advisory lock: no row lock or transaction spans Apple,
-// Clerk or account cleanup calls. Sign-in and deletion use the same namespace.
-export const withAppleAccountLock: AppleAccountLock = (userId, operation) =>
-  withSandboxLock(`apple-account:${userId}`, operation)
+const globalForLocks = globalThis as unknown as { appleAccountLockPool?: Pool }
+
+function getPool() {
+  // Deletion nests sandbox leases for ChatGPT disconnect and computer removal.
+  // Its outer lease must never consume those leases' connection capacity.
+  return (globalForLocks.appleAccountLockPool ??= createSessionLockPool(
+    "ai-teammates-apple-account-lock",
+    10
+  ))
+}
+
+export const withAppleAccountLock: AppleAccountLock = async (
+  userId,
+  operation
+) => {
+  const result = await acquireSessionLock(
+    getPool(),
+    `apple-account:${userId}`,
+    operation,
+    10_000
+  )
+  if (!result.acquired) throw new SandboxBusyError()
+  return result.value
+}
