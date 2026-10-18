@@ -29,7 +29,20 @@ Clerk has no Apple refresh token for native sign-ins that it could revoke.
    The client secret is an ES256 JWT (`kid` = key ID, `iss` = Team ID,
    `aud` = `https://appleid.apple.com`, `sub` = client ID, expires in 5 minutes),
    signed with the Sign in with Apple key. The grant rows are deleted in the
-   final transaction.
+   final transaction. Native grant saves and the complete deletion sequence
+   share a per-account Postgres session advisory lock. Saves re-read Clerk
+   ownership inside the lock before exchanging a code, so requests queued
+   behind completed deletion cannot recreate a grant. No row lock or database
+   transaction spans Apple or other remote provider calls.
+
+   Detected advisory-lock connection loss aborts grant persistence and deletion
+   cleanup; the deletion transaction checks again before commit. This is runtime
+   serialization, not a durable deletion fence: a connection failure can be
+   detected late, and app writes use a separate database connection. Stronger
+   fencing would require additional persistent state. If loss is detected after
+   Apple issues a token, the server attempts to revoke that token immediately.
+   A simultaneous Apple outage can still leave this token without a stored
+   grant; strict recovery would require a broader durable-operation design.
 
 ## Outcomes (`appleSignIn` in the DELETE response)
 

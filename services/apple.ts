@@ -4,6 +4,10 @@ import * as Sentry from "@sentry/node"
 import { eq, sql } from "drizzle-orm"
 
 import { db } from "@/db"
+import {
+  withAppleAccountLock,
+  type AppleAccountLock,
+} from "@/lib/apple-account-lock"
 import { appleSignInGrants } from "@/db/schema"
 import {
   AppleRequestError,
@@ -24,6 +28,7 @@ export const APPLE_REVOKE_ERROR =
 export const APPLE_ACCOUNT_ERROR = "Apple account not found"
 
 export type AppleDeps = {
+  withAccountLock: AppleAccountLock
   config: () => AppleConfigResult
   // The Apple user IDs Clerk has linked to this account
   appleSubjects: (userId: string) => Promise<string[]>
@@ -43,12 +48,35 @@ async function clerkAppleSubjects(userId: string) {
 }
 
 export const appleDeps: AppleDeps = {
+  withAccountLock: withAppleAccountLock,
   config: () => appleSignInConfig(),
   appleSubjects: clerkAppleSubjects,
   fetcher: (...args) => fetch(...args),
 }
 
 const tags = { area: "apple-signin" }
+
+// If the lock died while Apple issued a token, do not silently abandon it.
+// This is best effort: an Apple outage at the same time still needs follow-up.
+async function requireAppleLock(
+  assertHeld: () => void,
+  config: Extract<AppleConfigResult, { ok: true }>["config"],
+  token: string,
+  deps: AppleDeps
+) {
+  try {
+    assertHeld()
+  } catch {
+    try {
+      await revokeAppleToken(config, config.clientId, token, deps.fetcher)
+    } catch (cause) {
+      Sentry.captureException(cause, {
+        tags: { ...tags, step: "lost_lock_revoke" },
+      })
+    }
+    throw new Error(APPLE_REVOKE_ERROR)
+  }
+}
 
 // Stores the refresh token for an authorization code the native app just got
 // from Apple. The code is single-use and short-lived, so the app posts it right
@@ -60,6 +88,28 @@ export async function saveAppleAuthorization(
   authorizationCode: string,
   deps = appleDeps
 ) {
+  return deps.withAccountLock(userId, (assertHeld) =>
+    saveAppleAuthorizationLocked(userId, authorizationCode, deps, assertHeld)
+  )
+}
+
+async function saveAppleAuthorizationLocked(
+  userId: string,
+  authorizationCode: string,
+  deps: AppleDeps,
+  assertHeld: () => void
+) {
+  // Read Clerk while serialized with deletion, before consuming the code. A
+  // queued request after deleteUser sees no linked subject and cannot persist.
+  let subjects: string[]
+  try {
+    subjects = await deps.appleSubjects(userId)
+  } catch (cause) {
+    Sentry.captureException(cause, { tags: { ...tags, step: "subjects" } })
+    throw new Error(APPLE_SAVE_ERROR)
+  }
+  if (!subjects.length) throw new Error(APPLE_ACCOUNT_ERROR)
+
   const configured = deps.config()
   if (!configured.ok) {
     Sentry.captureMessage("Sign in with Apple is not configured", {
@@ -71,6 +121,7 @@ export async function saveAppleAuthorization(
   }
   const { config } = configured
 
+  assertHeld()
   let grant: { refreshToken: string; subject: string }
   try {
     grant = await exchangeAppleCode(config, authorizationCode, deps.fetcher)
@@ -79,13 +130,6 @@ export async function saveAppleAuthorization(
     throw new Error(APPLE_SAVE_ERROR)
   }
 
-  let subjects: string[]
-  try {
-    subjects = await deps.appleSubjects(userId)
-  } catch (cause) {
-    Sentry.captureException(cause, { tags: { ...tags, step: "subjects" } })
-    throw new Error(APPLE_SAVE_ERROR)
-  }
   if (!subjects.includes(grant.subject)) throw new Error(APPLE_ACCOUNT_ERROR)
 
   const refreshToken = encryptAppleRefreshToken(
@@ -94,6 +138,7 @@ export async function saveAppleAuthorization(
     config.clientId,
     config.encryptionKey
   )
+  await requireAppleLock(assertHeld, config, grant.refreshToken, deps)
   await db
     .insert(appleSignInGrants)
     .values({
@@ -125,7 +170,8 @@ type Token = { clientId: string; subject: string; refreshToken: string }
 export async function revokeAppleSignIn(
   userId: string,
   authorizationCode: string | undefined,
-  deps = appleDeps
+  deps = appleDeps,
+  assertHeld: () => void = () => {}
 ): Promise<AppleRevocation> {
   const grants = await db
     .select()
@@ -184,6 +230,7 @@ export async function revokeAppleSignIn(
 
   if (authorizationCode) {
     try {
+      assertHeld()
       const fresh = await exchangeAppleCode(
         config,
         authorizationCode,
@@ -202,6 +249,7 @@ export async function revokeAppleSignIn(
           config.clientId,
           config.encryptionKey
         )
+        await requireAppleLock(assertHeld, config, fresh.refreshToken, deps)
         await db
           .insert(appleSignInGrants)
           .values({

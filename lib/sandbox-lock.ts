@@ -39,7 +39,7 @@ export class SandboxBusyError extends Error {
 
 async function acquire<T>(
   id: string,
-  operation: () => Promise<T>,
+  operation: (assertHeld: () => void) => Promise<T>,
   waitMs: number
 ) {
   const client = await getPool().connect()
@@ -61,7 +61,13 @@ async function acquire<T>(
         [id]
       )
       locked = result.rows[0].acquired
-      if (locked) return { acquired: true as const, value: await operation() }
+      if (locked) {
+        const assertHeld = () => {
+          if (broken)
+            throw new Error("The account lock connection was lost. Try again.")
+        }
+        return { acquired: true as const, value: await operation(assertHeld) }
+      }
       if (Date.now() >= deadline) break
       await setTimeout(100)
     } while (!broken)
@@ -91,13 +97,16 @@ async function acquire<T>(
 
 export async function withSandboxLock<T>(
   id: string,
-  operation: () => Promise<T>
+  operation: (assertHeld: () => void) => Promise<T>
 ) {
   const result = await acquire(id, operation, 10_000)
   if (!result.acquired) throw new SandboxBusyError()
   return result.value
 }
 
-export function tryWithSandboxLock<T>(id: string, operation: () => Promise<T>) {
+export function tryWithSandboxLock<T>(
+  id: string,
+  operation: (assertHeld: () => void) => Promise<T>
+) {
   return acquire(id, operation, 0)
 }

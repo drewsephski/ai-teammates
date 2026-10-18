@@ -5,6 +5,10 @@ import { eq } from "drizzle-orm"
 
 import { db } from "@/db"
 import {
+  withAppleAccountLock,
+  type AppleAccountLock,
+} from "@/lib/apple-account-lock"
+import {
   accountPlans,
   activityEvents,
   appleSignInGrants,
@@ -28,10 +32,12 @@ import { revokeAppleSignIn } from "@/services/apple"
 import { deleteBot } from "@/services/bots"
 
 type Steps = {
+  withAppleLock?: AppleAccountLock
   cancelSubscriptions: (userId: string) => Promise<void>
   revokeApple: (
     userId: string,
-    authorizationCode: string | undefined
+    authorizationCode: string | undefined,
+    assertHeld: () => void
   ) => Promise<AppleRevocation>
   closeChat: (chatId: string) => Promise<void>
   deleteComputer: (userId: string) => Promise<void>
@@ -61,6 +67,7 @@ const clerk = () =>
   createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
 
 const providerSteps: Steps = {
+  withAppleLock: withAppleAccountLock,
   cancelSubscriptions: async (userId) => {
     try {
       await cancelAccountSubscriptions(userId, clerk().billing)
@@ -89,8 +96,8 @@ const providerSteps: Steps = {
         Sentry.captureException(cause)
       })
   },
-  revokeApple: (userId, authorizationCode) =>
-    revokeAppleSignIn(userId, authorizationCode),
+  revokeApple: (userId, authorizationCode, assertHeld) =>
+    revokeAppleSignIn(userId, authorizationCode, undefined, assertHeld),
   deleteComputer: deleteAccountComputer,
   deleteBot,
   disconnectChatGPT,
@@ -113,6 +120,18 @@ export async function deleteAccount(
   steps = providerSteps,
   options: { appleAuthorizationCode?: string } = {}
 ): Promise<{ appleSignIn: AppleRevocation }> {
+  const perform = (assertHeld: () => void = () => {}) =>
+    deleteAccountLocked(userId, steps, options, assertHeld)
+  // Custom provider steps can inject serialization in tests.
+  return steps.withAppleLock ? steps.withAppleLock(userId, perform) : perform()
+}
+
+async function deleteAccountLocked(
+  userId: string,
+  steps: Steps,
+  options: { appleAuthorizationCode?: string },
+  assertHeld: () => void
+): Promise<{ appleSignIn: AppleRevocation }> {
   // Do not leave a recurring charge attached to an account that cannot sign in.
   // A billing failure leaves the workspace intact so the person can retry.
   await steps.cancelSubscriptions(userId)
@@ -120,7 +139,8 @@ export async function deleteAccount(
   // While the stored grant still exists. Revoking again is harmless.
   const appleSignIn = await steps.revokeApple(
     userId,
-    options.appleAuthorizationCode
+    options.appleAuthorizationCode,
+    assertHeld
   )
 
   // Close sessions before their IDs disappear with the bots and group chats.
@@ -144,6 +164,7 @@ export async function deleteAccount(
   await steps.disconnectChatGPT(userId)
   await steps.disconnectApps(userId)
 
+  assertHeld()
   await db.transaction(async (tx) => {
     // A teammate made since the bots were deleted, by a turn still running
     await tx.delete(bots).where(eq(bots.userId, userId))
@@ -162,6 +183,7 @@ export async function deleteAccount(
     await tx
       .delete(chatgptConnections)
       .where(eq(chatgptConnections.userId, userId))
+    assertHeld()
     // Revocation finished or returned explicit manual-removal instructions.
     await tx
       .delete(appleSignInGrants)
@@ -171,6 +193,7 @@ export async function deleteAccount(
     await tx.delete(activityEvents).where(eq(activityEvents.userId, userId))
     await tx.delete(pushDevices).where(eq(pushDevices.userId, userId))
     await tx.delete(accountPlans).where(eq(accountPlans.userId, userId))
+    assertHeld()
   })
 
   // The computer last, once no bot is left: from here on nothing can create or
@@ -179,6 +202,7 @@ export async function deleteAccount(
   // again; the row stays until it succeeds.
   await steps.deleteComputer(userId)
 
+  assertHeld()
   await steps.deleteUser(userId)
   return { appleSignIn }
 }

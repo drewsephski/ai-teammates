@@ -70,6 +70,7 @@ const fetcher = (async (url: string | URL, init?: RequestInit) => {
 
 function deps(overrides: Partial<AppleDeps> = {}): AppleDeps {
   return {
+    withAccountLock: async (_userId, operation) => operation(() => {}),
     config: () => lib.appleSignInConfig(env),
     appleSubjects: async (userId) => linked.get(userId) ?? [],
     fetcher,
@@ -297,4 +298,161 @@ test("fresh deletion tokens survive a revoke outage for a bodiless retry", async
   assert.equal(await apple.revokeAppleSignIn(A, undefined, deps()), "revoked")
   assert.deepEqual(apple_.exchanged, ["code_a"])
   assert.deepEqual(apple_.revoked, ["refresh_for_code_a"])
+})
+
+function gate() {
+  let release!: () => void
+  const promise = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  return { promise, release }
+}
+
+function serializedAccounts(): AppleDeps["withAccountLock"] {
+  const tails = new Map<string, Promise<void>>()
+  return async (userId, operation) => {
+    const prior = tails.get(userId) ?? Promise.resolve()
+    const next = gate()
+    tails.set(userId, next.promise)
+    await prior
+    try {
+      return await operation(() => {})
+    } finally {
+      next.release()
+    }
+  }
+}
+
+function deletionSteps(appleDeps: AppleDeps) {
+  return {
+    withAppleLock: appleDeps.withAccountLock,
+    cancelSubscriptions: async () => {},
+    revokeApple: (userId: string, code: string | undefined) =>
+      apple.revokeAppleSignIn(userId, code, appleDeps),
+    closeChat: async () => {},
+    deleteComputer: async () => {},
+    deleteBot: async () => {},
+    disconnectChatGPT: async () => {},
+    disconnectApps: async () => {},
+    deleteUser: async (userId: string) => {
+      linked.delete(userId)
+    },
+  }
+}
+
+test("a save already exchanging completes before deletion snapshots and revokes its grant", async () => {
+  const account = await import("../services/account")
+  const entered = gate()
+  const resume = gate()
+  const injected = deps({
+    withAccountLock: serializedAccounts(),
+    fetcher: (async (...args: Parameters<typeof fetch>) => {
+      if (String(args[0]).endsWith("/auth/token")) {
+        entered.release()
+        await resume.promise
+      }
+      return fetcher(...args)
+    }) as typeof fetch,
+  })
+  const saving = apple.saveAppleAuthorization(A, "code_a", injected)
+  await entered.promise
+  const deleting = account.deleteAccount(A, deletionSteps(injected))
+  assert.deepEqual(apple_.revoked, [])
+  resume.release()
+  await saving
+  assert.deepEqual(await deleting, { appleSignIn: "revoked" })
+  assert.deepEqual(apple_.revoked, ["refresh_for_code_a"])
+  assert.deepEqual(await db.select().from(schema.appleSignInGrants), [])
+})
+
+test("a save queued during deletion rechecks Clerk and never exchanges or recreates a grant", async () => {
+  const account = await import("../services/account")
+  const entered = gate()
+  const resume = gate()
+  const injected = deps({ withAccountLock: serializedAccounts() })
+  const steps = {
+    ...deletionSteps(injected),
+    disconnectApps: async () => {
+      entered.release()
+      await resume.promise
+    },
+  }
+  const deleting = account.deleteAccount(A, steps)
+  await entered.promise
+  const saving = assert.rejects(
+    apple.saveAppleAuthorization(A, "code_a", injected),
+    /Apple account not found/
+  )
+  resume.release()
+  await deleting
+  await saving
+  assert.deepEqual(apple_.exchanged, [])
+  assert.deepEqual(await db.select().from(schema.appleSignInGrants), [])
+})
+
+test("detected lock loss before cleanup keeps the grant and Clerk account", async () => {
+  const account = await import("../services/account")
+  await apple.saveAppleAuthorization(A, "code_a", deps())
+  let lost = false
+  let deletedUser = false
+  const injected = deps({
+    withAccountLock: async (_userId, operation) =>
+      operation(() => {
+        if (lost) throw new Error("lock lost")
+      }),
+  })
+  await assert.rejects(
+    account.deleteAccount(A, {
+      ...deletionSteps(injected),
+      disconnectApps: async () => {
+        lost = true
+      },
+      deleteUser: async () => {
+        deletedUser = true
+      },
+    }),
+    /lock lost/
+  )
+  assert.equal(deletedUser, false)
+  assert.equal((await db.select().from(schema.appleSignInGrants)).length, 1)
+})
+
+test("detected lock loss during exchange revokes the new token instead of persisting", async () => {
+  let lost = false
+  const injected = deps({
+    withAccountLock: async (_userId, operation) =>
+      operation(() => {
+        if (lost) throw new Error("lock lost")
+      }),
+    fetcher: (async (...args: Parameters<typeof fetch>) => {
+      const result = await fetcher(...args)
+      lost = true
+      return result
+    }) as typeof fetch,
+  })
+  await assert.rejects(
+    apple.saveAppleAuthorization(A, "code_a", injected),
+    /Couldn't revoke Sign in with Apple/
+  )
+  assert.deepEqual(apple_.revoked, ["refresh_for_code_a"])
+  assert.deepEqual(await db.select().from(schema.appleSignInGrants), [])
+})
+
+test("deletion revokes an owned fresh token when its lock is lost during exchange", async () => {
+  let lost = false
+  const injected = deps({
+    fetcher: (async (...args: Parameters<typeof fetch>) => {
+      const result = await fetcher(...args)
+      lost = true
+      return result
+    }) as typeof fetch,
+  })
+  await assert.rejects(
+    apple.revokeAppleSignIn(A, "code_a", injected, () => {
+      if (lost) throw new Error("lock lost")
+    }),
+    /Couldn't revoke Sign in with Apple/
+  )
+  assert.deepEqual(apple_.revoked, ["refresh_for_code_a"])
+  assert.deepEqual(await db.select().from(schema.appleSignInGrants), [])
 })
