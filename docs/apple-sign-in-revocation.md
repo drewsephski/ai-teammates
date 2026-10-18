@@ -41,6 +41,10 @@ Clerk has no Apple refresh token for native sign-ins that it could revoke.
    ChatGPT disconnect and computer removal; separate capacity prevents outer
    account leases from starving those inner operations. Both pools reuse the
    same acquisition, guard, unlock, and broken-connection release mechanism.
+   A failed advisory-lock attempt immediately returns its healthy connection;
+   contenders wait outside the pool before trying again. Only actual lock
+   owners retain a checked-out connection, so many requests for one account do
+   not reserve all connections while unrelated accounts wait.
 
    Detected advisory-lock connection loss aborts grant persistence and deletion
    cleanup; the deletion transaction checks again before commit. This is runtime
