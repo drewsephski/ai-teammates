@@ -70,7 +70,7 @@ npm run db:push
 Add your project's ref to `.env.local` as `TRIGGER_PROJECT_REF`, then:
 
 ```bash
-pnpm dlx trigger.dev@4.7.3 deploy --env prod --env-file .env.local
+pnpm dlx trigger.dev@4.7.4 deploy --env prod --env-file .env.local
 ```
 
 In Trigger.dev, add these to the project's production environment: `DATABASE_URL`, `CLERK_SECRET_KEY`, `E2B_API_KEY`, `NEON_AI_GATEWAY_BASE_URL` and `NEON_AI_GATEWAY_TOKEN`. Add `NEXT_PUBLIC_SENTRY_DSN` too if you use Sentry.
@@ -112,6 +112,6 @@ Built by [Code With Antonio](https://github.com/code-with-antonio). An independe
 
 ### Hobby computer lifecycle and private access
 
-Set `E2B_API_KEY` privately in ignored `.env.local`, Railway production and Trigger.dev production. Do not enable a paid E2B plan. Hobby includes one-time credits and a one-hour running-session ceiling; it is not unlimited free compute. The same sandbox pauses when idle and resumes with its files and `MEMORY.md` intact. See [the setup and verification guide](README.md#e2b-computers-on-hobby).
+Set `E2B_API_KEY` privately in ignored `.env.local`, Railway production and Trigger.dev production. Do not enable a paid E2B plan. Hobby includes one-time credits and a one-hour running-session ceiling; it is not unlimited free compute. Each account has one sandbox, shared by its bots (`lib/account-computer.ts`). It pauses when idle and resumes with its files intact; saved memory lives in Postgres, not on the computer (`lib/memory.ts`). See [the setup and verification guide](README.md#e2b-computers-on-hobby).
 
 Keep the Railway start command as `pnpm start`. It launches Next.js plus the authenticated desktop WebSocket gateway in `server.ts`. Public sandbox traffic is disabled, and provider keys and ingress tokens stay server-side. `next start` alone does not support this gateway.

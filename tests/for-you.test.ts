@@ -69,7 +69,7 @@ test("Gmail records carry who wrote, what about, and reply signals", () => {
     when: "2026-10-14T09:00:00Z",
     url: undefined,
     excerpt: "Can you send the revised numbers by Friday?",
-    signals: ["unread", "Gmail marked important"],
+    signals: ["unread", "Gmail marked important", "asks a question"],
   })
   assert.ok(records[1].signals.includes("you already replied in this thread"))
   assert.ok(records[2].signals.includes("likely automated or bulk mail"))

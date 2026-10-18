@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { rootMessageId } from "@/lib/turn-continuation"
+
 // Browser-safe: the routine form and db/schema.ts import this module.
 
 export const ROUTINE_LIMITS = { free: 1, paid: 50 } as const
@@ -315,9 +317,12 @@ export function routineRunMessageId(routineId: string, scheduledAt: Date) {
 }
 
 // Reads a run's message ID back into its routine and the time it was due.
-// Routine IDs are hex, but the last segment is what is trusted.
+// Routine IDs are hex, but the last segment is what is trusted. A
+// continuation turn reads back to the run that started its task.
 export function parseRoutineRunMessageId(messageId: string | undefined) {
-  const match = /^routine_(.+)_(\d{10,16})$/.exec(messageId ?? "")
+  const match = /^routine_(.+)_(\d{10,16})$/.exec(
+    rootMessageId(messageId) ?? ""
+  )
   if (!match) return undefined
   const scheduledAt = new Date(Number(match[2]))
   if (Number.isNaN(scheduledAt.getTime())) return undefined
@@ -433,7 +438,9 @@ export function routineRunPrompt(routine: { title: string; prompt: string }) {
 }
 
 // Turns nobody started from the composer, by the ID their server-sent message carries
-export function unattendedOrigin(messageId: string | undefined) {
+export function unattendedOrigin(rawMessageId: string | undefined) {
+  // A continuation turn has the standing of the message that started its task
+  const messageId = rootMessageId(rawMessageId)
   if (!messageId) return undefined
   if (messageId.startsWith("routine_")) return "routine" as const
   if (messageId.startsWith("brief_")) return "delegation" as const

@@ -23,12 +23,19 @@ import {
   forYouItems,
   forYouScans,
   memories,
+  userSettings,
+  type AppPreferences,
   type ForYouCategory,
   type ForYouItem,
 } from "@/db/schema"
-import { activeAccounts, createReadOnlyRuntime } from "@/lib/composio"
+import {
+  activeAccounts,
+  createReadOnlyRuntime,
+  toolkitSlugSchema,
+} from "@/lib/composio"
 import {
   appName,
+  forYouCategoryLabels,
   sourceLabel,
   type ForYouRecord,
   type RankedCandidate,
@@ -65,6 +72,7 @@ export type ForYouItemView = {
   reason: string
   prompt: string
   category: ForYouCategory
+  categoryLabel: string
   urgency: ForYouItem["urgency"]
   app: string
   toolkit: string | null
@@ -83,13 +91,30 @@ export type ForYouState = {
     finishedAt: string | null
     stale: boolean
   }
+  // Apps the person turned off for For you
+  hiddenApps: string[]
   reason?: "no-apps" | "no-bots" | "usage"
   error?: string
 }
 
+async function appPreferences(userId: string): Promise<AppPreferences> {
+  const row = await db.query.userSettings.findFirst({
+    where: eq(userSettings.userId, userId),
+    columns: { appPreferences: true },
+  })
+  return row?.appPreferences ?? {}
+}
+
+function hiddenApps(preferences: AppPreferences) {
+  return Object.entries(preferences)
+    .filter(([, preference]) => preference.proactive === false)
+    .map(([toolkit]) => toolkit)
+    .sort()
+}
+
 export async function getForYou(userId: string): Promise<ForYouState> {
   const now = new Date()
-  const [rows, scan] = await Promise.all([
+  const [rows, scan, preferences] = await Promise.all([
     db
       .select({ item: forYouItems, bot: bots })
       .from(forYouItems)
@@ -103,25 +128,31 @@ export async function getForYou(userId: string): Promise<ForYouState> {
       )
       .orderBy(desc(forYouItems.score)),
     db.query.forYouScans.findFirst({ where: eq(forYouScans.userId, userId) }),
+    appPreferences(userId),
   ])
+  const hidden = hiddenApps(preferences)
   const running =
     scan?.status === "running" &&
     now.getTime() - scan.startedAt.getTime() < RUNNING_TIMEOUT
   return {
-    items: rows.map(({ item, bot }) => ({
-      id: item.id,
-      title: item.title,
-      reason: item.reason,
-      prompt: item.prompt,
-      category: item.category,
-      urgency: item.urgency,
-      app: appName(item.toolkit ?? "memory"),
-      toolkit: item.toolkit,
-      sourceLabel: item.sourceLabel,
-      sourceUrl: item.sourceUrl,
-      quote: item.sourceQuote,
-      bot: { id: bot.id, name: bot.name, avatar: bot.avatar },
-    })),
+    hiddenApps: hidden,
+    items: rows
+      .filter(({ item }) => !item.toolkit || !hidden.includes(item.toolkit))
+      .map(({ item, bot }) => ({
+        id: item.id,
+        title: item.title,
+        reason: item.reason,
+        prompt: item.prompt,
+        category: item.category,
+        categoryLabel: forYouCategoryLabels[item.category],
+        urgency: item.urgency,
+        app: appName(item.toolkit ?? "memory"),
+        toolkit: item.toolkit,
+        sourceLabel: item.sourceLabel,
+        sourceUrl: item.sourceUrl,
+        quote: item.sourceQuote,
+        bot: { id: bot.id, name: bot.name, avatar: bot.avatar },
+      })),
     scan: {
       status: running
         ? "running"
@@ -229,6 +260,7 @@ async function feedbackFor(userId: string, now: Date) {
       fingerprint: forYouItems.fingerprint,
       state: forYouItems.state,
       category: forYouItems.category,
+      toolkit: forYouItems.toolkit,
       title: forYouItems.title,
       dismissReason: forYouItems.dismissReason,
       snoozedUntil: forYouItems.snoozedUntil,
@@ -241,16 +273,22 @@ async function feedbackFor(userId: string, now: Date) {
   const excluded = new Set<string>()
   const started: ForYouContext["feedback"]["started"] = {}
   const dismissed: ForYouContext["feedback"]["dismissed"] = {}
+  const startedApps: Record<string, number> = {}
+  const dismissedApps: Record<string, number> = {}
   const recentDismissals: ForYouContext["feedback"]["recentDismissals"] = []
   const window = now.getTime() - 60 * DAY
   for (const row of rows) {
     if (row.state !== "snoozed" || (row.snoozedUntil && row.snoozedUntil > now))
       excluded.add(row.fingerprint)
     if (!row.actedAt || row.actedAt.getTime() < window) continue
-    if (row.state === "started")
+    const app = row.toolkit ?? "memory"
+    if (row.state === "started") {
       started[row.category] = (started[row.category] ?? 0) + 1
+      startedApps[app] = (startedApps[app] ?? 0) + 1
+    }
     if (row.state === "dismissed" && row.dismissReason !== "done") {
       dismissed[row.category] = (dismissed[row.category] ?? 0) + 1
+      dismissedApps[app] = (dismissedApps[app] ?? 0) + 1
       if (recentDismissals.length < 10)
         recentDismissals.push({
           title: row.title,
@@ -259,7 +297,14 @@ async function feedbackFor(userId: string, now: Date) {
         })
     }
   }
-  return { excluded, started, dismissed, recentDismissals }
+  return {
+    excluded,
+    started,
+    dismissed,
+    startedApps,
+    dismissedApps,
+    recentDismissals,
+  }
 }
 
 function expiresAt(record: ForYouRecord, now: Date) {
@@ -272,7 +317,10 @@ function expiresAt(record: ForYouRecord, now: Date) {
 }
 
 async function runScan({ userId, has }: Caller, now: Date) {
-  const accounts = await activeAccounts(userId)
+  const hidden = hiddenApps(await appPreferences(userId))
+  const accounts = (await activeAccounts(userId)).filter(
+    (account) => !hidden.includes(account.toolkit)
+  )
   const owned = await db
     .select({
       id: bots.id,
@@ -497,13 +545,20 @@ export async function updateForYouItem(
   action:
     | { type: "dismiss"; reason: "not_relevant" | "done" | "wrong_bot" }
     | { type: "snooze" }
+    // Dismiss, and stop suggesting anything from this item's app
+    | { type: "hide_app" }
 ) {
   const now = new Date()
   const [row] = await db
     .update(forYouItems)
     .set(
-      action.type === "dismiss"
-        ? { state: "dismissed", dismissReason: action.reason, actedAt: now }
+      action.type === "dismiss" || action.type === "hide_app"
+        ? {
+            state: "dismissed",
+            dismissReason:
+              action.type === "dismiss" ? action.reason : "not_relevant",
+            actedAt: now,
+          }
         : {
             state: "snoozed",
             snoozedUntil: new Date(now.getTime() + DAY),
@@ -517,8 +572,50 @@ export async function updateForYouItem(
         eq(forYouItems.state, "new")
       )
     )
-    .returning({ id: forYouItems.id })
+    .returning({ id: forYouItems.id, toolkit: forYouItems.toolkit })
   if (!row) throw new Error("This suggestion is no longer available.")
+  if (action.type === "hide_app" && row.toolkit)
+    await setAppSuggestions(userId, row.toolkit, false)
+}
+
+// Turns For you on or off for one app. Turning it off also clears that app's
+// unacted cards, so they disappear at once.
+export async function setAppSuggestions(
+  userId: string,
+  toolkit: string,
+  proactive: boolean
+) {
+  const slug = toolkitSlugSchema.parse(toolkit)
+  await db.transaction(async (tx) => {
+    const row = await tx.query.userSettings.findFirst({
+      where: eq(userSettings.userId, userId),
+      columns: { appPreferences: true },
+    })
+    const preferences: AppPreferences = { ...row?.appPreferences }
+    const next = { ...preferences[slug] }
+    if (proactive) delete next.proactive
+    else next.proactive = false
+    if (Object.keys(next).length) preferences[slug] = next
+    else delete preferences[slug]
+    await tx
+      .insert(userSettings)
+      .values({ userId, appPreferences: preferences })
+      .onConflictDoUpdate({
+        target: userSettings.userId,
+        set: { appPreferences: preferences, updatedAt: new Date() },
+      })
+    if (!proactive)
+      await tx
+        .delete(forYouItems)
+        .where(
+          and(
+            eq(forYouItems.userId, userId),
+            eq(forYouItems.toolkit, slug),
+            eq(forYouItems.state, "new")
+          )
+        )
+  })
+  return { toolkit: slug, proactive }
 }
 
 export async function startForYouItem(userId: string, itemId: string) {

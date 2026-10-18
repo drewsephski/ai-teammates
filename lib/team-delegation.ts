@@ -7,6 +7,7 @@ import { bots, chatMembers, chats } from "@/db/schema"
 import { withSandboxLock } from "@/lib/sandbox-lock"
 import { assertDelegationDepth, teamOperationId } from "@/lib/team-policy"
 import { createTeamTools, type TeamDestination } from "@/lib/team-tools"
+import { rootMessageId } from "@/lib/turn-continuation"
 import {
   assertTeamAccess,
   provisionGroup,
@@ -37,8 +38,10 @@ export function createDelegationTools(context: {
     return withSandboxLock(`delegation:${operationId}`, async () => {
       await assertTeamAccess(context.userId, computer)
       const source = await sessions.retrieve(context.chatId)
+      // A continued brief keeps the depth of the brief that started it
       const depth =
-        source.metadata?.delegationMessageId === context.messageId() &&
+        source.metadata?.delegationMessageId ===
+          rootMessageId(context.messageId()) &&
         typeof source.metadata?.delegationDepth === "number"
           ? source.metadata.delegationDepth
           : 0

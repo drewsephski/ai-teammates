@@ -1,0 +1,113 @@
+{
+  "state": {
+    "tag": "20261017-routine-from-chat-9f8801",
+    "scenario": "routine-from-chat",
+    "env": "dev",
+    "userId": "reliability-20261017-routine-from-chat-9f8801",
+    "botId": "bot_09757e6d12591538e127ef8cca543987",
+    "chatId": "chat_09757e6d12591538e127ef8cca543987",
+    "routineId": "",
+    "createdAt": "2026-10-17T18:36:43.051Z",
+    "commit": "400267f",
+    "dispatched": 3
+  },
+  "evidence": {
+    "bot": {
+      "name": "Relay",
+      "job": "Reliability test assistant",
+      "setupComplete": true,
+      "instructions": "You are a test bot for Krafty's reliability harness. Keep replies short."
+    },
+    "routineCount": 1,
+    "routines": [
+      {
+        "id": "1b42279489e7893cb4926bf71b2239b6",
+        "title": "Weekday 9am summary",
+        "schedule": {
+          "days": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "kind": "daily",
+          "time": "09:00"
+        },
+        "timezone": "America/New_York",
+        "nextRunAt": "2026-10-19T13:00:00.000Z",
+        "enabled": true
+      }
+    ],
+    "activity": [],
+    "usage": [
+      {
+        "kind": "ai",
+        "amount": 2226,
+        "key": "ai:run_06gkm9ogd0mltcdel3qubh2g01:0"
+      },
+      {
+        "kind": "ai",
+        "amount": 2630,
+        "key": "ai:run_06gkm9vpcijpubach005m40o01:0"
+      },
+      {
+        "kind": "ai",
+        "amount": 242,
+        "key": "ai:run_06gkma6urclaf66g7849a4ig01:0:follow-ups"
+      },
+      {
+        "kind": "ai",
+        "amount": 1825,
+        "key": "ai:run_06gkma6urclaf66g7849a4ig01:0"
+      }
+    ],
+    "turns": [
+      "ai:run_06gkm9ogd0mltcdel3qubh2g01:0",
+      "ai:run_06gkm9vpcijpubach005m40o01:0",
+      "ai:run_06gkma6urclaf66g7849a4ig01:0"
+    ],
+    "runIds": [
+      "run_06gkm9ogd0mltcdel3qubh2g01",
+      "run_06gkm9vpcijpubach005m40o01",
+      "run_06gkma6urclaf66g7849a4ig01"
+    ],
+    "approvals": [],
+    "memories": [],
+    "chatPreview": "Done — \"Weekday 9am summary\" is scheduled for weekdays at 9:00 AM Eastern, first run Monday Oct 19 at 9:00 AM. One heads-up: with no calendar connected, my sour",
+    "computer": null,
+    "overspendMicros": 0,
+    "duplicates": {
+      "extraTurns": 0,
+      "routineStartsOverOne": 0,
+      "approvalsExecutedOverOne": 0,
+      "duplicateMemories": 0,
+      "unattendedRoutineCreates": 0
+    },
+    "triggerRuns": [
+      {
+        "id": "run_06gkma6urclaf66g7849a4ig01",
+        "task": "chat",
+        "status": "COMPLETED",
+        "version": "20261017.1",
+        "created": "10/17/2026, 1:38:52 PM"
+      },
+      {
+        "id": "run_06gkm9vpcijpubach005m40o01",
+        "task": "chat",
+        "status": "COMPLETED",
+        "version": "20261017.1",
+        "created": "10/17/2026, 1:37:53 PM"
+      },
+      {
+        "id": "run_06gkm9ogd0mltcdel3qubh2g01",
+        "task": "chat",
+        "status": "COMPLETED",
+        "version": "20261017.1",
+        "created": "10/17/2026, 1:36:53 PM"
+      }
+    ],
+    "failures": [],
+    "result": "PASS"
+  }
+}

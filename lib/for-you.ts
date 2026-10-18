@@ -12,6 +12,8 @@ export type ForYouRecord = {
   sourceId: string
   kind:
     | "email"
+    // Mail the person sent that nobody has answered yet
+    | "sent_email"
     | "event"
     | "issue"
     | "pull_request"
@@ -29,13 +31,35 @@ export type ForYouRecord = {
 
 export const forYouCategories = [
   "reply",
+  "schedule",
   "meeting_prep",
-  "review",
-  "issue",
+  "follow_up",
+  "admin",
   "doc_followup",
   "commitment",
+  "review",
+  "issue",
   "other",
 ] as const satisfies readonly ForYouCategory[]
+
+// Shown on the card, so a glance says what kind of help it is
+export const forYouCategoryLabels: Record<ForYouCategory, string> = {
+  reply: "Reply",
+  schedule: "Schedule",
+  meeting_prep: "Meeting prep",
+  follow_up: "Follow up",
+  admin: "To-do",
+  doc_followup: "Docs",
+  commitment: "Your commitment",
+  review: "Review",
+  issue: "Issue",
+  other: "Task",
+}
+
+// Engineering work; capped so it can't fill For you for someone whose day
+// is mostly email and meetings
+const codeCategories = new Set<ForYouCategory>(["review", "issue"])
+const codeToolkits = new Set(["github", "gitlab", "vercel", "linear", "jira"])
 export const forYouUrgencies = [
   "today",
   "this_week",
@@ -55,8 +79,24 @@ export const forYouCandidateSchema = z.object({
   quote: z.string().trim().min(6).max(240),
 })
 export type ForYouCandidate = z.infer<typeof forYouCandidateSchema>
+
+// What the person can do with a card, from the web and the app
+export const forYouItemActionSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("dismiss"),
+    reason: z.enum(["not_relevant", "done", "wrong_bot"]),
+  }),
+  z.object({ type: z.literal("snooze") }),
+  z.object({ type: z.literal("hide_app") }),
+])
+export type ForYouItemAction = z.infer<typeof forYouItemActionSchema>
+
+export const appSuggestionsSchema = z.object({
+  toolkit: z.string().min(1).max(100),
+  proactive: z.boolean(),
+})
 export const forYouOutputSchema = z.object({
-  candidates: z.array(forYouCandidateSchema).max(5),
+  candidates: z.array(forYouCandidateSchema).max(8),
 })
 
 const MAX_TEXT = 600
@@ -98,7 +138,10 @@ function listIn(data: unknown, keys: string[]): Record<string, unknown>[] {
 }
 
 const automatedSender =
-  /(?:no-?reply|donotreply|notifications?@|mailer-daemon|newsletter|digest|updates?@|news@|marketing|info@|hello@)/i
+  /(?:no-?reply|donotreply|notifications?@|mailer-daemon|newsletter|digest|updates?@|news@|marketing|info@|hello@|alerts?@|team@|support@)/i
+// Errands worth surfacing even when a machine sent them
+const errandSubject =
+  /\b(?:invoice|receipt|bill|payment (?:due|failed)|past due|renew(?:al|s)?|expir(?:es|ing|ed)|subscription|appointment|reservation|booking|confirm(?:ation)?|deadline|due (?:date|today|tomorrow)|action required|sign(?:ature)? (?:required|requested)|rsvp|invitation)\b/i
 
 export function gmailRecords(
   data: unknown,
@@ -139,13 +182,21 @@ export function gmailRecords(
     const sentAt = when ? Date.parse(when) : NaN
     if (repliedAt && (Number.isNaN(sentAt) || repliedAt >= sentAt))
       signals.push("you already replied in this thread")
+    const subject = text(message.subject, 200)
+    if (subject && errandSubject.test(subject))
+      signals.push("looks like a bill, booking, deadline, or form")
+    if (
+      /\?/.test(excerpt ?? "") &&
+      !signals.includes("likely automated or bulk mail")
+    )
+      signals.push("asks a question")
     return [
       {
         id: `gmail:${sourceId}`,
         toolkit: "gmail",
         sourceId,
         kind: "email",
-        title: text(message.subject, 200) ?? "(no subject)",
+        title: subject ?? "(no subject)",
         from,
         when,
         url: text(message.display_url, 500),
@@ -171,7 +222,71 @@ export function sentThreads(data: unknown) {
   return threads
 }
 
-export function calendarRecords(data: unknown): ForYouRecord[] {
+const MIN_FOLLOW_UP_AGE = 3 * 24 * 60 * 60 * 1000
+const MAX_FOLLOW_UP_AGE = 12 * 24 * 60 * 60 * 1000
+
+// Mail the person sent 3 to 12 days ago whose thread has no newer message in
+// their inbox: someone may owe them an answer. One record per thread.
+export function followUpRecords(
+  sent: unknown,
+  inboxes: unknown[],
+  now = new Date()
+): ForYouRecord[] {
+  const answered = new Map<string, number>()
+  for (const message of inboxes.flatMap((inbox) =>
+    listIn(inbox, ["messages"])
+  )) {
+    const threadId = text(message.threadId, 200)
+    if (!threadId) continue
+    const at = Date.parse(String(message.messageTimestamp ?? ""))
+    answered.set(
+      threadId,
+      Math.max(answered.get(threadId) ?? 0, Number.isNaN(at) ? 0 : at)
+    )
+  }
+  const latest = new Map<string, Record<string, unknown>>()
+  for (const message of listIn(sent, ["messages"])) {
+    const threadId = text(message.threadId, 200)
+    const at = Date.parse(String(message.messageTimestamp ?? ""))
+    if (!threadId || Number.isNaN(at)) continue
+    const previous = latest.get(threadId)
+    if (!previous || Date.parse(String(previous.messageTimestamp)) < at)
+      latest.set(threadId, message)
+  }
+  const records: ForYouRecord[] = []
+  for (const [threadId, message] of latest) {
+    const at = Date.parse(String(message.messageTimestamp))
+    const age = now.getTime() - at
+    if (age < MIN_FOLLOW_UP_AGE || age > MAX_FOLLOW_UP_AGE) continue
+    if ((answered.get(threadId) ?? 0) > at) continue
+    const sourceId = text(message.messageId ?? message.id, 500)
+    const to = text(message.to ?? message.recipient, 200)
+    if (!sourceId || !to || automatedSender.test(to)) continue
+    const days = Math.round(age / (24 * 60 * 60 * 1000))
+    records.push({
+      id: `gmail:sent:${sourceId}`,
+      toolkit: "gmail",
+      sourceId,
+      kind: "sent_email",
+      title: text(message.subject, 200) ?? "(no subject)",
+      from: to,
+      when: text(message.messageTimestamp, 60),
+      url: text(message.display_url, 500),
+      excerpt: text(
+        message.messageText ??
+          get(message, "preview", "body") ??
+          message.snippet
+      ),
+      signals: [`you sent this ${days} days ago and have no reply yet`],
+    })
+  }
+  return records.slice(0, 6)
+}
+
+export function calendarRecords(
+  data: unknown,
+  now = new Date()
+): ForYouRecord[] {
   return listIn(data, ["items", "events"]).flatMap((event): ForYouRecord[] => {
     const sourceId = text(event.id, 500)
     if (!sourceId || event.status === "cancelled") return []
@@ -196,6 +311,12 @@ export function calendarRecords(data: unknown): ForYouRecord[] {
     if (self?.responseStatus === "needsAction")
       signals.push("awaiting your RSVP")
     if (asArray(event.attachments).length) signals.push("has attachments")
+    const startsAt = start ? Date.parse(start) : NaN
+    if (
+      startsAt > now.getTime() &&
+      startsAt - now.getTime() < 24 * 60 * 60 * 1000
+    )
+      signals.push("within the next 24 hours")
     const organizer =
       text(get(event, "organizer", "displayName"), 200) ??
       text(get(event, "organizer", "email"), 200)
@@ -466,6 +587,18 @@ export type ForYouFeedback = {
   excluded: Set<string>
   started: Partial<Record<ForYouCategory, number>>
   dismissed: Partial<Record<ForYouCategory, number>>
+  // The same counts per app, so "never GitHub" is learned too
+  startedApps?: Record<string, number>
+  dismissedApps?: Record<string, number>
+}
+
+// Bulk mail and threads the person already answered rarely deserve a card
+export function isLowValue(record: Pick<ForYouRecord, "signals">) {
+  return (
+    record.signals.includes("you already replied in this thread") ||
+    (record.signals.includes("likely automated or bulk mail") &&
+      !record.signals.includes("looks like a bill, booking, deadline, or form"))
+  )
 }
 
 const urgencyWeight: Record<ForYouUrgency, number> = {
@@ -478,13 +611,27 @@ const urgencyWeight: Record<ForYouUrgency, number> = {
 // what this person has acted on or dismissed before.
 export function scoreCandidate(
   candidate: Pick<ForYouCandidate, "category" | "urgency" | "importance">,
-  record: Pick<ForYouRecord, "signals">,
-  feedback: Pick<ForYouFeedback, "started" | "dismissed">
+  record: Pick<ForYouRecord, "signals"> &
+    Partial<Pick<ForYouRecord, "toolkit">>,
+  feedback: Pick<
+    ForYouFeedback,
+    "started" | "dismissed" | "startedApps" | "dismissedApps"
+  >
 ) {
-  const started = feedback.started[candidate.category] ?? 0
-  const dismissed = feedback.dismissed[candidate.category] ?? 0
-  // Beta(1,1)-smoothed acceptance rate for this kind of task
-  const acceptance = (started + 1) / (started + dismissed + 2)
+  // Beta(1,1)-smoothed acceptance rates for this kind of task and this app
+  const rate = (started = 0, dismissed = 0) =>
+    (started + 1) / (started + dismissed + 2)
+  const app = record.toolkit
+  const acceptance =
+    (rate(
+      feedback.started[candidate.category],
+      feedback.dismissed[candidate.category]
+    ) +
+      rate(
+        app ? feedback.startedApps?.[app] : 0,
+        app ? feedback.dismissedApps?.[app] : 0
+      )) /
+    2
   let score =
     0.35 * urgencyWeight[candidate.urgency] +
     0.4 * (candidate.importance / 5) +
@@ -494,7 +641,7 @@ export function scoreCandidate(
     score -= 0.15
   if (
     record.signals.some((signal) =>
-      /awaiting your RSVP|review is requested|marked important|starred|high priority/.test(
+      /awaiting your RSVP|review is requested|marked important|starred|high priority|no reply yet|asks a question|bill, booking/.test(
         signal
       )
     )
@@ -504,7 +651,17 @@ export function scoreCandidate(
 }
 
 export const MIN_SCORE = 0.42
-export const MAX_ITEMS = 3
+export const MAX_ITEMS = 5
+// At most this many cards from one app, and from engineering work overall
+const MAX_PER_APP = 2
+const MAX_CODE = 2
+
+function isCode(candidate: RankedCandidate) {
+  return (
+    codeCategories.has(candidate.category) ||
+    codeToolkits.has(candidate.record.toolkit)
+  )
+}
 
 export type RankedCandidate = ForYouCandidate & {
   record: ForYouRecord
@@ -535,16 +692,52 @@ export function rankCandidates(
       score: scoreCandidate(candidate, record, feedback),
     })
   }
-  return ranked
-    .filter((candidate) => candidate.score >= MIN_SCORE)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, MAX_ITEMS)
+  return diversify(
+    ranked
+      .filter((candidate) => candidate.score >= MIN_SCORE)
+      .sort((a, b) => b.score - a.score)
+  )
+}
+
+// Best first, but a second card from the same app or of the same kind has to
+// beat the alternatives by a margin, and caps keep one app from taking over.
+export function diversify(sorted: RankedCandidate[]) {
+  const chosen: RankedCandidate[] = []
+  const pool = [...sorted]
+  while (chosen.length < MAX_ITEMS && pool.length) {
+    let best = -1
+    let bestValue = -Infinity
+    pool.forEach((candidate, index) => {
+      const sameApp = chosen.filter(
+        (entry) => entry.record.toolkit === candidate.record.toolkit
+      ).length
+      if (sameApp >= MAX_PER_APP) return
+      if (isCode(candidate) && chosen.filter(isCode).length >= MAX_CODE) return
+      const sameKind = chosen.filter(
+        (entry) => entry.category === candidate.category
+      ).length
+      const value = candidate.score - 0.06 * sameApp - 0.04 * sameKind
+      if (value > bestValue) {
+        bestValue = value
+        best = index
+      }
+    })
+    if (best < 0) break
+    chosen.push(pool.splice(best, 1)[0])
+  }
+  return chosen
 }
 
 const appNames: Record<string, string> = {
   gmail: "Gmail",
   googlecalendar: "Google Calendar",
   github: "GitHub",
+  gitlab: "GitLab",
+  googlesheets: "Google Sheets",
+  googledrive: "Google Drive",
+  googledocs: "Google Docs",
+  outlook: "Outlook",
+  vercel: "Vercel",
   notion: "Notion",
   linear: "Linear",
   jira: "Jira",
@@ -584,6 +777,8 @@ export function sourceLabel(record: ForYouRecord, timeZone = "UTC") {
   switch (record.kind) {
     case "email":
       return `Email from ${senderName(record.from ?? "unknown sender")}`
+    case "sent_email":
+      return `Your email to ${senderName(record.from ?? "someone")}`
     case "event":
       return time ? `Meeting ${time}` : "Upcoming meeting"
     case "pull_request":

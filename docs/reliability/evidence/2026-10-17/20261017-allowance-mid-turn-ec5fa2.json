@@ -1,0 +1,81 @@
+{
+  "state": {
+    "tag": "20261017-allowance-mid-turn-ec5fa2",
+    "scenario": "allowance-mid-turn",
+    "env": "prod",
+    "userId": "reliability-20261017-allowance-mid-turn-ec5fa2",
+    "botId": "bot_6f2b47aa7f681385807aed8150453820",
+    "chatId": "chat_6f2b47aa7f681385807aed8150453820",
+    "routineId": "ea9fa024d9aaca24608711228b1da147",
+    "createdAt": "2026-10-17T18:00:27.079Z",
+    "commit": "400267f",
+    "dispatched": 1
+  },
+  "evidence": {
+    "routine": {
+      "lastStatus": "completed",
+      "lastError": null,
+      "lastRunAt": "2026-10-17T18:02:00.000Z",
+      "nextRunAt": null,
+      "enabled": false
+    },
+    "routineCount": 1,
+    "activity": [
+      {
+        "kind": "routine_started",
+        "title": "Web searches stop when the allowance runs out mid-turn started",
+        "detail": null,
+        "dedupeKey": "routine_ea9fa024d9aaca24608711228b1da147_1792260120000",
+        "createdAt": "2026-10-17T18:03:00.163Z"
+      },
+      {
+        "kind": "work_finished",
+        "title": "Relay finished a routine",
+        "detail": "All three searches failed immediately: the AI allowance is exhausted (\"You've used up your AI allowance\"), so web searching is blocked mid-turn. I couldn't verify any of the three answers from sources",
+        "dedupeKey": "turn:run_06gkm207tif16v0ajo1ej77g01:0",
+        "createdAt": "2026-10-17T18:03:09.420Z"
+      }
+    ],
+    "usage": [
+      {
+        "kind": "ai",
+        "amount": 995000,
+        "key": "reliability:20261017-allowance-mid-turn-ec5fa2:fixture"
+      },
+      {
+        "kind": "ai",
+        "amount": 3299,
+        "key": "ai:run_06gkm207tif16v0ajo1ej77g01:0"
+      }
+    ],
+    "turns": [
+      "ai:run_06gkm207tif16v0ajo1ej77g01:0"
+    ],
+    "runIds": [
+      "run_06gkm207tif16v0ajo1ej77g01"
+    ],
+    "approvals": [],
+    "memories": [],
+    "chatPreview": "All three searches failed immediately: the AI allowance is exhausted (\"You've used up your AI allowance\"), so web searching is blocked mid-turn. I couldn't veri",
+    "computer": null,
+    "overspendMicros": 0,
+    "duplicates": {
+      "extraTurns": 0,
+      "routineStartsOverOne": 0,
+      "approvalsExecutedOverOne": 0,
+      "duplicateMemories": 0,
+      "unattendedRoutineCreates": 0
+    },
+    "triggerRuns": [
+      {
+        "id": "run_06gkm207tif16v0ajo1ej77g01",
+        "task": "chat",
+        "status": "COMPLETED",
+        "version": "20261017.1",
+        "created": "10/17/2026, 1:02:59 PM"
+      }
+    ],
+    "failures": [],
+    "result": "PASS"
+  }
+}

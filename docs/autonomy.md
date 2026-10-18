@@ -32,6 +32,16 @@ The message ID marks the turn's origin, and `unattendedOrigin` reads it in `onTu
 
 `displayPrompt` metadata ("Routine: Morning brief", "Approved") is what the chat shows in place of the long instruction text.
 
+### Continuation turns
+
+A turn that stops at its step cap (`TURN_STEP_LIMIT`, 150 steps) or time cap (`TURN_TIME_LIMIT_MS`, 40 minutes, inside the task's one-hour `maxDuration`) while the bot still wanted another step carries on in a new turn (`lib/turn-continuation.ts`).
+
+- `onTurnComplete` decides with `shouldContinueTurn`. A turn that failed, was stopped, asked a question, delegated, is waiting on an approval, ran out of allowance (AI, or computer time when it used the computer) or found the computer busy doesn't continue. A chain is at most `MAX_TURN_CONTINUATIONS` (10) turns, or `MAX_FREE_TURN_CONTINUATIONS` (2) on the free plan.
+- The `continue-turn` task (`trigger/continuation.ts`) posts the message with `postChatMessage`, a few seconds later and only after the chat's run has exited: an append that arrives while a run is alive doesn't boot the next one. It drops the continuation when another run has started meanwhile, because the person's own message comes first.
+- The message ID is `continue_<depth>_<root>`, where the root is the message that started the task. `unattendedOrigin`, `parseRoutineRunMessageId`, the declined-approval lookup and the delegation depth all read the root, so a continued routine is still unattended, its outcome lands on the routine run that started it, and a continued brief can't delegate deeper than its depth allows.
+- A routine's outcome and the unattended report are written when the chain ends, not at each cut-off. A chain counts as a long turn for the "finished" activity.
+- The chat shows the message as "Continuing".
+
 ## Routines
 
 - **Storage:** the `routines` table. `schedule` is `daily` (time and weekdays), `interval` (whole hours, at least one) or `once`, and is read in the routine's IANA `timezone`. `nextRunAt` is null when the routine is paused or finished.
