@@ -1,6 +1,6 @@
 import type { Pool } from "pg"
 
-import { SandboxBusyError } from "@/lib/sandbox-lock"
+import { AppleAccountBusyError } from "@/lib/apple-account-policy"
 import { acquireSessionLock, createSessionLockPool } from "@/lib/session-lock"
 
 export type AppleAccountLock = <T>(
@@ -29,6 +29,6 @@ export const withAppleAccountLock: AppleAccountLock = async (
     operation,
     10_000
   )
-  if (!result.acquired) throw new SandboxBusyError()
+  if (!result.acquired) throw new AppleAccountBusyError()
   return result.value
 }

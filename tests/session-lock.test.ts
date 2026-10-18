@@ -3,6 +3,11 @@ import { EventEmitter } from "node:events"
 import { test } from "node:test"
 import type { Pool } from "pg"
 
+import { apiErrorResponse } from "../lib/api-response"
+import {
+  AppleAccountBusyError,
+  APPLE_ACCOUNT_BUSY_ERROR,
+} from "../lib/apple-account-policy"
 import { withAppleAccountLock } from "../lib/apple-account-lock"
 import { acquireSessionLock } from "../lib/session-lock"
 import { withSandboxLock } from "../lib/sandbox-lock"
@@ -284,4 +289,42 @@ test("a polling contender acquires after release without leaking prior checkouts
   assert.equal(pool.locks.size, 0)
   for (const client of pool.clients)
     assert.equal(client.listenerCount("error"), 0)
+})
+
+test("actual Apple lock deadline maps to a safe retryable account API error", async (t) => {
+  const pool = new BoundedPool()
+  pool.locks.add("apple-account:user_a")
+  const globals = globalThis as unknown as { appleAccountLockPool?: Pool }
+  const previous = globals.appleAccountLockPool
+  globals.appleAccountLockPool = pool.asPool()
+  let now = 0
+  t.mock.method(Date, "now", () => now)
+  // Advance elapsed time only after the real contention query returns false.
+  pool.onDenied = () => {
+    now = 10_001
+  }
+  try {
+    await assert.rejects(
+      withAppleAccountLock("user_a", async () =>
+        assert.fail("must not acquire")
+      ),
+      (error: unknown) => {
+        assert.ok(error instanceof AppleAccountBusyError)
+        assert.deepEqual(apiErrorResponse(error), {
+          status: 503,
+          body: {
+            error: { code: "upstream", message: APPLE_ACCOUNT_BUSY_ERROR },
+          },
+          expected: true,
+        })
+        assert.doesNotMatch(error.message, /computer/i)
+        return true
+      }
+    )
+    assert.equal(pool.active, 0)
+    assert.equal(pool.destroyed, 0)
+    assert.equal(pool.deniedTries, 1)
+  } finally {
+    globals.appleAccountLockPool = previous
+  }
 })

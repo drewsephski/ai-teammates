@@ -44,7 +44,10 @@ Clerk has no Apple refresh token for native sign-ins that it could revoke.
    A failed advisory-lock attempt immediately returns its healthy connection;
    contenders wait outside the pool before trying again. Only actual lock
    owners retain a checked-out connection, so many requests for one account do
-   not reserve all connections while unrelated accounts wait.
+   not reserve all connections while unrelated accounts wait. If the account
+   lock deadline expires, the API returns HTTP 503 with the existing retryable
+   `upstream` code and "Your account is busy with another request. Try again
+   shortly." Existing computer-lock conflicts keep their separate behavior.
 
    Detected advisory-lock connection loss aborts grant persistence and deletion
    cleanup; the deletion transaction checks again before commit. This is runtime

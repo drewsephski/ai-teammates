@@ -1,3 +1,4 @@
+import { AppleAccountBusyError } from "@/lib/apple-account-policy"
 import { EMAIL_CHANGED_ERROR } from "@/lib/email-draft"
 import {
   COMPUTER_TIME_USED_UP_ERRORS,
@@ -52,6 +53,8 @@ export function apiErrorResponse(error: unknown): {
   })
   if (error instanceof HttpError)
     return fail(error.status, error.code, error.message)
+  if (error instanceof AppleAccountBusyError)
+    return fail(503, "upstream", error.message)
   if (error instanceof ZodError)
     return {
       status: 400,
