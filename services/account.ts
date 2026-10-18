@@ -198,6 +198,7 @@ async function deleteAccountLocked(
     await tx.delete(accountPlans).where(eq(accountPlans.userId, userId))
     assertHeld()
   })
+  assertHeld()
 
   // The computer last, once no bot is left: from here on nothing can create or
   // register one (lib/account-computer.ts), and one registered before is
@@ -216,6 +217,7 @@ async function deleteAccountLocked(
         userId,
         assertHeld
       )
+      assertHeld()
       break
     } catch (cause) {
       if (attempt < 3) continue

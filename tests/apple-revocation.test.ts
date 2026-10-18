@@ -607,3 +607,58 @@ for (const operation of ["save", "deletion"] as const) {
     })
   }
 }
+
+for (const operation of ["save", "deletion"] as const) {
+  test(`${operation} compensates detected lock loss during a committed upsert once`, async () => {
+    let guards = 0
+    let armed = false
+    let lost = false
+    let revokeAttempts = 0
+    const assertHeld = () => {
+      // Both callers check before exchange and immediately before persistence.
+      // Arm the real pool release event for the upcoming successful DB write.
+      if (++guards === 2) armed = true
+      if (lost) throw new Error("lock connection lost during upsert")
+    }
+    const released = () => {
+      if (armed) lost = true
+    }
+    database.pool.on("release", released)
+    const injected = deps({
+      withAccountLock: async (_userId, body) => body(assertHeld),
+      fetcher: (async (...args: Parameters<typeof fetch>) => {
+        if (String(args[0]).endsWith("/auth/revoke")) revokeAttempts++
+        return fetcher(...args)
+      }) as typeof fetch,
+    })
+    try {
+      const expected =
+        operation === "save" ? apple.APPLE_SAVE_ERROR : apple.APPLE_REVOKE_ERROR
+      await assert.rejects(
+        operation === "save"
+          ? apple.saveAppleAuthorization(A, "code_a", injected)
+          : apple.revokeAppleSignIn(A, "code_a", injected, assertHeld),
+        (error: unknown) => error instanceof Error && error.message === expected
+      )
+    } finally {
+      database.pool.removeListener("release", released)
+    }
+    assert.equal(lost, true)
+    assert.equal(guards, 3)
+    assert.equal(revokeAttempts, 1)
+    assert.deepEqual(apple_.revoked, ["refresh_for_code_a"])
+    const rows = await db.select().from(schema.appleSignInGrants)
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0].userId, A)
+    // The write committed before the post-await guard rejected the operation.
+    assert.equal(
+      lib.decryptAppleRefreshToken(
+        rows[0].refreshToken,
+        A,
+        CLIENT,
+        Buffer.from(env.APPLE_SIWA_TOKEN_ENCRYPTION_KEY, "hex")
+      ),
+      "refresh_for_code_a"
+    )
+  })
+}

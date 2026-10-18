@@ -92,6 +92,7 @@ async function persistOwnedAppleGrant(
         target: [appleSignInGrants.userId, appleSignInGrants.clientId],
         set: { subject: grant.subject, refreshToken, updatedAt: sql`now()` },
       })
+    assertHeld()
   } catch {
     // Driver exceptions may contain SQL parameters. Report static metadata,
     // never the exception, token, authorization code, or ciphertext.
