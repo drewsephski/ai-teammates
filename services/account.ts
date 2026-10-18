@@ -1,5 +1,6 @@
 import { createClerkClient } from "@clerk/backend"
-import * as Sentry from "@sentry/nextjs"
+// Shares the Next server client and also supports service tests under tsx.
+import * as Sentry from "@sentry/node"
 import { ApiError as TriggerApiError, runs, sessions } from "@trigger.dev/sdk"
 import { eq } from "drizzle-orm"
 
@@ -28,10 +29,14 @@ import { deleteAccountComputer } from "@/lib/account-computer"
 import { disconnectChatGPT } from "@/lib/chatgpt-connection"
 import { getComposio } from "@/lib/composio"
 import type { AppleRevocation } from "@/lib/apple-signin"
-import { revokeAppleSignIn } from "@/services/apple"
+import {
+  appleAuthorizationCodeSchema,
+  revokeAppleSignIn,
+} from "@/services/apple"
 import { deleteBot } from "@/services/bots"
 
 type Steps = {
+  deleteAppleGrants?: (userId: string, assertHeld: () => void) => Promise<void>
   withAppleLock?: AppleAccountLock
   cancelSubscriptions: (userId: string) => Promise<void>
   revokeApple: (
@@ -120,8 +125,11 @@ export async function deleteAccount(
   steps = providerSteps,
   options: { appleAuthorizationCode?: string } = {}
 ): Promise<{ appleSignIn: AppleRevocation }> {
+  const appleAuthorizationCode = appleAuthorizationCodeSchema
+    .optional()
+    .parse(options.appleAuthorizationCode)
   const perform = (assertHeld: () => void = () => {}) =>
-    deleteAccountLocked(userId, steps, options, assertHeld)
+    deleteAccountLocked(userId, steps, { appleAuthorizationCode }, assertHeld)
   // Custom provider steps can inject serialization in tests.
   return steps.withAppleLock ? steps.withAppleLock(userId, perform) : perform()
 }
@@ -183,11 +191,6 @@ async function deleteAccountLocked(
     await tx
       .delete(chatgptConnections)
       .where(eq(chatgptConnections.userId, userId))
-    assertHeld()
-    // Revocation finished or returned explicit manual-removal instructions.
-    await tx
-      .delete(appleSignInGrants)
-      .where(eq(appleSignInGrants.userId, userId))
     // Routines, approvals and approval rules went with the bots and chats.
     // Usage holds stay: the settle job books them into the billing record.
     await tx.delete(activityEvents).where(eq(activityEvents.userId, userId))
@@ -204,5 +207,38 @@ async function deleteAccountLocked(
 
   assertHeld()
   await steps.deleteUser(userId)
+
+  // Keep revocation evidence until every external deletion step succeeded.
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      assertHeld()
+      await (steps.deleteAppleGrants ?? deleteAppleGrantRows)(
+        userId,
+        assertHeld
+      )
+      break
+    } catch (cause) {
+      if (attempt < 3) continue
+      // Clerk is already gone; user retries cannot clean these encrypted rows.
+      Sentry.captureMessage(
+        "Apple grant cleanup failed after account deletion",
+        {
+          level: "error",
+          tags: { area: "apple-signin", step: "post_account_cleanup" },
+          user: { id: userId },
+        }
+      )
+      throw cause
+    }
+  }
   return { appleSignIn }
+}
+
+async function deleteAppleGrantRows(userId: string, assertHeld: () => void) {
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(appleSignInGrants)
+      .where(eq(appleSignInGrants.userId, userId))
+    assertHeld()
+  })
 }

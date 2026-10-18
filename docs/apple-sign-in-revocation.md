@@ -28,9 +28,9 @@ Clerk has no Apple refresh token for native sign-ins that it could revoke.
    `https://appleid.apple.com/auth/revoke` with `token_type_hint=refresh_token`.
    The client secret is an ES256 JWT (`kid` = key ID, `iss` = Team ID,
    `aud` = `https://appleid.apple.com`, `sub` = client ID, expires in 5 minutes),
-   signed with the Sign in with Apple key. The grant rows are deleted in the
-   final transaction. Native grant saves and the complete deletion sequence
-   share a per-account Postgres session advisory lock. Saves re-read Clerk
+   signed with the Sign in with Apple key. The grant rows are deleted during
+   cleanup after computer deletion and Clerk user deletion both succeed. Native
+   grant saves and the complete deletion sequence share a per-account Postgres session advisory lock. Saves re-read Clerk
    ownership inside the lock before exchanging a code, so requests queued
    behind completed deletion cannot recreate a grant. No row lock or database
    transaction spans Apple or other remote provider calls.
@@ -43,6 +43,20 @@ Clerk has no Apple refresh token for native sign-ins that it could revoke.
    Apple issues a token, the server attempts to revoke that token immediately.
    A simultaneous Apple outage can still leave this token without a stored
    grant; strict recovery would require a broader durable-operation design.
+
+Grant cleanup runs after Clerk deletion, with at most three immediate attempts.
+Computer or Clerk failures retain encrypted grants, so a retry can revoke again
+without a fresh authorization code and preserve the accurate result. If the
+database stays unavailable after Clerk succeeds, deletion returns an error and
+Sentry records `Apple grant cleanup failed after account deletion` with the user
+ID only. The account is already gone, so user authentication/retry cannot remove
+that orphaned encrypted row; an operator must delete its `apple_sign_in_grants`
+rows by user ID after database recovery. Never print the tokens. Revocation has
+already been attempted, including the documented manual-removal outcome.
+
+Both route and service boundaries share authorization-code validation: a trimmed
+string of 1–4096 characters. Malformed optional deletion codes fail before billing
+or any other deletion side effect.
 
 ## Outcomes (`appleSignIn` in the DELETE response)
 

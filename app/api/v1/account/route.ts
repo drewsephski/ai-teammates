@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { apiRoute, readJson } from "@/lib/api"
 import { deleteAccount } from "@/services/account"
+import { appleAuthorizationCodeSchema } from "@/services/apple"
 
 // The app sends this literal after the person confirms, so a stray or
 // replayed bodiless DELETE can never remove an account
@@ -10,7 +11,7 @@ const bodySchema = z.object({
   confirm: z.literal("delete my account"),
   // A fresh Sign in with Apple code the iOS app asks for during deletion, so
   // the server can revoke the Apple grant (services/apple.ts). Never logged.
-  appleAuthorizationCode: z.string().trim().min(1).max(4096).optional(),
+  appleAuthorizationCode: appleAuthorizationCodeSchema.optional(),
 })
 
 // Permanently deletes the signed-in account and its data, then the Clerk user

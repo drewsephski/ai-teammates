@@ -2,6 +2,7 @@ import { createClerkClient } from "@clerk/backend"
 // @sentry/node, like lib/: the same client in Next, and it runs under tsx tests
 import * as Sentry from "@sentry/node"
 import { eq, sql } from "drizzle-orm"
+import { z } from "zod"
 
 import { db } from "@/db"
 import {
@@ -20,6 +21,11 @@ import {
   type AppleConfigResult,
   type AppleRevocation,
 } from "@/lib/apple-signin"
+
+export const appleAuthorizationCodeSchema = z.string().trim().min(1).max(4096)
+export const appleAuthorizationSchema = z.object({
+  authorizationCode: appleAuthorizationCodeSchema,
+})
 
 export const APPLE_SAVE_ERROR =
   "Couldn't save your Sign in with Apple. Try again."
@@ -85,9 +91,12 @@ async function requireAppleLock(
 // grant under their own account.
 export async function saveAppleAuthorization(
   userId: string,
-  authorizationCode: string,
+  input: unknown,
   deps = appleDeps
 ) {
+  const { authorizationCode } = appleAuthorizationSchema.parse({
+    authorizationCode: input,
+  })
   return deps.withAccountLock(userId, (assertHeld) =>
     saveAppleAuthorizationLocked(userId, authorizationCode, deps, assertHeld)
   )
@@ -169,10 +178,11 @@ type Token = { clientId: string; subject: string; refreshToken: string }
 // Krafty in Settings. Those cases are reported to Sentry for follow-up.
 export async function revokeAppleSignIn(
   userId: string,
-  authorizationCode: string | undefined,
+  input: unknown,
   deps = appleDeps,
   assertHeld: () => void = () => {}
 ): Promise<AppleRevocation> {
+  const authorizationCode = appleAuthorizationCodeSchema.optional().parse(input)
   const grants = await db
     .select()
     .from(appleSignInGrants)

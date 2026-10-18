@@ -456,3 +456,104 @@ test("deletion revokes an owned fresh token when its lock is lost during exchang
   assert.deepEqual(apple_.revoked, ["refresh_for_code_a"])
   assert.deepEqual(await db.select().from(schema.appleSignInGrants), [])
 })
+
+test("authorization service boundaries reject malformed codes before side effects", async () => {
+  const account = await import("../services/account")
+  let touched = false
+  const injected = deps({
+    withAccountLock: async () => {
+      touched = true
+      throw new Error("unexpected lock")
+    },
+  })
+  for (const code of ["", "  ", "x".repeat(4097), 12, null, {}]) {
+    await assert.rejects(apple.saveAppleAuthorization(A, code, injected), {
+      name: "ZodError",
+    })
+    await assert.rejects(apple.revokeAppleSignIn(A, code, injected), {
+      name: "ZodError",
+    })
+  }
+  const steps = {
+    ...deletionSteps(deps()),
+    cancelSubscriptions: async () => {
+      touched = true
+    },
+  }
+  for (const code of ["", "  ", "x".repeat(4097)])
+    await assert.rejects(
+      account.deleteAccount(A, steps, { appleAuthorizationCode: code }),
+      { name: "ZodError" }
+    )
+  assert.equal(touched, false)
+  assert.deepEqual(apple_.exchanged, [])
+})
+
+test("authorization service trims a valid code before exchange", async () => {
+  await apple.saveAppleAuthorization(A, "  code_a  ", deps())
+  assert.deepEqual(apple_.exchanged, ["code_a"])
+})
+
+for (const failedStep of ["deleteComputer", "deleteUser"] as const) {
+  test(`${failedStep} failure retains revocation evidence for a code-free deletion retry`, async () => {
+    const account = await import("../services/account")
+    await apple.saveAppleAuthorization(A, "code_a", deps())
+    const injected = deps()
+    const steps = deletionSteps(injected)
+    await assert.rejects(
+      account.deleteAccount(A, {
+        ...steps,
+        [failedStep]: async () => {
+          throw new Error("provider unavailable")
+        },
+      }),
+      /provider unavailable/
+    )
+    assert.equal((await db.select().from(schema.appleSignInGrants)).length, 1)
+    assert.deepEqual(await account.deleteAccount(A, steps), {
+      appleSignIn: "revoked",
+    })
+    assert.deepEqual(apple_.revoked, [
+      "refresh_for_code_a",
+      "refresh_for_code_a",
+    ])
+    assert.deepEqual(await db.select().from(schema.appleSignInGrants), [])
+  })
+}
+
+test("post-Clerk grant cleanup retries immediately and removes the final grant", async () => {
+  const account = await import("../services/account")
+  await apple.saveAppleAuthorization(A, "code_a", deps())
+  let attempts = 0
+  await account.deleteAccount(A, {
+    ...deletionSteps(deps()),
+    deleteAppleGrants: async (userId) => {
+      assert.equal(linked.has(userId), false)
+      if (++attempts < 3) throw new Error("database unavailable")
+      await db
+        .delete(schema.appleSignInGrants)
+        .where(eq(schema.appleSignInGrants.userId, userId))
+    },
+  })
+  assert.equal(attempts, 3)
+  assert.deepEqual(await db.select().from(schema.appleSignInGrants), [])
+})
+
+test("exhausted post-Clerk cleanup reports failure with the encrypted grant retained", async () => {
+  const account = await import("../services/account")
+  await apple.saveAppleAuthorization(A, "code_a", deps())
+  let attempts = 0
+  await assert.rejects(
+    account.deleteAccount(A, {
+      ...deletionSteps(deps()),
+      deleteAppleGrants: async () => {
+        attempts++
+        throw new Error("database unavailable")
+      },
+    }),
+    /database unavailable/
+  )
+  assert.equal(attempts, 3)
+  assert.equal(linked.has(A), false)
+  assert.equal((await db.select().from(schema.appleSignInGrants)).length, 1)
+})
