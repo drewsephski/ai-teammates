@@ -1,7 +1,8 @@
-import { chat, defaultStorage } from "@trigger.dev/sdk/ai"
+import { chat } from "@trigger.dev/sdk/ai"
 import { and, desc, eq } from "drizzle-orm"
 import { db } from "@/db"
 import { bots, chatMembers, chats } from "@/db/schema"
+import { chatTranscriptStorage } from "@/lib/chat-transcript-storage"
 import { createConsultationTool } from "@/lib/consultation-tool"
 import { generateConsultation } from "@/lib/generate-consultation"
 import { followUpContext } from "@/lib/chat-follow-ups"
@@ -16,7 +17,7 @@ import { chatGPTModelForUser } from "@/lib/chatgpt-model"
 import { appModelCost } from "@/lib/chatgpt-policy"
 import { USAGE_LIMIT_ERROR } from "@/lib/billing"
 
-const loadTranscript = chat.createLoadTranscriptAction(defaultStorage, {
+const loadTranscript = chat.createLoadTranscriptAction(chatTranscriptStorage, {
   limit: 12,
 })
 

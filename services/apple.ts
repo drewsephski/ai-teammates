@@ -193,14 +193,39 @@ export async function revokeAppleSignIn(
       const owned =
         subjects.includes(fresh.subject) ||
         grants.some((grant) => grant.subject === fresh.subject)
-      if (owned) tokens.push({ clientId: config.clientId, ...fresh })
-      else
+      if (owned) {
+        // The code is single-use. Keep the token before revoking so an outage
+        // or a later deletion failure can retry without another Apple sheet.
+        const refreshToken = encryptAppleRefreshToken(
+          fresh.refreshToken,
+          userId,
+          config.clientId,
+          config.encryptionKey
+        )
+        await db
+          .insert(appleSignInGrants)
+          .values({
+            userId,
+            clientId: config.clientId,
+            subject: fresh.subject,
+            refreshToken,
+          })
+          .onConflictDoUpdate({
+            target: [appleSignInGrants.userId, appleSignInGrants.clientId],
+            set: {
+              subject: fresh.subject,
+              refreshToken,
+              updatedAt: sql`now()`,
+            },
+          })
+        tokens.push({ clientId: config.clientId, ...fresh })
+      } else
         Sentry.captureMessage("Apple code belongs to another Apple ID", {
           level: "warning",
           tags: { ...tags, step: "exchange" },
         })
     } catch (cause) {
-      if (cause instanceof AppleRequestError && cause.retryable) {
+      if (!(cause instanceof AppleRequestError) || cause.retryable) {
         Sentry.captureException(cause, { tags: { ...tags, step: "exchange" } })
         throw new Error(APPLE_REVOKE_ERROR)
       }

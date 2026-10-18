@@ -102,14 +102,12 @@ const providerSteps: Steps = {
 // settings and app and ChatGPT connections, then the Clerk user, which ends
 // every session. Each step can run again, so a failure part-way is retried by
 // asking again. Usage and sandbox metering rows are kept, keyed by the now
-// unused user ID, as the billing record. Conversation transcripts stored with
-// Trigger.dev sessions are not removed here.
+// unused user ID, as the billing record. Conversation history (chat_transcripts)
+// cascades with the chats. What Trigger.dev still holds (session streams, run
+// payloads and logs) has no supported delete; see docs/data-retention.md.
 //
-// Sign in with Apple: Apple's grant is revoked before anything is deleted,
-// with stored tokens and, when the app re-authenticated, a fresh
-// authorization code. An Apple outage stops deletion for a retry. Without a
-// usable token deletion goes on and the result tells the app to show how to
-// remove Krafty in Apple Account settings (services/apple.ts).
+// Sign in with Apple is revoked before data is deleted. An Apple outage stops
+// deletion for a retry; missing tokens return instructions for manual removal.
 export async function deleteAccount(
   userId: string,
   steps = providerSteps,
@@ -126,7 +124,7 @@ export async function deleteAccount(
   )
 
   // Close sessions before their IDs disappear with the bots and group chats.
-  // Closing prevents more messages; it does not erase provider transcripts.
+  // Closing prevents more messages; it does not erase Trigger.dev's records.
   const ownedChats = await db
     .select({ id: chats.id })
     .from(chats)
@@ -164,7 +162,7 @@ export async function deleteAccount(
     await tx
       .delete(chatgptConnections)
       .where(eq(chatgptConnections.userId, userId))
-    // revokeApple already revoked these with Apple
+    // Revocation finished or returned explicit manual-removal instructions.
     await tx
       .delete(appleSignInGrants)
       .where(eq(appleSignInGrants.userId, userId))

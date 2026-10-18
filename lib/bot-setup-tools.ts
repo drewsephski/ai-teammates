@@ -120,7 +120,7 @@ export function createBotSetupTools(
           return {
             question:
               card.state === "planLimit"
-                ? `The free plan includes one connected app, and yours is in use. Disconnect it or upgrade to connect ${card.name}.`
+                ? `Your current plan includes one connected app, and yours is in use. Disconnect it to connect ${card.name}.`
                 : card.reconnect
                   ? `Your ${card.name} connection expired. Reconnect it so I can continue.`
                   : parsed.question,
@@ -140,7 +140,7 @@ export function createBotSetupTools(
       },
       toModelOutput: ({ output }) => ({
         type: "text" as const,
-        value: `Question displayed: ${output.question}\nChoices: ${output.options.join("; ")}\nWait for the person's next chat message. No answer has been supplied by this tool.${output.computerLogin ? " Stop computer actions now. After they report signing in, call viewScreen to verify access, then continue the original task without another permission question. A cancellation means stop this sign-in workflow." : ""}${output.appConnection ? ` A card to ${output.appConnection.reconnect ? "reconnect" : "connect"} ${output.appConnection.name} is showing${output.appConnection.reconnect ? " because its earlier connection expired" : ""}${output.appConnection.state === "planLimit" ? ", in its plan-limit state: the free plan's one app slot is taken, so they need to disconnect that app or upgrade first" : ""}. Stop now. When they connect it you'll get a message saying so: then discover its tools with searchAppTools and continue the original task without asking again. ${options.computerAvailable === false ? "If they choose the computer, explain in one sentence that the computer isn't available on their plan yet, and offer to continue another way." : "If they choose the computer, do the task on the computer's browser."} 'Not now' means stop this part of the task.` : ""}`,
+        value: `Question displayed: ${output.question}\nChoices: ${output.options.join("; ")}\nWait for the person's next chat message. No answer has been supplied by this tool.${output.computerLogin ? " Stop computer actions now. After they report signing in, call viewScreen to verify access, then continue the original task without another permission question. A cancellation means stop this sign-in workflow." : ""}${output.appConnection ? ` A card to ${output.appConnection.reconnect ? "reconnect" : "connect"} ${output.appConnection.name} is showing${output.appConnection.reconnect ? " because its earlier connection expired" : ""}${output.appConnection.state === "planLimit" ? ", in its plan-limit state: the free plan's one app slot is taken, so they need to disconnect that app first" : ""}. Stop now. When they connect it you'll get a message saying so: then discover its tools with searchAppTools and continue the original task without asking again. ${options.computerAvailable === false ? "If they choose the computer, explain in one sentence that the computer isn't available on their plan yet, and offer to continue another way." : "If they choose the computer, do the task on the computer's browser."} 'Not now' means stop this part of the task.` : ""}`,
       }),
     }),
     configureBot: tool({

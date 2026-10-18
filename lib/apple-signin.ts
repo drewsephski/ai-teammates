@@ -155,7 +155,14 @@ async function postForm(
   const body = (await response.json().catch(() => null)) as {
     error?: unknown
   } | null
-  const code = typeof body?.error === "string" ? body.error : "http_error"
+  // Only report protocol error names, never arbitrary provider response text.
+  const code =
+    typeof body?.error === "string" &&
+    /^(invalid_request|invalid_client|invalid_grant|unauthorized_client|unsupported_grant_type|invalid_scope)$/.test(
+      body.error
+    )
+      ? body.error
+      : "http_error"
   throw new AppleRequestError(
     response.status,
     code,

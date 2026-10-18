@@ -84,6 +84,20 @@ export const chats = pgTable(
   (table) => [index("chats_user_id_idx").on(table.userId)]
 )
 
+// The chat agent's transcript (lib/chat-transcript-storage.ts), one document
+// per chat, so conversation history lives here instead of in Trigger.dev's
+// transcript snapshot and goes with the chat. `entries` and `state` are the
+// runtime's opaque transcript ({ id, final, message }[] and its bookkeeping).
+export const chatTranscripts = pgTable("chat_transcripts", {
+  chatId: text()
+    .primaryKey()
+    .references(() => chats.id, { onDelete: "cascade" }),
+  entries: jsonb().$type<unknown[]>().notNull(),
+  state: jsonb(),
+  cursors: jsonb().$type<{ lastOutEventId?: string; lastInEventId?: string }>(),
+  updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+})
+
 export const chatMembers = pgTable(
   "chat_members",
   {
@@ -100,6 +114,53 @@ export const chatMembers = pgTable(
     index("chat_members_bot_id_idx").on(table.botId),
   ]
 )
+
+// One report per owner/message. Chat and account deletion remove the report,
+// including the server-captured text, through the chat's cascading foreign key.
+export const aiContentReports = pgTable(
+  "ai_content_reports",
+  {
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    userId: text().notNull(),
+    chatId: text()
+      .notNull()
+      .references(() => chats.id, { onDelete: "cascade" }),
+    messageId: text().notNull(),
+    reason: text({
+      enum: ["offensive", "unsafe", "inaccurate", "other"],
+    }).notNull(),
+    details: text(),
+    // Only assistant text, never tool arguments/results or the whole transcript.
+    messageText: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    reviewedAt: timestamp({ withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("ai_content_reports_user_message_idx").on(
+      table.userId,
+      table.chatId,
+      table.messageId
+    ),
+    index("ai_content_reports_chat_id_idx").on(table.chatId),
+    index("ai_content_reports_reviewed_created_idx").on(
+      table.reviewedAt,
+      table.createdAt
+    ),
+  ]
+)
+
+export const aiContentReportSchema = createInsertSchema(aiContentReports, {
+  details: z
+    .string()
+    .trim()
+    .max(1000, "Keep your report under 1,001 characters.")
+    .optional(),
+})
+  .pick({ reason: true, details: true })
+  .strict()
+export type AIContentReportInput = z.infer<typeof aiContentReportSchema>
 
 export const usageKind = pgEnum("usage_kind", ["ai", "sandbox"])
 

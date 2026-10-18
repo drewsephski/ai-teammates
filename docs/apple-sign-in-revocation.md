@@ -70,12 +70,13 @@ Not guaranteed, or not yet verified:
   live (see below).
 - **Web sign-ins (Services ID `app.kraftybot.signin`).** Clerk holds those
   tokens and exposes no revoke. The native re-auth at deletion revokes the
-  grant for `app.kraftybot.mobile`. Whether that also clears a grant first
-  made on the web depends on Apple grouping both under the same primary App ID.
-  This is unverified. A person who deletes on the web gets no native re-auth.
-  There is no web deletion route in this repo, but Clerk's hosted profile can
-  delete a user directly if account deletion is turned on in the Clerk
-  dashboard. Keep it off.
+  grant for `app.kraftybot.mobile`. The Apple portal confirms that the web Services ID is grouped under primary
+  App ID `2NHJGX6A7S.app.kraftybot.mobile`, matching the SIWA key. Whether native
+  revocation also clears authorization first made on the web remains unverified. A person who deletes on the web gets no native re-auth.
+  The web `/delete-account` flow uses the same deletion service and displays
+  manual-removal instructions when no usable native grant is stored. Clerk's
+  hosted profile can bypass that cleanup if account deletion is turned on in
+  the Clerk dashboard. Keep that hosted deletion option off.
 - **Nothing works until the Sign in with Apple key is configured.** Until then
   every Apple user gets `manual`.
 - The authorization code's lifetime is not published in the REST API docs.
@@ -92,8 +93,9 @@ Not guaranteed, or not yet verified:
    `APPLE_SIWA_CLIENT_ID=app.kraftybot.mobile`, and
    `APPLE_SIWA_TOKEN_ENCRYPTION_KEY` (`openssl rand -hex 32`). Trigger.dev does
    not need them.
-3. Run `pnpm db:push` to create `apple_sign_in_grants` (additive) before this
-   code ships.
+3. The approved bounded migration has already created `apple_sign_in_grants`.
+   Verify the table exists before release; do not run `pnpm db:push` for this
+   release, because it can reconcile unrelated production schema changes.
 
 ## Live verification
 

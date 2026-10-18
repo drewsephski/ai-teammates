@@ -285,3 +285,16 @@ test("account deletion revokes Apple before deleting, then drops the grant", asy
     [B]
   )
 })
+
+// A fresh code cannot be exchanged twice, including after an Apple outage.
+test("fresh deletion tokens survive a revoke outage for a bodiless retry", async () => {
+  apple_.revokeMode = "outage"
+  await assert.rejects(
+    apple.revokeAppleSignIn(A, "code_a", deps()),
+    /Couldn't revoke Sign in with Apple/
+  )
+  apple_.revokeMode = "ok"
+  assert.equal(await apple.revokeAppleSignIn(A, undefined, deps()), "revoked")
+  assert.deepEqual(apple_.exchanged, ["code_a"])
+  assert.deepEqual(apple_.revoked, ["refresh_for_code_a"])
+})
