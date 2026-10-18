@@ -74,6 +74,7 @@ test("service errors map to stable codes and statuses without leaking internals"
     [new Error(FREE_BOT_LIMIT_ERROR), 403, "plan_limit"],
     [new Error("Usage limit reached"), 429, "usage_limit"],
     [new Error("Chat not found"), 404, "not_found"],
+    [new Error("Message not found"), 404, "not_found"],
     [new Error("Bot not found"), 404, "not_found"],
     [new Error("Rule not found"), 404, "not_found"],
     [new Error("Conversations changed. Try again."), 409, "conflict"],

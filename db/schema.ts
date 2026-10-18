@@ -115,6 +115,53 @@ export const chatMembers = pgTable(
   ]
 )
 
+// One report per owner/message. Chat and account deletion remove the report,
+// including the server-captured text, through the chat's cascading foreign key.
+export const aiContentReports = pgTable(
+  "ai_content_reports",
+  {
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    userId: text().notNull(),
+    chatId: text()
+      .notNull()
+      .references(() => chats.id, { onDelete: "cascade" }),
+    messageId: text().notNull(),
+    reason: text({
+      enum: ["offensive", "unsafe", "inaccurate", "other"],
+    }).notNull(),
+    details: text(),
+    // Only assistant text, never tool arguments/results or the whole transcript.
+    messageText: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    reviewedAt: timestamp({ withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("ai_content_reports_user_message_idx").on(
+      table.userId,
+      table.chatId,
+      table.messageId
+    ),
+    index("ai_content_reports_chat_id_idx").on(table.chatId),
+    index("ai_content_reports_reviewed_created_idx").on(
+      table.reviewedAt,
+      table.createdAt
+    ),
+  ]
+)
+
+export const aiContentReportSchema = createInsertSchema(aiContentReports, {
+  details: z
+    .string()
+    .trim()
+    .max(1000, "Keep your report under 1,001 characters.")
+    .optional(),
+})
+  .pick({ reason: true, details: true })
+  .strict()
+export type AIContentReportInput = z.infer<typeof aiContentReportSchema>
+
 export const usageKind = pgEnum("usage_kind", ["ai", "sandbox"])
 
 // The usage ledger: one row per metered event, only ever added to. What a user
