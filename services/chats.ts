@@ -5,11 +5,7 @@ import {
   runs,
   sessions,
 } from "@trigger.dev/sdk"
-import {
-  chat,
-  defaultStorage,
-  type ChatStartSessionParams,
-} from "@trigger.dev/sdk/ai"
+import { chat, type ChatStartSessionParams } from "@trigger.dev/sdk/ai"
 import { and, asc, desc, eq, inArray, notInArray } from "drizzle-orm"
 
 import { db } from "@/db"
@@ -22,6 +18,7 @@ import {
   type GroupChatInsert,
 } from "@/db/schema"
 import type { Feature } from "@/lib/billing"
+import { chatTranscriptStorage } from "@/lib/chat-transcript-storage"
 import { delegationSourceId } from "@/lib/chat-origin"
 import { chatTurnState } from "@/lib/chat-turn"
 import {
@@ -45,7 +42,9 @@ import { teamOperationId } from "@/lib/team-policy"
 import type { Caller } from "@/services/caller"
 
 const startSession = chat.createStartSessionAction<typeof chatAgent>("chat")
-const loadStoredTranscript = chat.createLoadTranscriptAction(defaultStorage)
+const loadStoredTranscript = chat.createLoadTranscriptAction(
+  chatTranscriptStorage
+)
 
 // The user's chats, most recent first, each with the bots in it
 export async function listChats(userId: string) {

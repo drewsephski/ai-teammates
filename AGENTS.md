@@ -177,7 +177,7 @@ Load the `trigger-authoring-chat-agent` skill before changing `trigger/chat.ts`.
 - Declare tools through the agent's `tools` option, so `toModelOutput` runs again when earlier turns are replayed.
 - Keep `chat.endRun()` in `respond()`, so the next message boots the current deployment. The agent never retries, and a failed turn leaves the run alive, so report turn errors in `onTurnComplete`; `tasks.onFailure` never sees them.
 - `clientData` comes from the browser. It may only pick a `botId` among the chat's members, plus mentions (`chatClientDataSchema`). Anything the agent must trust, such as the For you account binding or the delegation depth, goes in server-side `sessions.start({ metadata })`, and the funding provider is always read from the database.
-- Transcripts live in Trigger.dev session storage, keyed by `chatId`. Postgres keeps only `chats.lastMessagePreview`.
+- Transcripts live in Neon (`chat_transcripts`, one row per chat, cascading with it), through the agent's `storage: chatTranscriptStorage` (`lib/chat-transcript-storage.ts`). Load them with `chat.createLoadTranscriptAction(chatTranscriptStorage)`. The adapter reads a legacy `defaultStorage` snapshot only for a live chat without a Neon row, preserving existing history until its first Neon save; all new saves go to Neon. Trigger.dev still holds session stream records and run data; see `docs/data-retention.md`.
 - On the client, wrap the transport with `lib/chat-transport.ts` and never forward useChat's `abortSignal`. Trigger.dev treats an aborted send as Stop, so leaving the page would cancel the bot's turn.
 
 ## Autonomy: routines, approvals, activity

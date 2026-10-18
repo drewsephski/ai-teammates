@@ -49,7 +49,7 @@ This was the starting point in early October 2026. It no longer describes `main`
 | Area | Where | Then |
 |---|---|---|
 | Memory | `lib/sandbox-tools.ts:161-193`, `lib/chat-instructions.ts:28-33` | `remember` appends a line to `/home/user/MEMORY.md` and `recall` reads the whole file. Paid tier only. |
-| Transcripts | `trigger/chat.ts:90` | Stored in Trigger.dev's default transcript storage. Postgres keeps only `chats.lastMessagePreview`. |
+| Transcripts | `lib/chat-transcript-storage.ts` | Stored in Neon (`chat_transcripts`), deleted with the chat. Existing Trigger.dev snapshots remain read-only fallback until the first Neon save; provider copies still follow vendor retention. |
 | User profile | none | Only Clerk's `firstName`, used in `lib/bot-opening.ts:9`. |
 | Preferences | `db/schema.ts:46-49` | `sidebarPreferences.conversationOrder` and the ChatGPT model choice. |
 | For You | `actions/for-you.ts`, `lib/generate-for-you.ts`, `components/workspace-for-you.tsx` | One card, generated on demand. The grounding is solid: read-only tools, verified records and `isGroundedSuggestion`. There is no memory, no storage, no feedback, and the page waits up to 60 seconds. |

@@ -93,15 +93,16 @@ const providerSteps: Steps = {
 // settings and app and ChatGPT connections, then the Clerk user, which ends
 // every session. Each step can run again, so a failure part-way is retried by
 // asking again. Usage and sandbox metering rows are kept, keyed by the now
-// unused user ID, as the billing record. Conversation transcripts stored with
-// Trigger.dev sessions are not removed here.
+// unused user ID, as the billing record. Conversation history (chat_transcripts)
+// cascades with the chats. What Trigger.dev still holds (session streams, run
+// payloads and logs) has no supported delete; see docs/data-retention.md.
 export async function deleteAccount(userId: string, steps = providerSteps) {
   // Do not leave a recurring charge attached to an account that cannot sign in.
   // A billing failure leaves the workspace intact so the person can retry.
   await steps.cancelSubscriptions(userId)
 
   // Close sessions before their IDs disappear with the bots and group chats.
-  // Closing prevents more messages; it does not erase provider transcripts.
+  // Closing prevents more messages; it does not erase Trigger.dev's records.
   const ownedChats = await db
     .select({ id: chats.id })
     .from(chats)

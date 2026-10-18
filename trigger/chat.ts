@@ -7,6 +7,7 @@ import { z } from "zod"
 import { db } from "@/db"
 import { bots as botTable, chatMembers, chats } from "@/db/schema"
 import { USAGE_LIMIT_ERROR } from "@/lib/billing"
+import { chatTranscriptStorage } from "@/lib/chat-transcript-storage"
 import { isModelUnavailable, MODEL_UNAVAILABLE_ERROR } from "@/lib/chat-turn"
 import { createHandoffTool, type Handoff } from "@/lib/handoff-tool"
 import { chatModel, chatModelCost } from "@/lib/model"
@@ -167,12 +168,14 @@ const turnModelUsage = chat.local<{
   id: "chat-turn-model-cost",
 })
 
-// The transcript is kept per chatId by the agent's default transcript storage
+// The transcript is kept per chatId in Neon (lib/chat-transcript-storage.ts),
+// not in Trigger.dev's snapshot, so it is deleted with the chat
 export const chatAgent = chat
   .withUIMessage<ChatUIMessage>()
   .withClientData({ schema: chatClientDataSchema })
   .agent({
     id: "chat",
+    storage: chatTranscriptStorage,
     uiMessageStreamOptions: {
       onError: (error) => {
         if (isModelUnavailable(error)) return MODEL_UNAVAILABLE_ERROR
