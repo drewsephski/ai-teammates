@@ -1,7 +1,6 @@
 import * as Sentry from "@sentry/node"
-import { metadata, sessions } from "@trigger.dev/sdk"
+import { idempotencyKeys, metadata, sessions } from "@trigger.dev/sdk"
 import { chat } from "@trigger.dev/sdk/ai"
-import { isStepCount } from "ai"
 import { and, asc, eq, inArray } from "drizzle-orm"
 import { z } from "zod"
 
@@ -42,6 +41,16 @@ import {
   userTimeZone,
 } from "@/lib/routines"
 import { routineClock, unattendedOrigin } from "@/lib/routine-policy"
+import {
+  CONTINUATION_DELAY,
+  continuationDepth,
+  continuationMessageId,
+  rootMessageId,
+  shouldContinueTurn,
+  TURN_STEP_LIMIT,
+  TURN_TIME_LIMIT_MS,
+} from "@/lib/turn-continuation"
+import { continueTurn } from "@/trigger/continuation"
 import {
   completeComputerApproval,
   declinedFor,
@@ -142,6 +151,11 @@ const turnModelUsage = chat.local<{
   computerOwner?: string
   // The bot that held the computer when this turn's tool gave up waiting
   computerBusy?: string
+  // The turn stopped at TURN_STEP_LIMIT or TURN_TIME_LIMIT_MS, or because it
+  // spent what was left, and why its last step ended
+  capReached: boolean
+  spendCapReached: boolean
+  lastFinishReason?: string
   startedAt: number
   messageId: string
   usageKey: string
@@ -187,6 +201,8 @@ export const chatAgent = chat
         declined: [],
         guardCost: 0,
         computerCalls: 0,
+        capReached: false,
+        spendCapReached: false,
         startedAt: Date.now(),
         messageId: "",
         usageKey: "",
@@ -209,6 +225,9 @@ export const chatAgent = chat
       turnModelUsage.tier = undefined
       turnModelUsage.computerOwner = undefined
       turnModelUsage.computerBusy = undefined
+      turnModelUsage.capReached = false
+      turnModelUsage.spendCapReached = false
+      turnModelUsage.lastFinishReason = undefined
       turnModelUsage.startedAt = Date.now()
       turnModelUsage.chatgpt = false
       turnModelUsage.followUps = undefined
@@ -667,6 +686,7 @@ export const chatAgent = chat
       usage,
       error,
       responseMessage,
+      stopped,
     }) => {
       const refused =
         error instanceof Error && error.message === USAGE_LIMIT_ERROR
@@ -731,8 +751,76 @@ export const chatAgent = chat
         ])
       }
 
-      // A routine's run reports how it went, so its status is the truth
-      if (row && unattendedOrigin(turnModelUsage.messageId) === "routine")
+      // A task cut off by the step or time cap carries on in a new turn, so
+      // long work doesn't stop midway. The next turn re-checks the allowance
+      // itself; this check only avoids posting a turn that would be refused.
+      let continuing = false
+      if (row && turnModelUsage.capReached) {
+        const after = await getUsage(row.userId).catch(
+          (usageError: unknown) => {
+            Sentry.captureException(usageError, { extra: { chatId, turn } })
+            return undefined
+          }
+        )
+        continuing =
+          !!after &&
+          shouldContinueTurn({
+            capReached: turnModelUsage.capReached,
+            lastFinishReason: turnModelUsage.lastFinishReason,
+            failed: !!error,
+            stopped,
+            approvalRequested: turnModelUsage.approvalRequested,
+            spendCapReached: turnModelUsage.spendCapReached,
+            computerBusy: !!turnModelUsage.computerBusy,
+            allowanceLeft:
+              (turnModelUsage.chatgpt || after.remaining.ai > 0) &&
+              // Computer work can't go on without computer time
+              (turnModelUsage.computerCalls === 0 ||
+                after.remaining.sandbox > 0),
+            free: after.tier === "free",
+            messageId: turnModelUsage.messageId,
+            responsePartTypes:
+              responseMessage?.parts.map((part) => part.type) ?? [],
+          })
+      }
+      if (continuing) {
+        // Posted from its own task once this run has exited, because a
+        // message that arrives while the run is alive doesn't boot the next
+        const messageId = continuationMessageId(turnModelUsage.messageId)
+        continuing = await continueTurn
+          .trigger(
+            {
+              chatId,
+              previousRunId: runId,
+              messageId,
+              botId: responseMessage?.metadata?.botId,
+            },
+            {
+              delay: CONTINUATION_DELAY,
+              idempotencyKey: await idempotencyKeys.create(messageId, {
+                scope: "global",
+              }),
+              tags: [`chat:${chatId}`],
+            }
+          )
+          .then(
+            () => true,
+            (continueError: unknown) => {
+              Sentry.captureException(continueError, {
+                extra: { chatId, turn },
+              })
+              return false
+            }
+          )
+      }
+
+      // A routine's run reports how it went once its task is done, so its
+      // status is the truth
+      if (
+        row &&
+        !continuing &&
+        unattendedOrigin(turnModelUsage.messageId) === "routine"
+      )
         await recordRoutineRunOutcome(
           row.userId,
           turnModelUsage.messageId,
@@ -745,7 +833,8 @@ export const chatAgent = chat
           Sentry.captureException(routineError, { extra: { chatId, turn } })
         )
 
-      if (row)
+      // A continuing task reports when it's actually done
+      if (row && !continuing)
         await reportUnattendedTurn({
           userId: row.userId,
           chatId,
@@ -766,7 +855,9 @@ export const chatAgent = chat
           ? "usage_limit"
           : error
             ? "failed"
-            : "completed",
+            : continuing
+              ? "continuing"
+              : "completed",
         "trigger.task": "chat",
         "trigger.run": runId,
         "usage.ai_provider": turnModelUsage.chatgpt ? "chatgpt" : "krafty",
@@ -824,9 +915,10 @@ export const chatAgent = chat
       // has this turn's message
       turnModelUsage.tier = usage.tier
       // The owner's decline wakes the bot: read what they declined from the
-      // database, never from the message ID alone
+      // database, never from the message ID alone. A continuation of that
+      // turn still knows what was declined.
       const declinedId = /^approval_(.+)_deny$/.exec(
-        turnModelUsage.messageId
+        rootMessageId(turnModelUsage.messageId)
       )?.[1]
       turnModelUsage.declined = declinedId
         ? await declinedFor(row.userId, declinedId)
@@ -971,7 +1063,8 @@ export const chatAgent = chat
               }),
             }
           },
-          onStepEnd: async ({ usage, model }) => {
+          onStepEnd: async ({ usage, model, finishReason }) => {
+            turnModelUsage.lastFinishReason = finishReason
             turnModelUsage.cost += appModelCost(chatgptSelected, () =>
               chatModelCost(usage, model.modelId)
             )
@@ -1005,17 +1098,28 @@ export const chatAgent = chat
                   ].includes(result?.toolName ?? "")
                 )
               ),
-            // Desktop work is one small action per step
-            isStepCount(50),
+            // Desktop work is one small action per step. A task still going
+            // at either cap carries on in a continuation turn (onTurnComplete).
+            ({ steps }) => {
+              const reached =
+                steps.length >= TURN_STEP_LIMIT ||
+                Date.now() - turnModelUsage.startedAt >= TURN_TIME_LIMIT_MS
+              if (reached) turnModelUsage.capReached = true
+              return reached
+            },
             // A long turn ends once it has spent what was left, counting the
             // account's other running turns
-            () =>
-              !chatgptSelected &&
-              (turnModelUsage.remaining <= 0 ||
-                turnModelUsage.cost +
-                  turnModelUsage.webCost +
-                  turnModelUsage.consultationCost >=
-                  usage.remaining.ai),
+            () => {
+              const spent =
+                !chatgptSelected &&
+                (turnModelUsage.remaining <= 0 ||
+                  turnModelUsage.cost +
+                    turnModelUsage.webCost +
+                    turnModelUsage.consultationCost >=
+                    usage.remaining.ai)
+              if (spent) turnModelUsage.spendCapReached = true
+              return spent
+            },
           ],
           abortSignal: signal,
         })
@@ -1082,7 +1186,11 @@ async function reportUnattendedTurn(turn: {
 }) {
   if (turnModelUsage.approvalRequested) return
   const origin = unattendedOrigin(turnModelUsage.messageId)
-  const long = Date.now() - turnModelUsage.startedAt >= LONG_TURN_MS
+  // A task that ran through continuation turns was long, however short its
+  // last turn was
+  const long =
+    Date.now() - turnModelUsage.startedAt >= LONG_TURN_MS ||
+    continuationDepth(turnModelUsage.messageId) > 0
   if (!origin && !long) return
 
   const botId = turn.responseMessage?.metadata?.botId
