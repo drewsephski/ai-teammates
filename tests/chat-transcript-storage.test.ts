@@ -1,7 +1,10 @@
 import assert from "node:assert/strict"
-import { after, before, describe, it } from "node:test"
+import { after, before, describe, it, mock } from "node:test"
 import { memoryTranscriptStorage } from "@trigger.dev/sdk/ai"
-import { runTranscriptStorageTests } from "@trigger.dev/sdk/ai/test"
+import {
+  runInMockTaskContext,
+  runTranscriptStorageTests,
+} from "@trigger.dev/sdk/ai/test"
 
 import { startTestDatabase } from "./helpers/test-db"
 
@@ -244,4 +247,81 @@ it("reads legacy history until Neon owns the chat, including empty history", asy
   assert.deepEqual((await transcriptStorage.load(scope)).messages, [])
   // The provider's retained copy still exists; local deletion is not erasure there.
   assert.equal((await legacyStorage.load(scope)).messages.length, 2)
+})
+
+it("a failed Neon boot read cannot replace full history with a recovered stream tail", async () => {
+  const chatId = "failed_neon_load"
+  await db
+    .insert(schema.chats)
+    .values({ id: chatId, userId: "storage_failure_user" })
+  await transcriptStorage.save(context(chatId), changeset(["old", "recent"]))
+  const scope = { chatId, clientData: undefined }
+
+  await runInMockTaskContext(async () => {
+    const select = mock.method(db, "select", () => {
+      throw new Error("temporary database outage")
+    })
+    try {
+      await assert.rejects(
+        transcriptStorage.load(scope),
+        /temporary database outage/
+      )
+    } finally {
+      select.mock.restore()
+    }
+    // A render/consultation read recovering does not repair this run's
+    // already initialized stream-tail state.
+    assert.equal((await transcriptStorage.load(scope)).messages.length, 2)
+    await assert.rejects(
+      transcriptStorage.save(context(chatId), changeset(["recent", "new"])),
+      /save blocked after a failed load/
+    )
+    assert.deepEqual(
+      (await transcriptStorage.load(scope)).messages.map((entry) => entry.id),
+      ["old", "recent"]
+    )
+  })
+
+  // A fresh run can load the complete document and persist normally.
+  await runInMockTaskContext(async () => {
+    await transcriptStorage.load(scope)
+    await transcriptStorage.save(
+      context(chatId),
+      changeset(["old", "recent", "new"])
+    )
+  })
+  assert.equal((await transcriptStorage.load(scope)).messages.length, 3)
+})
+
+it("a failed legacy read cannot promote a stream tail into authoritative Neon history", async () => {
+  const chatId = "failed_legacy_load"
+  await db
+    .insert(schema.chats)
+    .values({ id: chatId, userId: "storage_failure_user" })
+  const adapter = storage.createChatTranscriptStorage({
+    load: async () => {
+      throw new Error("snapshot unavailable")
+    },
+  })
+  await runInMockTaskContext(async () => {
+    await assert.rejects(
+      adapter.load({ chatId, clientData: undefined }),
+      /snapshot unavailable/
+    )
+    await assert.rejects(
+      adapter.save(context(chatId), changeset(["tail"])),
+      /save blocked/
+    )
+    // A separate chat's writes in this run remain independent.
+    await transcriptStorage.save(
+      context("failed_neon_load"),
+      changeset(["old", "recent", "new"])
+    )
+  })
+  const { eq } = await import("drizzle-orm")
+  const rows = await db
+    .select()
+    .from(schema.chatTranscripts)
+    .where(eq(schema.chatTranscripts.chatId, chatId))
+  assert.equal(rows.length, 0)
 })

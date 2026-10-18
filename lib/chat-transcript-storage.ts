@@ -1,3 +1,4 @@
+import { locals } from "@trigger.dev/sdk"
 import {
   defaultStorage,
   type TranscriptLoadOptions,
@@ -25,6 +26,11 @@ import { chats, chatTranscripts } from "@/db/schema"
 // https://trigger.dev/docs/ai-chat/transcript-storage
 
 type Entry = TranscriptState["entries"][number]
+
+// Trigger locals reset between runs. A failed boot read makes SDK 4.7.4
+// continue from only its stream tail. Never let that incomplete run replace
+// the complete document, even if the database or a later read recovers.
+const failedLoads = locals.create<Set<string>>("krafty-transcript-failed-loads")
 
 // The SDK's paging (pageTranscriptEntries in @trigger.dev/core): `before`
 // keeps what precedes that id, `limit` keeps the most recent ones, and
@@ -59,37 +65,49 @@ export function createChatTranscriptStorage(
       scope: TranscriptScope,
       opts?: TranscriptLoadOptions
     ) {
-      const [row] = await db
-        .select()
-        .from(chatTranscripts)
-        .where(eq(chatTranscripts.chatId, scope.chatId))
-      if (!row) {
-        // Existing conversations have only a Trigger snapshot until their first
-        // save on this deployment. Read it, but never write new snapshots. Check
-        // the chat still exists so a deleted chat cannot resurrect old content.
-        const [liveChat] = await db
-          .select({ id: chats.id })
-          .from(chats)
-          .where(eq(chats.id, scope.chatId))
-        if (!liveChat) return { messages: [], state: null }
-        return legacyStorage.load<TUIMessage>(scope, opts)
-      }
-      const page = pageTranscript(row.entries as Entry[], opts)
-      return {
-        // The runtime supplies the concrete UIMessage type on read.
-        messages: page.entries.map((entry) => entry.message) as TUIMessage[],
-        nextCursor: page.nextCursor,
-        nonFinalIds: page.entries
-          .filter((entry) => !entry.final)
-          .map((entry) => entry.id),
-        state: row.state ?? null,
-        cursors: row.cursors ?? undefined,
+      try {
+        const [row] = await db
+          .select()
+          .from(chatTranscripts)
+          .where(eq(chatTranscripts.chatId, scope.chatId))
+        if (!row) {
+          // Existing conversations have only a Trigger snapshot until their first
+          // save on this deployment. Read it, but never write new snapshots. Check
+          // the chat still exists so a deleted chat cannot resurrect old content.
+          const [liveChat] = await db
+            .select({ id: chats.id })
+            .from(chats)
+            .where(eq(chats.id, scope.chatId))
+          if (!liveChat) return { messages: [], state: null }
+          return await legacyStorage.load<TUIMessage>(scope, opts)
+        }
+        const page = pageTranscript(row.entries as Entry[], opts)
+        return {
+          // The runtime supplies the concrete UIMessage type on read.
+          messages: page.entries.map((entry) => entry.message) as TUIMessage[],
+          nextCursor: page.nextCursor,
+          nonFinalIds: page.entries
+            .filter((entry) => !entry.final)
+            .map((entry) => entry.id),
+          state: row.state ?? null,
+          cursors: row.cursors ?? undefined,
+        }
+      } catch (error) {
+        const failed = locals.get(failedLoads) ?? new Set<string>()
+        failed.add(scope.chatId)
+        locals.set(failedLoads, failed)
+        throw error
       }
     },
 
     // A chat deleted mid-turn fails the foreign key, so a late save can't bring
     // its history back
     async save(ctx, changeset) {
+      if (locals.get(failedLoads)?.has(ctx.chatId)) {
+        throw new Error(
+          "Transcript save blocked after a failed load; start a new run"
+        )
+      }
       const values = {
         chatId: ctx.chatId,
         entries: changeset.transcript.entries,
