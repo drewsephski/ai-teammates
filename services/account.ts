@@ -107,7 +107,7 @@ const providerSteps: Steps = {
   deleteBot,
   disconnectChatGPT,
   disconnectApps,
-  deleteUser: (userId) => clerk().users.deleteUser(userId),
+  deleteUser: (userId) => deleteClerkUser(userId, clerk().users),
 }
 
 // Deletes the account and what it owns: the computer, bots, chats, memories,
@@ -130,8 +130,44 @@ export async function deleteAccount(
     .parse(options.appleAuthorizationCode)
   const perform = (assertHeld: () => void = () => {}) =>
     deleteAccountLocked(userId, steps, { appleAuthorizationCode }, assertHeld)
-  // Custom provider steps can inject serialization in tests.
-  return steps.withAppleLock ? steps.withAppleLock(userId, perform) : perform()
+  // Release the original lease before acquiring a new one: the session can
+  // disappear while Clerk deletion is in flight, admitting a late grant save.
+  const initial = steps.withAppleLock
+    ? await steps.withAppleLock(userId, perform)
+    : await perform()
+  let appleSignIn = initial.appleSignIn
+  const sweep = async (assertHeld: () => void = () => {}) => {
+    const final = await steps.revokeApple(userId, undefined, assertHeld)
+    appleSignIn =
+      appleSignIn === "manual" || final === "manual"
+        ? "manual"
+        : appleSignIn === "revoked" || final === "revoked"
+          ? "revoked"
+          : "none"
+    assertHeld()
+    await (steps.deleteAppleGrants ?? deleteAppleGrantRows)(userId, assertHeld)
+    assertHeld()
+    return final
+  }
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      if (steps.withAppleLock) await steps.withAppleLock(userId, sweep)
+      else await sweep()
+      return { appleSignIn }
+    } catch (cause) {
+      if (attempt < 3) continue
+      Sentry.captureMessage(
+        "Apple grant cleanup failed after account deletion",
+        {
+          level: "error",
+          tags: { area: "apple-signin", step: "post_account_cleanup" },
+          user: { id: userId },
+        }
+      )
+      throw cause
+    }
+  }
+  throw new Error("Account cleanup did not finish. Try again.")
 }
 
 async function deleteAccountLocked(
@@ -209,30 +245,6 @@ async function deleteAccountLocked(
   assertHeld()
   await steps.deleteUser(userId)
 
-  // Keep revocation evidence until every external deletion step succeeded.
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      assertHeld()
-      await (steps.deleteAppleGrants ?? deleteAppleGrantRows)(
-        userId,
-        assertHeld
-      )
-      assertHeld()
-      break
-    } catch (cause) {
-      if (attempt < 3) continue
-      // Clerk is already gone; user retries cannot clean these encrypted rows.
-      Sentry.captureMessage(
-        "Apple grant cleanup failed after account deletion",
-        {
-          level: "error",
-          tags: { area: "apple-signin", step: "post_account_cleanup" },
-          user: { id: userId },
-        }
-      )
-      throw cause
-    }
-  }
   return { appleSignIn }
 }
 
@@ -243,4 +255,30 @@ async function deleteAppleGrantRows(userId: string, assertHeld: () => void) {
       .where(eq(appleSignInGrants.userId, userId))
     assertHeld()
   })
+}
+
+// Confirm an uncertain provider response instead of treating a timeout as
+// proof of deletion. Only an authenticated Clerk lookup returning 404 qualifies.
+export async function deleteClerkUser(
+  userId: string,
+  users: {
+    deleteUser: (id: string) => Promise<unknown>
+    getUser: (id: string) => Promise<unknown>
+  }
+) {
+  try {
+    await users.deleteUser(userId)
+  } catch {
+    try {
+      await users.getUser(userId)
+    } catch (cause) {
+      if ((cause as { status?: number })?.status === 404) return
+    }
+    Sentry.captureMessage("Account deletion provider result is unconfirmed", {
+      level: "error",
+      tags: { area: "apple-signin", step: "delete_user" },
+      user: { id: userId },
+    })
+    throw new Error("Couldn't delete your account. Try again.")
+  }
 }

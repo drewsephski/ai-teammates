@@ -58,15 +58,28 @@ Clerk has no Apple refresh token for native sign-ins that it could revoke.
    this token without a stored grant; strict recovery would require a broader
    durable-operation design.
 
-Grant cleanup runs after Clerk deletion, with at most three immediate attempts.
+After confirmed Clerk deletion, the original account lease is released. Each of
+at most three immediate cleanup attempts acquires a fresh same-account lease,
+revokes all currently stored grants without a code, then deletes those rows.
+This covers a grant saved while the original lease was lost during Clerk's
+request. Retries release their lease before acquiring another; they do not rerun
+billing or other provider deletion. Manual-removal outcomes accumulate across
+all passes and cannot be replaced by a later empty sweep.
+
+If Clerk deletion throws, a lookup returning 404 confirms deletion and allows
+the sweep. A still-existing user or unavailable lookup returns a generic error,
+retains grants, and reports `Account deletion provider result is unconfirmed`.
+A timeout alone is not proof of deletion. If the provider actually deleted the
+user but absence cannot be confirmed, operator reconciliation is required.
 Computer or Clerk failures retain encrypted grants, so a retry can revoke again
 without a fresh authorization code and preserve the accurate result. If the
 database stays unavailable after Clerk succeeds, deletion returns an error and
 Sentry records `Apple grant cleanup failed after account deletion` with the user
 ID only. The account is already gone, so user authentication/retry cannot remove
-that orphaned encrypted row; an operator must delete its `apple_sign_in_grants`
-rows by user ID after database recovery. Never print the tokens. Revocation has
-already been attempted, including the documented manual-removal outcome.
+orphaned grant; an operator must retry revocation and then delete its
+`apple_sign_in_grants` rows by user ID after provider/database recovery. Never
+print the tokens. Transient Apple errors prevent row deletion and success;
+permanent manual-removal outcomes remain explicit.
 
 Both route and service boundaries share authorization-code validation: a trimmed
 string of 1–4096 characters. Malformed optional deletion codes fail before billing

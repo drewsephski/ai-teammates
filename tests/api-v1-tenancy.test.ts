@@ -704,8 +704,8 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
     `computer:${B}`,
     `clerk:${B}`,
   ])
-  // After billing, before anything is deleted, on every attempt
-  assert.deepEqual(appleCalls, [B, B])
+  // Each provider attempt revokes first; successful Clerk deletion gets a fresh sweep.
+  assert.deepEqual(appleCalls, [B, B, B])
   assert.deepEqual(
     (await db.select().from(schema.appleSignInGrants)).map((row) => row.userId),
     [A]

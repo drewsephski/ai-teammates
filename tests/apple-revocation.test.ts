@@ -279,8 +279,8 @@ test("account deletion revokes Apple before deleting, then drops the grant", asy
   assert.deepEqual(await account.deleteAccount(A, steps), {
     appleSignIn: "revoked",
   })
-  assert.deepEqual(calls, ["billing", "apple", "chatgpt", "clerk"])
-  assert.deepEqual(apple_.revoked, ["refresh_for_code_a"])
+  assert.deepEqual(calls, ["billing", "apple", "chatgpt", "clerk", "apple"])
+  assert.deepEqual(apple_.revoked, ["refresh_for_code_a", "refresh_for_code_a"])
   assert.deepEqual(
     (await db.select().from(schema.appleSignInGrants)).map((row) => row.userId),
     [B]
@@ -361,7 +361,7 @@ test("a save already exchanging completes before deletion snapshots and revokes 
   resume.release()
   await saving
   assert.deepEqual(await deleting, { appleSignIn: "revoked" })
-  assert.deepEqual(apple_.revoked, ["refresh_for_code_a"])
+  assert.deepEqual(apple_.revoked, ["refresh_for_code_a", "refresh_for_code_a"])
   assert.deepEqual(await db.select().from(schema.appleSignInGrants), [])
 })
 
@@ -516,6 +516,7 @@ for (const failedStep of ["deleteComputer", "deleteUser"] as const) {
     assert.deepEqual(apple_.revoked, [
       "refresh_for_code_a",
       "refresh_for_code_a",
+      "refresh_for_code_a",
     ])
     assert.deepEqual(await db.select().from(schema.appleSignInGrants), [])
   })
@@ -662,3 +663,161 @@ for (const operation of ["save", "deletion"] as const) {
     )
   })
 }
+
+test("fresh post-Clerk lease sweeps a grant saved while the original deletion lease was lost", async () => {
+  const account = await import("../services/account")
+  let tail = Promise.resolve()
+  let current: { lost: boolean; release: () => void } | undefined
+  let acquisitions = 0
+  const withAccountLock: AppleDeps["withAccountLock"] = async (
+    _userId,
+    body
+  ) => {
+    const prior = tail
+    const done = gate()
+    tail = done.promise
+    await prior
+    const lease = { lost: false, release: done.release }
+    current = lease
+    acquisitions++
+    try {
+      return await body(() => {
+        if (lease.lost) throw new Error("old lease lost")
+      })
+    } finally {
+      done.release()
+    }
+  }
+  const injected = deps({ withAccountLock })
+  await apple.saveAppleAuthorization(A, "code_a", injected)
+  acquisitions = 0
+  const deletingUser = gate()
+  const finishDeleting = gate()
+  const deleting = account.deleteAccount(A, {
+    ...deletionSteps(injected),
+    deleteUser: async () => {
+      deletingUser.release()
+      await finishDeleting.promise
+      linked.delete(A)
+    },
+  })
+  await deletingUser.promise
+  current!.lost = true
+  current!.release()
+  await apple.saveAppleAuthorization(A, "code_a2", injected)
+  finishDeleting.release()
+  assert.deepEqual(await deleting, { appleSignIn: "revoked" })
+  assert.equal(acquisitions, 3)
+  assert.deepEqual(apple_.revoked, [
+    "refresh_for_code_a",
+    "refresh_for_code_a2",
+  ])
+  assert.deepEqual(await db.select().from(schema.appleSignInGrants), [])
+})
+
+test("post-Clerk cleanup retries use fresh released leases and preserve manual outcome", async () => {
+  const account = await import("../services/account")
+  let held = false
+  let acquisitions = 0
+  let deletes = 0
+  let revokes = 0
+  const injected = deps({
+    withAccountLock: async (_userId, body) => {
+      assert.equal(
+        held,
+        false,
+        "previous lease must be released before reacquiring"
+      )
+      held = true
+      acquisitions++
+      try {
+        return await body(() => assert.equal(held, true))
+      } finally {
+        held = false
+      }
+    },
+  })
+  const result = await account.deleteAccount(A, {
+    ...deletionSteps(injected),
+    revokeApple: async () => (++revokes === 1 ? "manual" : "none"),
+    deleteAppleGrants: async () => {
+      if (++deletes < 3) throw new Error("retry cleanup")
+    },
+  })
+  assert.deepEqual(result, { appleSignIn: "manual" })
+  assert.equal(acquisitions, 4)
+  assert.equal(revokes, 4)
+  assert.equal(held, false)
+})
+
+test("a transient post-Clerk Apple failure retains grants and never reports deletion success", async () => {
+  const account = await import("../services/account")
+  await apple.saveAppleAuthorization(A, "code_a", deps())
+  const injected = deps()
+  await assert.rejects(
+    account.deleteAccount(A, {
+      ...deletionSteps(injected),
+      deleteUser: async () => {
+        linked.delete(A)
+        apple_.revokeMode = "outage"
+      },
+    }),
+    /Couldn't revoke/
+  )
+  assert.equal((await db.select().from(schema.appleSignInGrants)).length, 1)
+})
+
+test("Clerk timeout is accepted only after a lookup confirms user absence", async () => {
+  const { deleteClerkUser } = await import("../services/account")
+  await deleteClerkUser(A, {
+    deleteUser: async () => {
+      throw new Error("timeout")
+    },
+    getUser: async () => {
+      throw Object.assign(new Error("not found"), { status: 404 })
+    },
+  })
+  for (const getUser of [
+    async () => ({}),
+    async () => {
+      throw new Error("lookup unavailable")
+    },
+  ]) {
+    await assert.rejects(
+      deleteClerkUser(A, {
+        deleteUser: async () => {
+          throw new Error("timeout with private details")
+        },
+        getUser,
+      }),
+      (error: unknown) =>
+        error instanceof Error &&
+        error.message === "Couldn't delete your account. Try again."
+    )
+  }
+})
+
+test("manual sweep outcome survives committed cleanup followed by lock loss and empty retry", async () => {
+  const account = await import("../services/account")
+  let revokes = 0
+  let sweeps = 0
+  let leaseLost = false
+  const injected = deps({
+    withAccountLock: async (_userId, body) => {
+      leaseLost = false
+      return body(() => {
+        if (leaseLost) throw new Error("lease lost after cleanup commit")
+      })
+    },
+  })
+  const result = await account.deleteAccount(A, {
+    ...deletionSteps(injected),
+    revokeApple: async () =>
+      ++revokes === 1 ? "revoked" : revokes === 2 ? "manual" : "none",
+    deleteAppleGrants: async () => {
+      if (++sweeps === 1) leaseLost = true
+    },
+  })
+  assert.deepEqual(result, { appleSignIn: "manual" })
+  assert.equal(revokes, 3)
+})
