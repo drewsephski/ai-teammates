@@ -1,0 +1,45 @@
+{
+  "checkedAt": "2026-10-18T17:58:42.976Z",
+  "target": [
+    {
+      "id": "1c63df9bafc3d1659bdd1161c9809dae",
+      "enabled": false,
+      "nextRunAt": null,
+      "lastRunAt": "2026-10-18T17:56:00.000Z",
+      "lastStatus": "completed",
+      "lastError": null
+    }
+  ],
+  "other": [
+    {
+      "id": "1b42279489e7893cb4926bf71b2239b6",
+      "enabled": true,
+      "nextRunAt": "2026-10-19T13:00:00.000Z",
+      "lastRunAt": null,
+      "lastStatus": null
+    }
+  ],
+  "stopped": true,
+  "otherUnchanged": true,
+  "harnessStop": {
+    "command": "pnpm exec tsx --env-file=.env.local scripts/reliability-run.ts stop 20261017-routine-daily-e7ca7b",
+    "output": {
+      "tag": "20261017-routine-daily-e7ca7b",
+      "disabled": 1
+    }
+  },
+  "scheduledRunAssessment": {
+    "result": "PASS",
+    "runId": "run_06gl0a71limlu5hmgv31bf4301",
+    "expectedAt": "2026-10-18T17:56:00.000Z",
+    "startedActivityAt": "2026-10-18T17:56:59.095Z",
+    "finishedActivityAt": "2026-10-18T17:57:09.336Z",
+    "productionVersion": "20261018.2",
+    "scheduledDuplicateRuns": 0,
+    "todayStarts": 1,
+    "todayFinished": 1,
+    "todayMeteredTurns": 1,
+    "rawHarnessExtraTurns": 1,
+    "accountingNote": "The original fixture state.dispatched remains 1. The two natural scheduled dates each have one distinct routine_started key and one metered turn; the raw harness counts the expected second scheduled turn as extraTurns=1. The raw evidence is retained unchanged."
+  }
+}

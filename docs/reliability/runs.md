@@ -9,6 +9,7 @@ Every end-to-end run, newest phase last. Scenarios and rules are in [`README.md`
 | 2026-10-17 (first 20) | 22           | 20   | 2    | 90.9%   | 0                          | 1    | 11 of 29          |
 | of which production   | 16           | 15   | 1    | 93.8%   | 0                          | 1    |                   |
 | of which dev worker   | 6            | 5    | 1    | 83.3%   | 0                          | 0    |                   |
+| 2026-10-18 (R2 next day) | 1          | 1    | 0    | 100%    | 0                          | 0    |                   |
 
 - Target for Dec 31: 100+ runs, 95% success, 0 duplicates. Open failures: #33 (P1), #34 (P2).
 - No duplicate external action was seen. Be clear about coverage, though: no connected-app write and no approved computer step actually executed in this phase (#33 stopped the only one), so "lands exactly once" is still unproven for real external writes. What was verified: one turn per dispatched message (R6 posted the same run twice and got one turn), one `routine_started` per run, one charge per web search, one memory per save, one approval wake per decision.
@@ -44,11 +45,18 @@ Build: repo `main` at `400267f` for every run. Production runs used Trigger.dev 
 | 22  | 18:32 | X5 bot over the plan limit after a downgrade    | prod | PASS                                                                  | 0          | No chat run, `skipped`: "This bot isn't available on your current plan.", `downgraded-bot-463805`                                                                                                                                                                                                                                                             |
 | 23  | 18:38 | R3 weekday 9am routine from chat                | dev  | PASS                                                                  | 0          | `run_06gkm9ogd0mltcdel3qubh2g01` (asked for the timezone, since none is saved), `run_06gkm9vpcijpubach005m40o01` (asked to connect Google Calendar), `run_06gkma6urclaf66g7849a4ig01` (scheduled). Routine `1b42279489e7893cb4926bf71b2239b6`: daily 09:00 Mon-Fri, America/New_York, next 2026-10-19 13:00Z, quoted in the reply. `routine-from-chat-9f8801` |
 
+### 2026-10-18 scheduled follow-up
+
+**R2 next-day firing: PASS.** `20261017-routine-daily-e7ca7b` was due at 17:56 UTC (12:56 Chicago). The existing production cron claimed it: `routine_started` at 17:56:59.095Z, then `work_finished` at 17:57:09.336Z. Run `run_06gl0a71limlu5hmgv31bf4301` is `COMPLETED` on production version `20261018.2`; reply: "DAILY-OK — routine fired with nothing to report." The routine advanced to 2026-10-19 17:56Z before it was stopped. One start and one metered turn occurred for each scheduled day; no duplicate scheduled run was observed.
+
+The documented `stop 20261017-routine-daily-e7ca7b` command disabled exactly one routine. An independent database read at 17:58:42.976Z verified routine `1c63df9bafc3d1659bdd1161c9809dae` has `enabled=false`, `nextRunAt=null`, and retains today's completed outcome. The October 19 test remains enabled for 13:00Z, unchanged. The existing scheduled firing occurred naturally; no manual trigger, new test fixture, account deletion, application change, or deployment was performed.
+
+Evidence: [raw run snapshot](evidence/2026-10-18/20261017-routine-daily-e7ca7b.json), [independent stop verification and assessment](evidence/2026-10-18/20261017-routine-daily-e7ca7b-stopped.json). The raw harness reports `extraTurns=1` because the original fixture's `state.dispatched` remains 1 across two natural scheduled dates. The snapshot is preserved unchanged; the daily activity keys and run ledger independently show one turn per date.
+
 ### Still scheduled
 
-Two test routines are left enabled so their next firings give scheduled-run evidence for #18. Check them, then stop them with `scripts/reliability-run.ts stop <tag>`:
+One test routine remains enabled for scheduled-run evidence for #18. After its next firing, check it and stop it with `scripts/reliability-run.ts stop <tag>`:
 
-- `20261017-routine-daily-e7ca7b`: daily at 13:56 New York, next 2026-10-18 17:56Z, production.
 - `20261017-routine-from-chat-9f8801`: weekdays at 09:00 New York, next 2026-10-19 13:00Z. The production cron will post it into a new production session for that chat.
 
 ## Observations (not failures)
