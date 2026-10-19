@@ -248,7 +248,7 @@ test("account deletion revokes Apple before deleting, then drops the grant", asy
       calls.push("apple")
       return apple.revokeAppleSignIn(userId, code, deps())
     },
-    closeChat: async () => {},
+    eraseChat: async () => {},
     deleteComputer: async () => {},
     deleteBot: async () => {},
     disconnectChatGPT: async () => {
@@ -329,7 +329,7 @@ function deletionSteps(appleDeps: AppleDeps) {
     cancelSubscriptions: async () => {},
     revokeApple: (userId: string, code: string | undefined) =>
       apple.revokeAppleSignIn(userId, code, appleDeps),
-    closeChat: async () => {},
+    eraseChat: async () => {},
     deleteComputer: async () => {},
     deleteBot: async () => {},
     disconnectChatGPT: async () => {},

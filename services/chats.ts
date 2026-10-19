@@ -40,6 +40,7 @@ import type { chatAgent } from "@/trigger/chat"
 import { startBotSetupSession } from "@/lib/bot-setup-session"
 import { teamOperationId } from "@/lib/team-policy"
 import type { Caller } from "@/services/caller"
+import { eraseDeletedChat } from "@/services/chat-erasure"
 
 const startSession = chat.createStartSessionAction<typeof chatAgent>("chat")
 const loadStoredTranscript = chat.createLoadTranscriptAction(
@@ -377,7 +378,23 @@ export async function updateGroupChat(
   return chat
 }
 
-export async function deleteGroupChat(userId: string, chatId: string) {
+export async function deleteGroupChat(
+  userId: string,
+  chatId: string,
+  eraseChat: (chatId: string) => Promise<void> = eraseDeletedChat
+) {
+  // Erase its Trigger.dev session first, once the chat is known to be theirs
+  const owned = await db.query.chats.findFirst({
+    columns: { id: true },
+    where: and(
+      eq(chats.id, chatId),
+      eq(chats.userId, userId),
+      eq(chats.kind, "group")
+    ),
+  })
+  if (!owned) throw new Error("Chat not found")
+  await eraseChat(owned.id)
+
   // Memberships go with the chat; the bots stay. A lease the chat held is
   // released, so the person's other chats can use the computer right away.
   const chat = await db.transaction(async (tx) => {

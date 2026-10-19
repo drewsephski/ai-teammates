@@ -1,7 +1,6 @@
 import { createClerkClient } from "@clerk/backend"
 // Shares the Next server client and also supports service tests under tsx.
 import * as Sentry from "@sentry/node"
-import { ApiError as TriggerApiError, runs, sessions } from "@trigger.dev/sdk"
 import { eq } from "drizzle-orm"
 
 import { db } from "@/db"
@@ -28,6 +27,7 @@ import { cancelAccountSubscriptions } from "@/lib/account-billing"
 import { deleteAccountComputer } from "@/lib/account-computer"
 import { disconnectChatGPT } from "@/lib/chatgpt-connection"
 import { getComposio } from "@/lib/composio"
+import { eraseChatSession } from "@/lib/trigger-session-erasure"
 import type { AppleRevocation } from "@/lib/apple-signin"
 import {
   appleAuthorizationCodeSchema,
@@ -44,7 +44,7 @@ type Steps = {
     authorizationCode: string | undefined,
     assertHeld: () => void
   ) => Promise<AppleRevocation>
-  closeChat: (chatId: string) => Promise<void>
+  eraseChat: (chatId: string) => Promise<unknown>
   deleteComputer: (userId: string) => Promise<void>
   deleteBot: (userId: string, botId: string) => Promise<void>
   disconnectChatGPT: (userId: string) => Promise<unknown>
@@ -81,25 +81,16 @@ const providerSteps: Steps = {
       throw new Error("Couldn't cancel your subscription. Try again.")
     }
   },
-  closeChat: async (chatId) => {
-    let runId: string | null | undefined
+  // Stops the chat's running turn, so it can't keep working (make a teammate,
+  // use the computer) while the account goes, and erases what Trigger.dev
+  // holds for it (lib/trigger-session-erasure.ts)
+  eraseChat: async (chatId) => {
     try {
-      runId = (await sessions.close(chatId, { reason: "account_deleted" }))
-        .currentRunId
+      await eraseChatSession(chatId, "account_deleted")
     } catch (cause) {
-      if (cause instanceof TriggerApiError && cause.status === 404) return
       Sentry.captureException(cause)
       throw new Error("Couldn't close your conversations. Try again.")
     }
-    // Closing stops new messages, not a turn already running. Cancel it so it
-    // can't keep working (make a teammate, use the computer) while the account
-    // goes. Best effort: the bot checks in lib/account-computer.ts still hold.
-    if (runId)
-      await runs.cancel(runId).catch((cause: unknown) => {
-        if (cause instanceof TriggerApiError && (cause.status ?? 500) < 500)
-          return
-        Sentry.captureException(cause)
-      })
   },
   revokeApple: (userId, authorizationCode, assertHeld) =>
     revokeAppleSignIn(userId, authorizationCode, undefined, assertHeld),
@@ -115,8 +106,8 @@ const providerSteps: Steps = {
 // every session. Each step can run again, so a failure part-way is retried by
 // asking again. Usage and sandbox metering rows are kept, keyed by the now
 // unused user ID, as the billing record. Conversation history (chat_transcripts)
-// cascades with the chats. What Trigger.dev still holds (session streams, run
-// payloads and logs) has no supported delete; see docs/data-retention.md.
+// cascades with the chats, and each chat's sealing key with it, which leaves
+// what Trigger.dev keeps of the messages unreadable; see docs/data-retention.md.
 //
 // Sign in with Apple is revoked before data is deleted. An Apple outage stops
 // deletion for a retry; missing tokens return instructions for manual removal.
@@ -187,13 +178,17 @@ async function deleteAccountLocked(
     assertHeld
   )
 
-  // Close sessions before their IDs disappear with the bots and group chats.
-  // Closing prevents more messages; it does not erase Trigger.dev's records.
+  // Erase and close sessions before their IDs disappear with the bots and group
+  // chats. Their keys go with the chat rows below. A few at a time: each is
+  // several Trigger.dev calls, and the person is waiting on the request.
   const ownedChats = await db
     .select({ id: chats.id })
     .from(chats)
     .where(eq(chats.userId, userId))
-  for (const chat of ownedChats) await steps.closeChat(chat.id)
+  for (let i = 0; i < ownedChats.length; i += 5)
+    await Promise.all(
+      ownedChats.slice(i, i + 5).map((chat) => steps.eraseChat(chat.id))
+    )
 
   // Until none are left: a turn still running may have made a teammate since
   for (;;) {

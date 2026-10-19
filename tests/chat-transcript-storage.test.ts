@@ -152,7 +152,7 @@ it("account deletion removes the account's transcripts and no one else's", async
   await account.deleteAccount("user_b", {
     cancelSubscriptions: async () => {},
     revokeApple: async () => "none",
-    closeChat: async () => {},
+    eraseChat: async () => {},
     deleteComputer: async () => {},
     // services/bots.deleteBot without its Sentry log
     deleteBot: async (userId, botId) => {

@@ -84,6 +84,18 @@ export const chats = pgTable(
   (table) => [index("chats_user_id_idx").on(table.userId)]
 )
 
+// The AES-256 key (base64url) that seals what a chat sends through Trigger.dev
+// (lib/chat-content-seal.ts), made on first send (lib/chat-content-key.ts).
+// Stored only here and cascading with the chat, so deleting the chat leaves
+// Trigger.dev's copies unreadable. Its own table so no chat query returns it.
+export const chatContentKeys = pgTable("chat_content_keys", {
+  chatId: text()
+    .primaryKey()
+    .references(() => chats.id, { onDelete: "cascade" }),
+  key: text().notNull(),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+})
+
 // The chat agent's transcript (lib/chat-transcript-storage.ts), one document
 // per chat, so conversation history lives here instead of in Trigger.dev's
 // transcript snapshot and goes with the chat. `entries` and `state` are the

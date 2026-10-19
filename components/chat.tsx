@@ -83,6 +83,9 @@ import type { chatAgent } from "@/trigger/chat"
 
 type ChatBot = Pick<Bot, "id" | "name" | "avatar">
 
+// The transport's default, kept for streaming replies
+const TRIGGER_API_URL = "https://api.trigger.dev"
+
 function ChatLoading() {
   return (
     <div
@@ -125,6 +128,10 @@ function Chat({
 }) {
   const transport = useTriggerChatTransport<typeof chatAgent>({
     task: "chat",
+    // Sends go through our server, which seals them with the chat's key
+    // (lib/chat-input-proxy.ts); replies stream from Trigger.dev directly
+    baseURL: ({ endpoint }) =>
+      endpoint === "in" ? "/api/trigger" : TRIGGER_API_URL,
     accessToken: ({ chatId }) => mintChatAccessToken(chatId),
     startSession: ({ chatId, clientData }) =>
       startChatSession({ chatId, clientData }),

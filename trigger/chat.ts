@@ -7,6 +7,7 @@ import { z } from "zod"
 import { db } from "@/db"
 import { bots as botTable, chatMembers, chats } from "@/db/schema"
 import { USAGE_LIMIT_ERROR } from "@/lib/billing"
+import { openChatMessages } from "@/lib/chat-content-key"
 import { chatTranscriptStorage } from "@/lib/chat-transcript-storage"
 import { isModelUnavailable, MODEL_UNAVAILABLE_ERROR } from "@/lib/chat-turn"
 import { createHandoffTool, type Handoff } from "@/lib/handoff-tool"
@@ -176,6 +177,11 @@ export const chatAgent = chat
   .agent({
     id: "chat",
     storage: chatTranscriptStorage,
+    // Messages reach Trigger.dev's input stream sealed with the chat's key
+    // (lib/chat-content-seal.ts). Open them first: this runs before the
+    // runtime accumulates, stores or converts them for the model.
+    onValidateMessages: ({ chatId, messages }) =>
+      openChatMessages(chatId, messages),
     uiMessageStreamOptions: {
       onError: (error) => {
         if (isModelUnavailable(error)) return MODEL_UNAVAILABLE_ERROR

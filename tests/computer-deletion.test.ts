@@ -55,6 +55,9 @@ const sentryLogOnly = (error: unknown) => {
     throw error
 }
 
+// Trigger.dev erasure is covered in tests/trigger-session-erasure.test.ts
+const noErasure = async () => {}
+
 async function addBot(userId: string, botId: string, chatId?: string) {
   await db
     .insert(schema.bots)
@@ -131,9 +134,9 @@ test("P1: a teammate a running turn creates mid-deletion doesn't outlive the acc
   await account.deleteAccount(user, {
     cancelSubscriptions: async () => {},
     revokeApple: async () => "none",
-    closeChat: async (chatId) => void calls.push(`close:${chatId}`),
+    eraseChat: async (chatId) => void calls.push(`erase:${chatId}`),
     deleteBot: (userId, botId) =>
-      bots.deleteBot(userId, botId).catch(sentryLogOnly),
+      bots.deleteBot(userId, botId, noErasure).catch(sentryLogOnly),
     deleteComputer: (userId) =>
       computer.deleteAccountComputer(userId, fake.provider),
     // A turn still running delegates to a new teammate (provisionTeammate)
@@ -192,7 +195,7 @@ test("P2: deleting the group chat holding the computer frees it for another chat
     { ok: true }
   )
 
-  await chats.deleteGroupChat(user, "group_dg").catch(sentryLogOnly)
+  await chats.deleteGroupChat(user, "group_dg", noErasure).catch(sentryLogOnly)
 
   assert.equal(await computer.computerInUseBy(user), null)
   assert.deepEqual(
@@ -214,7 +217,7 @@ test("P2: deleting the bot whose chat holds the computer frees it for another ch
     waitMs: 0,
   })
 
-  await bots.deleteBot(user, "bot_db_a").catch(sentryLogOnly)
+  await bots.deleteBot(user, "bot_db_a", noErasure).catch(sentryLogOnly)
 
   assert.equal(await computer.computerInUseBy(user), null)
   assert.deepEqual(
@@ -251,7 +254,48 @@ test("P2: deleting another chat or another account's chat keeps the lease", asyn
     /Bot not found/
   )
   // The owner deleting a chat that doesn't hold it
-  await chats.deleteGroupChat(user, "group_dk").catch(sentryLogOnly)
-  await bots.deleteBot(user, "bot_dk_b").catch(sentryLogOnly)
+  await chats.deleteGroupChat(user, "group_dk", noErasure).catch(sentryLogOnly)
+  await bots.deleteBot(user, "bot_dk_b", noErasure).catch(sentryLogOnly)
   assert.equal((await computer.computerInUseBy(user))?.botId, "bot_dk_a")
+})
+
+test("deleting a bot or group chat erases only its owner's Trigger.dev sessions, first", async () => {
+  const user = "user_del_erase"
+  await addBot(user, "bot_de_a", "chat_de_a")
+  await addBot(user, "bot_de_b", "chat_de_b")
+  await db
+    .insert(schema.chats)
+    .values({ id: "group_de", userId: user, kind: "group", name: "Team" })
+  await db.insert(schema.chatMembers).values([
+    { chatId: "group_de", botId: "bot_de_a" },
+    { chatId: "group_de", botId: "bot_de_b" },
+  ])
+  const { eq } = await import("drizzle-orm")
+  const erased: { chatId: string; rowStillThere: boolean }[] = []
+  const erase = async (chatId: string) => {
+    const rows = await db
+      .select({ id: schema.chats.id })
+      .from(schema.chats)
+      .where(eq(schema.chats.id, chatId))
+    erased.push({ chatId, rowStillThere: rows.length === 1 })
+  }
+
+  // Someone else's IDs never reach Trigger.dev
+  await assert.rejects(
+    chats.deleteGroupChat("user_del_other", "group_de", erase),
+    /Chat not found/
+  )
+  await assert.rejects(
+    bots.deleteBot("user_del_other", "bot_de_a", erase),
+    /Bot not found/
+  )
+  assert.deepEqual(erased, [])
+
+  // The bot's direct chat, not the group it's also in, while the row exists
+  await bots.deleteBot(user, "bot_de_a", erase).catch(sentryLogOnly)
+  await chats.deleteGroupChat(user, "group_de", erase).catch(sentryLogOnly)
+  assert.deepEqual(erased, [
+    { chatId: "chat_de_a", rowStillThere: true },
+    { chatId: "group_de", rowStillThere: true },
+  ])
 })

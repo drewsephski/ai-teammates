@@ -4,6 +4,7 @@ import { createBotAvatar } from "@/lib/bot-avatar"
 
 import { db } from "@/db"
 import { bots, chatMembers, chats } from "@/db/schema"
+import { postChatMessage } from "@/lib/chat-dispatch"
 import { withSandboxLock } from "@/lib/sandbox-lock"
 import { assertDelegationDepth, teamOperationId } from "@/lib/team-policy"
 import { createTeamTools, type TeamDestination } from "@/lib/team-tools"
@@ -60,35 +61,24 @@ export function createDelegationTools(context: {
             kind: existing.kind,
           }
         : await create(destinationId, operationId)
-      // Creation AND first message are atomic in Trigger.dev. Repeating this call
-      // returns the existing session without sending a duplicate task.
-      await sessions.start({
-        type: "chat.agent",
-        externalId: destination.chatId,
-        taskIdentifier: "chat",
-        metadata: {
-          delegationDepth: depth + 1,
-          delegationMessageId: `brief_${operationId}`,
-          sourceChatId: context.chatId,
+      // The brief is sent once per operation, so repeating this call returns
+      // the existing session without sending a duplicate task. It goes through
+      // the sealed input stream: basePayload text stays at Trigger.dev.
+      await postChatMessage(
+        destination.chatId,
+        {
+          id: `brief_${operationId}`,
+          text: `Task handed over by ${context.sourceName}:\n\n${prompt}`,
         },
-        triggerConfig: {
-          tags: [`chat:${destination.chatId}`],
-          basePayload: {
-            chatId: destination.chatId,
-            trigger: "submit-message",
-            message: {
-              id: `brief_${operationId}`,
-              role: "user",
-              parts: [
-                {
-                  type: "text",
-                  text: `Task handed over by ${context.sourceName}:\n\n${prompt}`,
-                },
-              ],
-            },
+        {
+          once: true,
+          metadata: {
+            delegationDepth: depth + 1,
+            delegationMessageId: `brief_${operationId}`,
+            sourceChatId: context.chatId,
           },
-        },
-      })
+        }
+      )
       return destination
     })
   }

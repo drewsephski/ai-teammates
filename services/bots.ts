@@ -26,6 +26,7 @@ import {
   pinnedBotOrderUpdates,
 } from "@/lib/pinned-bot-order"
 import type { Caller } from "@/services/caller"
+import { eraseDeletedChat } from "@/services/chat-erasure"
 
 // The user's bots, oldest first
 export async function listBots(userId: string) {
@@ -188,7 +189,26 @@ export async function updateBot(
   return bot
 }
 
-export async function deleteBot(userId: string, botId: string) {
+export async function deleteBot(
+  userId: string,
+  botId: string,
+  eraseChat: (chatId: string) => Promise<void> = eraseDeletedChat
+) {
+  // Its direct chats go with it. Erase their Trigger.dev sessions first, while
+  // the rows (and their sealing keys) still say whose they are.
+  const direct = await db
+    .select({ id: chats.id })
+    .from(chats)
+    .innerJoin(chatMembers, eq(chatMembers.chatId, chats.id))
+    .where(
+      and(
+        eq(chats.userId, userId),
+        eq(chats.kind, "direct"),
+        eq(chatMembers.botId, botId)
+      )
+    )
+  for (const chat of direct) await eraseChat(chat.id)
+
   // The account computer stays; a lease this bot held is released, so the
   // person's other bots can use it right away.
   await db.transaction(async (tx) => {

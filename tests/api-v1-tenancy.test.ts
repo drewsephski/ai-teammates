@@ -592,8 +592,8 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
       appleCalls.push(userId)
       return "none" as const
     },
-    closeChat: async (chatId: string) => {
-      calls.push(`close:${chatId}`)
+    eraseChat: async (chatId: string) => {
+      calls.push(`erase:${chatId}`)
     },
     // services/bots.deleteBot without its Sentry log, which needs Next's
     // bundling; its owner check is covered above
@@ -683,7 +683,7 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
     account.deleteAccount(B, {
       ...steps(),
       cancelSubscriptions: async () => {},
-      closeChat: async () => {
+      eraseChat: async () => {
         throw new Error("session unavailable")
       },
     }),
@@ -696,7 +696,7 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
     appleSignIn: "none",
   })
   assert.equal(calls[0], `billing:${B}`)
-  assert.deepEqual(calls.slice(1, 3).sort(), ["close:chat_b1", "close:group_b"])
+  assert.deepEqual(calls.slice(1, 3).sort(), ["erase:chat_b1", "erase:group_b"])
   // The computer goes last, once no bot is left to bring it back
   assert.deepEqual(calls.slice(3), [
     `chatgpt:${B}`,
