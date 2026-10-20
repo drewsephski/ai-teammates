@@ -23,6 +23,176 @@ const prompts: Record<string, string> = {
     "Every hour, read new Zendesk tickets. Draft replies to how-to questions using our Notion help center, tag billing issues for finance, and for anything that looks like a bug, search Linear for an existing issue and link it or file a new one with repro steps. Post anything urgent in #support on Slack and tag me.",
 }
 
+type UseCaseDetails = {
+  /** Search-shaped page title, "AI agent for …". */
+  headline: string
+  /** One answer-first paragraph for the role page. */
+  summary: string
+  /** Apps the starter prompt names. Each one is connected by the person. */
+  apps: string[]
+  /** When the starter prompt runs it. */
+  schedule: string
+  /** What the Bot does by itself, in order. */
+  steps: string[]
+  /** What waits for the person's approval or review. */
+  waitsForYou: string[]
+}
+
+// Role pages at /use-cases/[id]. Everything here follows from the starter
+// prompt and the approval rules in docs/autonomy.md; claim nothing more.
+const details: Record<string, UseCaseDetails> = {
+  "sales-outbound": {
+    headline: "AI agent for outbound sales",
+    summary:
+      "A Sales Outbound Bot researches target accounts overnight, finds the right contact, and drafts short emails in your voice. You start the day with a ranked review list instead of a blank sequence.",
+    apps: ["HubSpot", "Gmail", "Google Sheets", "Slack"],
+    schedule: "Every weeknight, as a routine",
+    steps: [
+      "Pulls target companies from your CRM that nobody has emailed recently",
+      "Checks each company's careers page and recent news for buying signals",
+      "Finds the contact you asked for and drafts a three-sentence email based on your sent mail",
+      "Ranks the best ten in a sheet with the signal behind each, and messages you when it's ready",
+    ],
+    waitsForYou: [
+      "No email is sent. The drafts wait for you to review and send",
+      "Writing to the sheet and posting in Slack are app writes, so they wait for your approval unless you always allow them for this Bot",
+    ],
+  },
+  "talent-scout": {
+    headline: "AI agent for recruiting and sourcing",
+    summary:
+      "A Talent Scout Bot sources candidates who match your brief and skips anyone already in your applicant tracking system. Its outreach references each person's actual work.",
+    apps: ["Greenhouse", "Google Sheets", "Gmail", "Google Calendar"],
+    schedule: "On request, or as a weekly routine",
+    steps: [
+      "Searches the web for people who match the role, location, and background you describe",
+      "Checks your applicant tracking system so it doesn't contact people already in process",
+      "Lists each candidate in a sheet with links and why they fit",
+      "Drafts a short, specific note to each one",
+    ],
+    waitsForYou: [
+      "Notes go out from your Gmail only after you approve them",
+      "Interview slots are offered from your calendar only after you approve",
+    ],
+  },
+  "paid-media": {
+    headline: "AI agent for paid media reporting",
+    summary:
+      "A Paid Media Bot pulls yesterday's spend and results every morning, compares them with your monthly plan, and posts a short summary. It recommends budget moves and changes nothing until you agree.",
+    apps: ["Google Ads", "Meta Ads", "Google Sheets", "Slack"],
+    schedule: "Every morning, as a routine",
+    steps: [
+      "Pulls spend, click-through rate, and conversions from each ad account",
+      "Compares them with the budget in your plan sheet",
+      "Posts a five-line summary to your team channel",
+      "Flags campaigns that stay above target cost per acquisition and recommends a specific reallocation",
+    ],
+    waitsForYou: [
+      "Every bid or budget change waits for your OK",
+      "Posting the summary is an app write, so it waits for approval unless you always allow it",
+    ],
+  },
+  "expense-manager": {
+    headline: "AI agent for receipts and expenses",
+    summary:
+      "An Expense Manager Bot collects the week's receipts from your inbox, files them, and logs each one in your expense sheet. The books are clean before review.",
+    apps: ["Gmail", "Google Drive", "Google Sheets", "Slack"],
+    schedule: "Every Friday afternoon, as a routine",
+    steps: [
+      "Searches your inbox for the week's receipts and invoices",
+      "Saves each file to a receipts folder",
+      "Logs vendor, amount, date, and category in your expense sheet",
+      "Flags large or uncategorized expenses",
+    ],
+    waitsForYou: [
+      "Saving files and writing rows are app writes, so they wait for your approval unless you always allow them",
+      "Messages asking teammates to fill in a category wait for your approval",
+    ],
+  },
+  "product-performance": {
+    headline: "AI agent for performance investigations",
+    summary:
+      "A Product Performance Bot signs in to your observability tool on its cloud computer and compares this week's latency with last week's. When something slowed down, it writes up the likely cause with screenshots.",
+    apps: ["Datadog", "GitHub", "Notion", "Slack"],
+    schedule: "On request, or as a weekly routine",
+    steps: [
+      "Opens your dashboards in the computer's browser and pulls the metric you name",
+      "Compares it with the previous period",
+      "When it regressed, opens the slowest traces and screenshots the flamegraphs",
+      "Matches the change to a merged pull request and drafts a one-page writeup",
+    ],
+    waitsForYou: [
+      "Publishing the doc and posting the link are app writes, so they wait for your approval unless you always allow them",
+    ],
+  },
+  "bug-reproduction": {
+    headline: "AI agent for bug reproduction",
+    summary:
+      "A Bug Reproduction Bot follows a customer's steps on your staging site in its own browser and captures what fails. Engineers get a repro pack with steps, screenshots, and console errors.",
+    apps: ["Intercom", "Linear"],
+    schedule: "When a conversation is tagged, checked by a routine",
+    steps: [
+      "Reads the support conversation and the steps the customer took",
+      "Follows the same path on your staging site in the computer's browser",
+      "Captures screenshots and console errors when it reproduces",
+      "Drafts an issue with numbered steps, expected and actual behavior",
+    ],
+    waitsForYou: [
+      "Filing the issue and adding the internal note are app writes, so they wait for your approval unless you always allow them",
+    ],
+  },
+  "account-health": {
+    headline: "AI agent for customer account health",
+    summary:
+      "An Account Health Bot reads usage, CRM, and support signals for every account renewing soon. It ranks the ones that need attention, with one line of reasoning each.",
+    apps: ["Salesforce", "Stripe", "Zendesk", "Gmail", "Google Sheets"],
+    schedule: "Every Monday, as a routine",
+    steps: [
+      "Pulls accounts renewing in the next 90 days from your CRM",
+      "Checks seat usage, open tickets, and your last email thread for each",
+      "Ranks them by churn risk in a sheet with its reasoning",
+      "Drafts check-in emails for the accounts most at risk",
+    ],
+    waitsForYou: [
+      "Check-in emails are drafts. You review and send them",
+      "Writing the ranking to the sheet waits for your approval unless you always allow it",
+    ],
+  },
+  "chief-of-staff": {
+    headline: "AI chief of staff for your inbox and calendar",
+    summary:
+      "A Chief of Staff Bot reads your unread email, direct messages, and today's calendar every morning, then sends you one brief. It covers the meetings that need prep, the replies due today, and the threads you promised to follow up on.",
+    apps: ["Gmail", "Slack", "Google Calendar"],
+    schedule: "Every weekday morning, as a routine",
+    steps: [
+      "Reads unread email, direct messages, and today's meetings",
+      "Writes a short brief on each attendee from your past emails",
+      "Drafts replies to the emails that need an answer today",
+      "Lists threads you said you'd follow up on and haven't",
+    ],
+    waitsForYou: [
+      "Replies stay as drafts in Gmail for you to send",
+      "Sending you the brief in Slack is an app write, so it waits for approval unless you always allow it",
+    ],
+  },
+  "support-triage": {
+    headline: "AI agent for support ticket triage",
+    summary:
+      "A Support Triage Bot reads new tickets every hour and drafts answers to how-to questions from your help center. It routes billing issues and links real bugs to an existing issue or drafts a new one.",
+    apps: ["Zendesk", "Notion", "Linear", "Slack"],
+    schedule: "Every hour, as a routine",
+    steps: [
+      "Reads new tickets since the last run",
+      "Drafts replies to how-to questions using your help center",
+      "Tags billing issues for your finance team",
+      "Searches for an existing bug report and links it, or drafts a new one with repro steps",
+    ],
+    waitsForYou: [
+      "Replies, tags, new issues, and urgent alerts are app writes, so each waits for your approval unless you always allow that action",
+    ],
+  },
+}
+
 export const useCases = [
   ...roles.map(({ id, name, color, description }) => ({
     id,
@@ -37,4 +207,13 @@ export const useCases = [
     description:
       "Clear the queue before you log on. Triages new tickets, drafts replies grounded in your docs, files real bugs with repro steps, and escalates anything urgent to you.",
   },
-].map((useCase) => ({ ...useCase, prompt: prompts[useCase.id] }))
+].map((useCase) => ({
+  ...useCase,
+  prompt: prompts[useCase.id],
+  ...details[useCase.id],
+}))
+
+export type UseCase = (typeof useCases)[number]
+
+export const findUseCase = (id: string) =>
+  useCases.find((useCase) => useCase.id === id)

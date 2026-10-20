@@ -1,5 +1,5 @@
 .intro {
-  padding-top: 148px;
+  padding-top: 36px;
   padding-bottom: 56px;
 }
 .intro h1 {
@@ -39,28 +39,20 @@
   line-height: 1.3;
   letter-spacing: -0.01em;
 }
+.card h2 a:hover {
+  color: var(--role-color);
+}
+.more {
+  color: #a1a1a1;
+  font-size: 14px;
+}
+.more:hover {
+  color: #fff;
+}
 .card p {
   color: #a1a1a1;
   font-size: 15px;
   line-height: 1.6;
-}
-.footer {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 16px;
-  padding-block: 32px 48px;
-  border-top: 1px solid #262626;
-  color: #7d8187;
-  font-size: 13px;
-}
-.footer nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-}
-.footer a:hover {
-  color: #fff;
 }
 .prompt {
   display: flex;

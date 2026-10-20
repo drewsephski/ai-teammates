@@ -18,7 +18,7 @@ export const socialImage = {
  * Bump when the public marketing pages change meaningfully so the sitemap's
  * lastmod stays honest.
  */
-export const marketingUpdated = "2026-10-16"
+export const marketingUpdated = "2026-10-19"
 
 const usd = (millionths: number) => millionths / 1_000_000
 

@@ -1,11 +1,13 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 
-export const metadata: Metadata = {
+import { pageMetadata } from "@/lib/marketing/content"
+
+export const metadata: Metadata = pageMetadata({
+  path: "/privacy",
   title: "Privacy policy",
   description: "How Krafty collects, uses, and handles your information.",
-  alternates: { canonical: "https://kraftybot.app/privacy" },
-}
+})
 
 export default function PrivacyPage() {
   return (

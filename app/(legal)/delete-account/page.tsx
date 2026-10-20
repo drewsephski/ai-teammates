@@ -6,13 +6,14 @@ import { auth, currentUser } from "@clerk/nextjs/server"
 import { deleteAccount } from "@/actions/account"
 import { DeleteAccountForm } from "@/components/delete-account-form"
 import { Button } from "@/components/ui/button"
+import { pageMetadata } from "@/lib/marketing/content"
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/delete-account",
   title: "Delete your Krafty account",
   description:
     "Delete your Krafty account and workspace without installing the app.",
-  alternates: { canonical: "https://kraftybot.app/delete-account" },
-}
+})
 
 export default async function DeleteAccountPage() {
   const { isAuthenticated } = await auth()

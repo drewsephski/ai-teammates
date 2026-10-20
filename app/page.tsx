@@ -21,6 +21,7 @@ import { HalftoneWordmark } from "@/components/landing/halftone-wordmark-footer"
 import styles from "@/components/landing/bot/bot-landing.module.css"
 import { JsonLd } from "@/components/json-ld"
 import { homeJsonLd } from "@/lib/marketing/json-ld"
+import { definition, howItWorks } from "@/lib/marketing/content"
 import {
   brandName,
   freePlanIncludes,
@@ -103,6 +104,27 @@ export default async function LandingPage() {
           <div className={styles.heroPreview}>
             <BotChatDemo workspaceHref={workspaceHref} />
           </div>
+        </section>
+        <section
+          id="what-is-krafty-bot"
+          className={`${styles.container} ${styles.section} ${styles.split}`}
+          aria-labelledby="what-is-title"
+        >
+          <div className={styles.splitCopy}>
+            <h2 id="what-is-title">What is Krafty Bot?</h2>
+            <p className={styles.definition}>{definition}</p>
+            <Link href="/how-it-works" className={styles.textLink}>
+              How Krafty Bot works <ArrowRightIcon size={16} />
+            </Link>
+          </div>
+          <ol className={styles.explainSteps}>
+            {howItWorks.map((step) => (
+              <li key={step.title}>
+                <h3>{step.title}</h3>
+                <p>{step.body}</p>
+              </li>
+            ))}
+          </ol>
         </section>
         <BotFeatures />
         <RoleShowcase workspaceHref={workspaceHref} />
@@ -218,6 +240,7 @@ export default async function LandingPage() {
               Workspace
             </Link>
             <a href="#features">Features</a>
+            <Link href="/how-it-works">How it works</Link>
             <Link href="/use-cases">Use cases</Link>
             <a href="#pricing">Pricing</a>
           </div>
@@ -250,6 +273,7 @@ export default async function LandingPage() {
         <div className={styles.footerBottom}>
           <span>AI teammates with a memory and a computer of their own.</span>
           <div className="flex flex-wrap gap-4">
+            <Link href="/support">Support</Link>
             <Link href="/privacy">Privacy policy</Link>
             <Link href="/terms">Terms of service</Link>
             <a href="#top">Back to top ↑</a>

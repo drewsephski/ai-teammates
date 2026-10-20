@@ -1,14 +1,20 @@
 import { planLimits } from "@/lib/billing-policy"
+import { definition } from "@/lib/marketing/content"
 import { freePlanIncludes } from "@/lib/marketing/site"
 
 // Shared by the FAQ accordion and the homepage FAQPage structured data.
 export const faqs = [
+  ["What is Krafty Bot?", definition],
   [
     "How is Krafty Bot different from AI assistants?",
     "Bots have a cloud computer, so they work inside your apps and tools instead of only answering questions. Several can run at once, and they keep going after you close your browser.",
   ],
   [
-    "Who is Krafty Bot available for today?",
+    "Does a Bot change things in my apps without asking?",
+    "No. Reading your connected apps needs no approval, but anything that writes to them, such as sending an email or updating a record, waits for you to approve it. You can choose to always allow a specific action for a specific Bot, except for high-risk actions.",
+  ],
+  [
+    "Who can use Krafty Bot?",
     `Anyone can start free with ${freePlanIncludes}. More teammates and hours of computer time require a paid plan. See the available plans in your workspace.`,
   ],
   [

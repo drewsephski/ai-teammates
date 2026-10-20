@@ -153,6 +153,11 @@ APPLE_SIWA_PRIVATE_KEY=
 APPLE_SIWA_CLIENT_ID=app.kraftybot.mobile
 APPLE_SIWA_TOKEN_ENCRYPTION_KEY=
 
+# Optional: https URL of the current Android APK (Railway only). /download and
+# the sidebar's Get the app dialog offer it, and /download/android redirects to
+# it. Without it, Android shows as coming soon.
+ANDROID_APK_URL=
+
 # Development only: let the local trigger dev worker run routines. Off by
 # default because local development shares production's database.
 # KRAFTY_DEV_ROUTINES=1

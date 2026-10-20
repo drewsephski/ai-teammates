@@ -10,8 +10,9 @@ const navigation = [
   // Root-relative so the links also work from pages other than the homepage.
   ["Features", "/#features"],
   ["Use cases", "/use-cases"],
-  ["How it works", "/#statement"],
+  ["How it works", "/how-it-works"],
   ["Pricing", "/#pricing"],
+  ["Get the app", "/download"],
 ] as const
 
 export function BotNavigation({ workspaceHref }: { workspaceHref: string }) {

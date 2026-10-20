@@ -19,6 +19,7 @@ import { getSidebarConversationOrder } from "@/queries/sidebar"
 import { sidebarSections } from "@/lib/sidebar-order"
 import { CreateMenu } from "@/components/create-menu"
 import { ConnectorMarketplace } from "@/components/connector-marketplace"
+import { AppDownloadDialog } from "@/components/app-download-dialog"
 import { GroupChatAvatar } from "@/components/group-chat-avatar"
 import { SearchCommand, SearchCommandItem } from "@/components/search-command"
 import {
@@ -40,6 +41,7 @@ import { getBots, getChats, type ChatWithBots } from "@/queries/bots"
 import { getPendingApprovalCount } from "@/queries/activity"
 import { chatPreview } from "@/lib/chat-preview"
 import { chatSearchContent } from "@/lib/chat-search"
+import { androidApkUrl } from "@/lib/app-download"
 
 // A group shows its bots together, a direct chat shows its one bot
 function SidebarChatAvatar({ chat }: { chat: ChatWithBots }) {
@@ -235,6 +237,13 @@ export async function AppSidebar() {
             <SidebarNavLink href="/pricing" label="Plans & billing">
               <CreditCardIcon />
             </SidebarNavLink>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <AppDownloadDialog
+              androidAvailable={
+                androidApkUrl(process.env.ANDROID_APK_URL) !== null
+              }
+            />
           </SidebarMenuItem>
           <SidebarMenuItem>
             <UserMenu />

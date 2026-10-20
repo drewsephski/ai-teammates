@@ -220,6 +220,56 @@
   line-height: 29.25px;
   color: #7d8187;
 }
+.splitCopy p.definition {
+  color: #d4d4d4;
+}
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  font-size: 15px;
+}
+.textLink:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.explainSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+.explainSteps li {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 4px 12px;
+  padding: 20px;
+  border-radius: 16px;
+  background: #151515;
+  counter-increment: step;
+}
+.explainSteps li::before {
+  content: counter(step);
+  grid-row: span 2;
+  color: #7d8187;
+  font-size: 14px;
+  line-height: 22px;
+}
+.explainSteps h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 22px;
+}
+.explainSteps p {
+  color: #7d8187;
+  font-size: 14px;
+  line-height: 22px;
+}
 .accessCards {
   display: flex;
   flex-direction: column;
@@ -271,6 +321,11 @@
 .final p {
   margin: 12px 0 24px;
   font-size: 16px;
+}
+.notFoundTitle {
+  font-size: clamp(36px, 6vw, 56px);
+  font-weight: 500;
+  line-height: 1.05;
 }
 .giantMark {
   width: 100%;
