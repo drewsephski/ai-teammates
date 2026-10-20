@@ -14,9 +14,9 @@ export function BotFeatures() {
           <div className={styles.statementCopy}>
             <h2 id="statement-title">Message Bots like teammates</h2>
             <p>
-              Hand a Bot a task the way you would a coworker, on desktop or iOS.
-              It takes the project from start to finish, learns how you like
-              things done, and checks in when it needs your approval.
+              Hand a Bot a task the way you would a coworker, on your desktop or
+              phone. It takes the project from start to finish, learns how you
+              like things done, and checks in when it needs your approval.
             </p>
           </div>
           <div className={styles.statementPop}>
@@ -50,7 +50,7 @@ export function BotFeatures() {
           <FeatureCard
             scene="recording"
             title="Show a Bot how it’s done"
-            body="Walk a Bot through a workflow once. It saves the steps as a routine and runs them by itself next time."
+            body="Walk a Bot through a workflow in chat once. It saves the job as a routine and runs it on schedule after that."
           />
           <FeatureCard
             scene="memory"

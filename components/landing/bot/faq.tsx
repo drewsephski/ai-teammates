@@ -11,7 +11,13 @@ import styles from "./faq.module.css"
 
 export function BotFaq() {
   return (
-    <Accordion className={styles.questions} defaultValue={[questions[0][0]]}>
+    // hiddenUntilFound keeps closed answers in the HTML, so search engines,
+    // AI crawlers and find-in-page read every answer the FAQPage data lists.
+    <Accordion
+      className={styles.questions}
+      defaultValue={[questions[0][0]]}
+      hiddenUntilFound
+    >
       {questions.map(([question, answer]) => (
         <AccordionItem key={question} value={question} className={styles.item}>
           <AccordionTrigger className={styles.trigger}>

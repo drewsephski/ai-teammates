@@ -205,7 +205,7 @@ export function RoleShowcase({ workspaceHref }: { workspaceHref: string }) {
             <RoleDescription role={role} />
           </div>
           <div className={styles.desktopExplore}>
-            <Link href={workspaceHref} className={styles.explore}>
+            <Link href="/use-cases" className={styles.explore}>
               Explore more bots
             </Link>
           </div>
@@ -230,7 +230,7 @@ export function RoleShowcase({ workspaceHref }: { workspaceHref: string }) {
         </div>
       </div>
       <div className={styles.mobileExplore}>
-        <Link href={workspaceHref} className={styles.explore}>
+        <Link href="/use-cases" className={styles.explore}>
           Explore more bots
         </Link>
       </div>

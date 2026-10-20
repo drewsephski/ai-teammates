@@ -2,7 +2,7 @@ import { ClerkProvider } from "@clerk/nextjs"
 import { shadcn } from "@clerk/ui/themes"
 import { Geist_Mono } from "next/font/google"
 import localFont from "next/font/local"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { headers } from "next/headers"
 
 import "./globals.css"
@@ -35,6 +35,9 @@ export const metadata: Metadata = {
   title: { default: siteTitle, template: `%s · ${brandName}` },
   applicationName: brandName,
   description: siteDescription,
+  creator: "Drew Sepeczi",
+  publisher: brandName,
+  category: "productivity",
   openGraph: {
     title: siteTitle,
     description: siteDescription,
@@ -49,6 +52,14 @@ export const metadata: Metadata = {
     description: siteDescription,
     images: [{ url: socialImage.url, alt: socialImage.alt }],
   },
+}
+
+export const viewport: Viewport = {
+  // Dark is the default theme; match the browser chrome to app/globals.css.
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+  ],
 }
 
 export default async function RootLayout({
