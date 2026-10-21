@@ -38,6 +38,12 @@ export default function PrivacyPage() {
           your teammates.
         </li>
         <li>
+          Voice recordings when you use dictation. Recording begins when you tap
+          the wave button; stopping sends the audio for transcription.
+          Cancelling before upload discards the recording. Only the transcript
+          you choose to send becomes part of your conversation.
+        </li>
+        <li>
           If you report an AI response, we store the reported response text,
           your selected reason, any details you choose to add, the relevant
           account and conversation identifiers, and report and review dates to
@@ -101,6 +107,14 @@ export default function PrivacyPage() {
         permissions on other devices, or delete information already processed.
         When your account uses your connected ChatGPT plan, OpenAI processes the
         conversation through that connection.
+      </p>
+      <p>
+        Dictation sends your voice recording through Krafty to OpenRouter and
+        Mistral for speech-to-text processing. Krafty does not save the audio in
+        its database, and the mobile app removes its temporary recording after
+        transcription, failure, or cancellation. Cancelling an upload cannot
+        recall audio that a provider has already received. Providers process
+        recordings under their own terms and privacy policies.
       </p>
       <p>
         We do not sell your personal information. We may disclose information

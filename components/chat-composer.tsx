@@ -29,6 +29,7 @@ export function ChatComposer({
   textareaClassName,
   onSubmit,
   children,
+  disabled = false,
 }: {
   bots: MentionBot[]
   memberIds: string[]
@@ -41,6 +42,7 @@ export function ChatComposer({
     mentions: BotMention[]
   ) => boolean | void | Promise<boolean | void>
   children: ReactNode
+  disabled?: boolean
 }) {
   const { textInput } = usePromptInputController()
   const [draftTags, setDraftTags] = useState<{
@@ -191,6 +193,7 @@ export function ChatComposer({
       />
       <PromptInput
         onSubmit={(message) => {
+          if (disabled) return false
           const parsed = parseComposerCommand(message.text)
           if (parsed?.command?.name === "help") {
             setHelp(true)

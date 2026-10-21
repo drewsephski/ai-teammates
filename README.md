@@ -129,6 +129,9 @@ COMPOSIO_API_KEY=
 # Tavily: server-side public web search and page reading for every bot, including unfinished setup
 TAVILY_API_KEY=
 
+# Optional: server-side Voxtral dictation (Railway only, not Trigger.dev)
+OPENROUTER_API_KEY=
+
 # Trigger.dev: the development key and the project ref
 TRIGGER_SECRET_KEY=
 TRIGGER_PROJECT_REF=
@@ -263,3 +266,37 @@ Chat workers end after each turn while preserving the durable session and transc
 Role matching is model-driven. The bot is instructed to reuse a fitting teammate first, announce specialist creation before acting, and explain failures without claiming success. Successful destination tools end the source turn; the browser opens the destination once that turn completes. Stored handoffs remain clickable and do not redirect when old transcripts load. A group creation failure can leave successfully provisioned specialists available in their direct chats; retrying the same operation reuses their IDs.
 
 Run `pnpm exec tsx --test tests/team-tools.test.ts tests/connector-tools.test.ts tests/connector-session.test.ts` alongside the sandbox tests. `pnpm exec tsx --env-file=.env.local scripts/verify-connector-agent.ts` checks the real chat model against current Composio schemas with simulated email execution; it never sends mail. Live checks should cover an unrelated task creating a specialist, destination work continuing without the browser, group creation with new roles, and a connected service under two different Clerk users. OAuth authorization requires the account owner to complete the provider flow. Deploy the app and Trigger.dev worker together when releasing these changes.
+
+### Composer dictation
+
+The wave button next to Send records speech; pressing it again transcribes the
+recording and inserts the words at the draft's current cursor, ready to edit or
+send. The active wave respects reduced motion. Recordings stop at two minutes;
+Cancel and leaving the chat release the microphone without sending the draft.
+
+Set `OPENROUTER_API_KEY` privately in `.env.local` and on Railway's `ai-teammates`
+service in `production`. The worker does not read this key or run transcription,
+so this feature does not need a Trigger.dev deploy. Browser microphone access
+requires HTTPS or localhost. Web recordings become mono 16 kHz PCM WAV before
+upload; the server accepts audio-only WAV and AAC/M4A up to 5 MiB and checks the
+container's duration before reserving allowance. Audio is sent to OpenRouter's
+`mistralai/voxtral-small-transcribe-3-0` transcription endpoint and is not saved
+in Krafty's database or attached to the conversation. Only the inserted text
+enters chat history when the person sends it.
+
+Transcription uses the Krafty AI allowance even when ChatGPT supplies chat
+replies. Each call reserves its estimated cost and records the provider's
+reported USD cost in the existing usage ledger. Requests are not automatically
+retried; an ambiguous provider timeout retains its usage hold for the existing
+abandoned-hold settlement.
+
+For the Expo app, use `expo-audio` to request microphone permission and record
+AAC/M4A. On the second tap, stop recording and upload the file's raw bytes to
+`POST /api/v1/audio/transcriptions` with `Content-Type: audio/mp4` and the usual
+Clerk bearer token. The response is `{ text }`; insert it into the existing
+composer state without sending. Failures use the standard `{ error: { code,
+message } }` envelope. Release recording resources when cancelling, leaving the
+chat, or backgrounding the app. Add the `expo-audio` config plugin for microphone
+permissions; if the module or native permissions aren't in the installed app,
+ship a new native build. Keep the OpenRouter key exclusively on the server and
+release the server endpoint before a mobile build calls it.

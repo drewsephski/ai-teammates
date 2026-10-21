@@ -17,6 +17,8 @@ import {
 } from "@/actions/chat"
 
 import { ChatComposer } from "@/components/chat-composer"
+import { ChatSpeechButton } from "@/components/chat-speech-button"
+import { transcribeSpeech } from "@/actions/transcription"
 import type { BotMention, MentionBot } from "@/lib/composer"
 import { Shimmer } from "@/components/ai-elements/shimmer"
 import { ChatAvatar } from "@/components/chat-avatar"
@@ -319,6 +321,7 @@ function ChatMessages({
   })
   // The bot the next message goes to, in a group chat
   const [botId, setBotId] = useState(bots[0]?.id)
+  const [dictationBusy, setDictationBusy] = useState(false)
   const [setupStopped, setSetupStopped] = useState(false)
   const desktop = useOptionalDesktopPanel()
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -737,6 +740,7 @@ function ChatMessages({
             />
           )}
           <ChatComposer
+            disabled={dictationBusy}
             onSubmit={handleSubmit}
             bots={mentionBots}
             memberIds={identities.map((bot) => bot.id)}
@@ -746,7 +750,10 @@ function ChatMessages({
             textareaClassName={
               selectedBot
                 ? "min-h-14 px-3 text-base sm:text-sm"
-                : "min-h-10 px-3 py-2.5 pr-14 text-base sm:text-sm"
+                : cn(
+                    "min-h-10 px-3 py-2.5 text-base sm:text-sm",
+                    dictationBusy ? "pr-44" : "pr-24"
+                  )
             }
           >
             <PromptInputFooter
@@ -783,13 +790,24 @@ function ChatMessages({
                   </PromptInputSelect>
                 </PromptInputTools>
               )}
-              <PromptInputSubmit status={status} onStop={stop}>
-                {busy ? (
-                  <SquareIcon className="size-4" />
-                ) : (
-                  <ArrowUpIcon className="size-4" />
-                )}
-              </PromptInputSubmit>
+              <div className="ml-auto flex items-center gap-1">
+                <ChatSpeechButton
+                  inputRef={inputRef}
+                  transcribe={transcribeSpeech}
+                  onBusyChange={setDictationBusy}
+                />
+                <PromptInputSubmit
+                  status={status}
+                  onStop={stop}
+                  disabled={dictationBusy && !busy}
+                >
+                  {busy ? (
+                    <SquareIcon className="size-4" />
+                  ) : (
+                    <ArrowUpIcon className="size-4" />
+                  )}
+                </PromptInputSubmit>
+              </div>
             </PromptInputFooter>
           </ChatComposer>
         </PromptInputProvider>
