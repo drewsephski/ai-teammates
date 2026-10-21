@@ -67,11 +67,15 @@ export function appCatalogEntry(
   }
 }
 
+// Asking to connect an app that works. A connect card offering several apps
+// fails as a whole then, so the bot uses the connected one.
+export class AppAlreadyConnectedError extends Error {}
+
 // What the connect card shows, or why it can't be shown
 export function appConnectionState(entry: AppCatalogEntry) {
   // A working connection that lacks a permission can be reconnected
   if (entry.connected && !entry.needsReconnect)
-    throw new Error(
+    throw new AppAlreadyConnectedError(
       `${entry.name} is already connected, so don't ask them to connect it again. Use searchAppTools to find its tools. If the first search misses the action, search again with different words before using the computer.`
     )
   if (!entry.connectable)

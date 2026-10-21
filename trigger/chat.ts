@@ -29,7 +29,12 @@ import {
   type BotMention,
 } from "@/lib/composer"
 import { createDelegationTools } from "@/lib/team-delegation"
-import { createApprovalGate, createConnectorTools } from "@/lib/composio"
+import {
+  activeAccounts,
+  createApprovalGate,
+  createConnectorTools,
+} from "@/lib/composio"
+import { appIntent, appIntentInstructions } from "@/lib/app-intent"
 import { createAppCatalogTools } from "@/lib/app-catalog-tools"
 import { findApps, prepareAppConnection } from "@/lib/app-catalog"
 import { createRoutineTools } from "@/lib/routine-tools"
@@ -918,6 +923,23 @@ export const chatAgent = chat
         turnModelUsage.mentions
       )
 
+      // A request that needs an app nobody connected shows its connect cards
+      // straight away. Best effort: without it the bot finds them itself.
+      const intent =
+        "askUser" in tools && "findApps" in tools
+          ? appIntent(turnModelUsage.composerText)
+          : undefined
+      const connectionContext = intent
+        ? await activeAccounts(row.userId).then(
+            (accounts) =>
+              appIntentInstructions(
+                intent,
+                new Set(accounts.map((account) => account.toolkit))
+              ),
+            () => undefined
+          )
+        : undefined
+
       // Every turn, as a session outlives the plan it was started on
       const usage = await getUsage(row.userId)
       // Set here, not in tools(), which the SDK resolves before onTurnStart
@@ -1029,6 +1051,7 @@ export const chatAgent = chat
               { paid: usage.tier === "paid", clock }
             ),
             composerContext,
+            connectionContext,
           ]
             .filter(Boolean)
             .join("\n\n"),
@@ -1066,6 +1089,7 @@ export const chatAgent = chat
                     { paid: usage.tier === "paid", clock }
                   ),
                   composerContext,
+                  connectionContext,
                 ]
                   .filter(Boolean)
                   .join("\n\n"),
