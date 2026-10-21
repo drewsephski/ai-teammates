@@ -49,6 +49,8 @@ export function ChatQuestion({
 }) {
   const answered = useRef(false)
   const [submitting, setSubmitting] = useState(false)
+  // The app whose card started a connection, when there is one card per app
+  const [activeToolkit, setActiveToolkit] = useState<string>()
   if (!active || part.state !== "output-available") return null
   if (part.output.computerLogin && onOpenComputer)
     return (
@@ -59,21 +61,40 @@ export function ChatQuestion({
         onOpen={onOpenComputer}
       />
     )
-  if (part.output.appConnection)
+  if (part.output.appConnection) {
+    const connections = part.output.appConnections ?? [
+      part.output.appConnection,
+    ]
+    const question = part.output.question
     return (
-      <AppConnectionCardView
-        connection={part.output.appConnection}
-        question={part.output.question}
-        botName={botName}
-        onResume={onResume}
-        assistantCount={assistantCount}
-        busy={busy}
-        chatId={chatId}
-        questionId={part.toolCallId}
-        botId={botId}
-        onAnswer={onAnswer}
-      />
+      <div className="flex flex-col gap-2">
+        {connections.length > 1 && <p className="text-sm">{question}</p>}
+        {connections.map((connection, index) => (
+          <AppConnectionCardView
+            key={connection.toolkit}
+            connection={connection}
+            question={question}
+            botName={botName}
+            onResume={onResume}
+            assistantCount={assistantCount}
+            busy={busy}
+            chatId={chatId}
+            questionId={part.toolCallId}
+            botId={botId}
+            onAnswer={onAnswer}
+            primary={index === 0}
+            showQuestion={connections.length === 1}
+            showAlternatives={index === connections.length - 1}
+            peerActive={
+              activeToolkit !== undefined &&
+              activeToolkit !== connection.toolkit
+            }
+            onActive={setActiveToolkit}
+          />
+        ))}
+      </div>
     )
+  }
   const disabled = !active || busy || submitting
   async function submit(action: () => ReturnType<typeof onDismiss>) {
     if (answered.current || disabled) return

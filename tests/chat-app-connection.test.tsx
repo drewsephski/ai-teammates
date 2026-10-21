@@ -327,3 +327,34 @@ test("a woken turn is resumed from its input sequence, else the person is asked 
   // Without the sequence nothing resumes: it could replay the last turn's end
   assert.deepEqual(later, ["fallback"])
 })
+
+test("in a set of cards, a later card ignores completions it didn't start", async () => {
+  const view = setup("connect", {
+    connection: {
+      toolkit: "outlook",
+      name: "Outlook",
+      logo: null,
+      state: "connect",
+    },
+    primary: false,
+    showQuestion: false,
+    showAlternatives: false,
+  })
+  assert.equal(view.queryByText("Connect Gmail so I can read mail."), null)
+  assert.equal(
+    view.queryByRole("button", { name: APP_CONNECTION_OPTIONS[2] }),
+    null
+  )
+  postAppConnection({ questionId: "q_1", connected: true, woke: false })
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.equal(view.queryByText("Connected. Confirm to continue."), null)
+})
+
+test("a card waits while another card in its set is connecting", () => {
+  const view = setup("connect", { peerActive: true })
+  assert.equal(
+    (view.getByRole("button", { name: "Connect" }) as HTMLButtonElement)
+      .disabled,
+    true
+  )
+})

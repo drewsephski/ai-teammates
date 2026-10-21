@@ -150,3 +150,130 @@ test("without a computer the model doesn't promise one", async () => {
     assert.doesNotMatch(model.value, /do the task on the computer's browser/)
   }
 })
+
+const email = {
+  question: "Connect your email so I can send this to Sam.",
+  options: ["Yes", "No"],
+  appConnections: [
+    { toolkit: "gmail", name: "Gmail" },
+    { toolkit: "outlook", name: "Outlook" },
+  ],
+}
+const card = (name: string, extra: object = {}) => ({
+  name,
+  logo: null,
+  state: "connect" as const,
+  ...extra,
+})
+
+test("several apps show one card each, the first also as appConnection", async () => {
+  const checked: string[] = []
+  const tools = createBotSetupTools(async (profile) => profile, {
+    prepareAppConnection: async (app) => {
+      checked.push(app.toolkit)
+      return card(app.name)
+    },
+  })
+  const output = botQuestionOutputSchema.parse(
+    await tools.askUser.execute!(email, call)
+  )
+  assert.deepEqual(checked, ["gmail", "outlook"])
+  assert.equal(output.question, email.question)
+  assert.deepEqual(output.options, APP_CONNECTION_OPTIONS)
+  assert.deepEqual(
+    output.appConnections?.map((card) => card.toolkit),
+    ["gmail", "outlook"]
+  )
+  assert.equal(output.appConnection?.toolkit, "gmail")
+  const model = await tools.askUser.toModelOutput!({
+    toolCallId: call.toolCallId,
+    input: email,
+    output,
+  })
+  if (model.type === "text")
+    assert.match(model.value, /Cards to connect Gmail or Outlook are showing/)
+})
+
+test("an app that already works fails the question so the bot uses it", async () => {
+  const { AppAlreadyConnectedError } = await import("../lib/app-catalog-policy")
+  const tools = createBotSetupTools(async (profile) => profile, {
+    prepareAppConnection: async (app) => {
+      if (app.toolkit === "outlook")
+        throw new AppAlreadyConnectedError("Outlook is already connected")
+      return card(app.name)
+    },
+  })
+  await assert.rejects(
+    async () => tools.askUser.execute!(email, call),
+    /Outlook is already connected/
+  )
+})
+
+test("refused apps drop out, and the rest still show", async () => {
+  const tools = createBotSetupTools(async (profile) => profile, {
+    prepareAppConnection: async (app) => {
+      if (app.toolkit === "outlook") throw new Error("not in the catalog")
+      return card(app.name)
+    },
+  })
+  const output = botQuestionOutputSchema.parse(
+    await tools.askUser.execute!(email, call)
+  )
+  assert.equal(output.appConnection?.toolkit, "gmail")
+  assert.equal(output.appConnections, undefined)
+  const none = createBotSetupTools(async (profile) => profile, {
+    prepareAppConnection: async () => {
+      throw new Error("not in the catalog")
+    },
+  })
+  await assert.rejects(
+    async () => none.askUser.execute!(email, call),
+    /not in the catalog/
+  )
+})
+
+test("an expired app shows only its reconnect card, a full plan one limit card", async () => {
+  const expired = createBotSetupTools(async (profile) => profile, {
+    prepareAppConnection: async (app) =>
+      card(app.name, app.toolkit === "gmail" ? { reconnect: true } : {}),
+  })
+  const reconnect = botQuestionOutputSchema.parse(
+    await expired.askUser.execute!(email, call)
+  )
+  assert.equal(reconnect.appConnection?.toolkit, "gmail")
+  assert.equal(reconnect.appConnections, undefined)
+  assert.match(reconnect.question, /Gmail connection expired/)
+
+  const full = createBotSetupTools(async (profile) => profile, {
+    prepareAppConnection: async (app) => card(app.name, { state: "planLimit" }),
+  })
+  const limit = botQuestionOutputSchema.parse(
+    await full.askUser.execute!(email, call)
+  )
+  assert.equal(limit.appConnections, undefined)
+  assert.match(limit.question, /Disconnect it to connect Gmail or Outlook/)
+})
+
+test("appConnections takes distinct apps, and not with appConnection", () => {
+  assert.equal(
+    botQuestionSchema.safeParse({
+      ...email,
+      appConnections: [email.appConnections[0], email.appConnections[0]],
+    }).success,
+    false
+  )
+  assert.equal(
+    botQuestionSchema.safeParse({
+      ...email,
+      appConnection: input.appConnection,
+    }).success,
+    false
+  )
+  assert.equal(
+    botQuestionSchema.safeParse({
+      ...email,
+      computerLogin: { service: "Gmail", hostname: "mail.google.com" },
+    }).success,
+    false
+  )
+})

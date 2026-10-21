@@ -2,7 +2,10 @@ import { tool } from "ai"
 import { z } from "zod"
 import { botInsertSchema } from "@/db/schema"
 import { botPersonalityInstructions } from "@/lib/bot-personality"
-import { toolkitSlugPattern } from "@/lib/app-catalog-policy"
+import {
+  AppAlreadyConnectedError,
+  toolkitSlugPattern,
+} from "@/lib/app-catalog-policy"
 
 export const botProfileSchema = botInsertSchema.omit({ avatar: true })
 export type BotProfile = z.infer<typeof botProfileSchema>
@@ -51,15 +54,45 @@ const questionFields = {
     ),
   computerLogin: computerLoginSchema.optional(),
 }
+// Apps that each do the job, such as Gmail and Outlook for email: one card
+// per app, so the person connects the one they use
+export const MAX_APP_CONNECTIONS = 3
 export const botQuestionSchema = z
-  .object({ ...questionFields, appConnection: appConnectionSchema.optional() })
+  .object({
+    ...questionFields,
+    appConnection: appConnectionSchema.optional(),
+    appConnections: z
+      .array(appConnectionSchema)
+      .min(1)
+      .max(MAX_APP_CONNECTIONS)
+      .refine(
+        (apps) => new Set(apps.map((app) => app.toolkit)).size === apps.length,
+        "Name each app once."
+      )
+      .optional(),
+  })
   .refine(
-    (question) => !(question.computerLogin && question.appConnection),
+    (question) =>
+      !(
+        question.computerLogin &&
+        (question.appConnection || question.appConnections)
+      ),
     "Ask for a sign-in or an app connection, not both."
+  )
+  .refine(
+    (question) => !(question.appConnection && question.appConnections),
+    "Use appConnection for one app or appConnections for several, not both."
   )
 export const botQuestionOutputSchema = z.object({
   ...questionFields,
+  // The first card, which installed apps without multi-card support show
   appConnection: appConnectionCardSchema.optional(),
+  // Every card, only when there is more than one
+  appConnections: z
+    .array(appConnectionCardSchema)
+    .min(2)
+    .max(MAX_APP_CONNECTIONS)
+    .optional(),
 })
 export type BotQuestion = z.infer<typeof botQuestionOutputSchema>
 
@@ -92,6 +125,44 @@ export function computerLoginQuestion(
       }
   }
 }
+// Prepares a card per app. An app that already works fails the question, so
+// the bot uses it instead; other refusals drop that card, and fail only when
+// no card is left. An expired connection shows only its reconnect card, and a
+// full plan shows one plan-limit card.
+export async function prepareAppConnections(
+  apps: z.infer<typeof appConnectionSchema>[],
+  prepare: (
+    app: z.infer<typeof appConnectionSchema>
+  ) => Promise<Omit<AppConnectionCard, "toolkit">>
+): Promise<AppConnectionCard[]> {
+  const results = await Promise.allSettled(apps.map((app) => prepare(app)))
+  const connected = results.find(
+    (result) =>
+      result.status === "rejected" &&
+      result.reason instanceof AppAlreadyConnectedError
+  )
+  if (connected?.status === "rejected") throw connected.reason
+  const cards = results.flatMap((result, index) =>
+    result.status === "fulfilled"
+      ? [{ toolkit: apps[index].toolkit, ...result.value }]
+      : []
+  )
+  if (!cards.length) {
+    const refused = results.find((result) => result.status === "rejected")
+    throw refused?.status === "rejected"
+      ? refused.reason
+      : new Error("No app could be offered.")
+  }
+  const reconnect = cards.filter((card) => card.reconnect)
+  if (reconnect.length) return reconnect
+  if (cards.every((card) => card.state === "planLimit")) return [cards[0]]
+  return cards
+}
+
+function names(cards: AppConnectionCard[]) {
+  return cards.map((card) => card.name).join(" or ")
+}
+
 export function createBotSetupTools(
   save: (profile: BotProfile) => Promise<BotProfile>,
   options: {
@@ -108,24 +179,31 @@ export function createBotSetupTools(
   return {
     askUser: tool({
       description:
-        "Ask one focused question only when a missing answer materially changes the work or confirmation is required. First use available tools to resolve facts such as a named contact's email address. Offer two to five short choices grounded in the conversation or actual tool results; never invent email addresses, identities, dates or other factual choices. For missing free-form data, offer generic choices such as 'I will type it' and 'Cancel'; the person can type their own answer. For a login, MFA, CAPTCHA or payment step blocking your computer work, first open the requested website and inspect it with viewScreen, then include computerLogin with its service name, actual hostname and reason (sign-in, verification, captcha or payment). This renders a compact sign-in card and pauses the turn. Never request credentials in chat. When the work needs an app that findApps reports as connectable but not connected, include appConnection with its toolkit and name from findApps, and write the question as 'Connect <name> so I can <what you'll do>.'; this renders a Connect card with fixed choices and pauses the turn. Do not use this to ask permission for work already requested. Wait for the answer before continuing; never answer for them.",
+        "Ask one focused question only when a missing answer materially changes the work or confirmation is required. First use available tools to resolve facts such as a named contact's email address. Offer two to five short choices grounded in the conversation or actual tool results; never invent email addresses, identities, dates or other factual choices. For missing free-form data, offer generic choices such as 'I will type it' and 'Cancel'; the person can type their own answer. For a login, MFA, CAPTCHA or payment step blocking your computer work, first open the requested website and inspect it with viewScreen, then include computerLogin with its service name, actual hostname and reason (sign-in, verification, captcha or payment). This renders a compact sign-in card and pauses the turn. Never request credentials in chat. When the work needs an app that findApps reports as connectable but not connected, include appConnection with its toolkit and name from findApps, and write the question as 'Connect <name> so I can <what you'll do>.'; this renders a Connect card with fixed choices and pauses the turn. When the work needs a kind of app that several common services provide and the person hasn't said which they use (email: Gmail or Outlook; calendar: Google Calendar or Outlook), include appConnections with one { toolkit, name } per app instead, up to three, and write the question as 'Connect your <kind of app> so I can <what you'll do>.'; this renders one Connect card per app. Do not use this to ask permission for work already requested. Wait for the answer before continuing; never answer for them.",
       inputSchema: botQuestionSchema,
       outputSchema: botQuestionOutputSchema,
       execute: async (input): Promise<BotQuestion> => {
-        const { appConnection, ...parsed } = botQuestionSchema.parse(input)
-        if (appConnection) {
+        const { appConnection, appConnections, ...parsed } =
+          botQuestionSchema.parse(input)
+        const apps = appConnections ?? (appConnection && [appConnection])
+        if (apps) {
           if (!options.prepareAppConnection)
             throw new Error("Connecting apps is unavailable in this chat.")
-          const card = await options.prepareAppConnection(appConnection)
+          const cards = await prepareAppConnections(
+            apps,
+            options.prepareAppConnection
+          )
+          const [card] = cards
           return {
             question:
               card.state === "planLimit"
-                ? `Your current plan includes one connected app, and yours is in use. Disconnect it to connect ${card.name}.`
+                ? `Your current plan includes one connected app, and yours is in use. Disconnect it to connect ${apps.length > 1 ? apps.map((app) => app.name).join(" or ") : card.name}.`
                 : card.reconnect
-                  ? `Your ${card.name} connection expired. Reconnect it so I can continue.`
+                  ? `Your ${names(cards)} connection expired. Reconnect it so I can continue.`
                   : parsed.question,
             options: APP_CONNECTION_OPTIONS,
-            appConnection: { toolkit: appConnection.toolkit, ...card },
+            appConnection: card,
+            ...(cards.length > 1 && { appConnections: cards }),
           }
         }
         if (!parsed.computerLogin) return parsed
@@ -140,7 +218,7 @@ export function createBotSetupTools(
       },
       toModelOutput: ({ output }) => ({
         type: "text" as const,
-        value: `Question displayed: ${output.question}\nChoices: ${output.options.join("; ")}\nWait for the person's next chat message. No answer has been supplied by this tool.${output.computerLogin ? " Stop computer actions now. After they report signing in, call viewScreen to verify access, then continue the original task without another permission question. A cancellation means stop this sign-in workflow." : ""}${output.appConnection ? ` A card to ${output.appConnection.reconnect ? "reconnect" : "connect"} ${output.appConnection.name} is showing${output.appConnection.reconnect ? " because its earlier connection expired" : ""}${output.appConnection.state === "planLimit" ? ", in its plan-limit state: the free plan's one app slot is taken, so they need to disconnect that app first" : ""}. Stop now. When they connect it you'll get a message saying so: then discover its tools with searchAppTools and continue the original task without asking again. ${options.computerAvailable === false ? "If they choose the computer, explain in one sentence that the computer isn't available on their plan yet, and offer to continue another way." : "If they choose the computer, do the task on the computer's browser."} 'Not now' means stop this part of the task.` : ""}`,
+        value: `Question displayed: ${output.question}\nChoices: ${output.options.join("; ")}\nWait for the person's next chat message. No answer has been supplied by this tool.${output.computerLogin ? " Stop computer actions now. After they report signing in, call viewScreen to verify access, then continue the original task without another permission question. A cancellation means stop this sign-in workflow." : ""}${output.appConnection ? ` ${output.appConnections ? `Cards to connect ${names(output.appConnections)} are showing, one per app, so the person can connect the one they use` : `A card to ${output.appConnection.reconnect ? "reconnect" : "connect"} ${output.appConnection.name} is showing`}${output.appConnection.reconnect ? " because its earlier connection expired" : ""}${output.appConnection.state === "planLimit" ? ", in its plan-limit state: the free plan's one app slot is taken, so they need to disconnect that app first" : ""}. Stop now. When they connect ${output.appConnections ? "one" : "it"} you'll get a message saying ${output.appConnections ? "which" : "so"}: then discover its tools with searchAppTools and continue the original task without asking again. ${options.computerAvailable === false ? "If they choose the computer, explain in one sentence that the computer isn't available on their plan yet, and offer to continue another way." : "If they choose the computer, do the task on the computer's browser."} 'Not now' means stop this part of the task.` : ""}`,
       }),
     }),
     configureBot: tool({

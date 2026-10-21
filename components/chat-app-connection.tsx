@@ -26,6 +26,11 @@ export function AppConnectionCardView({
   onResume,
   assistantCount = 0,
   connect,
+  primary = true,
+  showQuestion = true,
+  showAlternatives = true,
+  peerActive = false,
+  onActive,
 }: {
   connection: AppConnectionCard
   question: string
@@ -41,6 +46,17 @@ export function AppConnectionCardView({
   assistantCount?: number
   /** Injected in tests; defaults to the connectApp server action. */
   connect?: ConnectAppAction
+  /**
+   * With one card per app for the same question: the first card handles a
+   * completion no card in this tab started, and the others ignore it.
+   */
+  primary?: boolean
+  showQuestion?: boolean
+  /** The shared computer and Not now choices, on the last card only. */
+  showAlternatives?: boolean
+  /** Another card for this question started a connection. */
+  peerActive?: boolean
+  onActive?: (toolkit: string | undefined) => void
 }) {
   const locked = useRef(false)
   const [submitting, setSubmitting] = useState(false)
@@ -60,7 +76,7 @@ export function AppConnectionCardView({
     context: botId && chatId ? { chatId, questionId, botId } : undefined,
     connect,
   })
-  const disabled = busy || submitting
+  const disabled = busy || submitting || peerActive
   const planLimit = connection.state === "planLimit"
   // The app was connected before, but the connection expired or was revoked
   const reconnect = connection.reconnect === true
@@ -99,7 +115,7 @@ export function AppConnectionCardView({
 
   // The popup finishes the connection in another tab and reports it here.
   useAppConnectionResult(questionId, (outcome, message) => {
-    if (locked.current) return
+    if (locked.current || peerActive || (!primary && !started)) return
     if (outcome === "settle") {
       // The server already woke the bot; attach to the turn it started.
       locked.current = true
@@ -113,13 +129,17 @@ export function AppConnectionCardView({
     } else {
       setStarted(false)
       setFailed(true)
+      onActive?.(undefined)
     }
   })
 
   async function connectNow() {
     if (disabled || connecting) return
     setFailed(false)
-    if (await start(connection.toolkit)) setStarted(true)
+    if (await start(connection.toolkit)) {
+      setStarted(true)
+      onActive?.(connection.toolkit)
+    }
   }
 
   const status = settled
@@ -159,7 +179,7 @@ export function AppConnectionCardView({
           </p>
         </div>
       </div>
-      <p className="text-sm">{question}</p>
+      {showQuestion && <p className="text-sm">{question}</p>}
       <p
         role="status"
         className={
@@ -216,24 +236,28 @@ export function AppConnectionCardView({
               )}
             </>
           )}
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={disabled}
-            onClick={() => void answer(COMPUTER)}
-          >
-            {COMPUTER}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={disabled}
-            onClick={() => void answer(NOT_NOW)}
-          >
-            {NOT_NOW}
-          </Button>
+          {showAlternatives && (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={disabled}
+                onClick={() => void answer(COMPUTER)}
+              >
+                {COMPUTER}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={disabled}
+                onClick={() => void answer(NOT_NOW)}
+              >
+                {NOT_NOW}
+              </Button>
+            </>
+          )}
         </div>
       )}
     </div>
