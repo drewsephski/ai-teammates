@@ -1,0 +1,32 @@
+{
+  "projectId": "2697f3c0-bf45-4771-adc1-fffd282869d2",
+  "type": "frontend",
+  "name": "Support links open the privacy policy and service terms",
+  "priority": "p1",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Navigate to /support."
+    },
+    {
+      "type": "assertion",
+      "description": "The Krafty support heading and Report a problem section are visible."
+    },
+    {
+      "type": "action",
+      "description": "Click privacy policy in the Privacy and deletion section."
+    },
+    {
+      "type": "assertion",
+      "description": "The URL path is /privacy and a privacy policy heading and policy text are visible."
+    },
+    {
+      "type": "action",
+      "description": "Navigate back to /support, then click terms of service in the Privacy and deletion section."
+    },
+    {
+      "type": "assertion",
+      "description": "The URL path is /terms and service terms heading and text are visible."
+    }
+  ]
+}

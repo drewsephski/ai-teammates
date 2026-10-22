@@ -1,0 +1,36 @@
+{
+  "projectId": "2697f3c0-bf45-4771-adc1-fffd282869d2",
+  "type": "frontend",
+  "name": "Visitors can browse use cases and how it works",
+  "priority": "p1",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Navigate to /."
+    },
+    {
+      "type": "action",
+      "description": "Click Use cases in the main navigation."
+    },
+    {
+      "type": "assertion",
+      "description": "The URL path is /use-cases and the page displays use case content."
+    },
+    {
+      "type": "action",
+      "description": "Open one use case detail from the list."
+    },
+    {
+      "type": "assertion",
+      "description": "The URL is /use-cases/ followed by a use case slug, and a heading and use case description are visible."
+    },
+    {
+      "type": "action",
+      "description": "Click How it works in the main navigation."
+    },
+    {
+      "type": "assertion",
+      "description": "The URL path is /how-it-works and explanatory content is visible."
+    }
+  ]
+}

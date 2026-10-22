@@ -1,0 +1,32 @@
+{
+  "projectId": "2697f3c0-bf45-4771-adc1-fffd282869d2",
+  "type": "frontend",
+  "name": "Landing page displays pricing and opens the FAQ",
+  "priority": "p1",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Navigate to / as a signed-out visitor."
+    },
+    {
+      "type": "assertion",
+      "description": "The main heading contains Meet and Krafty Bot, and the View plans link is visible."
+    },
+    {
+      "type": "action",
+      "description": "Click the hero View plans link to navigate to the Pricing section."
+    },
+    {
+      "type": "assertion",
+      "description": "The Pricing heading and free and paid plan options are visible."
+    },
+    {
+      "type": "action",
+      "description": "Scroll to the FAQ section and expand a closed FAQ question."
+    },
+    {
+      "type": "assertion",
+      "description": "The clicked question expands and its answer becomes visible."
+    }
+  ]
+}
