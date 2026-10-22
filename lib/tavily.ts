@@ -121,10 +121,10 @@ export type WebFailure = {
   code: FailureCode
   message: string
 }
-function failure(code: FailureCode, message: string): WebFailure {
+export function failure(code: FailureCode, message: string): WebFailure {
   return { status: "failed", code, message }
 }
-function bounded(text: string, limit: number) {
+export function bounded(text: string, limit: number) {
   return { content: text.slice(0, limit), truncated: text.length > limit }
 }
 

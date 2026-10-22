@@ -4,6 +4,10 @@ Set `TAVILY_API_KEY` in `.env.local`, the Railway `ai-teammates` production serv
 
 The key belongs to the app. People do not connect Tavily through Apps, and web research works on both free and paid plans without an E2B computer. Bots can use web research and connected apps before setup is complete; paid bots also retain their computer and team tools. A task takes priority over profile setup, while saving a profile still requires confirmation. With no key, the tools are omitted and the prompt explicitly says live web search is unavailable.
 
+## Firecrawl page reads
+
+With `FIRECRAWL_API_KEY` set (in `.env.local` and the Trigger.dev production environment; only the chat worker reads it), `readWebPage` reads through Firecrawl's `/v2/scrape` first (`lib/firecrawl.ts`). Firecrawl renders JavaScript and gets past bot walls that Tavily's extractor fails on: Tavily can't fetch BizBuySell listing pages at either depth, while Firecrawl returns the listings with their figures. The app pays for these reads with its own Firecrawl credits, so they are free on every plan and are not recorded in the person's usage. Each turn gets 30 Firecrawl reads (`FIRECRAWL_READS_PER_TURN`). A failed or over-cap Firecrawl read falls back to Tavily, which is billed as before. Firecrawl ignores `query` and returns the page's main content, bounded at 20,000 characters, with `excerptsOnly: false`. The tool name and output shape are unchanged, so the web and mobile clients render it as before. Without the key, reads go to Tavily only.
+
 ## Tools
 
 - `searchWeb`: focused query, basic/advanced depth, up to ten results (default five), general/news topic, optional relative or exact date window, and domain inclusion/exclusion. Returns URLs, titles, bounded excerpts, detected publication/update dates, and truncation flags. Date-window searches exclude sources without a detectable publication date.
@@ -17,7 +21,7 @@ System instructions tell every bot, including unfinished setup chats and group-c
 
 ## Cost and failure handling
 
-Search and extraction spend use the existing AI allowance, alongside model tokens. Tavily-reported credits are priced at the public PAYG rate of $0.008 per credit, in millionths of a dollar. Basic/advanced search reserve an allowance check for one/two credits; page reads conservatively check one/two credits because extraction credits may be accounted for in batches. Accepted requests without usable usage metadata fall back to that amount, including malformed responses. Reported zero-credit reads are honored. Provider subscription discounts are not reflected in this rate.
+Search and Tavily extraction spend use the existing AI allowance, alongside model tokens; Firecrawl reads are app-funded. Tavily-reported credits are priced at the public PAYG rate of $0.008 per credit, in millionths of a dollar. Basic/advanced search reserve an allowance check for one/two credits; page reads conservatively check one/two credits because extraction credits may be accounted for in batches. Accepted requests without usable usage metadata fall back to that amount, including malformed responses. Reported zero-credit reads are honored. Provider subscription discounts are not reflected in this rate.
 
 Calls within a turn serialize budget checks and usage writes. Each accepted request is recorded immediately with an idempotency key containing the run, turn and tool-call ID; it also contributes to the agent's per-turn stop condition. Free-account conversations retain the existing account-level serialization. Paid concurrent conversations retain the existing model-metering policy; the ledger is not a global prepaid reservation system.
 

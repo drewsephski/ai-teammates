@@ -102,6 +102,7 @@ import {
 } from "@/lib/account-computer"
 import { busyResult } from "@/lib/computer-lease-policy"
 import { assertBotAccess } from "@/lib/teammates"
+import { createFirecrawlClient } from "@/lib/firecrawl"
 import { createTavilyClient, tavilyCost } from "@/lib/tavily"
 import { createWebTools } from "@/lib/web-tools"
 import { isChatGPTSelected } from "@/lib/chatgpt-connection"
@@ -522,7 +523,11 @@ export const chatAgent = chat
                 ])
                 turnModelUsage.webCost += cost
               },
-            })
+            }),
+            // App-funded and free to the person, on every plan
+            process.env.FIRECRAWL_API_KEY?.trim()
+              ? createFirecrawlClient()
+              : undefined
           )
         : {}
       const setupTools = createBotSetupTools(

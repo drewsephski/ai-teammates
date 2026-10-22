@@ -40,16 +40,16 @@ Krafty is an open exploration of that idea. Every prompt, tool and limit is a fi
 
 ## 🧱 Built with
 
-| Product                                      | What it does here                                                                             |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Product                                      | What it does here                                                                               |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | [**Trigger.dev**](https://cwa.run/trigger-1) | Runs the durable chat agent and the cron tasks that meter running sandboxes and start routines. |
-| [**E2B Hobby**](https://e2b.dev/pricing)     | One cloud computer per account, shared by its bots: shell, files and a desktop.               |
-| [**Clerk**](https://cwa.run/clerk)           | Authentication, plus Billing for plans, checkout and feature gates.                           |
-| [**Neon**](https://cwa.run/neon)             | Serverless Postgres, and the AI Gateway the chat model is called through.                     |
-| [**Sentry**](https://cwa.run/sentry)         | Errors, traces, session replays and logs from the app and every task run.                     |
-| [**Railway**](https://cwa.run/railway)       | Hosts the Next.js app in production.                                                          |
-| [**Tavily**](https://tavily.com)             | Built-in public web search and page extraction for the bots.                                  |
-| [**Firecrawl**](https://cwa.run/firecrawl)   | Web search and scraping for the coding agent this project is developed with, through its CLI. |
+| [**E2B Hobby**](https://e2b.dev/pricing)     | One cloud computer per account, shared by its bots: shell, files and a desktop.                 |
+| [**Clerk**](https://cwa.run/clerk)           | Authentication, plus Billing for plans, checkout and feature gates.                             |
+| [**Neon**](https://cwa.run/neon)             | Serverless Postgres, and the AI Gateway the chat model is called through.                       |
+| [**Sentry**](https://cwa.run/sentry)         | Errors, traces, session replays and logs from the app and every task run.                       |
+| [**Railway**](https://cwa.run/railway)       | Hosts the Next.js app in production.                                                            |
+| [**Tavily**](https://tavily.com)             | Built-in public web search for the bots, and page reads Firecrawl can't serve.                  |
+| [**Firecrawl**](https://cwa.run/firecrawl)   | Reads web pages for the bots, including JavaScript-heavy listings; also the coding agent's CLI. |
 
 Plus Next.js 16, React 19, AI SDK 7, shadcn/ui, Tailwind CSS 4, Drizzle ORM and DiceBear.
 
@@ -129,6 +129,10 @@ COMPOSIO_API_KEY=
 # Tavily: server-side public web search and page reading for every bot, including unfinished setup
 TAVILY_API_KEY=
 
+# Optional: Firecrawl reads web pages first, free to the person (app-funded,
+# 30 reads per turn). Trigger.dev only: the worker reads it, Railway doesn't.
+FIRECRAWL_API_KEY=
+
 # Optional: server-side Voxtral dictation (Railway only, not Trigger.dev)
 OPENROUTER_API_KEY=
 
@@ -173,7 +177,7 @@ SENTRY_PROJECT=
 SENTRY_AUTH_TOKEN=
 ```
 
-Web searches and page reads share the AI allowance with model usage. See [web research configuration, behavior, and verification](docs/web-search.md). Configure the Tavily key on both Railway and Trigger.dev production when deploying.
+Web searches share the AI allowance with model usage, and so do page reads that Firecrawl can't serve. See [web research configuration, behavior, and verification](docs/web-search.md). Configure the Tavily key on both Railway and Trigger.dev production when deploying, and the Firecrawl key on Trigger.dev production.
 
 Optional ChatGPT account sign-in and subscription-backed replies are described in [ChatGPT authentication and usage](docs/chatgpt-auth.md). Hosted use requires OpenAI approval and a provisioned OAuth client. Subscription-backed model replies bypass Krafty's AI allowance; web searches and cloud-computer usage retain their existing limits.
 
