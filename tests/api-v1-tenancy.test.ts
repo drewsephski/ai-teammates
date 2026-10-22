@@ -415,6 +415,36 @@ test("B can't edit or delete A's memories, or scope a memory to A's bot", async 
   )
 })
 
+test("B can't see or dismiss A's notices, and dismissing twice is harmless", async () => {
+  const notices = await import("../services/notices")
+  const [owner, other] = ["user_notice_a", "user_notice_b"]
+  await db.insert(schema.notices).values([
+    { id: "notice_a", userId: owner, title: "Drew gave you Krafty Pro" },
+    { id: "notice_b", userId: other, title: "Welcome" },
+  ])
+  assert.deepEqual(
+    (await notices.listNotices(other)).map((notice) => notice.id),
+    ["notice_b"]
+  )
+  await rejects(notices.dismissNotice(other, "notice_a"), /Notice not found/)
+  assert.equal((await notices.listNotices(owner)).length, 1)
+
+  await notices.dismissNotice(owner, "notice_a")
+  const [first] = await db
+    .select({ dismissedAt: schema.notices.dismissedAt })
+    .from(schema.notices)
+    .where(eq(schema.notices.id, "notice_a"))
+  await notices.dismissNotice(owner, "notice_a")
+  const [second] = await db
+    .select({ dismissedAt: schema.notices.dismissedAt })
+    .from(schema.notices)
+    .where(eq(schema.notices.id, "notice_a"))
+  assert.ok(first.dismissedAt)
+  assert.deepEqual(second.dismissedAt, first.dismissedAt)
+  assert.deepEqual(await notices.listNotices(owner), [])
+  await rejects(notices.dismissNotice(owner, "missing"), /Notice not found/)
+})
+
 test("B can't complete or consume A's app connection attempt", async () => {
   const state = "6f1c1c55-2f63-4b8b-9b0e-0a3c2f4f1e11"
   assert.deepEqual(
@@ -636,6 +666,10 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
     { userId: A, status: "done" },
     { userId: B, status: "done" },
   ])
+  await db.insert(schema.notices).values([
+    { userId: A, title: "For A" },
+    { userId: B, title: "For B" },
+  ])
   await db
     .insert(schema.computers)
     .values([{ userId: A }, { userId: B }])
@@ -723,6 +757,15 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
   assert.deepEqual((await memory.getMemoryOverview(B)).memories, [])
   assert.deepEqual(
     (await db.select().from(schema.forYouScans)).map((row) => row.userId),
+    [A]
+  )
+  assert.deepEqual(
+    (
+      await db
+        .select({ userId: schema.notices.userId })
+        .from(schema.notices)
+        .where(inArray(schema.notices.userId, [A, B]))
+    ).map((row) => row.userId),
     [A]
   )
   assert.deepEqual(

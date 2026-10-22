@@ -11,6 +11,8 @@ import { getWorkspaceApps } from "@/queries/workspace-apps"
 import { WorkspaceApps } from "@/components/workspace-apps"
 import { WorkspaceForYou } from "@/components/workspace-for-you"
 import { getWorkspaceForYou } from "@/queries/for-you"
+import { WorkspaceNotices } from "@/components/workspace-notices"
+import { getSignedInNotices } from "@/queries/notices"
 
 export default async function WorkspacePage({
   searchParams,
@@ -39,10 +41,11 @@ export default async function WorkspacePage({
         }
       : undefined
   const preset = botPresets.find((preset) => preset.id === role)
-  const [bots, connections, forYou] = await Promise.all([
+  const [bots, connections, forYou, notices] = await Promise.all([
     getWorkspaceBots(),
     getWorkspaceApps(),
     getWorkspaceForYou(),
+    getSignedInNotices(),
   ])
 
   return (
@@ -54,6 +57,7 @@ export default async function WorkspacePage({
       </AppPageHeader>
       <WorkspaceRefresh />
       <div className="mx-auto w-full max-w-4xl space-y-10 px-4 py-8 sm:px-6 sm:py-10">
+        <WorkspaceNotices notices={notices} />
         <WorkspaceBots bots={bots} />
         <div className="flex justify-center">
           <CreateBotButton size="lg">Create bot</CreateBotButton>

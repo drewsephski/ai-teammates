@@ -19,6 +19,7 @@ import {
   forYouScans,
   memories,
   memoryEvents,
+  notices,
   pushDevices,
   sidebarPreferences,
   userSettings,
@@ -226,6 +227,7 @@ async function deleteAccountLocked(
     // Usage holds stay: the settle job books them into the billing record.
     await tx.delete(activityEvents).where(eq(activityEvents.userId, userId))
     await tx.delete(pushDevices).where(eq(pushDevices.userId, userId))
+    await tx.delete(notices).where(eq(notices.userId, userId))
     await tx.delete(accountPlans).where(eq(accountPlans.userId, userId))
     assertHeld()
   })

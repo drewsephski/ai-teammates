@@ -683,6 +683,24 @@ export const pushDevices = pgTable(
   (table) => [index("push_devices_user_id_idx").on(table.userId)]
 )
 
+// A message for the person, shown as a banner on the web workspace and the
+// app's home screen until they dismiss it
+export const notices = pgTable(
+  "notices",
+  {
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    // Clerk user ID
+    userId: text().notNull(),
+    title: text().notNull(),
+    body: text(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    dismissedAt: timestamp({ withTimezone: true }),
+  },
+  (table) => [index("notices_user_id_idx").on(table.userId)]
+)
+
 // Sign in with Apple refresh tokens, one per Apple client (the iOS bundle ID),
 // kept only so account deletion can revoke the grant with Apple. The token is
 // AES-256-GCM encrypted, bound to the owner and client (lib/apple-signin.ts).
@@ -922,6 +940,7 @@ export type ApprovalDecision = z.infer<
   typeof approvalDecisionSchema
 >["decision"]
 export type ActivityEvent = typeof activityEvents.$inferSelect
+export type Notice = typeof notices.$inferSelect
 export type PushDevice = z.infer<typeof pushDeviceSchema>
 export type UserSettings = typeof userSettings.$inferSelect
 
