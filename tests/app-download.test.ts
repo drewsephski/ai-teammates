@@ -1,7 +1,12 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { androidApkUrl, detectMobilePlatform } from "../lib/app-download"
+import {
+  androidApkUrl,
+  detectMobilePlatform,
+  githubReleaseRepo,
+  releaseBuildNumber,
+} from "../lib/app-download"
 
 describe("detectMobilePlatform", () => {
   it("recognises Android phones", () => {
@@ -47,5 +52,41 @@ describe("androidApkUrl", () => {
     assert.equal(androidApkUrl(""), null)
     assert.equal(androidApkUrl("not a url"), null)
     assert.equal(androidApkUrl("http://example.com/Krafty.apk"), null)
+  })
+})
+
+describe("githubReleaseRepo", () => {
+  it("finds the repository behind a GitHub release link", () => {
+    assert.equal(
+      githubReleaseRepo(
+        "https://github.com/drewsephski/krafty-releases/releases/latest/download/Krafty.apk"
+      ),
+      "drewsephski/krafty-releases"
+    )
+  })
+
+  it("ignores other hosts and missing links", () => {
+    assert.equal(
+      githubReleaseRepo("https://expo.dev/artifacts/eas/abc.apk"),
+      null
+    )
+    assert.equal(githubReleaseRepo(null), null)
+  })
+})
+
+describe("releaseBuildNumber", () => {
+  it("reads the build from the tag or the title", () => {
+    assert.equal(releaseBuildNumber({ tag_name: "android-1.0.0-build10" }), 10)
+    assert.equal(
+      releaseBuildNumber({
+        tag_name: "android-1.0.0",
+        name: "Krafty for Android 1.0.0 (build 6)",
+      }),
+      6
+    )
+  })
+
+  it("is null when neither names a build", () => {
+    assert.equal(releaseBuildNumber({ tag_name: "v1.0.0", name: 3 }), null)
   })
 })

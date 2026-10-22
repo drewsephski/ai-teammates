@@ -46,3 +46,31 @@ export function androidApkUrl(value: string | undefined): string | null {
     return null
   }
 }
+
+/**
+ * The GitHub repository behind an APK link such as
+ * `https://github.com/<owner>/<repo>/releases/latest/download/Krafty.apk`, so
+ * the latest release can be looked up. Null for any other host.
+ */
+export function githubReleaseRepo(apkUrl: string | null): string | null {
+  if (!apkUrl) return null
+  const url = new URL(apkUrl)
+  if (url.hostname !== "github.com") return null
+  const match = url.pathname.match(/^\/([\w.-]+)\/([\w.-]+)\/releases\//)
+  return match ? `${match[1]}/${match[2]}` : null
+}
+
+/**
+ * The Android build number a release names: tag `android-1.0.0-build10`, or
+ * "(build 6)" in its title. Null when neither says.
+ */
+export function releaseBuildNumber(release: {
+  tag_name?: unknown
+  name?: unknown
+}): number | null {
+  for (const text of [release.tag_name, release.name]) {
+    const match = typeof text === "string" && text.match(/build\s*(\d+)/i)
+    if (match) return Number(match[1])
+  }
+  return null
+}
