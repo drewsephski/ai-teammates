@@ -13,7 +13,7 @@ export default function PrivacyPage() {
   return (
     <article>
       <h1>Privacy policy</h1>
-      <p>Last updated: October 17, 2026</p>
+      <p>Last updated: October 23, 2026</p>
       <p>
         Krafty provides AI teammates, connected tools, and cloud computers. This
         policy describes how information is handled when you use kraftybot.app
@@ -90,7 +90,10 @@ export default function PrivacyPage() {
         management, Stripe for payments, Railway for app hosting, Neon for
         database and AI gateway services, Trigger.dev for background tasks and
         conversations, E2B for cloud computers, Composio for connected tools,
-        and Sentry for diagnostics.
+        Tavily and Firecrawl for web search and reading web pages, and Sentry
+        for diagnostics. When a teammate researches the web, Tavily receives the
+        search terms it writes from your request and Firecrawl or Tavily receive
+        the addresses of the pages it reads.
       </p>
       <p>
         Messages, instructions, relevant conversation context, tool results, and
