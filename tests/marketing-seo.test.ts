@@ -7,6 +7,7 @@ import { useCases } from "@/app/use-cases/use-cases-data"
 import { faqs } from "@/components/landing/bot/faq-data"
 import { planLimits } from "@/lib/billing-policy"
 import { definition, pageMetadata } from "@/lib/marketing/content"
+import { marketingSeoPages } from "@/lib/marketing/seo-pages"
 import { homeJsonLd } from "@/lib/marketing/json-ld"
 import { llmsFullTxt, llmsTxt } from "@/lib/marketing/llms"
 
@@ -20,6 +21,11 @@ describe("public pages for search and AI answers", () => {
       assert.ok(index.includes(url), url)
     }
     assert.ok(urls.includes("https://kraftybot.app/how-it-works"))
+    for (const page of marketingSeoPages) {
+      const url = `https://kraftybot.app${page.path}`
+      assert.ok(urls.includes(url), url)
+      assert.ok(index.includes(url), url)
+    }
     assert.equal(new Set(urls).size, urls.length)
   })
 

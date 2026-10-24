@@ -13,6 +13,10 @@ export function PageFooter({ className }: { className?: string }) {
         <Link href="/">Overview</Link>
         <Link href="/how-it-works">How it works</Link>
         <Link href="/use-cases">Use cases</Link>
+        <Link href="/ai-agents-for-business">AI agents for business</Link>
+        <Link href="/ai-employees">AI employees</Link>
+        <Link href="/manus-alternatives">Manus alternatives</Link>
+        <Link href="/autonomous-ai-agent">Autonomous AI agent</Link>
         <Link href="/#pricing">Pricing</Link>
         <Link href="/#faqs">FAQs</Link>
       </nav>

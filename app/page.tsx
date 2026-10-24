@@ -26,7 +26,6 @@ import {
   brandName,
   freePlanIncludes,
   siteDescription,
-  siteTitle,
   socialImage,
 } from "@/lib/marketing/site"
 
@@ -37,14 +36,17 @@ const botFont = localFont({
   display: "swap",
 })
 
+const homeTitle = "Krafty — AI teammates with memory, apps, and a cloud computer"
+const homeDescription = siteDescription
+
 export const metadata: Metadata = {
-  title: { absolute: siteTitle },
-  description: siteDescription,
+  title: { absolute: homeTitle },
+  description: homeDescription,
   alternates: { canonical: "/" },
   openGraph: {
     url: "/",
-    title: siteTitle,
-    description: siteDescription,
+    title: homeTitle,
+    description: homeDescription,
     siteName: brandName,
     type: "website",
     locale: "en_US",
@@ -87,13 +89,17 @@ export default async function LandingPage() {
             </span>
             <ArrowUpRightIcon />
           </Link>
-          <h1 id="hero-title">
-            Meet <BotMark className={styles.heroMark} sequence="hero" /> Krafty
-            Bot
+          <h1 id="hero-title" className={styles.heroTitle}>
+            <span className={styles.heroTitlePrimary}>AI teammates</span>
+            <span className={styles.heroTitleBrand}>
+              <BotMark className={styles.heroMark} sequence="hero" />
+              Krafty Bot
+            </span>
           </h1>
           <p className={styles.heroCopy}>
-            AI teammates you can give real work to. Bots sign in to your tools,
-            use them the way you do, and bring back finished work.
+            Give AI teammates real work: memory, connected apps, and a shared
+            cloud computer with a browser. They keep going after you close the
+            tab and bring back finished work.
           </p>
           <div className={styles.actions}>
             <GetStartedButton href={startHref} />
@@ -242,6 +248,8 @@ export default async function LandingPage() {
             <a href="#features">Features</a>
             <Link href="/how-it-works">How it works</Link>
             <Link href="/use-cases">Use cases</Link>
+            <Link href="/ai-agents-for-business">For business</Link>
+            <Link href="/ai-employees">AI employees</Link>
             <a href="#pricing">Pricing</a>
           </div>
           <div className={styles.footerColumn}>

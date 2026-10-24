@@ -9,6 +9,7 @@ import styles from "./navigation.module.css"
 const navigation = [
   // Root-relative so the links also work from pages other than the homepage.
   ["Features", "/#features"],
+  ["For business", "/ai-agents-for-business"],
   ["Use cases", "/use-cases"],
   ["How it works", "/how-it-works"],
   ["Pricing", "/#pricing"],
