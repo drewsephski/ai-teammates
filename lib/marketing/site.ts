@@ -6,7 +6,7 @@ export const productName = "Krafty Bot"
 export const tagline = "AI teammates you can give real work to"
 export const siteTitle = `${brandName} — ${tagline}`
 export const siteDescription =
-  "AI teammates with their own memory and a shared cloud computer. Create your team, connect your tools, and get finished work back, even with your browser closed."
+  "AI teammates with memory, connected apps, and a shared cloud computer with a browser. Create Bots, run routines, and get finished work back with your browser closed."
 export const socialImage = {
   url: "/brand/krafty-social-v1.jpg",
   width: 1200,
@@ -18,7 +18,7 @@ export const socialImage = {
  * Bump when the public marketing pages change meaningfully so the sitemap's
  * lastmod stays honest.
  */
-export const marketingUpdated = "2026-10-19"
+export const marketingUpdated = "2026-10-24"
 
 const usd = (millionths: number) => millionths / 1_000_000
 

@@ -1,4 +1,5 @@
 import { useCases } from "@/app/use-cases/use-cases-data"
+import { marketingSeoPages } from "@/lib/marketing/seo-pages"
 import { faqs } from "@/components/landing/bot/faq-data"
 import {
   absoluteUrl,
@@ -30,6 +31,12 @@ ${definition}
 
 - [Home](${absoluteUrl("/")}): what ${productName} is, features, pricing, and FAQs
 - [How it works](${absoluteUrl("/how-it-works")}): Bots, memory, the shared cloud computer, connected apps, routines, approvals, and limits
+${marketingSeoPages
+  .map(
+    (page) =>
+      `- [${page.title}](${absoluteUrl(page.path)}): ${page.description.split(/(?<=\.)\s/)[0]}`
+  )
+  .join("\n")}
 - [Use cases](${absoluteUrl("/use-cases")}): jobs people give a Bot, each with a starter prompt
 - [Pricing](${absoluteUrl("/#pricing")}): Free and Pro plans
 - [Support](${absoluteUrl("/support")}): help and contact

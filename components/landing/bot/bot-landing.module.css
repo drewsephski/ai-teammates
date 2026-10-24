@@ -171,6 +171,22 @@
   font-weight: 500;
   letter-spacing: -0.6px;
 }
+.heroTitle {
+  flex-direction: column;
+  gap: 12px;
+}
+.heroTitlePrimary {
+  display: block;
+}
+.heroTitleBrand {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.55em;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
 .heroMark {
   width: 60px;
   height: 60px;
