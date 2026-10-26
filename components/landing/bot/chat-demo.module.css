@@ -348,7 +348,7 @@
 }
 .entry {
   flex-shrink: 0;
-  animation: arrive 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: arrive 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .roleChange {
   margin-top: 12px;
@@ -804,7 +804,7 @@
 .wallpaper {
   position: absolute;
   inset: 0;
-  background: url("/landing/bot/cloud-agents-3.webp") center/cover;
+  background: url("/landing/bot/krafty-wallpaper-3.webp") center/cover;
 }
 .desktopWindow {
   position: absolute;

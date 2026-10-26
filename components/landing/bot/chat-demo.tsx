@@ -30,6 +30,7 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
   const selected =
     demoAgents.find((agent) => agent.id === selectedId) ?? demoAgents[1]
   const isHero = selectedId === "sales-outbound"
+  const composerText = (isHero && hero.draft) || composer
   const selectedName = isHero ? hero.name : selected.name
   const entries = isHero ? hero.entries : selected.entries
   const screen = isHero
@@ -294,17 +295,17 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
             <input
               aria-label={`Message ${selectedName}`}
               placeholder={`Message ${selectedName}`}
-              value={composer}
+              value={composerText}
               onChange={(event) => setComposer(event.target.value)}
             />
             <button
               type="submit"
               className={styles.send}
               aria-label={
-                composer ? "Send in Krafty" : "Voice message in Krafty"
+                composerText ? "Send in Krafty" : "Voice message in Krafty"
               }
             >
-              <Icon name={composer ? "arrow" : "mic"} />
+              <Icon name={composerText ? "arrow" : "mic"} />
             </button>
           </div>
         </form>

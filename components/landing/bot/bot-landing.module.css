@@ -191,6 +191,7 @@
   width: 60px;
   height: 60px;
   margin-inline: -4px;
+  filter: drop-shadow(0 6px 10px #00000080);
 }
 .heroCopy {
   max-width: 672px;
@@ -198,7 +199,7 @@
   color: #7d8187;
   font-size: 18px;
   line-height: 29.25px;
-  text-wrap: pretty;
+  text-wrap: balance;
 }
 .heroPreview {
   margin-top: 64px;
@@ -236,9 +237,6 @@
   line-height: 29.25px;
   color: #7d8187;
 }
-.splitCopy p.definition {
-  color: #d4d4d4;
-}
 .textLink {
   display: inline-flex;
   align-items: center;
@@ -250,41 +248,26 @@
   text-decoration: underline;
   text-underline-offset: 4px;
 }
-.explainSteps {
+.explain {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 12fr);
+  gap: 64px;
+  align-items: start;
+}
+.explainIntro {
+  position: sticky;
+  top: 112px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  counter-reset: step;
+  align-items: flex-start;
+  gap: 16px;
 }
-.explainSteps li {
-  display: grid;
-  grid-template-columns: 28px 1fr;
-  gap: 4px 12px;
-  padding: 20px;
-  border-radius: 16px;
-  background: #151515;
-  counter-increment: step;
-}
-.explainSteps li::before {
-  content: counter(step);
-  grid-row: span 2;
+.explainLede {
+  max-width: 400px;
+  margin-bottom: 8px !important;
   color: #7d8187;
-  font-size: 14px;
-  line-height: 22px;
-}
-.explainSteps h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 22px;
-}
-.explainSteps p {
-  color: #7d8187;
-  font-size: 14px;
-  line-height: 22px;
+  font-size: 18px;
+  line-height: 29.25px;
 }
 .accessCards {
   display: flex;
@@ -349,6 +332,7 @@
   height: auto;
   display: block;
   margin: 80px auto -66px;
+  filter: drop-shadow(0 28px 48px #00000099);
 }
 .footer {
   max-width: 1280px;
@@ -409,9 +393,13 @@
     width: 48px;
     height: 48px;
   }
-  .split {
+  .split,
+  .explain {
     grid-template-columns: 1fr;
     gap: 40px;
+  }
+  .explainIntro {
+    position: static;
   }
 }
 @media (max-width: 639px) {

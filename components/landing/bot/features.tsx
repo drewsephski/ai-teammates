@@ -22,7 +22,11 @@ export function BotFeatures() {
           <div className={styles.statementPop}>
             <div className={styles.statementFrame}>
               <div className={styles.statementCharacterPanel}>
-                <BotMark className={styles.statementCharacter} color="#fff" />
+                <BotMark
+                  className={styles.statementCharacter}
+                  color="#efe7dc"
+                  dimensional
+                />
               </div>
             </div>
           </div>

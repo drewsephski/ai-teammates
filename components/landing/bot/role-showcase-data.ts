@@ -273,7 +273,7 @@ export const roleScenarios: Record<
         id: "sales-outbound-5",
         timestampMs: -3000000,
         channel: "email",
-        from: "sam@x.ai",
+        from: "sam@kraftybot.app",
         to: "dana@northwind.io",
         subject: "Three infra roles and a migration",
         body: [
@@ -504,7 +504,7 @@ export const roleScenarios: Record<
         id: "chief-4",
         timestampMs: -14280000,
         channel: "email",
-        from: "sam@x.ai",
+        from: "sam@kraftybot.app",
         to: "vicky@acme.co",
         subject: "Re: Thursday's numbers",
         body: [
@@ -664,7 +664,7 @@ export const roleScenarios: Record<
         id: "talent-scout-5",
         timestampMs: -24960000,
         channel: "email",
-        from: "sam@x.ai",
+        from: "sam@kraftybot.app",
         to: "jordan.ok@hey.com",
         subject: "Infra work in SF",
         body: [

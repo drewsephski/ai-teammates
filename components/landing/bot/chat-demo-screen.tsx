@@ -162,7 +162,7 @@ export function DemoDesktop({
                   data-focused={screen.focus === "email" || undefined}
                 >
                   {screen.emailChars ? (
-                    "drew@krafty.ai".slice(0, screen.emailChars)
+                    "drew@kraftybot.app".slice(0, screen.emailChars)
                   ) : screen.focus !== "email" ? (
                     <span>Email</span>
                   ) : null}

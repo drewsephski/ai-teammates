@@ -79,7 +79,7 @@ export function MiniDesktop({
   roleId: string
   workspaceHref: string
 }) {
-  const wallpaper = [4, 3, 2][Object.keys(roleScenarios).indexOf(roleId) % 3]
+  const wallpaper = [4, 1, 2][Object.keys(roleScenarios).indexOf(roleId) % 3]
   return (
     <Link
       className={styles.computerPreview}
@@ -89,7 +89,7 @@ export function MiniDesktop({
       <span
         className={styles.desktopWallpaper}
         style={{
-          backgroundImage: `url(/landing/bot/cloud-agents-${wallpaper}.webp)`,
+          backgroundImage: `url(/landing/bot/krafty-wallpaper-${wallpaper}.webp)`,
         }}
       />
       <span className={styles.terminalWindow}>

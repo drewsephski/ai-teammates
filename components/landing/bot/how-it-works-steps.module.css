@@ -1,0 +1,494 @@
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.step {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  column-gap: 20px;
+  row-gap: 2px;
+  padding: 20px;
+  border-radius: 16px;
+  background: #151515;
+  transition: background 0.2s;
+}
+.step:hover,
+.step[data-active] {
+  background: #1c1c1c;
+}
+.icon {
+  grid-row: span 2;
+  display: flex;
+  padding-top: 1px;
+  color: #fff;
+}
+.step h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+}
+.step p {
+  color: #7d8187;
+  font-size: 14px;
+  line-height: 22px;
+}
+.stageSlot {
+  grid-column: 1 / -1;
+  margin-top: 16px;
+}
+.stage {
+  position: relative;
+  height: 112px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #0e0e0e;
+}
+/* Every stage loops only while its card is hovered, or on touch screens while
+   it is in view (data-active, set by StepsInView), and rests on frame one. */
+.stage *,
+.stage *::before,
+.stage *::after {
+  animation-play-state: paused;
+}
+.step:hover .stage *,
+.step[data-active] .stage *,
+.step:hover .stage *::before,
+.step[data-active] .stage *::before,
+.step:hover .stage *::after,
+.step[data-active] .stage *::after {
+  animation-play-state: running;
+}
+
+/* Describe the job: example prompts drifting past. */
+.prompts {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+.promptRow {
+  overflow: hidden;
+  mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 12%,
+    #000 88%,
+    transparent
+  );
+}
+.promptTrack {
+  display: flex;
+  gap: 8px;
+  width: max-content;
+  animation: drift 26s linear infinite;
+}
+.promptRow:nth-child(2) .promptTrack {
+  animation-direction: reverse;
+  animation-delay: -9s;
+}
+.prompt {
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #1c1c1c;
+  color: #d4d4d4;
+  font-size: 13px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+@keyframes drift {
+  to {
+    translate: -50% 0;
+  }
+}
+
+/* Connect the apps: every connector, lighting up in a wave. */
+.apps {
+  display: grid;
+  grid-template-columns: repeat(8, 34px);
+  place-content: center;
+  gap: 8px;
+}
+.app {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #1c1c1c;
+  box-shadow: inset 0 0 0 1px #ffffff0a;
+  opacity: 0.55;
+  transition:
+    opacity 0.3s,
+    translate 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.3s;
+  transition-delay: calc(var(--i) * 25ms);
+}
+.step:hover .app,
+.step[data-active] .app {
+  opacity: 1;
+  translate: 0 -3px;
+  background: #242424;
+}
+.app > span {
+  width: 18px;
+  height: 18px;
+  background: center / contain no-repeat;
+}
+
+/* Let it work: the Bot's own computer, used on its own. */
+.computer {
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(#0000004d, #0000004d),
+    url("/landing/bot/krafty-wallpaper-4.webp") center / cover;
+}
+.working {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #00000080;
+  color: #f2f2f2;
+  font-size: 11px;
+  line-height: 16px;
+}
+.working i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #6be38f;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.window {
+  position: relative;
+  width: 240px;
+  height: 92px;
+  border-radius: 8px;
+  background: #0b0b0be6;
+  box-shadow: 0 10px 28px #00000080;
+}
+.chrome {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+}
+.chrome i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffffff26;
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 14px;
+  margin: 0 10px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #ffffff12;
+  color: #7d8187;
+}
+.query {
+  width: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: #d4d4d4;
+}
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 8px 10px 0;
+}
+.results span {
+  height: 9px;
+  border-radius: 3px;
+  background: #ffffff0f;
+}
+.results span:nth-child(3) {
+  width: 70%;
+}
+.picked {
+}
+.computerCursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 11px;
+  height: 14px;
+  translate: 200px 72px;
+}
+/* The computer and approval loops restart from rest each time. */
+.step:hover .query,
+.step[data-active] .query {
+  animation: type 5s steps(12) infinite;
+}
+.step:hover .picked,
+.step[data-active] .picked {
+  animation: pick 5s infinite;
+}
+.step:hover .computerCursor,
+.step[data-active] .computerCursor {
+  animation: browse 5s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+.step:hover .approve,
+.step[data-active] .approve {
+  animation: approveFill 5s infinite;
+}
+.step:hover .sentLabel,
+.step[data-active] .sentLabel {
+  animation: sentIn 5s infinite;
+}
+.step:hover .approveLabel,
+.step[data-active] .approveLabel {
+  animation: approveOut 5s infinite;
+}
+.step:hover .approvalCursor,
+.step[data-active] .approvalCursor {
+  animation: approveClick 5s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+@keyframes type {
+  0%,
+  26% {
+    width: 0;
+  }
+  52%,
+  100% {
+    width: 120px;
+  }
+}
+@keyframes pick {
+  0%,
+  80% {
+    background: #ffffff0f;
+  }
+  84%,
+  96% {
+    background: #ffffff3d;
+  }
+  100% {
+    background: #ffffff0f;
+  }
+}
+@keyframes browse {
+  0% {
+    translate: 200px 72px;
+    scale: 1;
+  }
+  18% {
+    translate: 40px 26px;
+    scale: 1;
+  }
+  22% {
+    translate: 40px 26px;
+    scale: 0.8;
+  }
+  26%,
+  58% {
+    translate: 40px 26px;
+    scale: 1;
+  }
+  76% {
+    translate: 120px 50px;
+    scale: 1;
+  }
+  80% {
+    translate: 120px 50px;
+    scale: 0.8;
+  }
+  84%,
+  92% {
+    translate: 120px 50px;
+    scale: 1;
+  }
+  100% {
+    translate: 200px 72px;
+    scale: 1;
+  }
+}
+
+/* Review and approve: an email that waits for the click. */
+.approval {
+  display: grid;
+  place-items: center;
+}
+.email {
+  position: relative;
+  width: 260px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #1c1c1c;
+  box-shadow: 0 10px 28px #00000066;
+}
+.email p {
+  font-size: 11px;
+  line-height: 16px;
+}
+.email p.emailFrom {
+  color: #7d8187;
+}
+.email p.emailSubject {
+  color: #fff;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.emailLine {
+  display: block;
+  height: 5px;
+  margin-top: 4px;
+  border-radius: 3px;
+  background: #ffffff14;
+}
+.emailLine.short {
+  width: 60%;
+}
+.emailActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+.discard,
+.approve {
+  display: inline-grid;
+  place-items: center;
+  height: 20px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 20px;
+}
+.discard {
+  background: #ffffff14;
+  color: #d4d4d4;
+}
+.approve {
+  background: #fff;
+  color: #0a0a0a;
+}
+.approveLabel,
+.sentLabel {
+  grid-area: 1 / 1;
+}
+.sentLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  opacity: 0;
+}
+.approveLabel {
+}
+.approvalCursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 11px;
+  height: 14px;
+  translate: 150px 96px;
+}
+@keyframes approveClick {
+  0% {
+    translate: 150px 96px;
+    scale: 1;
+  }
+  30% {
+    translate: 226px 76px;
+    scale: 1;
+  }
+  36% {
+    translate: 226px 76px;
+    scale: 0.8;
+  }
+  42%,
+  84% {
+    translate: 226px 76px;
+    scale: 1;
+  }
+  100% {
+    translate: 150px 96px;
+    scale: 1;
+  }
+}
+@keyframes approveFill {
+  0%,
+  38% {
+    background: #fff;
+    color: #0a0a0a;
+  }
+  44%,
+  90% {
+    background: #ffffff14;
+    color: #fff;
+  }
+  100% {
+    background: #fff;
+    color: #0a0a0a;
+  }
+}
+@keyframes approveOut {
+  0%,
+  38% {
+    opacity: 1;
+  }
+  44%,
+  90% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes sentIn {
+  0%,
+  38% {
+    opacity: 0;
+  }
+  44%,
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (max-width: 639px) {
+  .step {
+    column-gap: 16px;
+  }
+  .apps {
+    grid-template-columns: repeat(8, 30px);
+    gap: 6px;
+  }
+  .app {
+    width: 30px;
+    height: 30px;
+  }
+  .working {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage *,
+  .stage *::before,
+  .stage *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

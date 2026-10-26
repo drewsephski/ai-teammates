@@ -15,13 +15,14 @@ import { BotChatDemo } from "@/components/landing/bot/chat-demo"
 import { BotFeatures } from "@/components/landing/bot/features"
 import { RoleShowcase } from "@/components/landing/bot/role-showcase"
 import { BotFaq } from "@/components/landing/bot/faq"
+import { HowItWorksSteps } from "@/components/landing/bot/how-it-works-steps"
 import { GetStartedButton } from "@/components/landing/bot/get-started-button"
 import { LandingPricing } from "@/components/landing/pricing"
 import { HalftoneWordmark } from "@/components/landing/halftone-wordmark-footer"
 import styles from "@/components/landing/bot/bot-landing.module.css"
 import { JsonLd } from "@/components/json-ld"
 import { homeJsonLd } from "@/lib/marketing/json-ld"
-import { definition, howItWorks } from "@/lib/marketing/content"
+import { definitionShort } from "@/lib/marketing/content"
 import {
   brandName,
   freePlanIncludes,
@@ -36,7 +37,8 @@ const botFont = localFont({
   display: "swap",
 })
 
-const homeTitle = "Krafty — AI teammates with memory, apps, and a cloud computer"
+const homeTitle =
+  "Krafty — AI teammates with memory, apps, and a cloud computer"
 const homeDescription = siteDescription
 
 export const metadata: Metadata = {
@@ -92,14 +94,17 @@ export default async function LandingPage() {
           <h1 id="hero-title" className={styles.heroTitle}>
             <span className={styles.heroTitlePrimary}>AI teammates</span>
             <span className={styles.heroTitleBrand}>
-              <BotMark className={styles.heroMark} sequence="hero" />
+              <BotMark
+                className={styles.heroMark}
+                color="#efe7dc"
+                sequence="hero"
+                dimensional
+              />
               Krafty Bot
             </span>
           </h1>
           <p className={styles.heroCopy}>
-            Give AI teammates real work: memory, connected apps, and a shared
-            cloud computer with a browser. They keep going after you close the
-            tab and bring back finished work.
+            They use your tools and bring back finished work.
           </p>
           <div className={styles.actions}>
             <GetStartedButton href={startHref} />
@@ -113,24 +118,17 @@ export default async function LandingPage() {
         </section>
         <section
           id="what-is-krafty-bot"
-          className={`${styles.container} ${styles.section} ${styles.split}`}
+          className={`${styles.container} ${styles.section} ${styles.explain}`}
           aria-labelledby="what-is-title"
         >
-          <div className={styles.splitCopy}>
+          <div className={styles.explainIntro}>
             <h2 id="what-is-title">What is Krafty Bot?</h2>
-            <p className={styles.definition}>{definition}</p>
+            <p className={styles.explainLede}>{definitionShort}</p>
             <Link href="/how-it-works" className={styles.textLink}>
-              How Krafty Bot works <ArrowRightIcon size={16} />
+              See how it works <ArrowRightIcon size={16} />
             </Link>
           </div>
-          <ol className={styles.explainSteps}>
-            {howItWorks.map((step) => (
-              <li key={step.title}>
-                <h3>{step.title}</h3>
-                <p>{step.body}</p>
-              </li>
-            ))}
-          </ol>
+          <HowItWorksSteps />
         </section>
         <BotFeatures />
         <RoleShowcase workspaceHref={workspaceHref} />
@@ -229,7 +227,12 @@ export default async function LandingPage() {
               View plans
             </a>
           </div>
-          <BotMark className={styles.giantMark} sequence="footer" />
+          <BotMark
+            className={styles.giantMark}
+            color="#efe7dc"
+            sequence="footer"
+            dimensional
+          />
         </section>
       </main>
       <footer className={styles.footer}>
