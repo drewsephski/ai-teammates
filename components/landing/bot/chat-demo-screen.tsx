@@ -13,6 +13,7 @@ import {
   DemoBrowserIcon,
   DemoMailIcon,
 } from "./chat-demo-icons"
+import { ComputerCursor } from "../computer-cursor"
 import styles from "./chat-demo.module.css"
 
 const rows = [
@@ -148,6 +149,7 @@ export function DemoDesktop({
       className={styles.remoteDesktop}
       aria-label="Example Salesforce desktop"
     >
+      <ComputerCursor />
       <div className={styles.wallpaper} />
       {crmVisible && (
         <DesktopWindow expanded={expanded}>

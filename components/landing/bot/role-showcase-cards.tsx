@@ -5,6 +5,7 @@ import {
   type BotRole,
   type RoleEntry,
 } from "./role-showcase-data"
+import { ComputerCursor } from "../computer-cursor"
 import styles from "./role-showcase.module.css"
 
 const cursorGlyphs = {
@@ -86,6 +87,7 @@ export function MiniDesktop({
       href={workspaceHref}
       aria-label="Open your shared computer"
     >
+      <ComputerCursor />
       <span
         className={styles.desktopWallpaper}
         style={{

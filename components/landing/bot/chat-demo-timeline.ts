@@ -64,7 +64,10 @@ const composeDelay = (text: string) =>
 const readDelay = (text: string) =>
   Math.min(Math.max(900 + 55 * wordCount(text), 1300), 3200)
 
-export function useHeroDemo(frame: RefObject<HTMLDivElement | null>) {
+export function useHeroDemo(
+  frame: RefObject<HTMLDivElement | null>,
+  enabled = true
+) {
   const [state, setState] = useState(initialState)
   const current = useRef(initialState)
   const controller = useRef<AbortController | null>(null)
@@ -77,7 +80,7 @@ export function useHeroDemo(frame: RefObject<HTMLDivElement | null>) {
 
   useEffect(() => {
     const element = frame.current
-    if (!element) return
+    if (!element || !enabled) return
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)")
     const stopOnInteraction = () => finish()
     const motionChanged = () => {
@@ -322,7 +325,7 @@ export function useHeroDemo(frame: RefObject<HTMLDivElement | null>) {
       })
       motion.removeEventListener("change", motionChanged)
     }
-  }, [frame, finish])
+  }, [frame, finish, enabled])
 
   return { ...state, finish }
 }

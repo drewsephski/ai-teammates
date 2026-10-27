@@ -1,9 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState, type CSSProperties } from "react"
-import { BotMark } from "./bot-mark"
+import { pendingDemoDecisions, useDemoInbox } from "./chat-demo-inbox"
+import { DemoComposer } from "./chat-demo-composer"
+import { useDemoInvocation } from "./chat-demo-invocation"
+import { DemoResponse } from "./chat-demo-response"
+import { DemoSetup } from "./chat-demo-setup"
+import { DemoActivity } from "./chat-demo-activity"
 import { demoAgents } from "./chat-demo-data"
 import { DemoDesktop } from "./chat-demo-screen"
 import { useHeroDemo } from "./chat-demo-timeline"
@@ -16,22 +20,47 @@ import {
 import styles from "./chat-demo.module.css"
 
 export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
-  const router = useRouter()
   const frame = useRef<HTMLDivElement>(null)
   const transcript = useRef<HTMLDivElement>(null)
   const atBottom = useRef(true)
-  const { finish, ...hero } = useHeroDemo(frame)
-  const [selectedId, setSelectedId] = useState("sales-outbound")
+  const [setupName, setSetupName] = useState("New bot")
+  const {
+    selectedId,
+    selectChat,
+    unread,
+    decisions,
+    replies,
+    recordReply,
+    recordMessage,
+    recordDecision,
+    setupWaiting,
+    setupWaitingKind,
+    reportSetupWaiting,
+    receive,
+  } = useDemoInbox()
+  const { finish, ...hero } = useHeroDemo(
+    frame,
+    selectedId === "sales-outbound"
+  )
   const [query, setQuery] = useState("")
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [computerOpen, setComputerOpen] = useState(false)
   const [overlayOpen, setOverlayOpen] = useState(false)
-  const [composer, setComposer] = useState("")
+  const invocation = useDemoInvocation(recordMessage)
+  const mentionBots = demoAgents
+    .filter((bot) => !bot.group)
+    .map((bot) =>
+      bot.id === "new-bot"
+        ? { ...bot, name: setupName }
+        : bot.id === "sales-outbound"
+          ? { ...bot, name: "Sales Outbound" }
+          : bot
+    )
   const selected =
     demoAgents.find((agent) => agent.id === selectedId) ?? demoAgents[1]
   const isHero = selectedId === "sales-outbound"
-  const composerText = (isHero && hero.draft) || composer
-  const selectedName = isHero ? hero.name : selected.name
+  const isSetup = selectedId === "new-bot"
+  const selectedName = isSetup ? setupName : isHero ? hero.name : selected.name
   const entries = isHero ? hero.entries : selected.entries
   const screen = isHero
     ? hero.screen
@@ -46,6 +75,17 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
     isHero && hero.complete
       ? [{ name: "Overnight outbound", trigger: "Sundays at 11:00 PM" }]
       : selected.routines
+  const heroApprovalCount = pendingDemoDecisions(
+    "sales-outbound",
+    hero.entries,
+    decisions
+  )
+  const previousHeroApprovalCount = useRef(0)
+  useEffect(() => {
+    if (heroApprovalCount > previousHeroApprovalCount.current)
+      receive("sales-outbound")
+    previousHeroApprovalCount.current = heroApprovalCount
+  }, [heroApprovalCount, receive])
   const lastHero = [...hero.entries]
     .reverse()
     .find((entry) => entry.kind === "agent" || entry.kind === "user")
@@ -53,7 +93,7 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
     finish()
     const agent = demoAgents.find((candidate) => candidate.name === name)
     if (agent) {
-      setSelectedId(agent.id)
+      selectChat(agent.id)
       setSidebarOpen(false)
       atBottom.current = true
     }
@@ -71,6 +111,17 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
     )
     return () => cancelAnimationFrame(animation)
   }, [entries, hero.pending, selectedId])
+  useEffect(() => {
+    const element = transcript.current
+    const content = element?.firstElementChild
+    if (!element || !content) return
+    const observer = new ResizeObserver(() => {
+      if (atBottom.current)
+        element.scrollTo({ top: element.scrollHeight, behavior: "auto" })
+    })
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [])
   useEffect(() => {
     if (!showOverlay) return
     const close = (event: KeyboardEvent) => {
@@ -130,38 +181,73 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
         <div className={styles.chatList}>
           {demoAgents
             .filter((agent) =>
-              `${agent.id === "sales-outbound" ? hero.name : agent.name} ${agent.preview}`
+              `${agent.id === "new-bot" ? setupName : agent.id === "sales-outbound" ? "Sales Outbound" : agent.name} ${agent.preview}`
                 .toLowerCase()
                 .includes(query.toLowerCase())
             )
             .map((agent) => {
               const currentHero = agent.id === "sales-outbound"
-              const name = currentHero ? hero.name : agent.name
-              const preview = currentHero
-                ? hero.pending
-                  ? "Typing…"
-                  : (lastHero?.text.replace(/\*\*/g, "") ?? "")
-                : agent.preview
+              const currentSetup = agent.id === "new-bot"
+              const name = currentSetup
+                ? setupName
+                : currentHero
+                  ? "Sales Outbound"
+                  : agent.name
+              const latestReply = Object.values(replies)
+                .filter((reply) => reply.chatId === agent.id)
+                .at(-1)
+              const preview =
+                latestReply?.text ??
+                (currentHero
+                  ? hero.pending
+                    ? "Typing…"
+                    : (lastHero?.text.replace(/\*\*/g, "") ?? "")
+                  : agent.preview)
+              const waiting = currentSetup
+                ? Number(setupWaiting)
+                : currentHero
+                  ? heroApprovalCount
+                  : pendingDemoDecisions(agent.id, agent.entries, decisions)
+              const awaiting = waiting > 0 && agent.id !== selectedId
+              const needsResponse =
+                currentSetup && setupWaiting && setupWaitingKind === "response"
               return (
                 <button
                   key={agent.id}
                   type="button"
                   aria-pressed={agent.id === selectedId}
+                  data-unread={unread[agent.id] || undefined}
+                  data-waiting={awaiting || undefined}
+                  aria-label={`${name}${unread[agent.id] ? ", unread" : ", read"}${waiting ? `, ${needsResponse ? "waiting for your response" : `${waiting} pending approval${waiting > 1 ? "s" : ""}`}` : ""}`}
                   className={`${styles.chatRow} ${agent.id === selectedId ? styles.selected : ""}`}
                   onClick={() => {
-                    finish()
-                    setSelectedId(agent.id)
+                    if (isHero) finish()
+                    selectChat(agent.id)
                     setSidebarOpen(false)
                     atBottom.current = true
                   }}
                 >
-                  <Avatar
-                    agent={{
-                      ...agent,
-                      unread: agent.unread && agent.id !== selectedId,
-                    }}
-                    working={currentHero && !!hero.pending}
-                  />
+                  <span
+                    className={styles.sidebarAvatar}
+                    data-attention={awaiting || undefined}
+                  >
+                    <Avatar
+                      agent={{
+                        ...agent,
+                        unread: false,
+                      }}
+                      waiting={awaiting}
+                      working={currentHero && !!hero.pending}
+                    />
+                    {unread[agent.id] && agent.id !== selectedId && (
+                      <span className={styles.unread} aria-hidden="true" />
+                    )}
+                    {awaiting && (
+                      <span className={styles.attentionDot} aria-hidden="true">
+                        {needsResponse ? "?" : "!"}
+                      </span>
+                    )}
+                  </span>
                   <span
                     className={styles.rowContent}
                     data-empty={!preview || undefined}
@@ -171,14 +257,22 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
                       <time>{agent.time}</time>
                     </span>
                     <span className={styles.preview}>
-                      {preview || "\u00a0"}
+                      {waiting ? (
+                        <span className={styles.waitingLabel}>
+                          {needsResponse
+                            ? "Waiting for your response"
+                            : `${waiting} approval${waiting > 1 ? "s" : ""} needed`}
+                        </span>
+                      ) : (
+                        preview || "\u00a0"
+                      )}
                     </span>
                   </span>
                 </button>
               )
             })}
           {!demoAgents.some((agent) =>
-            `${agent.id === "sales-outbound" ? hero.name : agent.name} ${agent.preview}`
+            `${agent.id === "new-bot" ? setupName : agent.id === "sales-outbound" ? "Sales Outbound" : agent.name} ${agent.preview}`
               .toLowerCase()
               .includes(query.toLowerCase())
           ) && <p className={styles.empty}>No chats found.</p>}
@@ -214,7 +308,12 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
             />
             <span key={selectedName}>{selectedName}</span>
           </button>
-          <span className={styles.exampleLabel}>Example</span>
+          <span
+            className={styles.exampleLabel}
+            title="Interactive example. Decisions stay in this browser; no real messages are sent."
+          >
+            Example
+          </span>
           {!selected.group && (
             <button
               type="button"
@@ -237,78 +336,127 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
           }}
         >
           <div className={styles.entries}>
-            {entries.map((entry, index) => (
-              <div
-                key={`${selectedId}-${index}`}
-                className={`${styles.entry} ${index > 0 && entry.kind !== entries[index - 1].kind ? styles.roleChange : ""}`}
-              >
-                {index === 0 && (
-                  <div className={styles.timestamp}>
-                    {isHero
-                      ? "Today 1:08 PM"
-                      : selected.time === "Yesterday"
-                        ? "Yesterday 3:08 PM"
-                        : `Today ${selected.time}`}
-                  </div>
-                )}
-                <Entry
-                  entry={entry}
-                  screen={screen}
-                  status={hero.computerStatus}
-                  onScreen={() => {
-                    finish()
-                    setOverlayOpen(true)
-                  }}
-                  onAgent={openAgent}
-                />
-              </div>
-            ))}
+            <div hidden={!isSetup}>
+              <DemoSetup
+                onName={setSetupName}
+                onWaiting={reportSetupWaiting}
+                onDecision={recordDecision}
+                onConfirmation={recordReply}
+              />
+            </div>
+            {demoAgents.map((agent) => {
+              const currentHero = agent.id === "sales-outbound"
+              const chatEntries = currentHero ? hero.entries : agent.entries
+              return (
+                <div
+                  key={agent.id}
+                  hidden={agent.id !== selectedId}
+                  className={styles.chatTranscript}
+                >
+                  {chatEntries.map((entry, index) => (
+                    <div
+                      key={`${agent.id}-${index}`}
+                      className={`${styles.entry} ${index > 0 && entry.kind !== chatEntries[index - 1].kind ? styles.roleChange : ""}`}
+                    >
+                      {index === 0 && (
+                        <div className={styles.timestamp}>
+                          {currentHero
+                            ? "Today 1:08 PM"
+                            : agent.time === "Yesterday"
+                              ? "Yesterday 3:08 PM"
+                              : `Today ${agent.time}`}
+                        </div>
+                      )}
+                      <Entry
+                        entry={entry}
+                        agent={agent}
+                        agentName={currentHero ? hero.name : agent.name}
+                        decisionId={`${agent.id}:${index}`}
+                        onDecision={recordDecision}
+                        onConfirmation={recordReply}
+                        screen={currentHero ? hero.screen : screen}
+                        status={hero.computerStatus}
+                        onScreen={() => {
+                          finish()
+                          setOverlayOpen(true)
+                        }}
+                        onAgent={openAgent}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )
+            })}
+            {Object.values(replies)
+              .filter((reply) => reply.chatId === selectedId)
+              .sort((a, b) => a.order - b.order)
+              .map((reply) => (
+                <div key={reply.id} className={styles.entry}>
+                  {reply.kind === "user" ? (
+                    <Entry
+                      entry={{ kind: "user", text: reply.text }}
+                      screen={screen}
+                      status={hero.computerStatus}
+                      onScreen={() => setOverlayOpen(true)}
+                      onAgent={openAgent}
+                    />
+                  ) : (
+                    <DemoResponse
+                      name={reply.name}
+                      agent={
+                        mentionBots.find((bot) => bot.id === reply.botId) ??
+                        selected
+                      }
+                      confirmation
+                      showAuthor={
+                        selected.group ||
+                        (!!reply.botId && reply.botId !== selectedId)
+                      }
+                    >
+                      {reply.text}
+                    </DemoResponse>
+                  )}
+                </div>
+              ))}
+            {invocation.pending[selectedId] && (
+              <DemoActivity
+                name={invocation.pending[selectedId].name}
+                agent={invocation.pending[selectedId]}
+              />
+            )}
             {isHero && hero.pending && (
-              <div className={styles.pending}>
-                <BotMark
-                  className={styles.pendingAvatar}
-                  color={selected.color}
-                  state={hero.pending === "Spawning" ? "spawning" : "thinking"}
-                />
-                <span key={hero.pending}>{hero.pending}</span>
-              </div>
+              <DemoActivity
+                name={selectedName}
+                agent={selected}
+                state={
+                  hero.pending === "Thinking" || hero.pending === "Spawning"
+                    ? "thinking"
+                    : "working"
+                }
+              />
             )}
           </div>
         </div>
-        <form
-          className={styles.composerArea}
-          action={workspaceHref}
-          onSubmit={(event) => {
-            event.preventDefault()
-            router.push(workspaceHref)
-          }}
-        >
+        <div className={styles.composerArea}>
           <div className={styles.composerFade} aria-hidden="true" />
-          <div className={styles.composer}>
-            <Link
-              href={workspaceHref}
-              className={styles.addContext}
-              aria-label="Add context in Krafty"
-            >
-              <Icon name="plus" />
-            </Link>
-            <input
-              aria-label={`Message ${selectedName}`}
-              placeholder={`Message ${selectedName}`}
-              value={composerText}
-              onChange={(event) => setComposer(event.target.value)}
-            />
-            <button
-              type="submit"
-              className={styles.send}
-              aria-label={
-                composerText ? "Send in Krafty" : "Voice message in Krafty"
-              }
-            >
-              <Icon name={composerText ? "arrow" : "mic"} />
-            </button>
-          </div>
-        </form>
+          <DemoComposer
+            demoDraft={isHero ? hero.draft : undefined}
+            bots={mentionBots}
+            name={selectedName}
+            disabled={!!invocation.pending[selectedId]}
+            onSend={(text, mentions) => {
+              atBottom.current = true
+              if (isHero) finish()
+              void invocation.send(
+                selectedId,
+                text,
+                mentions,
+                mentionBots,
+                decisions
+              )
+            }}
+          />
+        </div>
       </div>
       {computerOpen && !selected.group && (
         <DemoComputerPane

@@ -1,7 +1,11 @@
-// Extracted from x.ai/bot's shipped hero demo, module 143452.
+// Fictional examples of Krafty workflows. All demo decisions stay in the browser.
 export type DemoEntry = {
-  kind: "user" | "agent" | "system" | "computer"
+  kind: "user" | "agent" | "system" | "computer" | "approval" | "email"
   text: string
+  approval?: { toolkit: string; details: string; alwaysAllowed?: boolean }
+  email?: { to: string; subject: string; body: string }
+  initialState?: "executed" | "denied"
+  confirmation?: string
   reactions?: string[]
   author?: string
   targets?: string[]
@@ -29,7 +33,7 @@ export const demoAgents: DemoAgent[] = [
     name: "Chief",
     color: "#50b6a3",
     shape: "blob",
-    preview: "booked the venue and sent the confirmation around.",
+    preview: "Availability request sent. Final quote is next.",
     time: "Yesterday",
     unread: false,
     group: false,
@@ -40,7 +44,7 @@ export const demoAgents: DemoAgent[] = [
       },
       {
         kind: "agent",
-        text: "morning briefing:\n✓ **Calendar** → 2pm double-booking resolved · board review kept\n✓ **Deck** → numbers checked against finance's sheet · 2 stale slides flagged\n✓ **Offsite** → 3 venues shortlisted · dates held on each\n\ntwo things need you today: the deck review at 2pm, and a yes/no on the venue. everything else is handled.",
+        text: "morning briefing:\n**Calendar**: 2pm double-booking found · board review prioritized\n**Deck**: numbers checked against finance's sheet · 2 stale slides flagged\n**Offsite**: 3 venues shortlisted · availability compared\n\ntwo things need you today: the deck review at 2pm, and a yes/no on the venue. everything else is handled.",
       },
       {
         kind: "user",
@@ -51,17 +55,18 @@ export const demoAgents: DemoAgent[] = [
         text: "the marina house is the pick: seats all 40, the mid-week rate came in 15% under budget, and they'll hold the date until tomorrow.",
       },
       {
-        kind: "user",
-        text: "book it",
-        reactions: ["👍"],
+        kind: "agent",
+        text: "I’ve sent the availability request you approved. I’ll bring you the final quote before any deposit or booking commitment.",
       },
       {
-        kind: "agent",
-        text: "✓ **Venue** → marina house booked · deposit paid\n✓ **Calendar** → invites updated for all 40\n✓ **Holds** → other two released with a thank-you",
-      },
-      {
-        kind: "agent",
-        text: "booked the venue and sent the confirmation around. you're clear until the 2pm deck review.",
+        kind: "email",
+        text: "Confirm offsite availability",
+        initialState: "executed",
+        email: {
+          to: "events@marinahouse.example",
+          subject: "Team offsite for 40 — availability",
+          body: "Hi, could you confirm availability and send the final quote for our 40-person offsite? Please include the deposit and cancellation terms before we commit. Thanks, Drew",
+        },
       },
     ],
     routines: [
@@ -98,7 +103,7 @@ export const demoAgents: DemoAgent[] = [
     name: "Inbox Manager",
     color: "#6761f2",
     shape: "wedge",
-    preview: "sent. inbox at zero, 5 drafts parked for tomorrow.",
+    preview: "26 threads ready to archive. Dana’s reply needs your review.",
     time: "10:08 AM",
     unread: true,
     group: false,
@@ -109,24 +114,35 @@ export const demoAgents: DemoAgent[] = [
       },
       {
         kind: "agent",
-        text: "on it. **41 unread** since friday. archiving the noise, drafting the rest.",
+        text: "on it. **41 unread** since friday. I’ll identify the noise and prepare replies for your review.",
       },
       {
         kind: "agent",
-        text: "✓ **Archived** → 26 newsletters + receipts\n✓ **Replied** → 9 routine threads · scheduling and intros\n✓ **Drafted** → 6 that sound like you · held for your read\n✓ **Flagged** → 1 from dana · contract question",
+        text: "**Ready to archive**: 26 newsletters + receipts\n**Reviewed**: 9 routine threads · scheduling and intros\n**Drafted**: 6 that sound like you · held for your read\n**Flagged**: 1 from dana · contract question",
       },
       {
         kind: "agent",
         text: "dana's asking whether the renewal covers the new seats. her draft answers yes and quotes the contract line. it's at the top of the held pile.",
       },
       {
-        kind: "user",
-        text: "send dana's, i'll take the rest tomorrow",
-        reactions: ["👍"],
+        kind: "approval",
+        text: "Archive 26 newsletters and receipts",
+        confirmation:
+          "Archived the 26 threads. You can still find them in All Mail.",
+        approval: {
+          toolkit: "gmail",
+          details:
+            "Move the 26 reviewed threads out of the inbox. Keep them searchable in All Mail.",
+        },
       },
       {
-        kind: "agent",
-        text: "sent. inbox is at **zero**, with 5 drafts parked for tomorrow.",
+        kind: "email",
+        text: "Reply to Dana",
+        email: {
+          to: "dana@acme.example",
+          subject: "Re: Renewal and additional seats",
+          body: "Hi Dana, yes — the renewal covers the additional seats under the existing agreement. I’ve included the seat allocation in the renewal summary for your review. Best, Drew",
+        },
       },
     ],
     routines: [],
@@ -139,7 +155,7 @@ export const demoAgents: DemoAgent[] = [
     name: "Account Manager",
     color: "#8954f6",
     shape: "gem",
-    preview: "invite's out to vicky. globex note held in drafts.",
+    preview: "Acme renewal review scheduled. Globex draft held.",
     time: "8:08 AM",
     unread: false,
     group: false,
@@ -154,24 +170,22 @@ export const demoAgents: DemoAgent[] = [
       },
       {
         kind: "agent",
-        text: "**acme** renews in 60 days:\n✓ **Usage** → 214 seats active · up 18% this quarter\n✓ **Threads** → 2 open · security review + a pricing question\n✓ **Next step** → renewal call with vicky drafted · week of the 18th",
+        text: "**acme** renews in 60 days:\n**Usage**: 214 seats active · up 18% this quarter\n**Threads**: 2 open · security review + a pricing question\n**Next step**: renewal call with vicky drafted · week of the 18th",
       },
       {
         kind: "agent",
         text: "globex is the quiet one: nothing since the pilot wrapped. i wrote a re-engagement note that leads with their own pilot numbers. it's in drafts, not sent.",
       },
       {
-        kind: "user",
-        text: "send the acme invite. hold globex until i've read the note",
-        reactions: ["👍"],
-      },
-      {
-        kind: "system",
-        text: "Memory updated",
-      },
-      {
-        kind: "agent",
-        text: "invite's out to vicky. the globex note is holding in drafts, and quiet-account sends wait for your read from now on.",
+        kind: "approval",
+        text: "Create Acme renewal meeting",
+        initialState: "executed",
+        confirmation: "Created the renewal meeting and sent Vicky the invite.",
+        approval: {
+          toolkit: "googlecalendar",
+          details:
+            "Invite Vicky to a 30-minute renewal review on November 18 at 10:00 AM America/Chicago. The Globex draft stays unsent.",
+        },
       },
     ],
     routines: [],
@@ -184,7 +198,7 @@ export const demoAgents: DemoAgent[] = [
     name: "Talent Scout",
     color: "#3583f4",
     shape: "blob",
-    preview: "3 intros drafted in your voice, held for your ok.",
+    preview: "12 candidates shortlisted. Mara leads the list.",
     time: "5:08 AM",
     unread: false,
     group: false,
@@ -199,11 +213,11 @@ export const demoAgents: DemoAgent[] = [
       },
       {
         kind: "agent",
-        text: "overnight run:\n✓ **Sourced** → 64 profiles matched the req\n✓ **Skipped** → 11 already in the ats\n✓ **Shortlist** → 12 screened · notes on each",
+        text: "overnight run:\n**Sourced**: 64 profiles matched the req\n**Skipped**: 11 already in the ats\n**Shortlist**: 12 screened · notes on each",
       },
       {
         kind: "agent",
-        text: "three worth your time first:\n**Mara Iyer** → scaled ingest 40× at a data startup · writes like an owner\n**Tomás Rivera** → runs a 6-person infra team · wants to build again\n**Grace Osei** → your exact stack end to end · shipped the migration you keep citing",
+        text: "three worth your time first:\n**Mara Iyer**: scaled ingest 40× at a data startup · writes like an owner\n**Tomás Rivera**: runs a 6-person infra team · wants to build again\n**Grace Osei**: your exact stack end to end · shipped the migration you keep citing",
       },
       {
         kind: "user",
@@ -212,7 +226,7 @@ export const demoAgents: DemoAgent[] = [
       },
       {
         kind: "agent",
-        text: "3 intros drafted in your voice and held for your ok. nothing sends until you've read them.",
+        text: "Three intros drafted. Mara leads the shortlist; Tomás and Grace are close behind. The notes are ready whenever you want to review them.",
       },
     ],
     routines: [],
@@ -225,7 +239,7 @@ export const demoAgents: DemoAgent[] = [
     name: "Expense Manager",
     color: "#f6732a",
     shape: "blob",
-    preview: "report filed. 9 receipts, nothing outstanding.",
+    preview: "9 receipts reconciled. Report ready for approval.",
     time: "9:08 AM",
     unread: false,
     group: false,
@@ -244,7 +258,7 @@ export const demoAgents: DemoAgent[] = [
       },
       {
         kind: "agent",
-        text: "✓ **Receipts** → 9 matched to card charges\n✓ **Report** → drafted · $2,340 across 3 trips\n✓ **Flagged** → 1 charge · harbor hotel, $412 twice",
+        text: "**Receipts**: 9 matched to card charges\n**Report**: drafted · $2,340 across 3 trips\n**Flagged**: 1 charge · harbor hotel, $412 twice",
       },
       {
         kind: "agent",
@@ -256,7 +270,19 @@ export const demoAgents: DemoAgent[] = [
       },
       {
         kind: "agent",
-        text: "that clears it. report filed: **9 receipts** matched, $2,340 across 3 trips, nothing outstanding.",
+        text: "Thanks — I’ve marked the second night for Mia. The report is ready for your approval.",
+      },
+      {
+        kind: "approval",
+        text: "Submit month-end expense report",
+        confirmation:
+          "Added all 9 receipts to the expense tracker: $2,340 across 3 trips.",
+        approval: {
+          toolkit: "googlesheets",
+          details:
+            "Add 9 matched receipts totaling $2,340 across 3 trips to the expense tracker. Both Harbor Hotel nights are included.",
+          alwaysAllowed: false,
+        },
       },
     ],
     routines: [
@@ -274,7 +300,7 @@ export const demoAgents: DemoAgent[] = [
     name: "Offsite crew",
     color: "#50b6a3",
     shape: "blob",
-    preview: "that leaves the pipeline. i'd spin up a dedicated agent.",
+    preview: "Thank-you sent. Reconciling the final invoice.",
     time: "7:08 AM",
     unread: false,
     group: true,
@@ -290,12 +316,12 @@ export const demoAgents: DemoAgent[] = [
       },
       {
         kind: "agent",
-        text: "thank-you notes went out to the venue and the speakers this morning.",
+        text: "The thank-you note you approved is sent. I’m waiting on the final itemized invoice.",
         author: "Inbox Manager",
       },
       {
         kind: "agent",
-        text: "recap's shared. follow-ups, assigned:\n✓ **Acme pricing follow-up** → @[Account Manager] · numbers by thursday\n✓ **Speaker + venue thank-yous** → @[Inbox Manager] · done this morning\n✓ **Final invoice** → me · reconciling against the expense report",
+        text: "recap's shared. follow-ups, assigned:\n**Acme pricing follow-up**: @[Account Manager] · numbers by thursday\n**Speaker + venue thank-yous**: @[Inbox Manager] · sent\n**Final invoice**: me · reconciling against the expense report",
         reactions: ["👍"],
         author: "Chief",
       },
@@ -305,10 +331,35 @@ export const demoAgents: DemoAgent[] = [
       },
       {
         kind: "agent",
-        text: "that leaves the pipeline: nobody's touched the quiet accounts. i'd spin up a dedicated agent for outbound.",
+        text: "The recap is shared and the thank-you is sent. The final invoice is the only open item.",
         author: "Chief",
       },
+      {
+        kind: "email",
+        author: "Inbox Manager",
+        text: "Offsite thank-you",
+        initialState: "executed",
+        email: {
+          to: "events@marinahouse.example",
+          subject: "Thank you from the team",
+          body: "Hi team, thank you for hosting our offsite. We appreciated the space and your help throughout the day. Please send over the final itemized invoice when it’s ready. Best, Drew",
+        },
+      },
     ],
+    routines: [],
+  },
+  {
+    id: "new-bot",
+    name: "New bot",
+    color: "#b5a7fc",
+    shape: "blob",
+    title: "Your next teammate",
+    description: "Set up a teammate and give it its first task.",
+    preview: "",
+    time: "1:08 PM",
+    unread: false,
+    group: false,
+    entries: [],
     routines: [],
   },
 ]
@@ -335,7 +386,7 @@ export const heroEntries: DemoEntry[] = [
   },
   {
     kind: "agent",
-    text: "✓ **Salesforce** → list pulled · 52 accounts\n✓ **Hex** → 3 lookalike segments pulled\n✓ **LinkedIn** → 4 profiles skipped · recently contacted\n✓ **Sequencer** → 36 drafts queued · 0 sent",
+    text: "**Salesforce**: list pulled · 52 accounts\n**Hex**: 3 lookalike segments pulled\n**LinkedIn**: 4 profiles skipped · recently contacted\n**Sequencer**: 36 drafts queued · 0 sent",
   },
   {
     kind: "system",
@@ -348,11 +399,11 @@ export const heroEntries: DemoEntry[] = [
   },
   {
     kind: "agent",
-    text: "The 36 drafts are sitting in the LinkedIn queue on my screen: recipient, opener, and a Draft badge on each. Nothing goes out until you've had a look.",
+    text: "I prepared 36 email drafts from the prospect research. Review the top 10 recipients and openers before approving the send. The remaining 26 stay on hold.",
   },
   {
     kind: "user",
-    text: "The top 10 look good. Send it. Run this every week.",
+    text: "Prepare the top 10 for my approval. Research new prospects every week.",
     reactions: ["👍"],
   },
   {
@@ -360,8 +411,16 @@ export const heroEntries: DemoEntry[] = [
     text: "Created routine Overnight outbound",
   },
   {
-    kind: "agent",
-    text: "Done.",
+    kind: "approval",
+    text: "Send the 10 reviewed outreach messages",
+    confirmation:
+      "Sent the 10 approved messages. The other 26 drafts are still on hold.",
+    approval: {
+      toolkit: "gmail",
+      details:
+        "Send only the 10 reviewed recipients. Keep the remaining 26 drafts on hold. The weekly routine researches and drafts; sending still requires approval.",
+      alwaysAllowed: false,
+    },
   },
 ]
 export const heroPrompt =

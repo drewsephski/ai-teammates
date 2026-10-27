@@ -1,0 +1,14 @@
+.tracker {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  overflow: clip;
+  border-radius: inherit;
+}
+@media (hover: hover) and (pointer: fine) {
+  :global(*):has(> .tracker[data-active]),
+  :global(*):has(> .tracker[data-active]) * {
+    cursor: none !important;
+  }
+}

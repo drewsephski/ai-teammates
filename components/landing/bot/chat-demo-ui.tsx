@@ -1,9 +1,16 @@
 "use client"
 
-import { BotMark } from "./bot-mark"
+import { ComputerLoginCard } from "@/components/chat-computer-login"
+import { DemoApproval } from "./chat-demo-approval"
+import { DemoAvatar } from "./chat-demo-avatar"
+export { DemoAvatar } from "./chat-demo-avatar"
 import { demoAgents, type DemoAgent, type DemoEntry } from "./chat-demo-data"
 import { DemoDesktop } from "./chat-demo-screen"
 import type { DemoScreen } from "./chat-demo-timeline"
+import type {
+  DemoDecisionState,
+  DemoConfirmationHandler,
+} from "./chat-demo-inbox"
 import styles from "./chat-demo.module.css"
 
 const icons = {
@@ -32,55 +39,6 @@ export function DemoIcon({
       style={{ width: size, height: size, fontSize: size }}
     >
       {String.fromCodePoint(parseInt(icons[name], 16))}
-    </span>
-  )
-}
-export function DemoAvatar({
-  agent,
-  size = 32,
-  working = false,
-}: {
-  agent: DemoAgent
-  size?: number
-  working?: boolean
-}) {
-  if (agent.group) {
-    const memberSize = Math.round(size * 0.56)
-    return (
-      <span
-        className={styles.groupAvatar}
-        style={{ width: size, height: size }}
-      >
-        {[demoAgents[0], demoAgents[2], demoAgents[3]].map((member, index) => (
-          <span
-            key={member.id}
-            style={{
-              width: memberSize,
-              height: memberSize,
-              left:
-                index === 0
-                  ? (size - memberSize) / 2
-                  : index === 1
-                    ? 0
-                    : size - memberSize,
-              top: index === 0 ? 0 : size - memberSize,
-              zIndex: index + 1,
-            }}
-          >
-            <BotMark color={member.color} />
-          </span>
-        ))}
-      </span>
-    )
-  }
-  return (
-    <span className={styles.avatar} style={{ width: size, height: size }}>
-      <BotMark
-        color={agent.color}
-        shape={agent.shape}
-        state={working ? "working" : "idle"}
-      />
-      {agent.unread && <span className={styles.unread} />}
     </span>
   )
 }
@@ -130,13 +88,34 @@ export function DemoEntryView({
   status,
   onScreen,
   onAgent,
+  agentName = "Krafty",
+  agent,
+  decisionId,
+  onDecision,
+  onConfirmation,
 }: {
+  decisionId?: string
+  onDecision?: (id: string, state: DemoDecisionState) => void
+  onConfirmation?: DemoConfirmationHandler
+  agent?: DemoAgent
+  agentName?: string
   entry: DemoEntry
   screen: DemoScreen
   status: "action-needed" | "handed-over" | "working" | "done"
   onScreen: () => void
   onAgent: (name: string) => void
 }) {
+  if (entry.kind === "approval" || entry.kind === "email")
+    return (
+      <DemoApproval
+        entry={entry}
+        agent={agent}
+        name={entry.author ?? agentName}
+        decisionId={decisionId}
+        onDecision={onDecision}
+        onConfirmation={onConfirmation}
+      />
+    )
   if (entry.kind === "system")
     return (
       <div className={styles.system}>
@@ -202,29 +181,35 @@ export function DemoEntryView({
           <DemoDesktop screen={screen} onExpand={onScreen} />
         </div>
         {status !== "done" && status !== "working" && (
-          <div className={styles.cardActions}>
-            <button
-              type="button"
-              className={styles.primaryAction}
-              data-demo-target="computer-take-over"
-              onClick={onScreen}
-            >
-              Take over
-            </button>
-            <button
-              type="button"
-              className={styles.secondaryAction}
-              onClick={onScreen}
-            >
-              I’m done
-            </button>
+          <div
+            className={`dark ${styles.productCard}`}
+            data-demo-target="computer-take-over"
+          >
+            <ComputerLoginCard
+              login={{
+                service: "Salesforce",
+                hostname: "login.salesforce.com",
+              }}
+              busy={false}
+              onOpen={onScreen}
+              onAnswer={() => {
+                onScreen()
+                return false
+              }}
+            />
           </div>
         )}
       </div>
     )
   const user = entry.kind === "user"
+  const author = demoAgents.find((bot) => bot.name === entry.author) ?? agent
   return (
-    <div className={`${styles.messageRow} ${user ? styles.userRow : ""}`}>
+    <div
+      className={`${styles.messageRow} ${user ? styles.userRow : styles.responseRow}`}
+    >
+      {!user && author && (
+        <DemoAvatar agent={{ ...author, unread: false }} size={24} />
+      )}
       <div
         className={`${styles.messageWrapper} ${user ? styles.userWrapper : ""} ${entry.reactions ? styles.withReaction : ""}`}
       >

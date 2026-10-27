@@ -25,6 +25,7 @@ import {
   RECORDING_SECONDS,
   RECORDING_START,
 } from "./feature-browser"
+import { ComputerCursor } from "../computer-cursor"
 import styles from "./feature-scenes.module.css"
 
 const EASE = [0.4, 0, 0.2, 1] as const
@@ -285,6 +286,7 @@ function SupportIllustration(playback: Playback) {
         Sign in to your help desk. I’ll draft the replies.
       </p>
       <div className={`${styles.handoverScreen} mt-2.5`}>
+        <ComputerCursor />
         <div className={styles.take} data-dimmed={playback.dimmed || undefined}>
           <RemoteDesktop>
             <SupportScreen screen={value.screen} />
@@ -344,6 +346,7 @@ function RecordingIllustration(playback: Playback) {
         </div>
       </div>
       <div className={styles.recordingScreen}>
+        <ComputerCursor />
         <div className={styles.take} data-dimmed={playback.dimmed || undefined}>
           <RemoteDesktop dashboard>
             <DashboardScreen screen={value.screen} />
