@@ -57,9 +57,9 @@ function PhoneChatList({
         <Link
           href={workspaceHref}
           className={styles.glassControl}
-          aria-label="Sam Reyes — profile"
+          aria-label="Drew Sepeczi — profile"
         >
-          SR
+          DS
         </Link>
         <span>Krafty Bot</span>
         <Link

@@ -38,7 +38,7 @@ const hiddenCursor: DemoCursor = {
 }
 const finalState: HeroState = {
   entries: heroEntries,
-  name: "Sales Outbound",
+  name: "Prospecting",
   pending: null,
   draft: "",
   screen: { view: "settled", emailChars: 14, passwordChars: 9, focus: null },
@@ -190,7 +190,7 @@ export function useHeroDemo(
         await read(0)
         await type(1)
         await delay(900)
-        update({ name: "Sales Outbound" })
+        update({ name: "Prospecting" })
         add(2)
         await delay(1000)
         await compose(3, "Checking connections")

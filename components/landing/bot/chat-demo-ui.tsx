@@ -187,8 +187,8 @@ export function DemoEntryView({
           >
             <ComputerLoginCard
               login={{
-                service: "Salesforce",
-                hostname: "login.salesforce.com",
+                service: "HubSpot",
+                hostname: "app.hubspot.com",
               }}
               busy={false}
               onOpen={onScreen}

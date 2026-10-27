@@ -2,6 +2,7 @@ import Link from "next/link"
 import { BotMark } from "./bot-mark"
 import {
   roleScenarios,
+  roles,
   type BotRole,
   type RoleEntry,
 } from "./role-showcase-data"
@@ -268,15 +269,17 @@ export function TranscriptEntry({
         </Link>
       </div>
     )
+  const { source, summary } = entry.event
+  const sourceRole = roles.find(
+    (role) => roleScenarios[role.id]?.name === source.name
+  )
   return (
     <div className={styles.sharedContext}>
       <span>
-        <BotMark
-          color={entry.event.source.name === "Chief" ? "#ed712e" : "#3c82f6"}
-        />
-        {entry.event.source.name}
+        <BotMark color={sourceRole?.color ?? "#3c82f6"} />
+        {source.name}
       </span>{" "}
-      shared <em>{entry.event.summary}</em>
+      shared <em>{summary}</em>
     </div>
   )
 }

@@ -28,10 +28,10 @@ const rows = [
   { name: 82, memo: 64 },
 ]
 const drafts = [
-  { name: "Priya Natarajan", opener: 82 },
-  { name: "Marcus Webb", opener: 64 },
-  { name: "Elena Sørensen", opener: 74 },
-  { name: "Daniel Alvarez", opener: 58 },
+  { name: "Harbor Coffee", opener: 82 },
+  { name: "Northside Physio", opener: 64 },
+  { name: "Elm Street Dental", opener: 74 },
+  { name: "Rivera Landscaping", opener: 58 },
 ]
 function Bar({
   width = "100%",
@@ -147,7 +147,7 @@ export function DemoDesktop({
     <div
       ref={viewport}
       className={styles.remoteDesktop}
-      aria-label="Example Salesforce desktop"
+      aria-label="Example HubSpot desktop"
     >
       <ComputerCursor />
       <div className={styles.wallpaper} />
@@ -274,8 +274,8 @@ export function DemoDesktop({
                   ))}
                 </div>
                 <div className={styles.tableFooter}>
-                  <span>52 accounts</span>
-                  <span>36 contacts</span>
+                  <span>48 contacts</span>
+                  <span>6 already contacted</span>
                 </div>
               </div>
             </div>
@@ -287,7 +287,7 @@ export function DemoDesktop({
           <Chrome />
           <div className={styles.drafts}>
             <div className={styles.draftHeading}>
-              <span>Outreach queue</span>
+              <span>Intro drafts</span>
               <Bar width="18%" />
             </div>
             <div className={styles.draftRows}>
@@ -303,7 +303,7 @@ export function DemoDesktop({
               ))}
             </div>
             <div className={styles.draftFooter}>
-              <span>36 drafts queued</span>
+              <span>10 drafts ready</span>
               <span>0 sent</span>
             </div>
           </div>

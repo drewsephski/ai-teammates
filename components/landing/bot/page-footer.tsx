@@ -35,8 +35,8 @@ export function PageFooter({ className }: { className?: string }) {
         <Link href="/terms">Terms of service</Link>
       </nav>
       <p className={styles.footerNote}>
-        © {new Date().getFullYear()} {brandName}. AI teammates with a memory and
-        a computer of their own.
+        © {new Date().getFullYear()} {brandName}. AI that does the work. Built
+        independently by Drew Sepeczi.
       </p>
     </footer>
   )

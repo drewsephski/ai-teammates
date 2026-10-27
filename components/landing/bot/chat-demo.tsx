@@ -38,10 +38,7 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
     reportSetupWaiting,
     receive,
   } = useDemoInbox()
-  const { finish, ...hero } = useHeroDemo(
-    frame,
-    selectedId === "sales-outbound"
-  )
+  const { finish, ...hero } = useHeroDemo(frame, selectedId === "prospecting")
   const [query, setQuery] = useState("")
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [computerOpen, setComputerOpen] = useState(false)
@@ -52,13 +49,13 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
     .map((bot) =>
       bot.id === "new-bot"
         ? { ...bot, name: setupName }
-        : bot.id === "sales-outbound"
-          ? { ...bot, name: "Sales Outbound" }
+        : bot.id === "prospecting"
+          ? { ...bot, name: "Prospecting" }
           : bot
     )
   const selected =
     demoAgents.find((agent) => agent.id === selectedId) ?? demoAgents[1]
-  const isHero = selectedId === "sales-outbound"
+  const isHero = selectedId === "prospecting"
   const isSetup = selectedId === "new-bot"
   const selectedName = isSetup ? setupName : isHero ? hero.name : selected.name
   const entries = isHero ? hero.entries : selected.entries
@@ -73,17 +70,17 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
   const showOverlay = overlayOpen || (isHero && hero.overlay)
   const routines =
     isHero && hero.complete
-      ? [{ name: "Overnight outbound", trigger: "Sundays at 11:00 PM" }]
+      ? [{ name: "Weekly prospecting", trigger: "Mondays at 8:00 AM" }]
       : selected.routines
   const heroApprovalCount = pendingDemoDecisions(
-    "sales-outbound",
+    "prospecting",
     hero.entries,
     decisions
   )
   const previousHeroApprovalCount = useRef(0)
   useEffect(() => {
     if (heroApprovalCount > previousHeroApprovalCount.current)
-      receive("sales-outbound")
+      receive("prospecting")
     previousHeroApprovalCount.current = heroApprovalCount
   }, [heroApprovalCount, receive])
   const lastHero = [...hero.entries]
@@ -181,17 +178,17 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
         <div className={styles.chatList}>
           {demoAgents
             .filter((agent) =>
-              `${agent.id === "new-bot" ? setupName : agent.id === "sales-outbound" ? "Sales Outbound" : agent.name} ${agent.preview}`
+              `${agent.id === "new-bot" ? setupName : agent.id === "prospecting" ? "Prospecting" : agent.name} ${agent.preview}`
                 .toLowerCase()
                 .includes(query.toLowerCase())
             )
             .map((agent) => {
-              const currentHero = agent.id === "sales-outbound"
+              const currentHero = agent.id === "prospecting"
               const currentSetup = agent.id === "new-bot"
               const name = currentSetup
                 ? setupName
                 : currentHero
-                  ? "Sales Outbound"
+                  ? "Prospecting"
                   : agent.name
               const latestReply = Object.values(replies)
                 .filter((reply) => reply.chatId === agent.id)
@@ -272,7 +269,7 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
               )
             })}
           {!demoAgents.some((agent) =>
-            `${agent.id === "new-bot" ? setupName : agent.id === "sales-outbound" ? "Sales Outbound" : agent.name} ${agent.preview}`
+            `${agent.id === "new-bot" ? setupName : agent.id === "prospecting" ? "Prospecting" : agent.name} ${agent.preview}`
               .toLowerCase()
               .includes(query.toLowerCase())
           ) && <p className={styles.empty}>No chats found.</p>}
@@ -345,7 +342,7 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
               />
             </div>
             {demoAgents.map((agent) => {
-              const currentHero = agent.id === "sales-outbound"
+              const currentHero = agent.id === "prospecting"
               const chatEntries = currentHero ? hero.entries : agent.entries
               return (
                 <div

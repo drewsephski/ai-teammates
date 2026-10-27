@@ -16,11 +16,11 @@ import {
 // lib/billing-policy.ts before changing one.
 
 /** Answer-first definition, about 60 words, for "what is Krafty Bot". */
-export const definition = `${productName} is a workspace of AI teammates you can give real work to. Each Bot has its own memory and working instructions, and all the Bots on your account share one persistent cloud computer with a desktop and browser. Bots use the apps you connect, research the web, run routines on a schedule, and keep working after you close your browser.`
+export const definition = `${productName} is an AI workspace where you hand Bots actual tasks, not just questions. Each Bot has its own memory and working instructions, and all the Bots on your account share one persistent cloud computer with a desktop and browser. Bots use the apps you connect, research the web, run routines on a schedule, and keep working after you close your browser.`
 
 /** One-line definition for the home page, beside the full `definition`. */
 export const definitionShort =
-  "AI teammates that share one cloud computer, use the apps you connect, and keep working after you log off."
+  "You tell a Bot what you need done. It works through the steps in your apps and on a cloud computer, keeps going after you log off, and checks with you before anything goes out."
 
 /** Each step's `summary` is its one-line version for the home page. */
 export const howItWorks = [

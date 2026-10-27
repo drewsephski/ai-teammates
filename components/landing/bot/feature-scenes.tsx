@@ -555,7 +555,7 @@ function CollaborationIllustration(playback: Playback) {
     >
       <div className={styles.teamBrief}>
         <span className={styles.teamEyebrow}>Launch team</span>
-        <span>One brief. Four teammates.</span>
+        <span>One brief. Four Bots.</span>
       </div>
       <ul className={styles.avatarRow} key={playback.run}>
         {TEAMMATES.map((teammate, index) => (

@@ -18,28 +18,28 @@ export function demoInvocationReply(
   )
     return "I’m still completing the approved action. I’ll confirm when it finishes."
   switch (bot.id) {
-    case "chief-of-staff":
-      return "The board deck review is at 2 PM. The venue availability request is sent; I’m waiting on the final quote before any booking commitment."
-    case "inbox-manager":
+    case "rundown":
+      return "Your 2 PM client call stays. I asked the dentist for Thursday afternoon, and their reply will be in tomorrow’s rundown."
+    case "inbox":
       return waiting
-        ? `I reviewed the 41 unread threads. ${waiting === 2 ? "The 26-thread archive and Dana’s renewal reply are both waiting for your review." : "There’s one remaining request for your review in my chat."}`
-        : "Both review requests are resolved. I completed the actions you approved and left declined actions undone. The remaining drafts are still held."
-    case "account-manager":
-      return "Acme renews in 60 days. There are 214 active seats, two open questions, and a renewal review scheduled with Vicky. The Globex re-engagement note is still a draft."
-    case "talent-scout":
-      return "I shortlisted 12 platform engineers and skipped the 11 people already in the ATS. Mara leads the list for her ingestion work; Tomás and Grace are also strong matches. The outreach drafts are ready to review."
-    case "expense-manager":
+        ? `I went through the 38 unread emails. ${waiting === 2 ? "The archive of 27 newsletters and your reply to Priya are both waiting for your review." : "There’s one request left for your review in my chat."}`
+        : "Both review requests are resolved. I did what you approved and left anything you declined alone. The other drafts are still waiting."
+    case "release-prep":
+      return "v1.4 has 2 blockers: the Safari login redirect loop and the failing migration test. The four nice-to-haves are in v1.5 now."
+    case "weekly-recap":
+      return "This week you shipped v1.3.2 and the new onboarding flow. Next up is Leo’s revised quote, then the two v1.4 blockers. I’ll remind you about Leo on Monday at 9 AM."
+    case "research":
       return waiting
-        ? "All 9 receipts are reconciled: $2,340 across 3 trips. The two Harbor Hotel charges are separate nights. The report is ready for your approval in my chat."
+        ? "The 14-inch with 32 GB of memory is the pick at about $1,800. Adding the 3 laptops to your Purchases sheet is waiting for your approval in my chat."
         : bot.entries.some(
               (entry, index) =>
                 entry.kind === "approval" &&
                 decisions[`${bot.id}:${index}`] === "denied"
             )
-          ? "The receipts are reconciled, but you declined submission. I’ve left the report unfiled."
-          : "The expense report is filed: 9 receipts, $2,340 across 3 trips. Both Harbor Hotel nights are accounted for."
-    case "sales-outbound":
-      return "I can research the prospect sheet, add account context, and draft outreach. Sending stays behind your review; the weekly workflow researches and drafts without automatically sending."
+          ? "You declined the sheet update, so I left your Purchases sheet unchanged. The comparison is still in our chat."
+          : "The 3 laptops are in your Purchases sheet with prices and sources. The 14-inch with 32 GB is still the pick."
+    case "prospecting":
+      return "I can find businesses that fit what you offer, check who you’ve already contacted, and draft a short intro for each. Sending always waits for your review; the Monday routine only researches and drafts."
     default:
       return "I can help turn this into clear next steps. Share the draft, notes, or constraints you want me to work from."
   }

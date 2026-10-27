@@ -21,8 +21,8 @@ afterEach(cleanup)
 
 test("demo conversations show product cards without making every bot wait", () => {
   for (const agent of demoAgents.filter((agent) => agent.id !== "new-bot")) {
-    const entries = agent.id === "sales-outbound" ? heroEntries : agent.entries
-    if (agent.id !== "talent-scout")
+    const entries = agent.id === "prospecting" ? heroEntries : agent.entries
+    if (agent.id !== "weekly-recap")
       assert.ok(
         entries.some(
           (entry) => entry.kind === "approval" || entry.kind === "email"
@@ -48,7 +48,7 @@ test("approval decisions and reset work locally with the real product card", asy
   await waitFor(() => view.getByText("Approved and done"))
   assert.ok(
     view.getByText(
-      "Sent the 10 approved messages. The other 26 drafts are still on hold."
+      "Sent the 10 intros from your Gmail. Replies will land in your inbox."
     )
   )
   await act(async () => {
@@ -114,10 +114,10 @@ test("setup waits for a role and explicit confirmation before naming the bot", a
 
 test("email approval shows the product sending state and prevents a second send", async () => {
   const entry = demoAgents
-    .find((agent) => agent.id === "inbox-manager")!
+    .find((agent) => agent.id === "inbox")!
     .entries.find((entry) => entry.kind === "email")!
   const view = await act(async () =>
-    render(<DemoApproval entry={entry} name="Inbox Manager" />)
+    render(<DemoApproval entry={entry} name="Inbox" />)
   )
   await act(async () => {
     fireEvent.click(view.getByRole("button", { name: "Send" }))
@@ -128,7 +128,7 @@ test("email approval shows the product sending state and prevents a second send"
     view.getByRole("button", { name: "Reset example" }).hasAttribute("disabled")
   )
   await waitFor(() => view.getByText("Sent"), { timeout: 2000 })
-  assert.ok(view.getByText("Sent to dana@acme.example."))
+  assert.ok(view.getByText("Sent to priya@northfieldstudio.example."))
   assert.equal(view.queryByRole("button", { name: "Send" }), null)
 })
 
@@ -137,7 +137,7 @@ const { useDemoInbox, pendingDemoDecisions } =
 
 test("reading clears unread while pending approvals stay, and background results become unread", () => {
   const { result } = renderHook(() => useDemoInbox())
-  const inbox = demoAgents.find((agent) => agent.id === "inbox-manager")!
+  const inbox = demoAgents.find((agent) => agent.id === "inbox")!
   const approvalIndex = inbox.entries.findIndex(
     (entry) => entry.kind === "approval"
   )
@@ -148,7 +148,7 @@ test("reading clears unread while pending approvals stay, and background results
     pendingDemoDecisions(inbox.id, inbox.entries, result.current.decisions),
     2
   )
-  act(() => result.current.selectChat("chief-of-staff"))
+  act(() => result.current.selectChat("rundown"))
   assert.equal(result.current.unread[inbox.id], false)
   act(() =>
     result.current.recordDecision(`${inbox.id}:${approvalIndex}`, "executed")
@@ -168,7 +168,7 @@ test("reading clears unread while pending approvals stay, and background results
 
 test("a setup question arriving in another chat is unread and waiting for a response", () => {
   const { result } = renderHook(() => useDemoInbox())
-  act(() => result.current.selectChat("inbox-manager"))
+  act(() => result.current.selectChat("inbox"))
   act(() => result.current.reportSetupWaiting(true))
   assert.equal(result.current.unread["new-bot"], true)
   assert.equal(result.current.setupWaiting, true)
@@ -179,40 +179,27 @@ test("a setup question arriving in another chat is unread and waiting for a resp
   assert.equal(result.current.setupWaiting, false)
 })
 
-test("only inbox and expenses start with approvals waiting", () => {
+test("only inbox and research start with approvals waiting", () => {
   const waiting = demoAgents
     .filter((agent) => pendingDemoDecisions(agent.id, agent.entries, {}) > 0)
     .map((agent) => agent.id)
-  assert.deepEqual(waiting, ["inbox-manager", "expense-manager"])
+  assert.deepEqual(waiting, ["inbox", "research"])
 })
 
 test("confirmation replies belong to the right chat and preserve completion order", () => {
   const { result } = renderHook(() => useDemoInbox())
   act(() =>
-    result.current.recordReply(
-      "inbox-manager:4",
-      "Archived the threads.",
-      "Inbox Manager"
-    )
+    result.current.recordReply("inbox:4", "Archived the threads.", "Inbox")
   )
-  act(() =>
-    result.current.recordReply(
-      "inbox-manager:5",
-      "Sent to Dana.",
-      "Inbox Manager"
-    )
-  )
+  act(() => result.current.recordReply("inbox:5", "Sent to Priya.", "Inbox"))
   assert.deepEqual(
     Object.values(result.current.replies).map((reply) => reply.text),
-    ["Archived the threads.", "Sent to Dana."]
+    ["Archived the threads.", "Sent to Priya."]
   )
-  assert.equal(
-    result.current.replies["inbox-manager:5"].chatId,
-    "inbox-manager"
-  )
-  assert.equal(result.current.unread["inbox-manager"], true)
-  act(() => result.current.recordReply("inbox-manager:4", "", "Inbox Manager"))
-  assert.equal(result.current.replies["inbox-manager:4"], undefined)
+  assert.equal(result.current.replies["inbox:5"].chatId, "inbox")
+  assert.equal(result.current.unread["inbox"], true)
+  act(() => result.current.recordReply("inbox:4", "", "Inbox"))
+  assert.equal(result.current.replies["inbox:4"], undefined)
 })
 
 const { DemoAvatar } =
@@ -223,14 +210,14 @@ const { DemoResponse, demoResponseAgent } =
   await import("../components/landing/bot/chat-demo-response")
 
 test("header, activity, and response avatars share the same bot identity", async () => {
-  const agent = demoAgents.find((agent) => agent.id === "inbox-manager")!
+  const agent = demoAgents.find((agent) => agent.id === "inbox")!
   const view = await act(async () =>
     render(
       <>
         <DemoAvatar agent={agent} size={18} />
         <DemoActivity name={agent.name} agent={agent} />
         <DemoResponse name={agent.name} agent={agent}>
-          Sent to Dana.
+          Sent to Priya.
         </DemoResponse>
       </>
     )
@@ -245,7 +232,7 @@ test("header, activity, and response avatars share the same bot identity", async
   const setup = demoAgents.find((agent) => agent.id === "new-bot")!
   assert.equal(demoResponseAgent("Researcher", setup).id, setup.id)
   const group = demoAgents.find((agent) => agent.group)!
-  assert.equal(demoResponseAgent("Inbox Manager", group).id, agent.id)
+  assert.equal(demoResponseAgent("Inbox", group).id, agent.id)
 })
 
 const { DemoComposer } =
@@ -264,7 +251,7 @@ test("@ picker filters teammates, supports Enter selection, and submits a real m
     render(
       <DemoComposer
         bots={demoAgents.filter((bot) => !bot.group)}
-        name="Chief"
+        name="Rundown"
         disabled={false}
         onSend={(text, mentions) => {
           sent = { text, mentions }
@@ -273,23 +260,23 @@ test("@ picker filters teammates, supports Enter selection, and submits a real m
     )
   )
   const input = view.getByRole("textbox", {
-    name: "Message Chief",
+    name: "Message Rundown",
   }) as HTMLTextAreaElement
-  fireEvent.change(input, { target: { value: "@Inbox", selectionStart: 6 } })
+  fireEvent.change(input, { target: { value: "@Release", selectionStart: 8 } })
   assert.ok(view.getByRole("listbox", { name: "Mention a teammate" }))
   assert.equal(view.getAllByRole("option").length, 1)
   fireEvent.keyDown(input, { key: "Enter" })
-  assert.equal(input.value, "@Inbox Manager ")
+  assert.equal(input.value, "@Release Prep ")
   const text = input.value + "what needs review?"
   fireEvent.change(input, {
     target: { value: text, selectionStart: text.length },
   })
   fireEvent.keyDown(input, { key: "Enter" })
   assert.equal(sent?.text, text)
-  assert.equal(sent?.mentions[0].botId, "inbox-manager")
+  assert.equal(sent?.mentions[0].botId, "release-prep")
   assert.equal(
     text.slice(sent!.mentions[0].start, sent!.mentions[0].end),
-    "@Inbox Manager"
+    "@Release Prep"
   )
   assert.equal(input.value, "")
 })
@@ -306,33 +293,33 @@ test("invoked teammates respond in the current conversation with their own ident
       messages.push({ chatId, text, kind, botId: bot.id })
     )
   )
-  const text = "@Talent Scout who is on the shortlist?"
+  const text = "@Weekly Recap what should I do first?"
   let work: Promise<void>
   act(() => {
     work = result.current.send(
-      "chief-of-staff",
+      "rundown",
       text,
-      [{ botId: "talent-scout", start: 0, end: "@Talent Scout".length }],
+      [{ botId: "weekly-recap", start: 0, end: "@Weekly Recap".length }],
       demoAgents,
       {}
     )
   })
-  assert.equal(result.current.pending["chief-of-staff"]?.id, "talent-scout")
+  assert.equal(result.current.pending["rundown"]?.id, "weekly-recap")
   assert.equal(messages[0].kind, "user")
   await act(async () => {
     await work!
   })
-  assert.equal(messages[1].chatId, "chief-of-staff")
-  assert.equal(messages[1].botId, "talent-scout")
-  assert.match(messages[1].text, /Mara/)
-  assert.equal(result.current.pending["chief-of-staff"], undefined)
+  assert.equal(messages[1].chatId, "rundown")
+  assert.equal(messages[1].botId, "weekly-recap")
+  assert.match(messages[1].text, /Leo/)
+  assert.equal(result.current.pending["rundown"], undefined)
 })
 
-test("a declined expense report is never described as filed", () => {
-  const expense = demoAgents.find((bot) => bot.id === "expense-manager")!
-  const index = expense.entries.findIndex((entry) => entry.kind === "approval")
+test("a declined sheet update is never described as done", () => {
+  const research = demoAgents.find((bot) => bot.id === "research")!
+  const index = research.entries.findIndex((entry) => entry.kind === "approval")
   assert.match(
-    demoInvocationReply(expense, { [`${expense.id}:${index}`]: "denied" }),
-    /left the report unfiled/
+    demoInvocationReply(research, { [`${research.id}:${index}`]: "denied" }),
+    /left your Purchases sheet unchanged/
   )
 })

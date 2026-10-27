@@ -13,18 +13,18 @@ import styles from "./how-it-works-steps.module.css"
 import { StepsInView } from "./steps-in-view"
 
 // Example requests, each something a Bot can do today: email and calendar
-// through connected apps, web research, routines, Slack, Docs and GitHub.
+// through connected apps, web research, routines, Stripe, Docs and GitHub.
 const promptRows = [
   [
     "Draft replies to my unread emails",
-    "Research these 10 companies",
-    "Every Monday, update the pipeline sheet",
+    "Find 10 businesses that need a new site",
+    "Every Friday, recap my week",
   ],
   [
-    "Find a time for a call with Sam",
-    "Summarize my Slack mentions",
+    "Find a time for a call with Leo",
+    "Chase my overdue invoices",
     "Turn this doc into a launch checklist",
-    "Tidy up our open GitHub issues",
+    "What’s blocking the next release?",
   ],
 ] as const
 
@@ -130,8 +130,8 @@ function ApprovalStage() {
   return (
     <div className={`${styles.stage} ${styles.approval}`}>
       <div className={styles.email}>
-        <p className={styles.emailFrom}>Inbox Manager wants to send</p>
-        <p className={styles.emailSubject}>Re: Thursday’s numbers</p>
+        <p className={styles.emailFrom}>Inbox wants to send</p>
+        <p className={styles.emailSubject}>Re: Launch date</p>
         <span className={styles.emailLine} />
         <span className={`${styles.emailLine} ${styles.short}`} />
         <div className={styles.emailActions}>
