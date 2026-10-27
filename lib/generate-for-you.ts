@@ -12,7 +12,7 @@ import {
   type ForYouFeedback,
   type ForYouRecord,
 } from "@/lib/for-you"
-import { chatModelCost, followUpModel } from "@/lib/model"
+import { chatModelBound, followUpModel } from "@/lib/model"
 
 // Ceiling for one scan, in millionths of a dollar. A typical scan is one
 // ranking call over ~8k tokens, plus a short exploration for uncommon apps.
@@ -92,7 +92,11 @@ export async function generateForYou({
   context: ForYouContext
   model?: LanguageModel
   signal: AbortSignal
-  onUsage: (usage: LanguageModelUsage, step: number) => Promise<void>
+  onUsage: (
+    usage: LanguageModelUsage,
+    step: number,
+    modelId: string
+  ) => Promise<void>
 }) {
   const shown = selectRecords(records, context.feedback.excluded)
   if (!shown.length) return []
@@ -130,7 +134,7 @@ export async function generateForYou({
   }
   const inputTokens =
     new TextEncoder().encode(JSON.stringify(input)).length + 3000
-  const bound = chatModelCost({
+  const bound = chatModelBound({
     inputTokens,
     outputTokens: 3000,
     totalTokens: inputTokens + 3000,
@@ -175,7 +179,8 @@ Rules:
     // The gateway rate-limits per minute; a short retry beats failing the scan
     maxRetries: 2,
     abortSignal: signal,
-    onStepEnd: async ({ usage, stepNumber }) => onUsage(usage, stepNumber),
+    onStepEnd: async ({ usage, stepNumber, model }) =>
+      onUsage(usage, stepNumber, model.modelId),
   })
   await result.text
   if ((await result.finishReason) !== "stop")

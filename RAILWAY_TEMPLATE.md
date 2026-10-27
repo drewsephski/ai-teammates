@@ -28,6 +28,7 @@ This template deploys one service: the Next.js app, built from the [public repos
 | --------------- | -------------------------------------------------------------- | -------- |
 | **Clerk**       | Sign-in, plus Billing for plans and feature gates              | Yes      |
 | **Neon**        | Postgres, and the AI Gateway the chat model is called through  | Yes      |
+| **Anthropic**   | Claude Haiku 5.5, tried before the AI Gateway when set         | Optional |
 | **E2B Hobby**     | One cloud sandbox per bot: shell, files and a desktop          | Yes      |
 | **Trigger.dev** | Runs the chat agent and the task that meters running sandboxes | Yes      |
 | **Sentry**      | Errors, traces, session replays and logs                       | Optional |
@@ -42,6 +43,7 @@ Railway asks for these when you deploy.
 | `DATABASE_URL`                                          | Neon, the pooled connection string                    |
 | `DATABASE_URL_UNPOOLED`                                 | Neon, the direct connection string                    |
 | `NEON_AI_GATEWAY_BASE_URL`, `NEON_AI_GATEWAY_TOKEN`     | Neon, your AI Gateway                                 |
+| `ANTHROPIC_API_KEY`                                     | Optional. Anthropic Console, under API keys           |
 | `E2B_API_KEY`                                       | E2B console (Hobby plan)                                     |
 | `TRIGGER_SECRET_KEY`                                    | Trigger.dev, your project's **production** secret key |
 | The four `SENTRY` variables                             | Optional. Leave them empty and nothing is reported    |
@@ -73,7 +75,7 @@ Add your project's ref to `.env.local` as `TRIGGER_PROJECT_REF`, then:
 pnpm dlx trigger.dev@4.7.4 deploy --env prod --env-file .env.local
 ```
 
-In Trigger.dev, add these to the project's production environment: `DATABASE_URL`, `CLERK_SECRET_KEY`, `E2B_API_KEY`, `NEON_AI_GATEWAY_BASE_URL` and `NEON_AI_GATEWAY_TOKEN`. Add `NEXT_PUBLIC_SENTRY_DSN` too if you use Sentry.
+In Trigger.dev, add these to the project's production environment: `DATABASE_URL`, `CLERK_SECRET_KEY`, `E2B_API_KEY`, `NEON_AI_GATEWAY_BASE_URL` and `NEON_AI_GATEWAY_TOKEN`. Add `ANTHROPIC_API_KEY` if you set it on Railway, and `NEXT_PUBLIC_SENTRY_DSN` if you use Sentry.
 
 **3. Set up billing in Clerk**
 

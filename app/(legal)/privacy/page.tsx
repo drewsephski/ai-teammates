@@ -13,7 +13,7 @@ export default function PrivacyPage() {
   return (
     <article>
       <h1>Privacy policy</h1>
-      <p>Last updated: October 17, 2026</p>
+      <p>Last updated: October 26, 2026</p>
       <p>
         Krafty provides AI teammates, connected tools, and cloud computers. This
         policy describes how information is handled when you use kraftybot.app
@@ -88,16 +88,16 @@ export default function PrivacyPage() {
         Operating Krafty requires sharing relevant information with service
         providers. These include Clerk for authentication and subscription
         management, Stripe for payments, Railway for app hosting, Neon for
-        database and AI gateway services, Trigger.dev for background tasks and
-        conversations, E2B for cloud computers, Composio for connected tools,
-        and Sentry for diagnostics.
+        database and AI gateway services, Anthropic for AI models, Trigger.dev
+        for background tasks and conversations, E2B for cloud computers,
+        Composio for connected tools, and Sentry for diagnostics.
       </p>
       <p>
         Messages, instructions, relevant conversation context, tool results, and
         files or screenshots needed for your request may be processed by AI
-        model providers through our AI gateway. Providers process this
-        information under their own applicable terms and privacy policies. Avoid
-        submitting information you are not authorized to share.
+        model providers, directly or through our AI gateway. Providers process
+        this information under their own applicable terms and privacy policies.
+        Avoid submitting information you are not authorized to share.
       </p>
       <p>
         The mobile app asks for permission before enabling AI features. You can

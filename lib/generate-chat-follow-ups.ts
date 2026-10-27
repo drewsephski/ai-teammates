@@ -32,7 +32,7 @@ export async function generateChatFollowUps({
     webSearch: boolean
   }
   signal: AbortSignal
-  onUsage: (usage: LanguageModelUsage) => Promise<void>
+  onUsage: (usage: LanguageModelUsage, modelId: string) => Promise<void>
 }) {
   const result = streamText({
     model,
@@ -51,7 +51,7 @@ export async function generateChatFollowUps({
     output: Output.object({ schema: followUpsSchema }),
     maxRetries: 0,
     abortSignal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
-    onStepEnd: async ({ usage }) => onUsage(usage),
+    onStepEnd: async ({ usage, model }) => onUsage(usage, model.modelId),
   })
   await result.text
   const finishReason = await result.finishReason

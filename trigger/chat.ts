@@ -668,8 +668,8 @@ export const chatAgent = chat
               connectedApps: !!process.env.COMPOSIO_API_KEY,
               webSearch: !!process.env.TAVILY_API_KEY?.trim(),
             },
-            onUsage: async (usage) => {
-              const cost = chatModelCost(usage)
+            onUsage: async (usage, modelId) => {
+              const cost = chatModelCost(usage, modelId)
               if (cost > 0)
                 await recordUsage([
                   {
