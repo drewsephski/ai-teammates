@@ -100,14 +100,14 @@ export default function PrivacyPage() {
         Messages, instructions, relevant conversation context, saved memories,
         tool results, information from connected apps used for your request or
         for suggestions, and files or screenshots needed for your request are
-        processed by AI model providers. Krafty sends them to Anthropic (Claude)
-        first. If Anthropic is unavailable, they go through Neon’s AI gateway,
-        whose models are hosted by Databricks: currently GLM, a Z.ai model, for
-        text, and GPT from OpenAI when the request includes an image. Saved
-        memories are also turned into search data by an embedding model through
-        the same gateway. Providers process this information under their own
-        applicable terms and privacy policies. Avoid submitting information you
-        are not authorized to share.
+        processed by AI model providers: Anthropic (Claude), and Neon’s AI
+        gateway, whose models are hosted by Databricks. The gateway currently
+        uses GLM, a Z.ai model, for text, and GPT from OpenAI when the request
+        includes an image. Anthropic answers when it is available, and the
+        gateway answers otherwise. Saved memories are also turned into search
+        data by an embedding model through the same gateway. Providers process
+        this information under their own applicable terms and privacy policies.
+        Avoid submitting information you are not authorized to share.
       </p>
       <p>
         The mobile app asks for permission before enabling AI features. You can
