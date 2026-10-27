@@ -10,7 +10,7 @@ import {
   type MorningSummarySettings,
 } from "@/db/schema"
 import { listPendingApprovals } from "@/services/approvals"
-import { listRoutines } from "@/lib/routines"
+import { listRoutines } from "@/services/routines"
 
 // Everything the person's bots are doing on their own: requests waiting for a
 // decision, scheduled routines, and what happened recently.

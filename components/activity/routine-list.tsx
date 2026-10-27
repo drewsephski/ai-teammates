@@ -2,8 +2,8 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { PlayIcon, Trash2Icon } from "lucide-react"
-import { formatDistanceToNowStrict } from "date-fns"
+import { ChevronDownIcon, PlayIcon, Trash2Icon } from "lucide-react"
+import { format, formatDistanceToNowStrict } from "date-fns"
 
 import { deleteRoutine, runRoutineNow, updateRoutine } from "@/actions/routines"
 import { ChatAvatar } from "@/components/chat-avatar"
@@ -23,9 +23,61 @@ import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "@/components/ui/toast"
 import type { Bot } from "@/db/schema"
-import type { PublicRoutine } from "@/lib/routines"
+import type { PublicRoutine, PublicRoutineRun } from "@/lib/routines"
+import { formatSpend } from "@/lib/turn-spend"
+import { cn } from "@/lib/utils"
 
 type RoutineBot = Pick<Bot, "id" | "name" | "avatar">
+type RoutineWithRuns = PublicRoutine & { recentRuns?: PublicRoutineRun[] }
+
+const runStatusLabels: Record<PublicRoutineRun["status"], string> = {
+  started: "Running",
+  completed: "Done",
+  blocked: "Waiting for you",
+  failed: "Didn't finish",
+  skipped: "Skipped",
+}
+
+function RunList({ id, runs }: { id: string; runs: PublicRoutineRun[] }) {
+  return (
+    <ul
+      id={id}
+      className="flex flex-col gap-1.5 border-t border-border/60 pt-3"
+    >
+      {runs.map((run) => (
+        <li
+          key={run.id}
+          className="flex items-baseline gap-3 text-xs text-muted-foreground"
+        >
+          <time
+            dateTime={new Date(run.scheduledAt).toISOString()}
+            className="w-32 shrink-0 tabular-nums"
+          >
+            {format(run.scheduledAt, "EEE, MMM d, h:mm a")}
+          </time>
+          <span className="min-w-0 flex-1 truncate">
+            <span
+              className={cn(
+                run.status === "completed" ? "text-foreground" : undefined
+              )}
+            >
+              {runStatusLabels[run.status]}
+            </span>
+            {run.detail ? ` · ${run.detail}` : ""}
+          </span>
+          {run.spent > 0 && (
+            <span
+              className="shrink-0 tabular-nums"
+              title="AI allowance this run used, after any credit"
+            >
+              {formatSpend(run.spent)}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 function lastRun(routine: PublicRoutine) {
   if (!routine.lastRunAt) return "Hasn't run yet"
@@ -52,10 +104,13 @@ function RoutineRow({
   routine,
   bot,
 }: {
-  routine: PublicRoutine
+  routine: RoutineWithRuns
   bot?: RoutineBot
 }) {
   const [busy, setBusy] = useState<"toggle" | "run" | "delete">()
+  const [showRuns, setShowRuns] = useState(false)
+  const runs = routine.recentRuns ?? []
+  const runsId = `routine-runs-${routine.id}`
 
   async function toggle(enabled: boolean) {
     setBusy("toggle")
@@ -121,90 +176,117 @@ function RoutineRow({
   }
 
   return (
-    <li className="flex flex-col gap-3 rounded-2xl bg-muted/60 p-4 sm:flex-row sm:items-center">
-      <Link
-        href={`/chats/${routine.chatId}`}
-        className="flex min-w-0 flex-1 items-start gap-3 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {bot && (
-          <ChatAvatar seed={bot.avatar} identity={bot.id} className="size-8" />
-        )}
-        <div className="min-w-0 space-y-0.5">
-          <p className="truncate text-sm font-medium">{routine.title}</p>
-          <p className="text-xs text-muted-foreground">
-            {bot ? `${bot.name} · ` : ""}
-            {routine.description} · {routine.timezone.replaceAll("_", " ")}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {routine.enabled && routine.nextRunAt
-              ? `Next ${formatDistanceToNowStrict(routine.nextRunAt, { addSuffix: true })} · `
-              : routine.enabled
-                ? ""
-                : "Paused · "}
-            {lastRun(routine)}
-          </p>
-        </div>
-      </Link>
-      <div className="flex items-center gap-1 self-end sm:self-center">
-        <Switch
-          checked={routine.enabled}
-          disabled={!!busy}
-          onCheckedChange={(checked) => void toggle(checked)}
-          aria-label={
-            routine.enabled
-              ? `Pause ${routine.title}`
-              : `Resume ${routine.title}`
-          }
-          className="mr-2"
-        />
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          disabled={!!busy}
-          aria-label={`Run ${routine.title} now`}
-          onClick={() => void run()}
+    <li className="flex flex-col gap-3 rounded-2xl bg-muted/60 p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <Link
+          href={`/chats/${routine.chatId}`}
+          className="flex min-w-0 flex-1 items-start gap-3 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          {busy === "run" ? <Spinner /> : <PlayIcon />}
-        </Button>
-        <AlertDialog>
-          <AlertDialogTrigger
-            render={
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                disabled={!!busy}
-                aria-label={`Delete ${routine.title}`}
-              />
+          {bot && (
+            <ChatAvatar
+              seed={bot.avatar}
+              identity={bot.id}
+              className="size-8"
+            />
+          )}
+          <div className="min-w-0 space-y-0.5">
+            <p className="truncate text-sm font-medium">{routine.title}</p>
+            <p className="text-xs text-muted-foreground">
+              {bot ? `${bot.name} · ` : ""}
+              {routine.description} · {routine.timezone.replaceAll("_", " ")}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {routine.enabled && routine.nextRunAt
+                ? `Next ${formatDistanceToNowStrict(routine.nextRunAt, { addSuffix: true })} · `
+                : routine.enabled
+                  ? ""
+                  : "Paused · "}
+              {lastRun(routine)}
+            </p>
+          </div>
+        </Link>
+        <div className="flex items-center gap-1 self-end sm:self-center">
+          <Switch
+            checked={routine.enabled}
+            disabled={!!busy}
+            onCheckedChange={(checked) => void toggle(checked)}
+            aria-label={
+              routine.enabled
+                ? `Pause ${routine.title}`
+                : `Resume ${routine.title}`
             }
+            className="mr-2"
+          />
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            disabled={!!busy}
+            aria-label={`Run ${routine.title} now`}
+            onClick={() => void run()}
           >
-            <Trash2Icon />
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete {routine.title}?</AlertDialogTitle>
-              <AlertDialogDescription>
-                The bot stops doing this. Its earlier reports stay in the chat.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={busy === "delete"}>
-                Cancel
-              </AlertDialogCancel>
-              <AlertDialogAction
-                type="button"
-                variant="destructive"
-                disabled={busy === "delete"}
-                onClick={() => void remove()}
-              >
-                {busy === "delete" && <Spinner data-icon="inline-start" />}
-                Delete routine
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+            {busy === "run" ? <Spinner /> : <PlayIcon />}
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger
+              render={
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  disabled={!!busy}
+                  aria-label={`Delete ${routine.title}`}
+                />
+              }
+            >
+              <Trash2Icon />
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete {routine.title}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  The bot stops doing this. Its earlier reports stay in the
+                  chat.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={busy === "delete"}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  type="button"
+                  variant="destructive"
+                  disabled={busy === "delete"}
+                  onClick={() => void remove()}
+                >
+                  {busy === "delete" && <Spinner data-icon="inline-start" />}
+                  Delete routine
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
+      {runs.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="w-fit text-muted-foreground"
+            aria-expanded={showRuns}
+            aria-controls={runsId}
+            onClick={() => setShowRuns((shown) => !shown)}
+          >
+            Recent runs
+            <ChevronDownIcon
+              data-icon="inline-end"
+              className={cn("transition-transform", showRuns && "rotate-180")}
+            />
+          </Button>
+          {showRuns && <RunList id={runsId} runs={runs} />}
+        </div>
+      )}
     </li>
   )
 }
@@ -213,7 +295,7 @@ export function RoutineList({
   routines,
   bots,
 }: {
-  routines: PublicRoutine[]
+  routines: RoutineWithRuns[]
   bots: RoutineBot[]
 }) {
   if (!routines.length)

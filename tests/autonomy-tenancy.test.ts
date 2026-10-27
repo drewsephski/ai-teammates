@@ -107,6 +107,11 @@ test("B can't see, change, run or delete A's routine", async () => {
   )
   await assert.rejects(routines.runRoutineNow(B, mine.id), /Routine not found/)
   await assert.rejects(routines.deleteRoutine(B, mine.id), /Routine not found/)
+  await assert.rejects(
+    routines.listRoutineRuns(B, mine.id),
+    /Routine not found/
+  )
+  assert.deepEqual(await routines.listRoutineRuns(A, mine.id), [])
   const [still] = await routines.listRoutines(A)
   assert.equal(still.enabled, true)
 })

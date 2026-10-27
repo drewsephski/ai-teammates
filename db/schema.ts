@@ -565,6 +565,36 @@ export const routines = pgTable(
   ]
 )
 
+// One row per run of a routine, newest first on the Activity page. Keyed by
+// the run's message ID (routineRunMessageId), so a retried dispatch or a
+// repeated report writes the same row. Cascades with its routine.
+export const routineRuns = pgTable(
+  "routine_runs",
+  {
+    id: text().primaryKey(),
+    routineId: text()
+      .notNull()
+      .references(() => routines.id, { onDelete: "cascade" }),
+    // Clerk user ID
+    userId: text().notNull(),
+    scheduledAt: timestamp({ withTimezone: true }).notNull(),
+    status: text({
+      enum: ["started", "skipped", "failed", "completed", "blocked"],
+    }).notNull(),
+    detail: text(),
+    // AI allowance the run's turns used, net of credits, in millionths of a
+    // dollar, and the turn keys already counted in it
+    spent: integer().notNull().default(0),
+    spentKeys: text().array().notNull().default([]),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("routine_runs_routine_idx").on(table.routineId, table.scheduledAt),
+    index("routine_runs_user_idx").on(table.userId, table.scheduledAt),
+  ]
+)
+
 export const approvalState = pgEnum("approval_state", [
   "pending",
   "approved",

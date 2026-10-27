@@ -15,6 +15,7 @@ import {
   ne,
   notInArray,
   or,
+  sql,
 } from "drizzle-orm"
 
 import { db } from "@/db"
@@ -24,6 +25,7 @@ import {
   chatMembers,
   chats,
   routineInsertSchema,
+  routineRuns,
   routineUpdateSchema,
   routines,
   userSettings,
@@ -295,6 +297,121 @@ const liveRunDeps: RoutineRunDeps = {
   check: checkRoutineRun,
 }
 
+type RunStatus = (typeof routineRuns.$inferSelect)["status"]
+
+// Writes one run's row. `onlyFrom` makes the write conditional on the row's
+// current status, the way the routine's own lastStatus writes are, so a
+// retry never overwrites an outcome that's already in.
+async function saveRun(
+  run: { routine: Pick<Routine, "id" | "userId">; scheduledAt: Date },
+  status: RunStatus,
+  detail: string | null,
+  onlyFrom?: RunStatus[]
+) {
+  const id = routineRunMessageId(run.routine.id, run.scheduledAt)
+  await db
+    .insert(routineRuns)
+    .values({
+      id,
+      routineId: run.routine.id,
+      userId: run.routine.userId,
+      scheduledAt: run.scheduledAt,
+      status,
+      detail,
+    })
+    .onConflictDoUpdate({
+      target: routineRuns.id,
+      set: { status, detail, updatedAt: new Date() },
+      ...(onlyFrom && { setWhere: inArray(routineRuns.status, onlyFrom) }),
+    })
+}
+
+// Adds what a turn of a run spent, once per turn key: a run's continuation
+// and approval turns add theirs to the same run
+export async function addRoutineRunSpend(
+  userId: string,
+  messageId: string | undefined,
+  turnKey: string,
+  amount: number
+) {
+  const run = parseRoutineRunMessageId(messageId)
+  if (!run || amount <= 0) return
+  await db
+    .update(routineRuns)
+    .set({
+      spent: sql`${routineRuns.spent} + ${Math.round(amount)}`,
+      spentKeys: sql`array_append(${routineRuns.spentKeys}, ${turnKey})`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(routineRuns.id, routineRunMessageId(run.routineId, run.scheduledAt)),
+        eq(routineRuns.userId, userId),
+        sql`not (${turnKey} = any(${routineRuns.spentKeys}))`
+      )
+    )
+}
+
+export type PublicRoutineRun = {
+  id: string
+  scheduledAt: Date
+  status: RunStatus
+  detail: string | null
+  spent: number
+}
+
+// The latest runs of the person's routines, `perRoutine` each, newest first
+export async function recentRoutineRuns(
+  userId: string,
+  options: { routineId?: string; perRoutine?: number } = {}
+) {
+  const perRoutine = options.perRoutine ?? 5
+  const rows = await db
+    .select({
+      id: routineRuns.id,
+      routineId: routineRuns.routineId,
+      scheduledAt: routineRuns.scheduledAt,
+      status: routineRuns.status,
+      detail: routineRuns.detail,
+      spent: routineRuns.spent,
+    })
+    .from(routineRuns)
+    .where(
+      and(
+        eq(routineRuns.userId, userId),
+        options.routineId
+          ? eq(routineRuns.routineId, options.routineId)
+          : undefined
+      )
+    )
+    .orderBy(desc(routineRuns.scheduledAt))
+    .limit(options.routineId ? perRoutine : 500)
+  const byRoutine = new Map<string, PublicRoutineRun[]>()
+  for (const { routineId, ...run } of rows) {
+    const list = byRoutine.get(routineId) ?? []
+    if (list.length < perRoutine) list.push(run)
+    byRoutine.set(routineId, list)
+  }
+  return byRoutine
+}
+
+// One routine's runs, for its owner only
+export async function listRoutineRuns(
+  userId: string,
+  routineId: string,
+  limit = 20
+) {
+  await ownedRoutine(userId, routineId)
+  return (
+    (
+      await recentRoutineRuns(userId, {
+        routineId,
+        perRoutine: Math.min(Math.max(limit, 1), 50),
+      })
+    ).get(routineId) ?? []
+  )
+}
+
 // Posts one run into the routine's chat, after the checks a person's own
 // message would pass. Returns what happened, and never throws for the owner's
 // plan or allowance: those are recorded as a skipped run. lastRunAt is the
@@ -311,6 +428,7 @@ export async function runRoutine(
       .update(routines)
       .set({ lastStatus: "skipped", lastError: reason, lastRunAt: scheduledAt })
       .where(eq(routines.id, routine.id))
+    await saveRun({ routine, scheduledAt }, "skipped", reason)
     await recordActivity(
       {
         userId: routine.userId,
@@ -350,6 +468,11 @@ export async function runRoutine(
         )
       )
     )
+  await saveRun({ routine, scheduledAt }, "started", null, [
+    "started",
+    "failed",
+    "skipped",
+  ])
 
   try {
     await deps.post(
@@ -373,6 +496,12 @@ export async function runRoutine(
           eq(routines.lastStatus, "started")
         )
       )
+    await saveRun(
+      { routine, scheduledAt },
+      "failed",
+      "Couldn't start the run.",
+      ["started"]
+    )
     await recordActivity({
       userId: routine.userId,
       kind: "routine_failed",
@@ -405,6 +534,21 @@ export async function recordRoutineRunOutcome(
 ) {
   const run = parseRoutineRunMessageId(messageId)
   if (!run) return { updated: false as const }
+  // The run's own row, even when a newer run has started since
+  await db
+    .update(routineRuns)
+    .set({
+      status: outcome.status,
+      detail: routineOutcomeError(outcome),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(routineRuns.id, routineRunMessageId(run.routineId, run.scheduledAt)),
+        eq(routineRuns.userId, userId),
+        ne(routineRuns.status, "skipped")
+      )
+    )
   const rows = await db
     .update(routines)
     .set({
@@ -495,6 +639,11 @@ export async function dispatchDueRoutines(
     try {
       if (claimed.action === "missed") {
         results.missed = (results.missed ?? 0) + 1
+        await saveRun(
+          { routine: row, scheduledAt: dueAt },
+          "skipped",
+          MISSED_RUN_ERROR
+        )
         // Quiet on purpose: after an outage this could be every routine
         await recordActivity({
           userId: row.userId,
@@ -655,7 +804,15 @@ export async function closeStoppedRoutineRuns(
           })
           .where(stillStarted)
           .returning({ id: routines.id })
-        if (settled.length) result.settled++
+        if (settled.length) {
+          result.settled++
+          await saveRun(
+            { routine, scheduledAt },
+            reported,
+            routineOutcomeError({ status: reported }),
+            ["started"]
+          )
+        }
         continue
       }
 
@@ -666,6 +823,9 @@ export async function closeStoppedRoutineRuns(
         .returning({ id: routines.id })
       if (!stopped.length) continue
       result.stopped++
+      await saveRun({ routine, scheduledAt }, "failed", STOPPED_RUN_ERROR, [
+        "started",
+      ])
       const title = `${routine.title} didn't finish`
       await recordActivity(
         {

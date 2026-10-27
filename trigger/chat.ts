@@ -42,6 +42,7 @@ import {
   createRoutine,
   deleteRoutine,
   listRoutines,
+  addRoutineRunSpend,
   recordRoutineRunOutcome,
   savedTimeZone,
   updateRoutine,
@@ -932,6 +933,16 @@ export const chatAgent = chat
       if (row)
         await settleTurnUsage({ failed }).catch((creditError: unknown) =>
           Sentry.captureException(creditError, { extra: { chatId, turn } })
+        )
+      // A routine run's history shows what all of its turns spent
+      if (row)
+        await addRoutineRunSpend(
+          row.userId,
+          turnModelUsage.originMessageId,
+          `ai:${runId}:${turn}`,
+          turnSpend() - turnModelUsage.credited
+        ).catch((spendError: unknown) =>
+          Sentry.captureException(spendError, { extra: { chatId, turn } })
         )
 
       // A task cut off by the step or time cap carries on in a new turn, so
