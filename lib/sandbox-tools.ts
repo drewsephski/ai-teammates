@@ -477,6 +477,8 @@ export type ChatDataParts = {
     botId: string
     suggestions: import("@/lib/chat-follow-ups").ChatFollowUp[]
   }
+  // What the reply spent, any credit, and why it stopped early
+  turnUsage: import("@/lib/turn-spend").TurnUsage
 }
 export type ChatUIMessage = UIMessage<
   ChatMessageMetadata,

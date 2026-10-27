@@ -57,6 +57,7 @@ import { ChatQuestion } from "@/components/chat-question"
 import { useOptionalDesktopPanel } from "@/components/desktop-panel"
 import { ChatFollowUps } from "@/components/chat-follow-ups"
 import { ChatMessageActions } from "@/components/chat-message-actions"
+import { turnUsageNote } from "@/lib/turn-spend"
 import { sectionText } from "@/lib/chat-export"
 import { latestFollowUps } from "@/lib/chat-follow-ups"
 import { Button } from "@/components/ui/button"
@@ -589,7 +590,15 @@ function ChatMessages({
                   return null
                 })
 
-                if (!renderedParts.some(Boolean)) return null
+                const usagePart = parts.findLast(
+                  (part) => part.type === "data-turnUsage"
+                )
+                const usage =
+                  usagePart?.type === "data-turnUsage"
+                    ? usagePart.data
+                    : undefined
+                const usageNote = usage && turnUsageNote(usage)
+                if (!renderedParts.some(Boolean) && !usageNote) return null
                 // A reply still streaming in isn't ready to copy
                 const copyText =
                   message.role === "assistant" &&
@@ -676,7 +685,15 @@ function ChatMessages({
                       ) : (
                         renderedParts
                       )}
-                      {copyText && <ChatMessageActions text={copyText} />}
+                      {usageNote && (
+                        <p
+                          data-slot="chat-turn-note"
+                          className="text-xs text-muted-foreground"
+                        >
+                          {usageNote}
+                        </p>
+                      )}
+                      <ChatMessageActions text={copyText} usage={usage} />
                     </MessageContent>
                     {message.role === "user" && seen.has(message.id) && (
                       <span

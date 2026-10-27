@@ -3,6 +3,7 @@ import { formatDistanceToNowStrict } from "date-fns"
 
 import { listApprovalRules } from "@/actions/approvals"
 import { ApprovalRules } from "@/components/activity/approval-rules"
+import { MorningSummaryForm } from "@/components/activity/morning-summary-form"
 import { RoutineDialog } from "@/components/activity/routine-dialog"
 import { RoutineList } from "@/components/activity/routine-list"
 import { AppPageHeader } from "@/components/app-page-header"
@@ -12,8 +13,11 @@ import { getSignedInActivity } from "@/queries/activity"
 import { getBots } from "@/queries/bots"
 
 export default async function Page() {
-  const [{ approvals, routines, events, bots: named }, bots, rules] =
-    await Promise.all([getSignedInActivity(), getBots(), listApprovalRules()])
+  const [
+    { approvals, routines, events, bots: named, morningSummary },
+    bots,
+    rules,
+  ] = await Promise.all([getSignedInActivity(), getBots(), listApprovalRules()])
   const botFor = (id: string | null) => named.find((bot) => bot.id === id)
 
   return (
@@ -105,6 +109,10 @@ export default async function Page() {
           <h2 id="recent" className="text-lg font-medium">
             Recent
           </h2>
+          <MorningSummaryForm
+            enabled={morningSummary.enabled}
+            timezoneSet={morningSummary.timezoneSet}
+          />
           {events.length ? (
             <ul className="flex flex-col">
               {events.map((event) => {

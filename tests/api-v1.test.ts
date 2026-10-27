@@ -31,6 +31,7 @@ const bot = (id: string, pinnedAt: Date | null = null): Bot => ({
   avatar: id,
   job: "Writer",
   instructions: null,
+  taskBudget: null,
   setupComplete: true,
   pinnedAt,
   sandboxId: "sbx_secret",
@@ -134,6 +135,7 @@ test("bots and chats sent to the app leave out owner and sandbox identifiers", (
     "name",
     "pinnedAt",
     "setupComplete",
+    "taskBudget",
   ])
 })
 

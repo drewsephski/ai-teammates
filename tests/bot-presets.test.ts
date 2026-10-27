@@ -16,3 +16,14 @@ test("advanced presets preserve bounded configuration and carry authentication a
     assert.ok(preset.suggestedApps.length > 0)
   }
 })
+
+test("client-work presets prepare messages for approval and never invent terms", () => {
+  for (const id of ["follow-up", "scope"]) {
+    const preset = botPresets.find((preset) => preset.id === id)
+    assert.ok(preset, id)
+    assert.match(preset.instructions, /approval/)
+    assert.match(preset.instructions, /Never invent/)
+    assert.match(preset.instructions, /scheduleRoutine/)
+    assert.ok(preset.suggestedApps.some((app) => app === "Gmail"))
+  }
+})

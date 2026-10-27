@@ -70,7 +70,9 @@ export function chatActivity(
     if (
       last.parts.some(
         (part) =>
-          part.type !== "data-messageSeen" && part.type !== "data-followUps"
+          part.type !== "data-messageSeen" &&
+          part.type !== "data-followUps" &&
+          part.type !== "data-turnUsage"
       ) ||
       sections.length > 1
     ) {
@@ -108,7 +110,10 @@ export function chatActivity(
     (setup && latestUser === -1 && messages.length === 0)
   if (!busy) return { ...identity, state: "idle" }
   const evidence = parts.some(
-    (part) => part.type !== "data-messageSeen" && part.type !== "data-followUps"
+    (part) =>
+      part.type !== "data-messageSeen" &&
+      part.type !== "data-followUps" &&
+      part.type !== "data-turnUsage"
   )
   if (latestUser !== -1 && !seen.has(messages[latestUser].id) && !evidence)
     return { ...identity, state: "queued" }

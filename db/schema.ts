@@ -23,6 +23,7 @@ import {
   timeZoneSchema,
   type RoutineSchedule,
 } from "@/lib/routine-policy"
+import { isTaskBudget } from "@/lib/turn-spend"
 
 export const bots = pgTable(
   "bots",
@@ -41,6 +42,9 @@ export const bots = pgTable(
     job: text().notNull(),
     // How it should go about the job
     instructions: text(),
+    // The most one task may spend of the AI allowance, in millionths of a
+    // dollar (TASK_BUDGETS in lib/turn-spend.ts). Null means no limit.
+    taskBudget: integer(),
     // Server-owned lifecycle and sidebar preferences.
     setupComplete: boolean().notNull().default(true),
     pinnedAt: timestamp({ withTimezone: true }),
@@ -419,6 +423,10 @@ export const userSettings = pgTable("user_settings", {
     .default("digest"),
   timezone: text().notNull().default("UTC"),
   digestHour: integer().notNull().default(8),
+  // A push at digestHour, in their timezone, with what their bots did since
+  // the last one (trigger/morning-summary.ts)
+  morningSummary: boolean().notNull().default(true),
+  lastSummaryAt: timestamp({ withTimezone: true }),
   quietHours: jsonb().$type<{ start: number; end: number }>(),
   // Null means every connected app
   suggestionApps: text().array(),
@@ -611,6 +619,9 @@ export const approvals = pgTable(
     state: approvalState().notNull().default("pending"),
     result: jsonb(),
     expiresAt: timestamp({ withTimezone: true }).notNull(),
+    // The message that started the task that asked: a routine run's ID when a
+    // routine asked, so the run's status follows the approval
+    originMessageId: text(),
     decidedAt: timestamp({ withTimezone: true }),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
@@ -775,6 +786,11 @@ export const botInsertSchema = createInsertSchema(bots, {
       .max(100, "Keep it under 100 characters."),
   instructions: (schema) =>
     schema.trim().max(4000, "Keep it under 4000 characters."),
+  // Optional, so clients that don't know about it leave it unchanged
+  taskBudget: (schema) =>
+    schema
+      .refine((value) => isTaskBudget(value), "Pick one of the listed limits.")
+      .optional(),
 }).omit({
   id: true,
   userId: true,
@@ -863,11 +879,16 @@ export const memorySettingsSchema = createInsertSchema(userSettings)
   .pick({ memoryEnabled: true })
   .required()
 
+export const morningSummarySchema = createInsertSchema(userSettings)
+  .pick({ morningSummary: true })
+  .required()
+
 export type Memory = typeof memories.$inferSelect
 export type MemoryKind = (typeof memoryKind.enumValues)[number]
 export type MemoryUpdate = z.infer<typeof memoryUpdateSchema>
 export type AboutYou = z.infer<typeof aboutYouSchema>
 export type MemorySettings = z.infer<typeof memorySettingsSchema>
+export type MorningSummarySettings = z.infer<typeof morningSummarySchema>
 
 const routineTitle = (schema: z.ZodString) =>
   schema

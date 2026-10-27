@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 
 import { planLimits } from "@/lib/billing-policy"
 import { ROUTINE_LIMITS } from "@/lib/routine-policy"
+import { formatBudget, LOOP_STEP_LIMIT, TASK_BUDGETS } from "@/lib/turn-spend"
 import {
   brandName,
   freePlanIncludes,
@@ -81,10 +82,19 @@ export const capabilities = [
 
 /** What waits for the person. Mirrors "What is enforced" in docs/autonomy.md. */
 export const safeguards = [
-  "Reading your connected apps needs no approval. Anything that writes to them, such as sending, posting, or updating a record, is held until you approve it, unless you have chosen to always allow that action for that Bot.",
+  "Reading your connected apps needs no approval. Anything that writes to them, such as sending, posting, or updating a record, is held until you approve it, unless you have chosen to always allow that action for that Bot. When you approve, the exact action you saw runs right away.",
+  "A plain email a Bot sends only to an address you verified on your Krafty account, such as a routine's report, goes out without asking, up to three per reply.",
   "High-risk app actions can never be set to always allow.",
   "On the cloud computer, a separate model checks each click and keypress against a screenshot, and steps that commit something run only after you approve them.",
   "Approval requests expire after seven days. Nothing in a web page, email, or document can approve an action; only you can.",
+] as const
+
+/** What a task costs and how it's capped. Mirrors "Spend" in docs/autonomy.md. */
+export const spendControls = [
+  "On the web, each reply shows what it used of your AI allowance, including web searches.",
+  `You can give each Bot a spend limit per task (${TASK_BUDGETS.map(formatBudget).join(", ")}). The Bot stops after the step that reaches it, and you reply to keep going. Computer time is metered separately.`,
+  `A reply that takes the same step with the same result ${LOOP_STEP_LIMIT} times in a row is stopped, and the AI allowance the repeats used is given back.`,
+  "A reply that ends in an error, for example when a model provider fails partway, gets back the AI allowance it used.",
 ] as const
 
 /** Honest limits, so answers about the product don't overstate it. */

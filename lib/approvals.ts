@@ -14,6 +14,7 @@ import {
   APPROVAL_TTL_MS,
   approvalDecisionPrompt,
   approvalDisplayPrompt,
+  approvalExecutedPrompt,
   approvalMessageId,
   approvalRuleApplies,
   standingRuleAllowed,
@@ -118,6 +119,8 @@ export async function requestApproval(call: {
   hostname?: string
   action?: "submit" | "post" | "send" | "delete" | "buy"
   preview?: string
+  // The message that started the task, so its outcome can follow the approval
+  originMessageId?: string
 }) {
   if ((call.kind ?? "app") === "app") {
     // The owner already said no to exactly this: refuse without a new card
@@ -405,8 +408,31 @@ async function expireApprovals(userId: string) {
 
 export type ApprovalDispatch = typeof postChatMessage
 
-// The owner's answer. Approving wakes the bot with a message naming the
-// request; the bot runs the stored call through runApprovedAction.
+// Runs an approved app call from the decision (runApprovedCall in
+// lib/composio.ts). Undefined when there was nothing to run.
+export type ApprovalRunner = (approval: {
+  id: string
+  userId: string
+  botId: string
+  chatId: string
+  kind: "app" | "computer"
+}) => Promise<{ ok: boolean; result: unknown } | undefined>
+
+// The task an approval belongs to: the message that started the turn that
+// asked, followed through earlier approvals. A routine run's ID when the
+// approval came from a routine (recordRoutineRunOutcome).
+export async function approvalOrigin(userId: string, approvalId: string) {
+  const [row] = await db
+    .select({ originMessageId: approvals.originMessageId })
+    .from(approvals)
+    .where(and(eq(approvals.id, approvalId), eq(approvals.userId, userId)))
+  return row?.originMessageId ?? undefined
+}
+
+// The owner's answer. Approving an app action runs the stored call right
+// away when a runner is given, then wakes the bot with the result; without
+// one (or for a computer step, which needs the screen) the bot runs it
+// through runApprovedAction.
 export async function decideApproval(
   userId: string,
   approvalId: string,
@@ -415,7 +441,8 @@ export async function decideApproval(
     expectedArguments: Record<string, unknown>
     arguments: Record<string, unknown>
   },
-  dispatch: ApprovalDispatch = postChatMessage
+  dispatch: ApprovalDispatch = postChatMessage,
+  run?: ApprovalRunner
 ) {
   const row = await getApproval(userId, approvalId)
   if (row.state === "expired") throw new Error(APPROVAL_EXPIRED_ERROR)
@@ -469,6 +496,16 @@ export async function decideApproval(
     dedupeKey: `approval:${row.id}:decided`,
   })
 
+  // Ran here, so an approval never waits on the bot to remember it. A runner
+  // that fails leaves the claim to runApprovedAction, as before.
+  let ran: Awaited<ReturnType<ApprovalRunner>>
+  if (run && effective !== "deny" && row.kind === "app") {
+    ran = await run(row).catch((error: unknown) => {
+      Sentry.captureException(error, { extra: { approvalId } })
+      return undefined
+    })
+  }
+
   try {
     await dispatch(
       row.chatId,
@@ -480,7 +517,9 @@ export async function decideApproval(
                 row,
                 effective === "deny" ? "deny" : "approve"
               )
-            : approvalDecisionPrompt(row, effective),
+            : ran && effective !== "deny"
+              ? approvalExecutedPrompt(row, effective, ran)
+              : approvalDecisionPrompt(row, effective),
         displayPrompt: approvalDisplayPrompt(effective),
       },
       { botId: row.botId }
@@ -488,9 +527,9 @@ export async function decideApproval(
   } catch (error) {
     // The decision stands; the bot picks it up when the person next writes
     Sentry.captureException(error, { extra: { approvalId } })
-    return { approval: decided, woke: false }
+    return { approval: decided, woke: false, ran }
   }
-  return { approval: decided, woke: true }
+  return { approval: decided, woke: true, ran }
 }
 
 // Compare the complete stored call as well as its revision: a concurrent

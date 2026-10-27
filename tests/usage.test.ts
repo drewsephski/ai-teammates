@@ -111,3 +111,45 @@ test("a failed fresh lookup throws instead of serving the stale cached plan", as
     fetchMock.mock.restore()
   }
 })
+
+// trigger/chat.ts gives back a failed or looping reply's spend as a negative
+// entry under the turn's key, next to what it spent
+test("a credit gives back the AI allowance a turn spent, once", async () => {
+  await plan("credited", "free")
+  await usage.holdUsage("credited", "ai:run_1:0", 40_000)
+  assert.equal((await usage.getUsage("credited")).remaining.ai, 960_000)
+  await usage.recordUsage([
+    {
+      userId: "credited",
+      kind: "ai",
+      amount: -55_000,
+      idempotencyKey: "ai:run_1:0:credit",
+    },
+  ])
+  await usage.recordUsage([
+    {
+      userId: "credited",
+      kind: "ai",
+      amount: 15_000,
+      idempotencyKey: "ai:run_1:0:web:call_1",
+    },
+    {
+      userId: "credited",
+      kind: "ai",
+      amount: 40_000,
+      idempotencyKey: "ai:run_1:0",
+    },
+  ])
+  // Retried with the same key: counted once
+  await usage.recordUsage([
+    {
+      userId: "credited",
+      kind: "ai",
+      amount: -55_000,
+      idempotencyKey: "ai:run_1:0:credit",
+    },
+  ])
+  const after = await usage.getUsage("credited")
+  assert.equal(after.used.ai, 0)
+  assert.equal(after.remaining.ai, 1_000_000)
+})

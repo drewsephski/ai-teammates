@@ -19,6 +19,7 @@ import {
   pageMetadata,
   pricingFacts,
   safeguards,
+  spendControls,
 } from "@/lib/marketing/content"
 import { marketingUpdated, productName, siteUrl } from "@/lib/marketing/site"
 import page from "./how-it-works.module.css"
@@ -130,6 +131,15 @@ export default async function HowItWorksPage() {
           <h2 id="approvals-title">What waits for your approval</h2>
           <ul className={page.list}>
             {safeguards.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+
+        <section className={page.section} aria-labelledby="spend-title">
+          <h2 id="spend-title">What a task costs</h2>
+          <ul className={page.list}>
+            {spendControls.map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ul>

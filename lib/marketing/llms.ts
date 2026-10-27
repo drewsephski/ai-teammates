@@ -10,6 +10,7 @@ import {
   limitations,
   pricingFacts,
   safeguards,
+  spendControls,
 } from "./content"
 import { marketingUpdated, productName, siteDescription } from "./site"
 
@@ -77,6 +78,10 @@ ${capabilities.map((capability) => `- **${capability.title}.** ${capability.body
 ## What waits for you
 
 ${list(safeguards)}
+
+## What a task costs
+
+${list(spendControls)}
 
 ## Limits
 

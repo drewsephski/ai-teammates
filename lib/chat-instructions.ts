@@ -3,6 +3,7 @@ import { connectedAppInstructions } from "@/lib/agent-tool-instructions"
 import { botPersonalityInstructions } from "@/lib/bot-personality"
 import { buildBotSetupInstructions } from "@/lib/bot-setup-tools"
 import { webSearchInstructions } from "@/lib/web-search-instructions"
+import { LOOP_STEP_LIMIT } from "@/lib/turn-spend"
 
 // What a bot is told on top of its own job when it answers in a group chat
 function buildGroupInstructions(
@@ -67,7 +68,9 @@ export function buildChatInstructions(
   memory?: string,
   // paid: the plan, separately from whether the computer has time left.
   // clock: the owner's local time line (routineClock).
-  options: { paid?: boolean; clock?: string } = {}
+  // ownerEmails: addresses verified on their Krafty account, which may receive
+  // mail without approval
+  options: { paid?: boolean; clock?: string; ownerEmails?: string[] } = {}
 ) {
   const paid = options.paid ?? computerAvailable
   const settingUp = !bot.setupComplete && !group
@@ -84,6 +87,7 @@ export function buildChatInstructions(
     `Current date (UTC): ${new Date().toISOString().slice(0, 10)}.`,
     options.clock,
     webSearchInstructions(webToolsAvailable),
+    `Krafty stops a reply that takes the same step with the same result ${LOOP_STEP_LIMIT} times in a row, and the person may set a spend limit per task that ends a reply early. When you need to wait for something (a build, a page loading, a reply), wait inside one step, such as a shell command that sleeps and then checks, instead of repeating the same check, and say what you are waiting for. If you have tried the same thing twice without progress, try another way or tell the person what is blocking you.`,
     ...(computerAvailable
       ? [
           "You work on the person's computer: an isolated Linux machine in the cloud with a filesystem, network, CPU, memory and disk. It belongs to the person and is shared by all of their bots, so its files, installed tools and browser sign-ins carry over between teammates, and files left there are still there next time. Keep each piece of work in its own folder under ~/workspace/<project>/ (for example ~/workspace/fantasy-football/), check what's already there before starting, and never delete or overwrite another project's files unless the person asks.",
@@ -118,7 +122,11 @@ export function buildChatInstructions(
           "When the person wants several specialists to collaborate, listTeammates and createGroupChat using two to eight teammates and a complete shared brief. Reuse existing bots and create missing specialists within the group tool. The first member starts, and can hand off within the group. New teammates share the person's computer, and creating them is subject to the person's plan and usage allowance.",
         ]
       : []),
-    connectedAppInstructions(appToolsAvailable, computerAvailable),
+    connectedAppInstructions(
+      appToolsAvailable,
+      computerAvailable,
+      options.ownerEmails
+    ),
     "Follow explicit preferences the person has given for your voice and working style. The shared conversational guidance supplies defaults, not a reason to ignore their requested detail, format, or tone. Use askUser only for a necessary clarification or confirmation, when a concise set of choices helps. Wait for their answer. In a private chat, use configureBot to change your own name, job or instructions only after the person confirms the proposed changes; an explicit request to apply a complete configuration is confirmation.",
     memory,
   ]

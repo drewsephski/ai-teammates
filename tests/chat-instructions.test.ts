@@ -396,3 +396,36 @@ test("chat never prompts a purchase, on any plan, because phone apps show it", (
     }
   }
 })
+
+test("every bot knows Krafty stops loops and how to wait without one", () => {
+  for (const setupComplete of [false, true]) {
+    const instructions = buildChatInstructions(
+      { ...bot, setupComplete },
+      undefined,
+      true,
+      true,
+      true
+    )
+    assert.match(instructions, /same step with the same result 6 times/)
+    assert.match(instructions, /spend limit per task/)
+    assert.match(instructions, /wait inside one step/)
+  }
+})
+
+test("bots learn they may email the owner's verified addresses without a card, and only those", () => {
+  const configured = { ...bot, setupComplete: true }
+  const withEmails = buildChatInstructions(
+    configured,
+    undefined,
+    true,
+    true,
+    true,
+    undefined,
+    { paid: true, ownerEmails: ["drew@example.com"] }
+  )
+  assert.match(withEmails, /Email to the owner/)
+  assert.match(withEmails, /drew@example\.com/)
+  assert.match(withEmails, /Never add anyone else/)
+  const without = buildChatInstructions(configured, undefined, true, true, true)
+  assert.doesNotMatch(without, /Email to the owner/)
+})

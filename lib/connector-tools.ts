@@ -83,6 +83,60 @@ export type ApprovalGate = {
     approvalId: string,
     outcome: { ok: boolean; result: unknown }
   ) => Promise<void>
+  // Whether this email goes only to the owner, so it can send without a card
+  sendsToOwner?: (
+    tool: AppTool,
+    input: Record<string, unknown>
+  ) => Promise<boolean>
+}
+
+type ClaimedCall = NonNullable<Awaited<ReturnType<ApprovalGate["claim"]>>>
+
+// Runs a claimed approval's stored call and records how it went. From the
+// claim on, every path records an outcome, so the approval never reads as
+// done when nothing ran. Used by runApprovedAction and by Krafty itself when
+// the owner approves (lib/approvals.ts).
+export async function runClaimedCall(
+  userId: string,
+  runtime: Pick<ConnectorRuntime, "accounts" | "execute">,
+  complete: ApprovalGate["complete"],
+  approvalId: string,
+  call: ClaimedCall,
+  abortSignal?: AbortSignal
+): Promise<{ ok: boolean; result: unknown }> {
+  try {
+    const account = (await runtime.accounts(userId)).find(
+      (account) =>
+        account.toolkit === call.toolkit && account.id === call.accountId
+    )
+    if (!account) {
+      const result = {
+        status: "failed",
+        code: "ACCOUNT_CHANGED",
+        message:
+          "The connected account changed since approval. Nothing ran. Ask the owner to reconnect the app, then request approval again.",
+      }
+      await complete(approvalId, { ok: false, result })
+      return { ok: false, result }
+    }
+    const result = await runtime.execute(
+      userId,
+      call.slug,
+      call.input,
+      account,
+      abortSignal
+    )
+    const described = describeResult(userId, call.toolkit, account.id, result)
+    await complete(approvalId, {
+      ok: described.ok,
+      result: { status: described.value.status },
+    })
+    return { ok: described.ok, result: described.value }
+  } catch (error) {
+    const outcome = thrownOutcome(userId, call.toolkit, call.accountId, error)
+    await complete(approvalId, { ok: false, result: outcome }).catch(() => {})
+    return { ok: false, result: outcome }
+  }
 }
 
 function boundedResult(value: unknown) {
@@ -481,7 +535,17 @@ export function createAppTools(
             "APPROVALS_UNAVAILABLE",
             "Email review is unavailable in this chat. Nothing was sent."
           )
-        if (gate && (email || (await gate.required(entry, account.id)))) {
+        // Mail only to the owner's own verified addresses sends straight away
+        const toOwner =
+          !prepareOnly &&
+          !!email &&
+          !!gate?.sendsToOwner &&
+          (await gate.sendsToOwner(entry, input))
+        if (
+          gate &&
+          !toOwner &&
+          (email || (await gate.required(entry, account.id)))
+        ) {
           const held = await gate.request({
             slug,
             toolkit: entry.toolkit,
@@ -533,53 +597,18 @@ export function createAppTools(
             "NOT_APPROVED",
             "That request isn't approved for you, or it already ran. Don't retry; tell the owner what happened."
           )
-        // Claimed: from here every path records an outcome, so the approval
-        // never reads as done when nothing ran
-        try {
-          const account = (await runtime.accounts(userId)).find(
-            (account) =>
-              account.toolkit === call.toolkit && account.id === call.accountId
-          )
-          if (!account) {
-            const result = {
-              status: "failed",
-              code: "ACCOUNT_CHANGED",
-              message:
-                "The connected account changed since approval. Nothing ran. Ask the owner to reconnect the app, then request approval again.",
-            }
-            await gate.complete(approvalId, { ok: false, result })
-            return boundedResult(result)
-          }
-          const result = await runtime.execute(
-            userId,
-            call.slug,
-            call.input,
-            account,
-            abortSignal
-          )
-          const described = describeResult(
-            userId,
-            call.toolkit,
-            account.id,
-            result
-          )
-          await gate.complete(approvalId, {
-            ok: described.ok,
-            result: { status: described.value.status },
-          })
-          return boundedResult(described.value)
-        } catch (error) {
-          const outcome = thrownOutcome(
-            userId,
-            call.toolkit,
-            call.accountId,
-            error
-          )
-          await gate
-            .complete(approvalId, { ok: false, result: outcome })
-            .catch(() => {})
-          return boundedResult(outcome)
-        }
+        return boundedResult(
+          (
+            await runClaimedCall(
+              userId,
+              runtime,
+              gate.complete,
+              approvalId,
+              call,
+              abortSignal
+            )
+          ).result
+        )
       },
     }),
   }

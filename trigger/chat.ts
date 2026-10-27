@@ -47,7 +47,11 @@ import {
   updateRoutine,
   userTimeZone,
 } from "@/lib/routines"
-import { routineClock, unattendedOrigin } from "@/lib/routine-policy"
+import {
+  parseRoutineRunMessageId,
+  routineClock,
+  unattendedOrigin,
+} from "@/lib/routine-policy"
 import {
   CONTINUATION_DELAY,
   continuationDepth,
@@ -57,8 +61,20 @@ import {
   TURN_STEP_LIMIT,
   TURN_TIME_LIMIT_MS,
 } from "@/lib/turn-continuation"
+import {
+  formatBudget,
+  formatSpend,
+  LOOP_STEP_LIMIT,
+  priorTaskSpend,
+  repeatedSteps,
+  taskBudgetReached,
+  turnCredit,
+  turnFailed,
+  type TurnUsage,
+} from "@/lib/turn-spend"
 import { continueTurn } from "@/trigger/continuation"
 import {
+  approvalOrigin,
   completeComputerApproval,
   declinedFor,
   readComputerApproval,
@@ -88,6 +104,7 @@ import {
   LOW_ALLOWANCE_SECONDS,
 } from "@/lib/sandbox-policy"
 import { recordActivity } from "@/lib/notify"
+import { ownerEmailAddresses } from "@/lib/owner-email"
 import { createBotSetupTools, botSetupMessageId } from "@/lib/bot-setup-tools"
 import { configureBotProfile } from "@/lib/bot-profile"
 import { buildChatInstructions } from "@/lib/chat-instructions"
@@ -153,6 +170,25 @@ const turnModelUsage = chat.local<{
   // Spent on the computer guard's checks, already recorded
   guardCost: number
   computerCalls: number
+  // Spent on follow-up suggestions, already recorded
+  followUpCost: number
+  // What each step spent, in order, and the total when the last one ended
+  stepSpends: number[]
+  spentAtStep: number
+  // Why the reply stopped early, and how many identical steps ended a loop
+  stop?: TurnUsage["stop"]
+  repeated: number
+  // The answering bot's limit per task, and what the task spent in the
+  // turns before this one when this turn continues it
+  budget: number | null
+  priorSpend: number
+  // Given back for this reply, once recorded
+  credited: number
+  creditSettled: boolean
+  userId?: string
+  // The message that started the task this turn works on. An approval's wake
+  // carries on the task that asked, so a routine run follows its approvals.
+  originMessageId?: string
   tier?: "free" | "paid"
   // Whose computer lease this turn may hold, so the release never depends on
   // the chat still existing
@@ -174,6 +210,73 @@ const turnModelUsage = chat.local<{
 }>({
   id: "chat-turn-model-cost",
 })
+
+// What the reply has spent of the Krafty allowance so far
+function turnSpend() {
+  return (
+    turnModelUsage.cost +
+    turnModelUsage.webCost +
+    turnModelUsage.consultationCost +
+    turnModelUsage.guardCost +
+    turnModelUsage.followUpCost
+  )
+}
+
+// Gives back, once, what a failed reply spent or what a loop's repeats
+// spent, then shows the reply's spend on it when it can. The credit is
+// recorded before it's shown, so a reply never claims one the ledger lacks.
+async function settleTurnUsage({
+  failed,
+  write,
+}: {
+  failed: boolean
+  write?: (usage: TurnUsage) => unknown
+}) {
+  if (!turnModelUsage.creditSettled) {
+    turnModelUsage.creditSettled = true
+    const credit = turnCredit({
+      spent: turnSpend(),
+      failed,
+      repeated: turnModelUsage.stop === "loop" ? turnModelUsage.repeated : 0,
+      stepSpends: turnModelUsage.stepSpends,
+    })
+    if (credit > 0 && turnModelUsage.userId) {
+      try {
+        await recordUsage([
+          {
+            userId: turnModelUsage.userId,
+            kind: "ai",
+            amount: -credit,
+            idempotencyKey: `${turnModelUsage.usageKey}:credit`,
+          },
+        ])
+        turnModelUsage.credited = credit
+      } catch (error) {
+        Sentry.captureException(error, {
+          extra: { usageKey: turnModelUsage.usageKey, credit },
+        })
+      }
+    }
+  }
+
+  const spent = turnSpend()
+  if (!write || (spent <= 0 && !turnModelUsage.stop)) return
+  try {
+    write({
+      spent,
+      credited: turnModelUsage.credited,
+      chatgpt: turnModelUsage.chatgpt,
+      failed,
+      ...(turnModelUsage.stop && { stop: turnModelUsage.stop }),
+      ...(turnModelUsage.budget && { budget: turnModelUsage.budget }),
+    })
+  } catch (error) {
+    // Showing the spend is a courtesy; the ledger already has it
+    Sentry.logger.warn("Turn usage not shown", {
+      "error.type": error instanceof Error ? error.name : "UnknownError",
+    })
+  }
+}
 
 // The transcript is kept per chatId in Neon (lib/chat-transcript-storage.ts),
 // not in Trigger.dev's snapshot, so it is deleted with the chat
@@ -216,6 +319,14 @@ export const chatAgent = chat
         declined: [],
         guardCost: 0,
         computerCalls: 0,
+        followUpCost: 0,
+        stepSpends: [],
+        spentAtStep: 0,
+        repeated: 0,
+        budget: null,
+        priorSpend: 0,
+        credited: 0,
+        creditSettled: false,
         capReached: false,
         spendCapReached: false,
         startedAt: Date.now(),
@@ -237,6 +348,17 @@ export const chatAgent = chat
       turnModelUsage.declined = []
       turnModelUsage.guardCost = 0
       turnModelUsage.computerCalls = 0
+      turnModelUsage.followUpCost = 0
+      turnModelUsage.stepSpends = []
+      turnModelUsage.spentAtStep = 0
+      turnModelUsage.stop = undefined
+      turnModelUsage.repeated = 0
+      turnModelUsage.budget = null
+      turnModelUsage.priorSpend = 0
+      turnModelUsage.credited = 0
+      turnModelUsage.creditSettled = false
+      turnModelUsage.userId = undefined
+      turnModelUsage.originMessageId = undefined
       turnModelUsage.tier = undefined
       turnModelUsage.computerOwner = undefined
       turnModelUsage.computerBusy = undefined
@@ -249,6 +371,7 @@ export const chatAgent = chat
       const latest = uiMessages.findLast((message) => message.role === "user")
       if (!latest) throw new Error("No task to delegate")
       turnModelUsage.messageId = latest.id
+      turnModelUsage.originMessageId = rootMessageId(latest.id)
       turnModelUsage.composerText = latest.parts
         .flatMap((part) => (part.type === "text" ? [part.text] : []))
         .join("\n")
@@ -256,6 +379,13 @@ export const chatAgent = chat
         turnModelUsage.composerText,
         latest.metadata?.mentions
       )
+      // A task cut off at a cap carries its spend into the turn that
+      // continues it, so a limit per task holds across them
+      if (continuationDepth(latest.id) > 0)
+        turnModelUsage.priorSpend = priorTaskSpend(
+          uiMessages,
+          rootMessageId(latest.id)
+        )
     },
     // Declared here so screenshots stay images when earlier turns are replayed
     tools: async ({ chatId, clientData }) => {
@@ -337,6 +467,7 @@ export const chatAgent = chat
             hostname,
             action,
             preview,
+            originMessageId: turnModelUsage.originMessageId,
           })
           turnModelUsage.approvalRequested = true
           return { approvalId: row.id, summary }
@@ -445,6 +576,7 @@ export const chatAgent = chat
         userId,
         chatId,
         botId: () => current.id,
+        originMessageId: () => turnModelUsage.originMessageId,
       })
       const connectorTools = process.env.COMPOSIO_API_KEY
         ? createConnectorTools(userId, {
@@ -628,73 +760,90 @@ export const chatAgent = chat
       finishReason,
       writer,
     }) => {
-      const config = turnModelUsage.followUps
-      if (
-        !config ||
-        stopped ||
-        error ||
-        finishReason !== "stop" ||
-        config.signal.aborted ||
-        !canSuggestFollowUps(responseMessage)
-      )
-        return
-
-      try {
-        const handoff = responseMessage?.parts.findLast(
-          (part) =>
-            part.type === "tool-handoff" && part.state === "output-available"
-        )
-        const authorId =
-          handoff?.type === "tool-handoff" &&
-          handoff.state === "output-available"
-            ? handoff.output.botId
-            : responseMessage?.metadata?.botId
-        const { chat: row, bot } = await getChatBots(chatId, authorId)
-        const suggest = async () => {
-          const currentUsage = await getUsage(row.userId)
-          // Leave room for this bounded auxiliary call; never spend a depleted
-          // Krafty allowance. Recommendations always use the app's GLM model.
-          // getUsage already counts the turn's held cost.
-          const unrecordedCost = turnModelUsage.cost - turnModelUsage.held
-          if (currentUsage.remaining.ai - unrecordedCost < 10_000) return
-          const suggestions = await generateChatFollowUps({
-            ...config,
-            messages: uiMessages,
-            profile: `${bot.name}: ${bot.job}\n${bot.instructions ?? ""}`,
-            capabilities: {
-              computer:
-                currentUsage.tier === "paid" &&
-                currentUsage.remaining.sandbox > 0,
-              connectedApps: !!process.env.COMPOSIO_API_KEY,
-              webSearch: !!process.env.TAVILY_API_KEY?.trim(),
-            },
-            onUsage: async (usage, modelId) => {
-              const cost = chatModelCost(usage, modelId)
-              if (cost > 0)
-                await recordUsage([
-                  {
-                    userId: row.userId,
-                    kind: "ai",
-                    amount: cost,
-                    idempotencyKey: `${turnModelUsage.usageKey}:follow-ups`,
-                  },
-                ])
-            },
-          })
-          if (!suggestions.length || config.signal.aborted) return
+      await suggestFollowUps()
+      // After the suggestions, which count toward what the reply spent
+      await settleTurnUsage({
+        failed: turnFailed({ error, refused: false, stopped, finishReason }),
+        write: (usage) =>
+          responseMessage &&
           writer.write({
-            type: "data-followUps",
-            id: `follow-ups:${responseMessage?.id}`,
-            data: { botId: bot.id, suggestions },
+            type: "data-turnUsage",
+            id: `turn-usage:${responseMessage.id}`,
+            data: usage,
+          }),
+      })
+
+      async function suggestFollowUps() {
+        const config = turnModelUsage.followUps
+        if (
+          !config ||
+          stopped ||
+          error ||
+          finishReason !== "stop" ||
+          config.signal.aborted ||
+          !canSuggestFollowUps(responseMessage)
+        )
+          return
+
+        try {
+          const handoff = responseMessage?.parts.findLast(
+            (part) =>
+              part.type === "tool-handoff" && part.state === "output-available"
+          )
+          const authorId =
+            handoff?.type === "tool-handoff" &&
+            handoff.state === "output-available"
+              ? handoff.output.botId
+              : responseMessage?.metadata?.botId
+          const { chat: row, bot } = await getChatBots(chatId, authorId)
+          const suggest = async () => {
+            const currentUsage = await getUsage(row.userId)
+            // Leave room for this bounded auxiliary call; never spend a depleted
+            // Krafty allowance. Recommendations always use the app's GLM model.
+            // getUsage already counts the turn's held cost.
+            const unrecordedCost = turnModelUsage.cost - turnModelUsage.held
+            if (currentUsage.remaining.ai - unrecordedCost < 10_000) return
+            const suggestions = await generateChatFollowUps({
+              ...config,
+              messages: uiMessages,
+              profile: `${bot.name}: ${bot.job}\n${bot.instructions ?? ""}`,
+              capabilities: {
+                computer:
+                  currentUsage.tier === "paid" &&
+                  currentUsage.remaining.sandbox > 0,
+                connectedApps: !!process.env.COMPOSIO_API_KEY,
+                webSearch: !!process.env.TAVILY_API_KEY?.trim(),
+              },
+              onUsage: async (usage, modelId) => {
+                const cost = chatModelCost(usage, modelId)
+                if (cost > 0) {
+                  await recordUsage([
+                    {
+                      userId: row.userId,
+                      kind: "ai",
+                      amount: cost,
+                      idempotencyKey: `${turnModelUsage.usageKey}:follow-ups`,
+                    },
+                  ])
+                  turnModelUsage.followUpCost += cost
+                }
+              },
+            })
+            if (!suggestions.length || config.signal.aborted) return
+            writer.write({
+              type: "data-followUps",
+              id: `follow-ups:${responseMessage?.id}`,
+              data: { botId: bot.id, suggestions },
+            })
+          }
+          await suggest()
+        } catch (error) {
+          // Suggestions are optional. Their failure must never fail a completed reply.
+          Sentry.logger.warn("Chat follow-up suggestions unavailable", {
+            "chat.id": chatId,
+            "error.type": error instanceof Error ? error.name : "UnknownError",
           })
         }
-        await suggest()
-      } catch (error) {
-        // Suggestions are optional. Their failure must never fail a completed reply.
-        Sentry.logger.warn("Chat follow-up suggestions unavailable", {
-          "chat.id": chatId,
-          "error.type": error instanceof Error ? error.name : "UnknownError",
-        })
       }
     },
     // Fires for stopped and failed turns too, which spent tokens all the same
@@ -706,9 +855,11 @@ export const chatAgent = chat
       error,
       responseMessage,
       stopped,
+      finishReason,
     }) => {
       const refused =
         error instanceof Error && error.message === USAGE_LIMIT_ERROR
+      const failed = turnFailed({ error, refused, stopped, finishReason })
 
       // A failed turn leaves the run alive, so the global onFailure never sees it
       if (error && !refused) {
@@ -759,7 +910,8 @@ export const chatAgent = chat
           .set({ lastMessageAt: new Date(), lastMessagePreview: preview })
           .where(eq(chats.id, chatId))
 
-      if (usage && row && turnModelUsage.cost > 0) {
+      // A failed turn arrives without `usage`, but its steps spent all the same
+      if (row && turnModelUsage.cost > 0) {
         await recordUsage([
           {
             userId: row.userId,
@@ -769,6 +921,12 @@ export const chatAgent = chat
           },
         ])
       }
+      // A turn that threw skipped onBeforeTurnComplete: give back what it
+      // spent here. Its reply can't show the credit, the ledger has it.
+      if (row)
+        await settleTurnUsage({ failed }).catch((creditError: unknown) =>
+          Sentry.captureException(creditError, { extra: { chatId, turn } })
+        )
 
       // A task cut off by the step or time cap carries on in a new turn, so
       // long work doesn't stop midway. The next turn re-checks the allowance
@@ -786,10 +944,12 @@ export const chatAgent = chat
           shouldContinueTurn({
             capReached: turnModelUsage.capReached,
             lastFinishReason: turnModelUsage.lastFinishReason,
-            failed: !!error,
+            failed,
             stopped,
             approvalRequested: turnModelUsage.approvalRequested,
-            spendCapReached: turnModelUsage.spendCapReached,
+            // Out of allowance, at the bot's limit per task, or in a loop
+            spendCapReached:
+              turnModelUsage.spendCapReached || !!turnModelUsage.stop,
             computerBusy: !!turnModelUsage.computerBusy,
             allowanceLeft:
               (turnModelUsage.chatgpt || after.remaining.ai > 0) &&
@@ -835,16 +995,17 @@ export const chatAgent = chat
 
       // A routine's run reports how it went once its task is done, so its
       // status is the truth
+      // Including the turns an approval wakes, which carry on the run's task
       if (
         row &&
         !continuing &&
-        unattendedOrigin(turnModelUsage.messageId) === "routine"
+        parseRoutineRunMessageId(turnModelUsage.originMessageId)
       )
         await recordRoutineRunOutcome(
           row.userId,
-          turnModelUsage.messageId,
+          turnModelUsage.originMessageId,
           routineTurnOutcome({
-            error,
+            failed,
             refused,
             responseMessage,
           })
@@ -859,7 +1020,7 @@ export const chatAgent = chat
           chatId,
           runId,
           turn,
-          failed: !!error && !refused,
+          failed,
           refused,
           responseMessage,
         }).catch((reportError: unknown) =>
@@ -872,11 +1033,13 @@ export const chatAgent = chat
         "chat.turn": turn,
         "chat.outcome": refused
           ? "usage_limit"
-          : error
+          : failed
             ? "failed"
-            : continuing
-              ? "continuing"
-              : "completed",
+            : turnModelUsage.stop
+              ? `stopped_${turnModelUsage.stop}`
+              : continuing
+                ? "continuing"
+                : "completed",
         "trigger.task": "chat",
         "trigger.run": runId,
         "usage.ai_provider": turnModelUsage.chatgpt ? "chatgpt" : "krafty",
@@ -889,6 +1052,7 @@ export const chatAgent = chat
           "usage.web_cost": turnModelUsage.webCost,
           "usage.consultation_cost": turnModelUsage.consultationCost,
         }),
+        "usage.credited": turnModelUsage.credited,
       })
 
       // The run sleeps between turns, and may be frozen as soon as this returns
@@ -950,6 +1114,9 @@ export const chatAgent = chat
       // Set here, not in tools(), which the SDK resolves before onTurnStart
       // has this turn's message
       turnModelUsage.tier = usage.tier
+      turnModelUsage.userId = row.userId
+      // The limit of the bot the turn started with, even after a handoff
+      turnModelUsage.budget = bot.taskBudget
       // The owner's decline wakes the bot: read what they declined from the
       // database, never from the message ID alone. A continuation of that
       // turn still knows what was declined.
@@ -959,6 +1126,13 @@ export const chatAgent = chat
       turnModelUsage.declined = declinedId
         ? await declinedFor(row.userId, declinedId)
         : []
+      const decidedId = /^approval_(.+)_(?:approve|always|deny)$/.exec(
+        rootMessageId(turnModelUsage.messageId)
+      )?.[1]
+      if (decidedId)
+        turnModelUsage.originMessageId =
+          (await approvalOrigin(row.userId, decidedId)) ??
+          turnModelUsage.originMessageId
       await assertBotAccess(row.userId, bot.id)
       if (usage.tier === "free" && group)
         throw new Error("Group chats require a paid plan.")
@@ -1009,6 +1183,9 @@ export const chatAgent = chat
       const memory = await memoryFor(bot.id)
       // Schedules are worked out in the owner's clock, never the UTC date
       const zone = await savedTimeZone(row.userId)
+      // Where mail to the owner may go without approval (createApprovalGate)
+      const ownerEmails =
+        "executeAppTool" in tools ? await ownerEmailAddresses(row.userId) : []
       const clock = routineClock(zone ?? "UTC", new Date(), {
         assumed: !zone,
       })
@@ -1053,7 +1230,7 @@ export const chatAgent = chat
               computerAvailable,
               webToolsAvailable,
               memory,
-              { paid: usage.tier === "paid", clock }
+              { paid: usage.tier === "paid", clock, ownerEmails }
             ),
             composerContext,
             connectionContext,
@@ -1091,7 +1268,7 @@ export const chatAgent = chat
                     computerAvailable,
                     webToolsAvailable,
                     await memoryFor(updated.id),
-                    { paid: usage.tier === "paid", clock }
+                    { paid: usage.tier === "paid", clock, ownerEmails }
                   ),
                   composerContext,
                   connectionContext,
@@ -1106,6 +1283,11 @@ export const chatAgent = chat
             turnModelUsage.cost += appModelCost(chatgptSelected, () =>
               chatModelCost(usage, model.modelId)
             )
+            // Tools record their spend while the step runs, so this step's
+            // share is everything since the last one ended
+            const total = turnSpend()
+            turnModelUsage.stepSpends.push(total - turnModelUsage.spentAtStep)
+            turnModelUsage.spentAtStep = total
             // Hold what this turn has spent so far, so the account's other
             // turns see it, and stop when the account as a whole runs out
             const cost = turnModelUsage.cost
@@ -1158,6 +1340,25 @@ export const chatAgent = chat
               if (spent) turnModelUsage.spendCapReached = true
               return spent
             },
+            // The person's limit for one task, counting the turns it
+            // continues. Checked after each step, so the step that crosses
+            // it finishes.
+            () => {
+              const reached = taskBudgetReached(
+                turnModelUsage.budget,
+                turnModelUsage.priorSpend + turnSpend()
+              )
+              if (reached) turnModelUsage.stop = "budget"
+              return reached
+            },
+            // The same step with the same result, over and over
+            ({ steps }) => {
+              const repeated = repeatedSteps(steps)
+              if (repeated < LOOP_STEP_LIMIT) return false
+              turnModelUsage.stop = "loop"
+              turnModelUsage.repeated = repeated
+              return true
+            },
           ],
           abortSignal: signal,
         })
@@ -1170,11 +1371,11 @@ export const chatAgent = chat
 
 // How a routine's run ended: stopped for the owner, failed, or done
 function routineTurnOutcome({
-  error,
+  failed,
   refused,
   responseMessage,
 }: {
-  error: unknown
+  failed: boolean
   refused: boolean
   responseMessage?: ChatUIMessage
 }) {
@@ -1196,10 +1397,20 @@ function routineTurnOutcome({
       status: "failed" as const,
       detail: "Your AI allowance ran out before the run finished.",
     }
-  if (error)
+  if (failed)
     return {
       status: "failed" as const,
       detail: "Something went wrong during the run. Open the chat to retry.",
+    }
+  if (turnModelUsage.stop === "budget" && turnModelUsage.budget)
+    return {
+      status: "blocked" as const,
+      detail: `Stopped at the bot's ${formatBudget(turnModelUsage.budget)} limit per task.`,
+    }
+  if (turnModelUsage.stop === "loop")
+    return {
+      status: "failed" as const,
+      detail: "It kept repeating the same step, so Krafty stopped it.",
     }
   if (turnModelUsage.computerBusy)
     return {
@@ -1271,6 +1482,32 @@ async function reportUnattendedTurn(turn: {
   if (origin && turnModelUsage.computerBusy) {
     const title = `${name} couldn't use the computer`
     const body = `${turnModelUsage.computerBusy} was using it. Run it again later.`
+    await recordActivity(
+      {
+        userId: turn.userId,
+        kind: "work_failed",
+        title,
+        detail: body,
+        botId: bot?.id,
+        chatId: turn.chatId,
+        dedupeKey,
+      },
+      { title, body, path }
+    )
+    return
+  }
+  // Stopped on purpose: at the bot's limit per task, or in a loop
+  if (!turn.failed && turnModelUsage.stop) {
+    const title =
+      turnModelUsage.stop === "budget"
+        ? `${name} stopped at its spend limit`
+        : `${name} stopped repeating itself`
+    const body =
+      turnModelUsage.stop === "budget" && turnModelUsage.budget
+        ? `It used its ${formatBudget(turnModelUsage.budget)} limit for this task. Open the chat to keep going.`
+        : turnModelUsage.credited > 0
+          ? `It kept taking the same step, so Krafty stopped it and gave back ${formatSpend(turnModelUsage.credited)}.`
+          : "It kept taking the same step, so Krafty stopped it."
     await recordActivity(
       {
         userId: turn.userId,

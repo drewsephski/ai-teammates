@@ -1,12 +1,24 @@
-import { emailExecutionArguments } from "@/lib/email-draft"
+import * as Sentry from "@sentry/node"
+
+import {
+  directEmailRecipients,
+  emailExecutionArguments,
+} from "@/lib/email-draft"
 import { Composio } from "@composio/core"
 import { z } from "zod"
 import {
   createAppTools,
+  runClaimedCall,
   type AppAccount,
   type ApprovalGate,
 } from "@/lib/connector-tools"
-import { appToolRisk, fallbackSummary } from "@/lib/approval-policy"
+import {
+  appToolRisk,
+  fallbackSummary,
+  SELF_EMAILS_PER_TURN,
+  selfAddressedEmail,
+} from "@/lib/approval-policy"
+import { ownerEmailAddresses } from "@/lib/owner-email"
 import {
   claimApproval,
   completeApproval,
@@ -244,11 +256,17 @@ function appToolTags(slug: string) {
 }
 
 // Approvals for one chat. The bot is read at call time: a handoff changes it.
+// Made per turn, so the count of mail sent to the owner is per turn too.
 export function createApprovalGate(context: {
   userId: string
   chatId: string
   botId: () => string
+  // The message that started the task the turn works on, so a routine run
+  // follows its approvals (lib/approvals.ts, approvalOrigin)
+  originMessageId?: () => string | undefined
+  ownAddresses?: (userId: string) => Promise<string[]>
 }): ApprovalGate {
+  let ownerEmails = 0
   return {
     required: async (tool, accountId) => {
       const tags = await appToolTags(tool.slug)
@@ -268,6 +286,7 @@ export function createApprovalGate(context: {
         accountId: call.accountId,
         arguments: call.input,
         summary,
+        originMessageId: context.originMessageId?.(),
       })
       return { approvalId: row.id, summary }
     },
@@ -289,7 +308,56 @@ export function createApprovalGate(context: {
       )
     },
     complete: completeApproval,
+    sendsToOwner: async (tool, input) => {
+      if (ownerEmails >= SELF_EMAILS_PER_TURN) return false
+      const recipients = directEmailRecipients(tool, input)
+      if (!recipients) return false
+      const own = await (context.ownAddresses ?? ownerEmailAddresses)(
+        context.userId
+      )
+      if (!selfAddressedEmail(recipients, own)) return false
+      ownerEmails++
+      Sentry.logger.info("Email to the owner sent without approval", {
+        "user.id": context.userId,
+        "chat.id": context.chatId,
+        "tool.slug": tool.slug,
+      })
+      return true
+    },
   }
+}
+
+// Runs an approval the owner just approved, from the decision itself, so it
+// never depends on the bot calling runApprovedAction. Undefined when there
+// was nothing to run: not an app approval, already claimed, or not approved.
+export async function runApprovedCall(approval: {
+  id: string
+  userId: string
+  botId: string
+  chatId: string
+  kind: "app" | "computer"
+}) {
+  if (approval.kind !== "app") return undefined
+  const gate = createApprovalGate({
+    userId: approval.userId,
+    chatId: approval.chatId,
+    botId: () => approval.botId,
+  })
+  const call = await gate.claim(approval.id)
+  if (!call) return undefined
+  const runtime = createSessionRuntime(
+    approval.userId,
+    async (owner) => activeAccounts(owner),
+    (owner, toolkits, accounts) =>
+      createConnectorSession(owner, toolkits, accounts)
+  )
+  return runClaimedCall(
+    approval.userId,
+    runtime,
+    gate.complete,
+    approval.id,
+    call
+  )
 }
 
 export function createConnectorTools(

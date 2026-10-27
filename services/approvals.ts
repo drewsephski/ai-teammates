@@ -12,6 +12,7 @@ import {
   type EmailDraftAction,
 } from "@/lib/email-draft"
 import * as approvals from "@/lib/approvals"
+import { runApprovedCall } from "@/lib/composio"
 
 // alwaysAllowed: whether "Always allow" can save a rule for this request. When
 // false the option acts as a plain approval, so apps should hide it.
@@ -74,22 +75,31 @@ export async function getApproval(userId: string, approvalId: string) {
 export async function decideApproval(
   userId: string,
   approvalId: string,
-  input: { decision: ApprovalDecision }
+  input: { decision: ApprovalDecision },
+  run: approvals.ApprovalRunner = runApprovedCall
 ) {
   const { decision } = approvalDecisionSchema.parse(input)
-  const { approval, woke } = await approvals.decideApproval(
+  const { approval, woke, ran } = await approvals.decideApproval(
     userId,
     approvalId,
-    decision
+    decision,
+    undefined,
+    undefined,
+    run
   )
-  return { state: approval.state, chatId: approval.chatId, woke }
+  // An approved app action has already run by now: say how it went
+  const state = ran ? (ran.ok ? "executed" : "failed") : approval.state
+  return { state, chatId: approval.chatId, woke }
 }
 
 export async function actOnEmailDraft(
   userId: string,
   approvalId: string,
   value: EmailDraftAction,
-  steps?: { dispatch: approvals.ApprovalDispatch }
+  steps?: {
+    dispatch?: approvals.ApprovalDispatch
+    run?: approvals.ApprovalRunner
+  }
 ) {
   const input = emailDraftActionSchema.parse(value)
   const row = await approvals.getApproval(userId, approvalId)
@@ -119,7 +129,8 @@ export async function actOnEmailDraft(
     approvalId,
     input.action === "send" ? "approve" : "deny",
     email,
-    steps?.dispatch
+    steps?.dispatch,
+    steps ? steps.run : runApprovedCall
   )
   return { approval: await getApproval(userId, approvalId), woke }
 }
