@@ -56,6 +56,7 @@ A turn that stops at its step cap (`TURN_STEP_LIMIT`, 150 steps) or time cap (`T
 - **Limits:** free 1, paid 50 per account (`ROUTINE_LIMITS`).
 - **Prompt injection:** the routine tools refuse to create, change or delete routines during an unattended turn, since those turns read untrusted email and web content, and a bot can only change its own routines.
 - **Cadence:** the next run is computed from when the routine was due, not when the cron ran, so intervals don't drift.
+- **Context:** a routine posts into the same chat every run, so replaying the whole chat made each run cost more than the last. Every turn of a run's task (the run, its continuations and the turns its approvals wake) sends the model only the run itself, from its `Scheduled routine "…"` message, plus the reply just before it as context (`routineRunHistory` in `lib/routine-history.ts`). The transcript is untouched, and the person's next own message sees the whole chat. Routine runs get no follow-up suggestions; nobody is watching to tap one.
 - **Where to create them:** the bot's `scheduleRoutine` tool (it reports into the current chat), the Activity page, or `POST /api/v1/routines` (it reports into the bot's latest direct chat).
 
 ## Approvals

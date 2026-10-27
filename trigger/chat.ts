@@ -72,6 +72,10 @@ import {
   turnFailed,
   type TurnUsage,
 } from "@/lib/turn-spend"
+import {
+  previousReportInstructions,
+  routineRunHistory,
+} from "@/lib/routine-history"
 import { continueTurn } from "@/trigger/continuation"
 import {
   approvalOrigin,
@@ -777,6 +781,8 @@ export const chatAgent = chat
         const config = turnModelUsage.followUps
         if (
           !config ||
+          // Nobody is watching a routine run to tap a suggestion
+          unattendedOrigin(turnModelUsage.messageId) === "routine" ||
           stopped ||
           error ||
           finishReason !== "stop" ||
@@ -1133,6 +1139,17 @@ export const chatAgent = chat
         turnModelUsage.originMessageId =
           (await approvalOrigin(row.userId, decidedId)) ??
           turnModelUsage.originMessageId
+      // A routine's turns see only their own run, so each run costs about
+      // the same however long the chat gets (lib/routine-history.ts)
+      const routineRun = parseRoutineRunMessageId(
+        turnModelUsage.originMessageId
+      )
+        ? routineRunHistory(messages)
+        : undefined
+      const history = routineRun?.messages ?? messages
+      const routineContext = previousReportInstructions(
+        routineRun?.previousReport
+      )
       await assertBotAccess(row.userId, bot.id)
       if (usage.tier === "free" && group)
         throw new Error("Group chats require a paid plan.")
@@ -1219,7 +1236,7 @@ export const chatAgent = chat
           })
 
         return streamText({
-          model: subscriptionModel ?? chatModel(messages),
+          model: subscriptionModel ?? chatModel(history),
           maxRetries: chatgptSelected ? 0 : undefined,
           // The managed streamText takes the prompt as `system` on every AI SDK version
           system: [
@@ -1234,10 +1251,11 @@ export const chatAgent = chat
             ),
             composerContext,
             connectionContext,
+            routineContext,
           ]
             .filter(Boolean)
             .join("\n\n"),
-          messages,
+          messages: history,
           tools,
           // After a handoff the rest of the turn is the other bot's to answer
           prepareStep: async ({ steps, messages }) => {
@@ -1272,6 +1290,7 @@ export const chatAgent = chat
                   ),
                   composerContext,
                   connectionContext,
+                  routineContext,
                 ]
                   .filter(Boolean)
                   .join("\n\n"),

@@ -430,6 +430,7 @@ export function planDueRun(
 
 export function routineRunPrompt(routine: { title: string; prompt: string }) {
   return [
+    // trigger/chat.ts finds a run's start by this (ROUTINE_RUN_PREFIX)
     `Scheduled routine "${routine.title}". Nobody is watching this chat right now, so work on your own and finish with a short report of what you did and found.`,
     `If you need the owner (a decision, a sign-in, or missing information), ask with askUser; they get a notification. External actions that need approval wait for the owner automatically.`,
     "",
