@@ -182,7 +182,7 @@ async function seedApproval(
 }
 
 test("B can't read or decide A's approvals", async () => {
-  await seedApproval("apr_a")
+  await seedApproval("apr_a", { batchId: "run_a-0" })
   assert.equal((await approvals.listPendingApprovals(B)).length, 0)
   assert.equal((await approvals.listPendingApprovals(A)).length, 1)
   await assert.rejects(approvals.getApproval(B, "apr_a"), /Approval not found/)
@@ -190,8 +190,14 @@ test("B can't read or decide A's approvals", async () => {
     approvals.decideApproval(B, "apr_a", { decision: "approve" }),
     /Approval not found/
   )
+  // A batch is found by its owner only, whatever its ID
+  await assert.rejects(
+    approvals.decideApprovalBatch(B, "run_a-0", { decision: "approve" }),
+    /Approval not found/
+  )
   const row = await approvals.getApproval(A, "apr_a")
   assert.equal(row.state, "pending")
+  assert.equal(row.batchPending, 1)
   assert.equal("userId" in row, false)
 })
 

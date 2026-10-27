@@ -1,6 +1,11 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { z } from "zod"
+import {
+  EVENT_ROUTINE_CHANGE_ERROR,
+  eventAccountChoiceError,
+  eventConnectError,
+} from "../lib/routine-events"
 import { EMAIL_CHANGED_ERROR } from "../lib/email-draft"
 import { NextRequest } from "next/server"
 
@@ -448,6 +453,14 @@ test("routine and approval errors map to stable codes", async () => {
     [APPROVAL_DECIDED_ERROR, 409, "conflict"],
     [APPROVAL_EXPIRED_ERROR, 409, "conflict"],
     ["Pick a time in the future.", 400, "invalid_request"],
+    [EVENT_ROUTINE_CHANGE_ERROR, 400, "invalid_request"],
+    [eventConnectError("gmail"), 400, "invalid_request"],
+    [
+      eventAccountChoiceError("gmail", "Work (accountId ca_1)"),
+      400,
+      "invalid_request",
+    ],
+    ["Couldn't start watching gmail. Try again.", 502, "upstream"],
     ["Routine not found", 404, "not_found"],
     ["Approval not found", 404, "not_found"],
     [

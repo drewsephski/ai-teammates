@@ -131,6 +131,12 @@ ANTHROPIC_API_KEY=
 # Optional: Composio project API key for the Apps marketplace and agent tools
 COMPOSIO_API_KEY=
 
+# Optional: signing secret of the Composio project's webhook subscription, for
+# event routines ("when a client emails me"). Railway only: Composio delivers to
+# /api/webhooks/composio, which refuses every delivery without it. Created by
+# scripts/setup-composio-webhook.ts.
+COMPOSIO_WEBHOOK_SECRET=
+
 # Tavily: server-side public web search and page reading for every bot, including unfinished setup
 TAVILY_API_KEY=
 

@@ -15,6 +15,7 @@ import {
   approvalDecisionPrompt,
   approvalDisplayPrompt,
   approvalExecutedPrompt,
+  batchDecisionPrompt,
   approvalMessageId,
   approvalRuleApplies,
   standingRuleAllowed,
@@ -121,6 +122,8 @@ export async function requestApproval(call: {
   preview?: string
   // The message that started the task, so its outcome can follow the approval
   originMessageId?: string
+  // The reply that asked, so its requests are decided and reported together
+  batchId?: string
 }) {
   if ((call.kind ?? "app") === "app") {
     // The owner already said no to exactly this: refuse without a new card
@@ -322,7 +325,13 @@ export async function declinedFor(
   userId: string,
   approvalId: string
 ): Promise<DeclinedAction[]> {
-  const [row] = await db
+  const [named] = await db
+    .select({ batchId: approvals.batchId })
+    .from(approvals)
+    .where(and(eq(approvals.id, approvalId), eq(approvals.userId, userId)))
+  if (!named) return []
+  // A batch's one wake carries every decline in it
+  const rows = await db
     .select({
       kind: approvals.kind,
       toolkit: approvals.toolkit,
@@ -332,15 +341,18 @@ export async function declinedFor(
     .from(approvals)
     .where(
       and(
-        eq(approvals.id, approvalId),
         eq(approvals.userId, userId),
-        eq(approvals.state, "denied")
+        eq(approvals.state, "denied"),
+        named.batchId
+          ? eq(approvals.batchId, named.batchId)
+          : eq(approvals.id, approvalId)
       )
     )
-  if (!row) return []
-  return row.kind === "computer"
-    ? [{ kind: "computer", action: row.action, hostname: row.hostname }]
-    : [{ kind: "app", toolkit: row.toolkit }]
+  return rows.map((row) =>
+    row.kind === "computer"
+      ? { kind: "computer", action: row.action, hostname: row.hostname }
+      : { kind: "app", toolkit: row.toolkit }
+  )
 }
 
 export async function completeApproval(
@@ -506,13 +518,36 @@ export async function decideApproval(
     })
   }
 
+  // A reply's requests wake the bot once, after the last one is decided,
+  // with how every one of them went
+  let batch: Awaited<ReturnType<typeof batchItems>> | undefined
+  if (row.batchId) {
+    const items = await batchItems(userId, row.batchId)
+    const now = Date.now()
+    const waiting = items.filter(
+      (item) => item.state === "pending" && item.expiresAt.getTime() > now
+    )
+    if (waiting.length)
+      return { approval: decided, woke: true, ran, waiting: waiting.length }
+    if (items.length > 1) batch = items
+  }
+
   try {
     await dispatch(
       row.chatId,
       {
-        id: approvalMessageId(row.id, decision),
-        text:
-          row.kind === "computer"
+        // A batch's wake is named for the batch, so two last decisions made
+        // at once on two devices post it once. "deny" when anything was
+        // declined, so the wake turn reads the declines (declinedFor).
+        id: batch
+          ? approvalMessageId(
+              batch[0].id,
+              batch.some((item) => item.state === "denied") ? "deny" : "approve"
+            )
+          : approvalMessageId(row.id, decision),
+        text: batch
+          ? batchDecisionPrompt(batch)
+          : row.kind === "computer"
             ? computerDecisionPrompt(
                 row,
                 effective === "deny" ? "deny" : "approve"
@@ -520,7 +555,9 @@ export async function decideApproval(
             : ran && effective !== "deny"
               ? approvalExecutedPrompt(row, effective, ran)
               : approvalDecisionPrompt(row, effective),
-        displayPrompt: approvalDisplayPrompt(effective),
+        displayPrompt: batch
+          ? `${batch.length} requests decided`
+          : approvalDisplayPrompt(effective),
       },
       { botId: row.botId }
     )
@@ -530,6 +567,73 @@ export async function decideApproval(
     return { approval: decided, woke: false, ran }
   }
   return { approval: decided, woke: true, ran }
+}
+
+async function batchItems(userId: string, batchId: string) {
+  return db
+    .select({
+      id: approvals.id,
+      summary: approvals.summary,
+      kind: approvals.kind,
+      state: approvals.state,
+      result: approvals.result,
+      expiresAt: approvals.expiresAt,
+    })
+    .from(approvals)
+    .where(and(eq(approvals.userId, userId), eq(approvals.batchId, batchId)))
+    .orderBy(approvals.createdAt)
+}
+
+// How many of a reply's requests are still waiting, for its cards
+export async function pendingInBatch(userId: string, batchId: string | null) {
+  if (!batchId) return 0
+  const now = Date.now()
+  return (await batchItems(userId, batchId)).filter(
+    (item) => item.state === "pending" && item.expiresAt.getTime() > now
+  ).length
+}
+
+// Approve or decline everything still waiting from one reply. Each goes
+// through decideApproval, so each app call runs once and the bot wakes once,
+// after the last.
+export async function decideApprovalBatch(
+  userId: string,
+  batchId: string,
+  decision: "approve" | "deny",
+  dispatch: ApprovalDispatch = postChatMessage,
+  run?: ApprovalRunner
+) {
+  await expireApprovals(userId)
+  const waiting = (await batchItems(userId, batchId)).filter(
+    (item) => item.state === "pending"
+  )
+  if (!waiting.length) throw new Error("Approval not found")
+  let decided = 0
+  let woke = false
+  for (const item of waiting) {
+    try {
+      const result = await decideApproval(
+        userId,
+        item.id,
+        decision,
+        undefined,
+        dispatch,
+        run
+      )
+      decided++
+      woke = result.woke
+    } catch (error) {
+      // Decided on another device meanwhile: the rest still go through
+      if (
+        !(error instanceof Error) ||
+        ![APPROVAL_DECIDED_ERROR, APPROVAL_EXPIRED_ERROR].includes(
+          error.message
+        )
+      )
+        throw error
+    }
+  }
+  return { decided, woke }
 }
 
 // Compare the complete stored call as well as its revision: a concurrent

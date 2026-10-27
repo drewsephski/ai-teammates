@@ -20,6 +20,10 @@ import {
 } from "@/lib/approval-policy"
 import { ownerEmailAddresses } from "@/lib/owner-email"
 import {
+  eventAccountChoiceError,
+  eventConnectError,
+} from "@/lib/routine-events"
+import {
   claimApproval,
   completeApproval,
   hasApprovalRule,
@@ -264,6 +268,8 @@ export function createApprovalGate(context: {
   // The message that started the task the turn works on, so a routine run
   // follows its approvals (lib/approvals.ts, approvalOrigin)
   originMessageId?: () => string | undefined
+  // The reply asking, so its requests are decided together
+  batchId?: () => string | undefined
   ownAddresses?: (userId: string) => Promise<string[]>
 }): ApprovalGate {
   let ownerEmails = 0
@@ -287,6 +293,7 @@ export function createApprovalGate(context: {
         arguments: call.input,
         summary,
         originMessageId: context.originMessageId?.(),
+        batchId: context.batchId?.(),
       })
       return { approvalId: row.id, summary }
     },
@@ -384,4 +391,57 @@ export function createConnectorTools(
     ),
     options.approvals
   )
+}
+
+// What an event routine needs from Composio (lib/routines.ts). Injected there
+// so tests run without it.
+export type RoutineTriggers = {
+  // Starts watching; the account is the one asked for, or the person's only
+  // account for the app
+  create: (
+    userId: string,
+    trigger: { slug: string; toolkit: string; config: Record<string, unknown> },
+    accountId?: string
+  ) => Promise<{ triggerId: string; accountId: string }>
+  setEnabled: (triggerId: string, enabled: boolean) => Promise<void>
+  remove: (triggerId: string) => Promise<void>
+}
+
+export const routineTriggers: RoutineTriggers = {
+  create: async (userId, trigger, accountId) => {
+    const accounts = (await activeAccounts(userId)).filter(
+      (account) => account.toolkit === trigger.toolkit
+    )
+    const account = accountId
+      ? accounts.find((candidate) => candidate.id === accountId)
+      : accounts.length === 1
+        ? accounts[0]
+        : undefined
+    if (!accounts.length) throw new Error(eventConnectError(trigger.toolkit))
+    if (!account)
+      throw new Error(
+        eventAccountChoiceError(
+          trigger.toolkit,
+          accounts
+            .map(
+              (candidate) =>
+                `${candidate.label ?? candidate.id} (accountId ${candidate.id})`
+            )
+            .join(", ")
+        )
+      )
+    const { triggerId } = await getComposio().triggers.create(
+      userId,
+      trigger.slug,
+      { connectedAccountId: account.id, triggerConfig: trigger.config }
+    )
+    return { triggerId, accountId: account.id }
+  },
+  setEnabled: async (triggerId, enabled) => {
+    if (enabled) await getComposio().triggers.enable(triggerId)
+    else await getComposio().triggers.disable(triggerId)
+  },
+  remove: async (triggerId) => {
+    await getComposio().triggers.delete(triggerId)
+  },
 }

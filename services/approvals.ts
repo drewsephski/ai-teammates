@@ -1,4 +1,5 @@
 import {
+  approvalBatchDecisionSchema,
   approvalDecisionSchema,
   approvalRuleRevokeSchema,
   type ApprovalDecision,
@@ -63,6 +64,10 @@ export async function getApproval(userId: string, approvalId: string) {
     arguments: row.arguments,
     summary: row.summary,
     emailDraft: publicEmailDraft(row.arguments),
+    // The reply's other requests: cards offer to decide them together while
+    // two or more are waiting
+    batchId: row.batchId,
+    batchPending: await approvals.pendingInBatch(userId, row.batchId),
     state: row.state,
     expiresAt: row.expiresAt,
     decidedAt: row.decidedAt,
@@ -90,6 +95,24 @@ export async function decideApproval(
   // An approved app action has already run by now: say how it went
   const state = ran ? (ran.ok ? "executed" : "failed") : approval.state
   return { state, chatId: approval.chatId, woke }
+}
+
+// Approve or decline every request still waiting from one reply. The bot
+// wakes once, after the last.
+export async function decideApprovalBatch(
+  userId: string,
+  batchId: string,
+  input: { decision: "approve" | "deny" },
+  run: approvals.ApprovalRunner = runApprovedCall
+) {
+  const { decision } = approvalBatchDecisionSchema.parse(input)
+  return approvals.decideApprovalBatch(
+    userId,
+    batchId,
+    decision,
+    undefined,
+    run
+  )
 }
 
 export async function actOnEmailDraft(

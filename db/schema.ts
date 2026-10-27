@@ -557,6 +557,10 @@ export const routines = pgTable(
       enum: ["started", "skipped", "failed", "completed", "blocked"],
     }),
     lastError: text(),
+    // An event routine's Composio trigger and the connected account it
+    // watches (lib/routine-events.ts). Server-owned.
+    triggerId: text(),
+    triggerAccountId: text(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -568,6 +572,16 @@ export const routines = pgTable(
 // One row per run of a routine, newest first on the Activity page. Keyed by
 // the run's message ID (routineRunMessageId), so a retried dispatch or a
 // repeated report writes the same row. Cascades with its routine.
+// Webhook deliveries already turned into runs, by Composio's webhook ID, so
+// a redelivered event starts at most one run. Cascades with its routine.
+export const routineEvents = pgTable("routine_events", {
+  id: text().primaryKey(),
+  routineId: text()
+    .notNull()
+    .references(() => routines.id, { onDelete: "cascade" }),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+})
+
 export const routineRuns = pgTable(
   "routine_runs",
   {
@@ -652,10 +666,16 @@ export const approvals = pgTable(
     // The message that started the task that asked: a routine run's ID when a
     // routine asked, so the run's status follows the approval
     originMessageId: text(),
+    // The reply that asked: app approvals from one reply are decided together
+    // and wake the bot once (lib/approvals.ts)
+    batchId: text(),
     decidedAt: timestamp({ withTimezone: true }),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("approvals_user_state_idx").on(table.userId, table.state)]
+  (table) => [
+    index("approvals_user_state_idx").on(table.userId, table.state),
+    index("approvals_user_batch_idx").on(table.userId, table.batchId),
+  ]
 )
 
 // "Always allow": an app action this bot may take without asking again.
@@ -965,6 +985,11 @@ export const routineUpdateSchema = createInsertSchema(routines, {
 
 export const approvalDecisionSchema = z.object({
   decision: z.enum(["approve", "always", "deny"]),
+})
+
+// Every request still waiting from one reply at once
+export const approvalBatchDecisionSchema = z.object({
+  decision: z.enum(["approve", "deny"]),
 })
 
 // Removes one "Always allow" rule

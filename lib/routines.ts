@@ -24,6 +24,7 @@ import {
   bots,
   chatMembers,
   chats,
+  routineEvents,
   routineInsertSchema,
   routineRuns,
   routineUpdateSchema,
@@ -58,14 +59,27 @@ import {
 import { teamOperationId } from "@/lib/team-policy"
 import { assertBotAccess } from "@/lib/teammates"
 import { getAccountPlan, getUsage } from "@/lib/usage"
+import { routineTriggers, type RoutineTriggers } from "@/lib/composio"
+import {
+  EVENT_ACCOUNT_CHOICE_ERROR,
+  EVENT_CONNECT_ERROR,
+  EVENT_ROUTINE_CHANGE_ERROR,
+  EVENT_RUNS_PER_DAY,
+  ROUTINE_EVENTS,
+  triggerConfig,
+} from "@/lib/routine-events"
 
-export type PublicRoutine = Omit<Routine, "userId"> & { description: string }
+// Never the owner or the provider's trigger and account IDs
+type Internal = "userId" | "triggerId" | "triggerAccountId"
+export type PublicRoutine = Omit<Routine, Internal> & { description: string }
 
 export function publicRoutine(row: Routine): PublicRoutine {
   const routine: Partial<Routine> = { ...row }
   delete routine.userId
+  delete routine.triggerId
+  delete routine.triggerAccountId
   return {
-    ...(routine as Omit<Routine, "userId">),
+    ...(routine as Omit<Routine, Internal>),
     description: describeSchedule(row.schedule, row.timezone),
   }
 }
@@ -168,7 +182,7 @@ async function routineChat(
 export async function createRoutine(
   userId: string,
   input: RoutineInsert,
-  options: { chatId?: string } = {}
+  options: { chatId?: string; triggers?: RoutineTriggers } = {}
 ) {
   const values = routineInsertSchema.parse(input)
   const id = teamOperationId(userId, "routine", values.requestId)
@@ -194,8 +208,9 @@ export async function createRoutine(
   const chatId = await routineChat(userId, bot.id, id, options.chatId)
   // A one-off given as a wall-clock time is stored as the instant it means
   const schedule = normalizeSchedule(values.schedule, values.timezone)
+  const event = schedule.kind === "event" ? schedule : undefined
   const next = nextRunAt(schedule, values.timezone, new Date())
-  if (!next) throw new Error("Pick a time in the future.")
+  if (!next && !event) throw new Error("Pick a time in the future.")
   const [row] = await db
     .insert(routines)
     .values({
@@ -211,17 +226,60 @@ export async function createRoutine(
     })
     .onConflictDoNothing()
     .returning()
+  if (row && event) return publicRoutine(await watchEvent(row, event, options))
   return publicRoutine(row ?? (await ownedRoutine(userId, id)))
+}
+
+// Starts the Composio trigger for a new event routine. Without it the
+// routine would never run, so it goes again if the trigger can't be made.
+async function watchEvent(
+  row: Routine,
+  event: Extract<Routine["schedule"], { kind: "event" }>,
+  options: { triggers?: RoutineTriggers }
+) {
+  const kind = ROUTINE_EVENTS[event.trigger]
+  try {
+    const watched = await (options.triggers ?? routineTriggers).create(
+      row.userId,
+      {
+        slug: event.trigger,
+        toolkit: kind.toolkit,
+        config: triggerConfig(event),
+      },
+      event.accountId
+    )
+    const [saved] = await db
+      .update(routines)
+      .set({
+        triggerId: watched.triggerId,
+        triggerAccountId: watched.accountId,
+      })
+      .where(eq(routines.id, row.id))
+      .returning()
+    return saved
+  } catch (error) {
+    await db.delete(routines).where(eq(routines.id, row.id))
+    const message = error instanceof Error ? error.message : ""
+    if (
+      EVENT_CONNECT_ERROR.test(message) ||
+      EVENT_ACCOUNT_CHOICE_ERROR.test(message)
+    )
+      throw error
+    Sentry.captureException(error, { extra: { routineId: row.id } })
+    throw new Error(`Couldn't start watching ${kind.toolkit}. Try again.`)
+  }
 }
 
 export async function updateRoutine(
   userId: string,
   routineId: string,
   input: RoutineUpdate,
-  options: { botId?: string } = {}
+  options: { botId?: string; triggers?: RoutineTriggers } = {}
 ) {
   const patch = routineUpdateSchema.parse(input)
   const current = await ownedRoutine(userId, routineId, options.botId)
+  if (current.schedule.kind === "event" || patch.schedule?.kind === "event")
+    return updateEventRoutine(current, patch, options)
   const timezone = patch.timezone ?? current.timezone
   const merged = {
     ...current,
@@ -253,10 +311,54 @@ export async function updateRoutine(
   return publicRoutine(row)
 }
 
+// An event routine can be renamed, reworded, paused and resumed. What starts
+// it is fixed: a new trigger is a new routine.
+async function updateEventRoutine(
+  current: Routine,
+  patch: RoutineUpdate,
+  options: { triggers?: RoutineTriggers }
+) {
+  const changesTrigger =
+    patch.schedule !== undefined &&
+    JSON.stringify(patch.schedule) !== JSON.stringify(current.schedule)
+  if (changesTrigger) throw new Error(EVENT_ROUTINE_CHANGE_ERROR)
+  if (
+    patch.enabled !== undefined &&
+    patch.enabled !== current.enabled &&
+    current.triggerId
+  ) {
+    try {
+      await (options.triggers ?? routineTriggers).setEnabled(
+        current.triggerId,
+        patch.enabled
+      )
+    } catch (error) {
+      Sentry.captureException(error, { extra: { routineId: current.id } })
+      throw new Error(
+        patch.enabled
+          ? "Couldn't resume the routine. Try again."
+          : "Couldn't pause the routine. Try again."
+      )
+    }
+  }
+  // An unchanged schedule may come along with the edit; it's never written
+  const rest = { ...patch }
+  delete rest.schedule
+  const [row] = await db
+    .update(routines)
+    .set({ ...rest, nextRunAt: null })
+    .where(
+      and(eq(routines.id, current.id), eq(routines.userId, current.userId))
+    )
+    .returning()
+  if (!row) throw new Error("Routine not found")
+  return publicRoutine(row)
+}
+
 export async function deleteRoutine(
   userId: string,
   routineId: string,
-  options: { botId?: string } = {}
+  options: { botId?: string; triggers?: RoutineTriggers } = {}
 ) {
   const [row] = await db
     .delete(routines)
@@ -267,8 +369,16 @@ export async function deleteRoutine(
         options.botId ? eq(routines.botId, options.botId) : undefined
       )
     )
-    .returning({ id: routines.id })
+    .returning({ id: routines.id, triggerId: routines.triggerId })
   if (!row) throw new Error("Routine not found")
+  // Best effort: an event for a deleted routine is ignored, and its trigger
+  // removed then (dispatchRoutineEvent)
+  if (row.triggerId)
+    await (options.triggers ?? routineTriggers)
+      .remove(row.triggerId)
+      .catch((error: unknown) =>
+        Sentry.captureException(error, { extra: { routineId } })
+      )
 }
 
 // What a run needs from outside the database. Injected so tests can prove a
@@ -420,7 +530,9 @@ export async function listRoutineRuns(
 export async function runRoutine(
   routine: Routine,
   scheduledAt: Date,
-  deps: RoutineRunDeps = liveRunDeps
+  deps: RoutineRunDeps = liveRunDeps,
+  // What the app sent, when an event started the run
+  event?: { trigger: string; payload: unknown }
 ) {
   const messageId = routineRunMessageId(routine.id, scheduledAt)
   const skip = async (reason: string) => {
@@ -479,7 +591,7 @@ export async function runRoutine(
       routine.chatId,
       {
         id: messageId,
-        text: routineRunPrompt(routine),
+        text: routineRunPrompt(routine, event),
         displayPrompt: `Routine: ${routine.title}`,
       },
       { botId: routine.botId }
@@ -850,4 +962,95 @@ export async function closeStoppedRoutineRuns(
     }
   }
   return result
+}
+
+export type RoutineEvent = {
+  // Composio's webhook ID: the same on every redelivery
+  webhookId: string
+  triggerId: string
+  triggerSlug: string
+  userId: string
+  connectedAccountId?: string
+  payload: unknown
+}
+
+// An app event for an event routine (/api/webhooks/composio). Runs the
+// routine once per delivery, at most EVENT_RUNS_PER_DAY times a day.
+export async function dispatchRoutineEvent(
+  event: RoutineEvent,
+  deps: RoutineRunDeps = liveRunDeps,
+  triggers: RoutineTriggers = routineTriggers,
+  now = new Date()
+) {
+  const [routine] = await db
+    .select()
+    .from(routines)
+    .where(
+      and(
+        eq(routines.triggerId, event.triggerId),
+        eq(routines.userId, event.userId)
+      )
+    )
+  // The routine or its bot was deleted: stop the trigger for good
+  if (!routine) {
+    await triggers.remove(event.triggerId).catch((error: unknown) =>
+      Sentry.captureException(error, {
+        extra: { triggerId: event.triggerId },
+      })
+    )
+    return "unknown" as const
+  }
+  if (
+    routine.schedule.kind !== "event" ||
+    routine.schedule.trigger !== event.triggerSlug ||
+    (event.connectedAccountId &&
+      routine.triggerAccountId &&
+      event.connectedAccountId !== routine.triggerAccountId)
+  )
+    return "mismatch" as const
+  if (!routine.enabled) return "paused" as const
+
+  const [fresh] = await db
+    .insert(routineEvents)
+    .values({ id: event.webhookId, routineId: routine.id })
+    .onConflictDoNothing()
+    .returning({ id: routineEvents.id })
+  if (!fresh) return "duplicate" as const
+  try {
+    const [{ total }] = await db
+      .select({ total: count() })
+      .from(routineRuns)
+      .where(
+        and(
+          eq(routineRuns.routineId, routine.id),
+          gte(routineRuns.createdAt, new Date(now.getTime() - 86_400_000))
+        )
+      )
+    if (total >= EVENT_RUNS_PER_DAY) {
+      const title = `${routine.title} is paused until tomorrow`
+      const detail = `It ran ${EVENT_RUNS_PER_DAY} times in the last day, the most an event routine runs. Later events are skipped until then.`
+      await recordActivity(
+        {
+          userId: routine.userId,
+          kind: "routine_skipped",
+          title,
+          detail,
+          botId: routine.botId,
+          chatId: routine.chatId,
+          dedupeKey: `${routine.id}:capped:${now.toISOString().slice(0, 10)}`,
+        },
+        { title, body: detail, path: "/activity" }
+      )
+      return "capped" as const
+    }
+
+    return runRoutine(routine, now, deps, {
+      trigger: event.triggerSlug,
+      payload: event.payload,
+    })
+  } catch (error) {
+    // Let Composio's redelivery try again rather than count as a duplicate
+    await db.delete(routineEvents).where(eq(routineEvents.id, event.webhookId))
+    throw error
+  }
 }

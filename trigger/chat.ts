@@ -108,6 +108,7 @@ import {
   FREE_COMPUTER_CALLS_PER_TURN,
   LOW_ALLOWANCE_SECONDS,
 } from "@/lib/sandbox-policy"
+import { MAX_HELD_APPROVALS_PER_TURN } from "@/lib/approval-policy"
 import { recordActivity } from "@/lib/notify"
 import { ownerEmailAddresses } from "@/lib/owner-email"
 import { createBotSetupTools, botSetupMessageId } from "@/lib/bot-setup-tools"
@@ -169,6 +170,10 @@ const turnModelUsage = chat.local<{
   // The account's AI allowance left after every running turn's holds
   remaining: number
   approvalRequested: boolean
+  // App approvals held this reply, and whether the reply must stop for one:
+  // a computer step, or the batch is full
+  heldApprovals: number
+  stopForApproval: boolean
   // What the owner declined, when this turn is their decline (looked up in
   // the database): no new approval may be asked for in it
   declined: DeclinedAction[]
@@ -321,6 +326,8 @@ export const chatAgent = chat
         held: 0,
         remaining: Infinity,
         approvalRequested: false,
+        heldApprovals: 0,
+        stopForApproval: false,
         declined: [],
         guardCost: 0,
         computerCalls: 0,
@@ -350,6 +357,8 @@ export const chatAgent = chat
       turnModelUsage.held = 0
       turnModelUsage.remaining = Infinity
       turnModelUsage.approvalRequested = false
+      turnModelUsage.heldApprovals = 0
+      turnModelUsage.stopForApproval = false
       turnModelUsage.declined = []
       turnModelUsage.guardCost = 0
       turnModelUsage.computerCalls = 0
@@ -475,6 +484,8 @@ export const chatAgent = chat
             originMessageId: turnModelUsage.originMessageId,
           })
           turnModelUsage.approvalRequested = true
+          // A computer step depends on the screen as it is now
+          turnModelUsage.stopForApproval = true
           return { approvalId: row.id, summary }
         },
         read: (approvalId) =>
@@ -582,6 +593,8 @@ export const chatAgent = chat
         chatId,
         botId: () => current.id,
         originMessageId: () => turnModelUsage.originMessageId,
+        batchId: () =>
+          turnModelUsage.usageKey.replace(/^ai:/, "").replace(":", "-"),
       })
       const connectorTools = process.env.COMPOSIO_API_KEY
         ? createConnectorTools(userId, {
@@ -593,8 +606,16 @@ export const chatAgent = chat
               request: async (call) => {
                 if (turnModelUsage.declined.length)
                   throw new Error(DECLINED_ERROR)
+                if (turnModelUsage.heldApprovals >= MAX_HELD_APPROVALS_PER_TURN)
+                  throw new Error(
+                    `${MAX_HELD_APPROVALS_PER_TURN} actions are already waiting for the owner from this reply. Stop now and tell them; prepare the rest after they decide.`
+                  )
                 const held = await approvalGate.request(call)
                 turnModelUsage.approvalRequested = true
+                if (
+                  ++turnModelUsage.heldApprovals >= MAX_HELD_APPROVALS_PER_TURN
+                )
+                  turnModelUsage.stopForApproval = true
                 return held
               },
             },
@@ -1336,8 +1357,10 @@ export const chatAgent = chat
                   (result) => result?.toolName === "askUser"
                 )
               ),
-            // An external action is waiting for the owner's decision
-            () => turnModelUsage.approvalRequested,
+            // A computer step waits for the owner now; app actions from one
+            // reply are prepared together and decided together, so the
+            // reply ends on its own after them (or when the batch is full)
+            () => turnModelUsage.stopForApproval,
             ({ steps }) =>
               steps.some((step) =>
                 step.toolResults.some((result) =>

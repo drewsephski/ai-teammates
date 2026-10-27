@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { planLimits } from "@/lib/billing-policy"
 import { ROUTINE_LIMITS } from "@/lib/routine-policy"
 import { formatBudget, LOOP_STEP_LIMIT, TASK_BUDGETS } from "@/lib/turn-spend"
+import { EVENT_RUNS_PER_DAY } from "@/lib/routine-events"
 import {
   brandName,
   freePlanIncludes,
@@ -71,7 +72,7 @@ export const capabilities = [
   {
     id: "routines",
     title: "Routines on a schedule",
-    body: `Bots run work daily, every few hours, or once at a set time, in your timezone. The free plan includes ${ROUTINE_LIMITS.free} routine and Pro up to ${ROUTINE_LIMITS.paid}.`,
+    body: `Bots run work daily, every few hours, or once at a set time, in your timezone, or each time something happens in a connected app, such as a new email or Slack message (up to ${EVENT_RUNS_PER_DAY} runs a day). The free plan includes ${ROUTINE_LIMITS.free} routine and Pro up to ${ROUTINE_LIMITS.paid}.`,
   },
   {
     id: "teams",

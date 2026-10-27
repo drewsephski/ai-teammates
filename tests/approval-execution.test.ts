@@ -215,7 +215,7 @@ test("the gate lets a few emails a turn reach the owner, and only the owner", as
 
 // Each one different: a declined call can't be asked again unchanged
 let held = 0
-async function heldEmail(originMessageId?: string) {
+async function heldEmail(originMessageId?: string, batchId?: string) {
   held++
   return lib.requestApproval({
     userId: A,
@@ -229,8 +229,9 @@ async function heldEmail(originMessageId?: string) {
       subject: `Follow-up ${held}`,
       body: "x",
     },
-    summary: "Email Sam",
+    summary: `Email Sam ${held}`,
     originMessageId,
+    batchId,
   })
 }
 
@@ -366,4 +367,94 @@ test("a routine run blocked on an approval is completed by the turn that resumes
     .from(schema.routines)
     .where(eq(schema.routines.id, routine.id))
   assert.equal(after?.lastStatus, "completed")
+})
+
+test("a reply's requests wake the bot once, after the last is decided, with every result", async () => {
+  const batchId = "run_batch-0"
+  const [first, second, third] = [
+    await heldEmail(undefined, batchId),
+    await heldEmail(undefined, batchId),
+    await heldEmail(undefined, batchId),
+  ]
+  assert.equal(await lib.pendingInBatch(A, batchId), 3)
+  const before = posted.length
+  let sends = 0
+  const { run } = runner(async () => {
+    sends++
+    return { resultType: "completed", error: null }
+  })
+
+  const one = await lib.decideApproval(
+    A,
+    first.id,
+    "approve",
+    undefined,
+    dispatch,
+    run
+  )
+  assert.equal(one.waiting, 2)
+  await lib.decideApproval(A, second.id, "deny", undefined, dispatch, run)
+  assert.equal(posted.length, before, "nobody is woken while some wait")
+  assert.equal(await lib.pendingInBatch(A, batchId), 1)
+
+  await lib.decideApproval(A, third.id, "approve", undefined, dispatch, run)
+  assert.equal(sends, 2)
+  assert.equal(posted.length, before + 1)
+  const wake = posted.at(-1)!
+  // Named for the batch, and "deny" because something was declined
+  assert.equal(wake.id, `approval_${first.id}_deny`)
+  assert.match(wake.text, /decided the 3 requests/)
+  assert.match(wake.text, /Krafty already ran it/)
+  assert.match(wake.text, /declined/)
+  // The wake turn refuses whatever was declined in the batch
+  assert.deepEqual(await lib.declinedFor(A, first.id), [
+    { kind: "app", toolkit: "gmail" },
+  ])
+})
+
+test("approve all runs each waiting request once and wakes the bot once", async () => {
+  const batchId = "run_batch-1"
+  const items = [
+    await heldEmail(undefined, batchId),
+    await heldEmail(undefined, batchId),
+  ]
+  // One was already decided on another device
+  const { run, calls } = runner(async () => ({
+    resultType: "completed",
+    error: null,
+  }))
+  await lib.decideApproval(A, items[0].id, "approve", undefined, dispatch, run)
+  const before = posted.length
+  const result = await lib.decideApprovalBatch(
+    A,
+    batchId,
+    "approve",
+    dispatch,
+    run
+  )
+  assert.deepEqual(result, { decided: 1, woke: true })
+  assert.deepEqual(
+    calls,
+    items.map((item) => item.id)
+  )
+  assert.equal(posted.length, before + 1)
+  assert.equal(posted.at(-1)!.id, `approval_${items[0].id}_approve`)
+  for (const item of items) assert.equal(await state(item.id), "executed")
+  // Nothing left: a second press is a not-found
+  await assert.rejects(
+    lib.decideApprovalBatch(A, batchId, "approve", dispatch, run),
+    {
+      message: "Approval not found",
+    }
+  )
+  await assert.rejects(
+    lib.decideApprovalBatch(
+      "someone_else",
+      "run_batch-0",
+      "approve",
+      dispatch,
+      run
+    ),
+    { message: "Approval not found" }
+  )
 })

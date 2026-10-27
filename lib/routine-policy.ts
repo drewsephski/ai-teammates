@@ -1,5 +1,10 @@
 import { z } from "zod"
 
+import {
+  describeEvent,
+  eventPromptBlock,
+  eventScheduleSchema,
+} from "@/lib/routine-events"
 import { rootMessageId } from "@/lib/turn-continuation"
 
 // Browser-safe: the routine form and db/schema.ts import this module.
@@ -44,6 +49,9 @@ export const routineScheduleSchema = z.discriminatedUnion("kind", [
       message: "Pick a date and time.",
     }),
   }),
+  // When something happens in a connected app (lib/routine-events.ts). Never
+  // due on a clock: the app's event starts each run.
+  eventScheduleSchema,
 ])
 export type RoutineSchedule = z.infer<typeof routineScheduleSchema>
 
@@ -175,6 +183,8 @@ export function nextRunAt(
   after: Date
 ): Date | null {
   switch (schedule.kind) {
+    case "event":
+      return null
     case "once": {
       const at = resolveOnceInstant(schedule.at, zone)
       return at && at > after ? at : null
@@ -215,6 +225,8 @@ function clock(time: string) {
 // "Weekdays at 8am", "Every 3 hours", in the routine's own zone
 export function describeSchedule(schedule: RoutineSchedule, zone: string) {
   switch (schedule.kind) {
+    case "event":
+      return describeEvent(schedule.trigger)
     case "interval":
       return schedule.hours === 1
         ? "Every hour"
@@ -404,6 +416,9 @@ export function missedRunGraceMs(schedule: RoutineSchedule) {
       return 3_600_000
     case "interval":
       return Math.min(3_600_000, schedule.hours * 1_800_000)
+    // Never due on a clock, so never missed
+    case "event":
+      return 0
   }
 }
 
@@ -428,13 +443,18 @@ export function planDueRun(
   }
 }
 
-export function routineRunPrompt(routine: { title: string; prompt: string }) {
+export function routineRunPrompt(
+  routine: { title: string; prompt: string },
+  // What the app sent, when an event started the run
+  event?: { trigger: string; payload: unknown }
+) {
   return [
     // trigger/chat.ts finds a run's start by this (ROUTINE_RUN_PREFIX)
     `Scheduled routine "${routine.title}". Nobody is watching this chat right now, so work on your own and finish with a short report of what you did and found.`,
     `If you need the owner (a decision, a sign-in, or missing information), ask with askUser; they get a notification. External actions that need approval wait for the owner automatically.`,
     "",
     routine.prompt,
+    ...(event ? ["", eventPromptBlock(event)] : []),
   ].join("\n")
 }
 

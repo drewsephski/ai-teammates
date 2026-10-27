@@ -559,7 +559,7 @@ export function createAppTools(
             summary: held.summary,
             toolkit: entry.toolkit,
             message:
-              "Nothing was executed. The owner has an approval card and a notification. Tell them in one sentence what you'll do once they approve, then stop. Don't retry, rephrase, or work around this; you'll get a message when they decide.",
+              "Nothing was executed. The owner has an approval card and a notification. If the task needs more actions like this one (for example one email per client), prepare each of them now the same way: the owner decides them together and you get one message when they have. Then tell them in one or two sentences what will happen once they approve, and stop. Don't retry, rephrase, or work around this one.",
           })
         }
         try {
