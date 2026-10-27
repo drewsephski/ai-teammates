@@ -23,6 +23,8 @@ import styles from "@/components/landing/bot/bot-landing.module.css"
 import { JsonLd } from "@/components/json-ld"
 import { homeJsonLd } from "@/lib/marketing/json-ld"
 import { definitionShort } from "@/lib/marketing/content"
+import { marketingSeoPages } from "@/lib/marketing/seo-pages"
+import { useCases } from "@/app/use-cases/use-cases-data"
 import {
   brandName,
   freePlanIncludes,
@@ -93,7 +95,7 @@ export default async function LandingPage() {
           <h1 id="hero-title" className={styles.heroTitle}>
             <span className={styles.heroTitlePrimary}>
               AI that does the work
-            </span>
+            </span>{" "}
             <span className={styles.heroTitleBrand}>
               <BotMark
                 className={styles.heroMark}
@@ -119,7 +121,7 @@ export default async function LandingPage() {
               See pricing
             </a>
           </div>
-          <div className={styles.heroPreview}>
+          <div className={styles.heroPreview} data-nosnippet>
             <BotChatDemo workspaceHref={workspaceHref} />
           </div>
         </section>
@@ -133,6 +135,9 @@ export default async function LandingPage() {
             <p className={styles.explainLede}>{definitionShort}</p>
             <Link href="/how-it-works" className={styles.textLink}>
               See how it works <ArrowRightIcon size={16} />
+            </Link>
+            <Link href="/ai-teammates" className={styles.textLink}>
+              What makes a Bot a teammate <ArrowRightIcon size={16} />
             </Link>
           </div>
           <HowItWorksSteps />
@@ -261,17 +266,25 @@ export default async function LandingPage() {
             <a href="#features">Features</a>
             <Link href="/how-it-works">How it works</Link>
             <Link href="/use-cases">Use cases</Link>
-            <Link href="/ai-agents-for-business">For business</Link>
-            <Link href="/ai-employees">AI employees</Link>
+            <Link href="/download">Get the app</Link>
             <a href="#pricing">Pricing</a>
+            <a href="#faqs">FAQs</a>
           </div>
           <div className={styles.footerColumn}>
-            <p className={styles.footerHeading}>Krafty Bot</p>
-            <a href="#top">Overview</a>
-            <Link href={workspaceHref} prefetch={false}>
-              Your Bots
-            </Link>
-            <a href="#faqs">FAQs</a>
+            <p className={styles.footerHeading}>Guides</p>
+            {marketingSeoPages.map((page) => (
+              <Link key={page.path} href={page.path}>
+                {page.h1}
+              </Link>
+            ))}
+          </div>
+          <div className={styles.footerColumn}>
+            <p className={styles.footerHeading}>Use cases</p>
+            {useCases.map((useCase) => (
+              <Link key={useCase.id} href={`/use-cases/${useCase.id}`}>
+                {useCase.name}
+              </Link>
+            ))}
           </div>
           <div className={styles.footerColumn}>
             <p className={styles.footerHeading}>Your account</p>

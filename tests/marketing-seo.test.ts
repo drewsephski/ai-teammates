@@ -3,6 +3,7 @@ import { describe, it } from "node:test"
 
 import robots from "@/app/robots"
 import sitemap from "@/app/sitemap"
+import { useCaseGuides } from "@/app/use-cases/use-case-guides"
 import { useCases } from "@/app/use-cases/use-cases-data"
 import { faqs } from "@/components/landing/bot/faq-data"
 import { planLimits } from "@/lib/billing-policy"
@@ -42,6 +43,87 @@ describe("public pages for search and AI answers", () => {
     }
     const headlines = useCases.map((useCase) => useCase.headline)
     assert.equal(new Set(headlines).size, headlines.length)
+  })
+
+  it("keeps every guide page's title and description within snippet limits", () => {
+    const paths = new Set<string>()
+    for (const page of marketingSeoPages) {
+      assert.ok(!paths.has(page.path), page.path)
+      paths.add(page.path)
+      // The layout appends " · Krafty" (9 characters) to the title tag.
+      assert.ok(
+        page.title.length <= 51,
+        `${page.path} title ${page.title.length}`
+      )
+      assert.ok(
+        page.description.length >= 110 && page.description.length <= 158,
+        `${page.path} description ${page.description.length}`
+      )
+      assert.ok(page.summary.length <= 130, `${page.path} summary`)
+      assert.ok(page.faqs.length >= 4, `${page.path} faqs`)
+      assert.ok(page.sections.length >= 5, `${page.path} sections`)
+      for (const link of page.related) {
+        assert.notEqual(link.href, page.path, `${page.path} links to itself`)
+      }
+    }
+    const urls = sitemap().map((entry) => entry.url)
+    assert.ok(urls.includes("https://kraftybot.app/download"))
+  })
+
+  it("names real alternatives on the comparison pages, without scores", () => {
+    for (const path of ["/grokbot-alternatives", "/manus-alternatives"]) {
+      const page = marketingSeoPages.find((entry) => entry.path === path)
+      assert.ok(page, path)
+      const section = page.sections.find((entry) => entry.id === "alternatives")
+      assert.ok(section?.cards && section.cards.length >= 4, path)
+      const external = section.cards.filter((card) =>
+        card.href?.startsWith("https://")
+      )
+      assert.ok(external.length >= 3, `${path} links to vendors`)
+      assert.ok(section.note?.includes("don't score"), path)
+      const text = JSON.stringify(page)
+      assert.ok(
+        !/\d\s*\/\s*10\b|out of (5|10)|\brating\b/i.test(text),
+        `${path} has a score`
+      )
+    }
+  })
+
+  it("puts the guide pages in llms-full.txt", () => {
+    const full = llmsFullTxt()
+    for (const page of marketingSeoPages) {
+      assert.ok(full.includes(`### ${page.h1}`), page.path)
+      assert.ok(full.includes(page.lead), page.path)
+    }
+  })
+
+  it("gives every role page a first run, an example, questions, and pitfalls", () => {
+    const sentences = new Map<string, string>()
+    for (const useCase of useCases) {
+      const guide = useCaseGuides[useCase.id]
+      assert.ok(guide, useCase.id)
+      assert.ok(guide.firstRun.length >= 3, useCase.id)
+      assert.ok(/example/i.test(guide.sampleOutput.label), useCase.id)
+      assert.ok(guide.sampleOutput.lines.length >= 3, useCase.id)
+      assert.equal(guide.faqs.length, 4, useCase.id)
+      for (const [, answer] of guide.faqs) {
+        const words = answer.split(/\s+/).length
+        assert.ok(words >= 35 && words <= 75, `${useCase.id}: ${words} words`)
+        // Role pages must not share whole answers.
+        assert.ok(
+          !sentences.has(answer),
+          `${useCase.id} repeats ${sentences.get(answer)}`
+        )
+        sentences.set(answer, useCase.id)
+      }
+      assert.ok(guide.pitfalls.length > 80, useCase.id)
+      // Nothing in an example should look like a real address.
+      for (const line of guide.sampleOutput.lines) {
+        for (const email of line.match(/[\w.+-]+@[\w.-]+/g) ?? []) {
+          assert.ok(email.endsWith(".example"), `${useCase.id}: ${email}`)
+        }
+      }
+    }
   })
 
   it("puts the FAQs and the plan limits in llms-full.txt", () => {

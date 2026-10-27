@@ -3,6 +3,17 @@ import { NextResponse } from "next/server"
 
 export default clerkMiddleware(
   async (auth, request) => {
+    // Serve the site on the apex only, so search engines see one copy of each
+    // page. Railway's proxy terminates TLS, so build the target from the Host
+    // header rather than request.url, which is internal there.
+    const host = request.headers.get("host") ?? ""
+    if (host.toLowerCase() === "www.kraftybot.app") {
+      const { pathname, search } = request.nextUrl
+      return NextResponse.redirect(
+        `https://kraftybot.app${pathname}${search}`,
+        308
+      )
+    }
     if (request.nextUrl.pathname === "/pricing") {
       const { isAuthenticated } = await auth()
       if (!isAuthenticated) {

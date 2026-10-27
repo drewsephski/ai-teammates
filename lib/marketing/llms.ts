@@ -32,10 +32,7 @@ ${definition}
 - [Home](${absoluteUrl("/")}): what ${productName} is, features, pricing, and FAQs
 - [How it works](${absoluteUrl("/how-it-works")}): Bots, memory, the shared cloud computer, connected apps, routines, approvals, and limits
 ${marketingSeoPages
-  .map(
-    (page) =>
-      `- [${page.title}](${absoluteUrl(page.path)}): ${page.description.split(/(?<=\.)\s/)[0]}`
-  )
+  .map((page) => `- [${page.h1}](${absoluteUrl(page.path)}): ${page.summary}`)
   .join("\n")}
 - [Use cases](${absoluteUrl("/use-cases")}): jobs people give a Bot, each with a starter prompt
 - [Pricing](${absoluteUrl("/#pricing")}): Free and Pro plans
@@ -92,6 +89,36 @@ ${comparisons.map((comparison) => `- **${comparison.title}.** ${comparison.body}
 ## Pricing
 
 ${list(pricingFacts)}
+
+## Guides
+
+${marketingSeoPages
+  .map(
+    (page) => `### ${page.h1}
+
+${page.lead}
+
+${page.sections
+  .map((section) => {
+    const parts = [`#### ${section.title}`]
+    if (section.body) parts.push(section.body)
+    if (section.bullets) parts.push(list(section.bullets))
+    if (section.cards)
+      parts.push(
+        section.cards
+          .map((card) => `- **${card.title}.** ${card.body}`)
+          .join("\n")
+      )
+    if (section.note) parts.push(`_${section.note}_`)
+    return parts.join("\n\n")
+  })
+  .join("\n\n")}
+
+${page.faqs.map(([question, answer]) => `**${question}** ${answer}`).join("\n\n")}
+
+Page: ${absoluteUrl(page.path)}`
+  )
+  .join("\n\n")}
 
 ## Use cases
 

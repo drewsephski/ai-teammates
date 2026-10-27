@@ -6,10 +6,43 @@ import { PageFooter } from "@/components/landing/bot/page-footer"
 import styles from "@/components/landing/bot/bot-landing.module.css"
 import page from "@/app/how-it-works/how-it-works.module.css"
 import type { MarketingPage } from "@/lib/marketing/seo-pages"
-import { marketingUpdated, productName, siteUrl } from "@/lib/marketing/site"
+import { planLimits } from "@/lib/billing-policy"
+import {
+  marketingUpdated,
+  productName,
+  publicPlans,
+  siteUrl,
+} from "@/lib/marketing/site"
 import { JsonLd } from "@/components/json-ld"
 import { absoluteUrl, breadcrumbJsonLd } from "@/lib/marketing/content"
 import { faqPageJsonLd } from "@/lib/marketing/json-ld"
+
+/** Internal links stay in the app; links to other products open in a new tab. */
+function CardLink({
+  href,
+  children,
+}: {
+  href: string
+  children: React.ReactNode
+}) {
+  if (href.startsWith("/")) {
+    return (
+      <Link href={href} className={page.link}>
+        {children}
+      </Link>
+    )
+  }
+  return (
+    <a
+      href={href}
+      className={page.link}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {children}
+    </a>
+  )
+}
 
 type Props = {
   config: MarketingPage
@@ -98,19 +131,24 @@ export function MarketingSeoPage({
               <div className={page.grid}>
                 {section.cards.map((card) => (
                   <article key={card.title}>
-                    <h3>{card.title}</h3>
+                    <h3>
+                      {card.href ? (
+                        <CardLink href={card.href}>{card.title}</CardLink>
+                      ) : (
+                        card.title
+                      )}
+                    </h3>
                     <p>{card.body}</p>
                   </article>
                 ))}
               </div>
             )}
+            {section.note && <p className={page.note}>{section.note}</p>}
             {section.links && (
               <ul className={page.list}>
                 {section.links.map((link) => (
                   <li key={link.href}>
-                    <Link href={link.href} className={page.link}>
-                      {link.label}
-                    </Link>
+                    <CardLink href={link.href}>{link.label}</CardLink>
                   </li>
                 ))}
               </ul>
@@ -124,7 +162,9 @@ export function MarketingSeoPage({
             className={page.section}
             aria-labelledby="use-cases-title"
           >
-            <h2 id="use-cases-title">Small-business examples</h2>
+            <h2 id="use-cases-title">
+              {config.useCasesTitle ?? "Starter prompts"}
+            </h2>
             <div className={page.grid}>
               {config.useCases.map((useCase) => (
                 <article key={useCase.href}>
@@ -140,11 +180,7 @@ export function MarketingSeoPage({
           </section>
         )}
 
-        <section
-          id="faqs"
-          className={page.section}
-          aria-labelledby="faq-title"
-        >
+        <section id="faqs" className={page.section} aria-labelledby="faq-title">
           <h2 id="faq-title">FAQs</h2>
           <div className={page.grid}>
             {config.faqs.map(([question, answer]) => (
@@ -156,10 +192,7 @@ export function MarketingSeoPage({
           </div>
         </section>
 
-        <section
-          className={page.section}
-          aria-labelledby="related-title"
-        >
+        <section className={page.section} aria-labelledby="related-title">
           <h2 id="related-title">Related pages</h2>
           <div className={page.grid}>
             {config.related.map((item) => (
@@ -177,7 +210,14 @@ export function MarketingSeoPage({
 
         <section className={page.final} aria-labelledby="start-title">
           <h2 id="start-title">Try an AI teammate</h2>
-          <p>Start free with one Bot and one connected app.</p>
+          <p>
+            Start free with one Bot and one connected app. Pro is $
+            {publicPlans[1].price} a month for up to {planLimits.paid.bots} Bots
+            and {planLimits.paid.sandbox / 3600} hours of computer time.{" "}
+            <Link href="/ai-agent-human-approval" className={page.link}>
+              App writes wait for approval unless an eligible rule allows them.
+            </Link>
+          </p>
           <div className={styles.actions}>
             <Link href={startHref} prefetch={false} className={styles.button}>
               Get started

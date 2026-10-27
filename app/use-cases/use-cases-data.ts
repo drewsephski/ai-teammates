@@ -53,7 +53,7 @@ const details: Record<string, UseCaseDetails> = {
     ],
     waitsForYou: [
       "No email is sent. The drafts wait for you to review and send",
-      "Writing to the sheet and posting in Slack are app writes, so they wait for your approval unless you always allow them for this Bot",
+      "Writing to the sheet needs approval unless an eligible rule allows it; posting in Slack needs approval every time",
     ],
   },
   "talent-scout": {
@@ -87,7 +87,7 @@ const details: Record<string, UseCaseDetails> = {
     ],
     waitsForYou: [
       "Every bid or budget change waits for your OK",
-      "Posting the summary is an app write, so it waits for approval unless you always allow it",
+      "Posting the summary needs your approval every time; Slack posts cannot be always allowed",
     ],
   },
   "expense-manager": {
@@ -120,7 +120,7 @@ const details: Record<string, UseCaseDetails> = {
       "Matches the change to a merged pull request and drafts a one-page writeup",
     ],
     waitsForYou: [
-      "Publishing the doc and posting the link are app writes, so they wait for your approval unless you always allow them",
+      "Publishing the doc and posting the link wait for your approval; high-risk actions cannot be always allowed",
     ],
   },
   "bug-reproduction": {
@@ -170,7 +170,7 @@ const details: Record<string, UseCaseDetails> = {
     ],
     waitsForYou: [
       "Replies stay as drafts in Gmail for you to send",
-      "Sending you the brief in Slack is an app write, so it waits for approval unless you always allow it",
+      "Sending you the brief in Slack needs approval every time, even when the message is only to you",
     ],
   },
   "support-triage": {
@@ -186,7 +186,7 @@ const details: Record<string, UseCaseDetails> = {
       "Searches for an existing bug report and links it, or drafts a new one with repro steps",
     ],
     waitsForYou: [
-      "Replies, tags, new issues, and urgent alerts are app writes, so each waits for your approval unless you always allow that action",
+      "Replies, tags, new issues, and alerts wait for approval unless an eligible rule allows the action; replies and Slack posts always need approval",
     ],
   },
 }

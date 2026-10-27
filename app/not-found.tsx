@@ -14,7 +14,9 @@ const botFont = localFont({
 
 export const metadata: Metadata = {
   title: "Page not found",
-  robots: { index: false },
+  description:
+    "That page doesn't exist on Krafty. Go to the homepage or browse the use cases.",
+  robots: { index: false, follow: true },
 }
 
 export default function NotFound() {

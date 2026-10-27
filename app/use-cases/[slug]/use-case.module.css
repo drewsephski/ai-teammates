@@ -102,3 +102,55 @@
 .prompt > figure {
   flex: 1;
 }
+
+/* Example output: a fictional result, labelled as such. */
+.sample {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 20px;
+  border: 1px solid #262626;
+  border-radius: 16px;
+  background: #111111;
+}
+.sample figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.sampleTitle {
+  color: #fff;
+  font-weight: 500;
+}
+.sampleLabel {
+  color: #8f9398;
+  font-size: 13px;
+}
+.sample ul {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: #d4d4d4;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.questions {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin: 0;
+}
+.questions dt {
+  color: #fff;
+  font-weight: 500;
+}
+.questions dd {
+  margin: 6px 0 0;
+  color: #a1a1a1;
+  line-height: 1.6;
+}

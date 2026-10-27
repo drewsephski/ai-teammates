@@ -23,8 +23,13 @@
   text-wrap: pretty;
 }
 .updated {
-  color: #7d8187;
+  color: #8f9398;
   font-size: 13px;
+}
+.note {
+  color: #8f9398;
+  font-size: 14px;
+  line-height: 1.6;
 }
 .section {
   display: flex;

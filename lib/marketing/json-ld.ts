@@ -49,6 +49,7 @@ export function homeJsonLd() {
           contactType: "customer support",
           email: "drewsepeczi@gmail.com",
           url: `${siteUrl}/support`,
+          availableLanguage: "en",
         },
       },
       {
@@ -88,6 +89,7 @@ export function homeJsonLd() {
           priceCurrency: "USD",
           availability: "https://schema.org/InStock",
           url: `${siteUrl}/#pricing`,
+          seller: { "@id": organizationId },
           ...(plan.period && {
             priceSpecification: {
               "@type": "UnitPriceSpecification",

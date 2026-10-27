@@ -1,7 +1,13 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 
-import { pageMetadata } from "@/lib/marketing/content"
+import { JsonLd } from "@/components/json-ld"
+import {
+  absoluteUrl,
+  breadcrumbJsonLd,
+  pageMetadata,
+} from "@/lib/marketing/content"
+import { siteUrl } from "@/lib/marketing/site"
 
 export const metadata: Metadata = pageMetadata({
   path: "/support",
@@ -13,6 +19,23 @@ export const metadata: Metadata = pageMetadata({
 export default function SupportPage() {
   return (
     <article>
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "ContactPage",
+          "@id": `${siteUrl}/support#page`,
+          url: absoluteUrl("/support"),
+          name: "Krafty support",
+          description:
+            "Get help with your Krafty account, teammates, and conversations.",
+          isPartOf: { "@id": `${siteUrl}/#website` },
+          about: { "@id": `${siteUrl}/#organization` },
+          breadcrumb: breadcrumbJsonLd([
+            { name: "Home", path: "/" },
+            { name: "Support", path: "/support" },
+          ]),
+        }}
+      />
       <h1>Krafty support</h1>
       <p>
         For help with Krafty on the web or iPhone, email{" "}

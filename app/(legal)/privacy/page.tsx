@@ -1,7 +1,13 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 
-import { pageMetadata } from "@/lib/marketing/content"
+import { JsonLd } from "@/components/json-ld"
+import {
+  absoluteUrl,
+  breadcrumbJsonLd,
+  pageMetadata,
+} from "@/lib/marketing/content"
+import { siteUrl } from "@/lib/marketing/site"
 
 export const metadata: Metadata = pageMetadata({
   path: "/privacy",
@@ -12,6 +18,23 @@ export const metadata: Metadata = pageMetadata({
 export default function PrivacyPage() {
   return (
     <article>
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          "@id": `${siteUrl}/privacy#page`,
+          url: absoluteUrl("/privacy"),
+          name: "Privacy policy",
+          description:
+            "How Krafty collects, uses, and handles your information.",
+          dateModified: "2026-10-26",
+          isPartOf: { "@id": `${siteUrl}/#website` },
+          breadcrumb: breadcrumbJsonLd([
+            { name: "Home", path: "/" },
+            { name: "Privacy policy", path: "/privacy" },
+          ]),
+        }}
+      />
       <h1>Privacy policy</h1>
       <p>Last updated: October 26, 2026</p>
       <p>

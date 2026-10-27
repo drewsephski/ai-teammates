@@ -1,10 +1,11 @@
 import Link from "next/link"
 
 import { useCases } from "@/app/use-cases/use-cases-data"
+import { marketingSeoPages } from "@/lib/marketing/seo-pages"
 import { brandName } from "@/lib/marketing/site"
 import styles from "./page-chrome.module.css"
 
-/** Footer for public subpages. Links every role page so each is crawlable. */
+/** Footer for public subpages. Links every public page so each is crawlable. */
 export function PageFooter({ className }: { className?: string }) {
   return (
     <footer className={`${styles.footer} ${className ?? ""}`}>
@@ -13,12 +14,17 @@ export function PageFooter({ className }: { className?: string }) {
         <Link href="/">Overview</Link>
         <Link href="/how-it-works">How it works</Link>
         <Link href="/use-cases">Use cases</Link>
-        <Link href="/ai-agents-for-business">AI agents for business</Link>
-        <Link href="/ai-employees">AI employees</Link>
-        <Link href="/manus-alternatives">Manus alternatives</Link>
-        <Link href="/autonomous-ai-agent">Autonomous AI agent</Link>
+        <Link href="/download">Get the app</Link>
         <Link href="/#pricing">Pricing</Link>
         <Link href="/#faqs">FAQs</Link>
+      </nav>
+      <nav aria-label="Guides" className={styles.footerColumn}>
+        <p className={styles.footerHeading}>Guides</p>
+        {marketingSeoPages.map((page) => (
+          <Link key={page.path} href={page.path}>
+            {page.h1}
+          </Link>
+        ))}
       </nav>
       <nav aria-label="Use cases" className={styles.footerColumn}>
         <p className={styles.footerHeading}>Use cases</p>

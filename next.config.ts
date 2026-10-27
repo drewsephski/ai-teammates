@@ -20,6 +20,12 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // Chat dictation needs the microphone on this origin.
+          {
+            key: "Permissions-Policy",
+            value:
+              "camera=(), microphone=(self), geolocation=(), payment=(self)",
+          },
           ...(process.env.NODE_ENV === "production"
             ? [
                 {
@@ -29,6 +35,17 @@ const nextConfig: NextConfig = {
                 },
               ]
             : []),
+        ],
+      },
+      {
+        // Brand assets are versioned in the filename (krafty-social-v1.jpg), so
+        // they can be cached for a year.
+        source: "/brand/:asset(krafty-social-v1.jpg|krafty-icon-v1.png)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
         ],
       },
       {
