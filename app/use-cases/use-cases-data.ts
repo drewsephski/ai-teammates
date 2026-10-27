@@ -1,5 +1,3 @@
-import { roles } from "@/components/landing/bot/role-showcase-data"
-
 // Starter prompts people can paste into a new Bot. Each one names the apps it
 // connects to, so the Bot asks to link them on the first run.
 const prompts: Record<string, string> = {
@@ -193,8 +191,69 @@ const details: Record<string, UseCaseDetails> = {
   },
 }
 
+// The role pages at /use-cases/[id]. Their ids are public URLs, so keep them
+// stable even when the homepage showcase changes.
+const roleSummaries = [
+  {
+    id: "sales-outbound",
+    name: "Sales Outbound",
+    color: "#54b9a6",
+    description:
+      "Generate pipeline overnight. Researches accounts, scores contacts by intent, drafts email and LinkedIn in your voice, and leaves a review list for you to approve each morning.",
+  },
+  {
+    id: "talent-scout",
+    name: "Talent Scout",
+    color: "#885cf5",
+    description:
+      "Keep your talent pipeline moving. Sources candidates, drafts outreach in your voice, skips anyone already in the ATS, and handles interview scheduling once you approve.",
+  },
+  {
+    id: "paid-media",
+    name: "Paid Media",
+    color: "#eb4699",
+    description:
+      "Protect your ad budget. Pulls live channel and campaign data every day, recommends reallocations against your monthly plan, and holds every bid change until you approve it.",
+  },
+  {
+    id: "expense-manager",
+    name: "Expense Manager",
+    color: "#5bc67a",
+    description:
+      "Close the week with clean books. Builds the weekly summary from your expense tool and sheets, files receipts from email, and nudges owners on missing categories before review.",
+  },
+  {
+    id: "product-performance",
+    name: "Product Performance",
+    color: "#ea4045",
+    description:
+      "Know what slowed down and why. Logs into observability tools, reads the flamegraphs, and comes back with the hot spots and a short writeup with screenshots.",
+  },
+  {
+    id: "bug-reproduction",
+    name: "Bug Reproduction",
+    color: "#ea4045",
+    description:
+      "Hand engineers bugs they can reproduce. Picks up the support thread, clicks the same path in staging, captures the failure, and drops a repro pack with steps and screenshots.",
+  },
+  {
+    id: "account-health",
+    name: "Account Health",
+    color: "#3c82f6",
+    description:
+      "See risk and expansion before the QBR. Reads usage, CRM, and support signals across your book and ranks the accounts that need attention, with next steps.",
+  },
+  {
+    id: "chief-of-staff",
+    name: "Chief of Staff",
+    color: "#ed712e",
+    description:
+      "Keep your week from slipping. Scans Slack, email, calendar, and meeting notes, flags what matches your priorities, and follows up on dropped threads before they go cold.",
+  },
+]
+
 export const useCases = [
-  ...roles.map(({ id, name, color, description }) => ({
+  ...roleSummaries.map(({ id, name, color, description }) => ({
     id,
     name,
     color,

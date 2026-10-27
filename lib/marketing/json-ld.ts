@@ -1,5 +1,6 @@
 import { faqs } from "@/components/landing/bot/faq-data"
 import { capabilities, definition } from "./content"
+import type { MarketingFaq } from "./seo-pages"
 import {
   brandName,
   marketingUpdated,
@@ -13,6 +14,18 @@ import {
 
 const organizationId = `${siteUrl}/#organization`
 const founderId = `${siteUrl}/#founder`
+
+export function faqPageJsonLd(faqs: readonly MarketingFaq[], id: string) {
+  return {
+    "@type": "FAQPage",
+    "@id": id,
+    mainEntity: faqs.map(([question, answer]) => ({
+      "@type": "Question",
+      name: question,
+      acceptedAnswer: { "@type": "Answer", text: answer },
+    })),
+  }
+}
 
 export function homeJsonLd() {
   return {
@@ -93,7 +106,7 @@ export function homeJsonLd() {
         "@type": "WebPage",
         "@id": `${siteUrl}/#webpage`,
         url: `${siteUrl}/`,
-        name: `${brandName}: ${tagline}`,
+        name: "Krafty — AI teammates with memory, apps, and a cloud computer",
         description: definition,
         isPartOf: { "@id": `${siteUrl}/#website` },
         about: { "@id": `${siteUrl}/#app` },

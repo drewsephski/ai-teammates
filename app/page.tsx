@@ -15,18 +15,18 @@ import { BotChatDemo } from "@/components/landing/bot/chat-demo"
 import { BotFeatures } from "@/components/landing/bot/features"
 import { RoleShowcase } from "@/components/landing/bot/role-showcase"
 import { BotFaq } from "@/components/landing/bot/faq"
+import { HowItWorksSteps } from "@/components/landing/bot/how-it-works-steps"
 import { GetStartedButton } from "@/components/landing/bot/get-started-button"
 import { LandingPricing } from "@/components/landing/pricing"
 import { HalftoneWordmark } from "@/components/landing/halftone-wordmark-footer"
 import styles from "@/components/landing/bot/bot-landing.module.css"
 import { JsonLd } from "@/components/json-ld"
 import { homeJsonLd } from "@/lib/marketing/json-ld"
-import { definition, howItWorks } from "@/lib/marketing/content"
+import { definitionShort } from "@/lib/marketing/content"
 import {
   brandName,
   freePlanIncludes,
   siteDescription,
-  siteTitle,
   socialImage,
 } from "@/lib/marketing/site"
 
@@ -37,14 +37,17 @@ const botFont = localFont({
   display: "swap",
 })
 
+const homeTitle = "Krafty — AI agents that do the work, not just talk about it"
+const homeDescription = siteDescription
+
 export const metadata: Metadata = {
-  title: { absolute: siteTitle },
-  description: siteDescription,
+  title: { absolute: homeTitle },
+  description: homeDescription,
   alternates: { canonical: "/" },
   openGraph: {
     url: "/",
-    title: siteTitle,
-    description: siteDescription,
+    title: homeTitle,
+    description: homeDescription,
     siteName: brandName,
     type: "website",
     locale: "en_US",
@@ -81,24 +84,39 @@ export default async function LandingPage() {
             prefetch={false}
             className={styles.announcement}
           >
-            <strong>Krafty Bot is here</strong>
+            <strong>Krafty Bot is live</strong>
             <span className={styles.announcementExtra}>
-              · Meet your teammates
+              · Give it your first task
             </span>
             <ArrowUpRightIcon />
           </Link>
-          <h1 id="hero-title">
-            Meet <BotMark className={styles.heroMark} sequence="hero" /> Krafty
-            Bot
+          <h1 id="hero-title" className={styles.heroTitle}>
+            <span className={styles.heroTitlePrimary}>
+              AI that does the work
+            </span>
+            <span className={styles.heroTitleBrand}>
+              <BotMark
+                className={styles.heroMark}
+                color="#efe7dc"
+                sequence="hero"
+                dimensional
+              />
+              Krafty Bot
+            </span>
           </h1>
           <p className={styles.heroCopy}>
-            AI teammates you can give real work to. Bots sign in to your tools,
-            use them the way you do, and bring back finished work.
+            Tell Krafty what you need. It gets to work and asks before sending
+            anything.
           </p>
           <div className={styles.actions}>
-            <GetStartedButton href={startHref} />
+            <GetStartedButton
+              href={startHref}
+              label={
+                isAuthenticated ? "Open your workspace" : "Try Krafty free"
+              }
+            />
             <a href="#pricing" className={styles.secondaryButton}>
-              View plans
+              See pricing
             </a>
           </div>
           <div className={styles.heroPreview}>
@@ -107,24 +125,17 @@ export default async function LandingPage() {
         </section>
         <section
           id="what-is-krafty-bot"
-          className={`${styles.container} ${styles.section} ${styles.split}`}
+          className={`${styles.container} ${styles.section} ${styles.explain}`}
           aria-labelledby="what-is-title"
         >
-          <div className={styles.splitCopy}>
+          <div className={styles.explainIntro}>
             <h2 id="what-is-title">What is Krafty Bot?</h2>
-            <p className={styles.definition}>{definition}</p>
+            <p className={styles.explainLede}>{definitionShort}</p>
             <Link href="/how-it-works" className={styles.textLink}>
-              How Krafty Bot works <ArrowRightIcon size={16} />
+              See how it works <ArrowRightIcon size={16} />
             </Link>
           </div>
-          <ol className={styles.explainSteps}>
-            {howItWorks.map((step) => (
-              <li key={step.title}>
-                <h3>{step.title}</h3>
-                <p>{step.body}</p>
-              </li>
-            ))}
-          </ol>
+          <HowItWorksSteps />
         </section>
         <BotFeatures />
         <RoleShowcase workspaceHref={workspaceHref} />
@@ -140,10 +151,10 @@ export default async function LandingPage() {
             <LandingPricing />
           </div>
           <p className={styles.pricingNote}>
+            Start free with {freePlanIncludes}. Hours of computer time need Pro.
             Founding offer: the first 50 new Pro subscribers can use code{" "}
-            <strong>FOUNDING50</strong> for $8/month instead of $20/month while
-            their subscription stays on that plan. Start free with{" "}
-            {freePlanIncludes}. Hours of computer time require a paid plan.{" "}
+            <strong>FOUNDING50</strong> to pay $8/month instead of $20 for as
+            long as they stay on Pro.{" "}
             <Link href={appHref("/usage")} prefetch={false}>
               View your usage <ArrowUpRightIcon size={13} className="inline" />
             </Link>
@@ -155,8 +166,11 @@ export default async function LandingPage() {
           aria-labelledby="access-title"
         >
           <div className={styles.splitCopy}>
-            <h2 id="access-title">Open Krafty Bot</h2>
-            <p>The same team on your laptop and your phone.</p>
+            <h2 id="access-title">Check in from anywhere</h2>
+            <p>
+              Krafty runs in your browser. Start a task on your laptop and see
+              how it went from your phone.
+            </p>
           </div>
           <div className={styles.accessCards}>
             <Link
@@ -177,8 +191,8 @@ export default async function LandingPage() {
             >
               <MonitorIcon />
               <span>
-                {isAuthenticated ? "Meet your teammates" : "Create your team"}
-                <small>Your own AI workspace</small>
+                {isAuthenticated ? "Go to your Bots" : "Create your first Bot"}
+                <small>Free to start</small>
               </span>
               <ArrowUpRightIcon />
             </Link>
@@ -188,17 +202,17 @@ export default async function LandingPage() {
           className={`${styles.container} ${styles.section} ${styles.guides}`}
           aria-labelledby="explore-title"
         >
-          <h2 id="explore-title">Make Krafty Bot your own</h2>
+          <h2 id="explore-title">Set it up your way</h2>
           <p>
-            Give each teammate a role and bring them into the work you already
-            do every day.
+            Give each Bot a name, a job, and instructions in plain English. Tell
+            it what to remember so you don’t have to repeat yourself.
           </p>
           <Link
             href={workspaceHref}
             prefetch={false}
             className={styles.secondaryButton}
           >
-            Explore your workspace <ArrowRightIcon size={16} />
+            Open your workspace <ArrowRightIcon size={16} />
           </Link>
         </section>
         <section
@@ -213,17 +227,22 @@ export default async function LandingPage() {
           className={`${styles.container} ${styles.final}`}
           aria-labelledby="get-started-title"
         >
-          <h2 id="get-started-title">Meet your first Bot</h2>
-          <p>Start free and give it something real to do</p>
+          <h2 id="get-started-title">Got something you keep putting off?</h2>
+          <p>Hand it to Krafty. It’s free to start.</p>
           <div className={styles.actions}>
             <Link href={startHref} prefetch={false} className={styles.button}>
-              Get started
+              {isAuthenticated ? "Open your workspace" : "Try Krafty free"}
             </Link>
             <a href="#pricing" className={styles.secondaryButton}>
-              View plans
+              See pricing
             </a>
           </div>
-          <BotMark className={styles.giantMark} sequence="footer" />
+          <BotMark
+            className={styles.giantMark}
+            color="#efe7dc"
+            sequence="footer"
+            dimensional
+          />
         </section>
       </main>
       <footer className={styles.footer}>
@@ -242,13 +261,15 @@ export default async function LandingPage() {
             <a href="#features">Features</a>
             <Link href="/how-it-works">How it works</Link>
             <Link href="/use-cases">Use cases</Link>
+            <Link href="/ai-agents-for-business">For business</Link>
+            <Link href="/ai-employees">AI employees</Link>
             <a href="#pricing">Pricing</a>
           </div>
           <div className={styles.footerColumn}>
             <p className={styles.footerHeading}>Krafty Bot</p>
             <a href="#top">Overview</a>
             <Link href={workspaceHref} prefetch={false}>
-              Your teammates
+              Your Bots
             </Link>
             <a href="#faqs">FAQs</a>
           </div>
@@ -271,7 +292,9 @@ export default async function LandingPage() {
           </div>
         </div>
         <div className={styles.footerBottom}>
-          <span>AI teammates with a memory and a computer of their own.</span>
+          <span>
+            AI that does the work. Built independently by Drew Sepeczi.
+          </span>
           <div className="flex flex-wrap gap-4">
             <Link href="/support">Support</Link>
             <Link href="/privacy">Privacy policy</Link>

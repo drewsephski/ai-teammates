@@ -173,11 +173,11 @@ export function RoleShowcase({ workspaceHref }: { workspaceHref: string }) {
     >
       <div className={styles.layout} style={roleStyle(role)}>
         <div className={styles.copy}>
-          <h2 id="roles-heading">Give each Bot a job</h2>
+          <h2 id="roles-heading">What would you hand off first?</h2>
           <div
             className={styles.pills}
             ref={pillsRef}
-            aria-label="Choose a bot role"
+            aria-label="Choose an example"
           >
             {(rows ?? [roles.map((_, index) => index)]).map((row) => (
               <div className={styles.pillRow} key={row.join()}>
@@ -206,7 +206,7 @@ export function RoleShowcase({ workspaceHref }: { workspaceHref: string }) {
           </div>
           <div className={styles.desktopExplore}>
             <Link href="/use-cases" className={styles.explore}>
-              Explore more bots
+              See more use cases
             </Link>
           </div>
         </div>
@@ -231,7 +231,7 @@ export function RoleShowcase({ workspaceHref }: { workspaceHref: string }) {
       </div>
       <div className={styles.mobileExplore}>
         <Link href="/use-cases" className={styles.explore}>
-          Explore more bots
+          See more use cases
         </Link>
       </div>
     </section>

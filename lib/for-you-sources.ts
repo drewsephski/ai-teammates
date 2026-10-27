@@ -228,7 +228,11 @@ export async function exploreOtherSources({
   runtime: ConnectorRuntime
   model: LanguageModel
   signal: AbortSignal
-  onUsage: (usage: LanguageModelUsage, step: number) => Promise<void>
+  onUsage: (
+    usage: LanguageModelUsage,
+    step: number,
+    modelId: string
+  ) => Promise<void>
 }): Promise<SourceResult> {
   const result: SourceResult = { records: [], checked: [], failed: [] }
   if (!toolkits.length) return result
@@ -320,8 +324,8 @@ export async function exploreOtherSources({
       maxOutputTokens: 600,
       maxRetries: 2,
       abortSignal: signal,
-      onStepEnd: async ({ usage, stepNumber }) =>
-        onUsage(usage, 20 + stepNumber),
+      onStepEnd: async ({ usage, stepNumber, model }) =>
+        onUsage(usage, 20 + stepNumber, model.modelId),
     })
     await run.text
   } catch {

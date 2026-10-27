@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next"
 
 import { useCases } from "@/app/use-cases/use-cases-data"
+import { marketingSeoPages } from "@/lib/marketing/seo-pages"
 import { marketingUpdated, siteUrl } from "@/lib/marketing/site"
 
 // Last edits to the legal pages; keep in sync with their "Last updated" lines.
@@ -16,6 +17,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { path: "/", lastModified: marketingUpdated, priority: 1 },
     { path: "/how-it-works", lastModified: marketingUpdated, priority: 0.9 },
+    ...marketingSeoPages.map((page) => ({
+      path: page.path,
+      lastModified: marketingUpdated,
+      priority: 0.85,
+    })),
     { path: "/use-cases", lastModified: marketingUpdated, priority: 0.8 },
     ...useCases.map((useCase) => ({
       path: `/use-cases/${useCase.id}`,

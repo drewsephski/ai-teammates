@@ -3,10 +3,10 @@ import { planLimits } from "@/lib/billing-policy"
 export const siteUrl = "https://kraftybot.app"
 export const brandName = "Krafty"
 export const productName = "Krafty Bot"
-export const tagline = "AI teammates you can give real work to"
+export const tagline = "AI that does the work"
 export const siteTitle = `${brandName} — ${tagline}`
 export const siteDescription =
-  "AI teammates with their own memory and a shared cloud computer. Create your team, connect your tools, and get finished work back, even with your browser closed."
+  "Tell Krafty what you need done. Its Bots research the web, work in your apps and on a cloud computer, run tasks on a schedule, and ask before sending anything."
 export const socialImage = {
   url: "/brand/krafty-social-v1.jpg",
   width: 1200,
@@ -18,7 +18,7 @@ export const socialImage = {
  * Bump when the public marketing pages change meaningfully so the sitemap's
  * lastmod stays honest.
  */
-export const marketingUpdated = "2026-10-19"
+export const marketingUpdated = "2026-10-26"
 
 const usd = (millionths: number) => millionths / 1_000_000
 
@@ -37,7 +37,7 @@ export const publicPlans = [
     name: "Free",
     price: 0,
     period: null,
-    summary: "Try Krafty with one teammate.",
+    summary: "Try Krafty with one Bot.",
     features: [
       `${planLimits.free.bots} bot`,
       `${planLimits.free.apps} connected app`,
@@ -50,7 +50,7 @@ export const publicPlans = [
     name: "Pro",
     price: 20,
     period: "month",
-    summary: "A full team with hours of computer time.",
+    summary: "More Bots, more apps, and hours of computer time.",
     features: [
       `Up to ${planLimits.paid.bots} bots`,
       "Unlimited connected apps",

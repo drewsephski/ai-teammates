@@ -21,6 +21,8 @@ type HeroState = {
   entries: DemoEntry[]
   name: string
   pending: string | null
+  /** What the person is typing into the composer before a message sends. */
+  draft: string
   screen: DemoScreen
   overlay: boolean
   computerStatus: "action-needed" | "handed-over" | "working" | "done"
@@ -36,8 +38,9 @@ const hiddenCursor: DemoCursor = {
 }
 const finalState: HeroState = {
   entries: heroEntries,
-  name: "Sales Outbound",
+  name: "Prospecting",
   pending: null,
+  draft: "",
   screen: { view: "settled", emailChars: 14, passwordChars: 9, focus: null },
   overlay: false,
   computerStatus: "done",
@@ -52,10 +55,19 @@ const initialState: HeroState = {
   computerStatus: "action-needed",
   complete: false,
 }
+const wordCount = (text: string) => text.split(/\s+/).filter(Boolean).length
+// How long a Bot "thinks" before a reply lands.
 const composeDelay = (text: string) =>
-  Math.min(1900 + 22 * text.split(" ").length, 3000)
+  Math.min(1500 + 25 * wordCount(text), 2600)
+// How long a message stays on screen before the next thing happens, so the
+// visitor can read it.
+const readDelay = (text: string) =>
+  Math.min(Math.max(900 + 55 * wordCount(text), 1300), 3200)
 
-export function useHeroDemo(frame: RefObject<HTMLDivElement | null>) {
+export function useHeroDemo(
+  frame: RefObject<HTMLDivElement | null>,
+  enabled = true
+) {
   const [state, setState] = useState(initialState)
   const current = useRef(initialState)
   const controller = useRef<AbortController | null>(null)
@@ -68,7 +80,7 @@ export function useHeroDemo(frame: RefObject<HTMLDivElement | null>) {
 
   useEffect(() => {
     const element = frame.current
-    if (!element) return
+    if (!element || !enabled) return
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)")
     const stopOnInteraction = () => finish()
     const motionChanged = () => {
@@ -119,8 +131,21 @@ export function useHeroDemo(frame: RefObject<HTMLDivElement | null>) {
       const compose = async (index: number, pending: string) => {
         update({ pending })
         await delay(composeDelay(heroEntries[index].text))
-        add(index)
         update({ pending: null })
+        add(index)
+      }
+      const read = (index: number) => delay(readDelay(heroEntries[index].text))
+      // The person's messages are typed into the composer, then sent.
+      const type = async (index: number) => {
+        const words = heroEntries[index].text.split(/\s+/).filter(Boolean)
+        const step = Math.min(Math.max(1600 / words.length, 45), 110)
+        for (let count = 1; count <= words.length; count++) {
+          update({ draft: words.slice(0, count).join(" ") })
+          await delay(step)
+        }
+        await delay(450)
+        update({ draft: "" })
+        add(index)
       }
       const targetPoint = (target: string, fraction = 0.5) => {
         const box = element!.getBoundingClientRect()
@@ -140,17 +165,17 @@ export function useHeroDemo(frame: RefObject<HTMLDivElement | null>) {
         const prior = current.current.cursor
         const duration = Math.round(
           Math.min(
-            850,
+            1000,
             Math.max(
-              320,
-              1.05 * Math.hypot(point.x - prior.x, point.y - prior.y)
+              450,
+              1.3 * Math.hypot(point.x - prior.x, point.y - prior.y)
             )
           )
         )
         update({
           cursor: { ...point, duration, visible: true, clicking: false },
         })
-        await delay(duration + 80)
+        await delay(duration + 150)
       }
       const click = async (action: () => void) => {
         update({ cursor: { ...current.current.cursor, clicking: true } })
@@ -160,19 +185,18 @@ export function useHeroDemo(frame: RefObject<HTMLDivElement | null>) {
         update({ cursor: { ...current.current.cursor, clicking: false } })
       }
       try {
-        await delay(1000)
-        await delay(250)
-        await compose(0, "Spawning")
-        await delay(900)
-        add(1)
         await delay(500)
-        update({ name: "Sales Outbound" })
+        await compose(0, "Spawning")
+        await read(0)
+        await type(1)
+        await delay(900)
+        update({ name: "Prospecting" })
         add(2)
-        await delay(300)
+        await delay(1000)
         await compose(3, "Checking connections")
-        await delay(350)
+        await read(3)
         add(4)
-        await delay(1400)
+        await read(4)
         const point = targetPoint("computer-take-over")
         update({
           cursor: {
@@ -183,41 +207,45 @@ export function useHeroDemo(frame: RefObject<HTMLDivElement | null>) {
             clicking: false,
           },
         })
-        await delay(350)
+        await delay(400)
         await move("computer-take-over")
         await click(() => update({ computerStatus: "handed-over" }))
-        await delay(220)
+        await delay(350)
         update({ overlay: true })
-        await delay(650)
+        await delay(1000)
         await move("portal-email", 0.25)
         await click(() =>
           update({
             screen: {
               ...current.current.screen,
-              emailChars: 5,
+              emailChars: 1,
               focus: "email",
             },
           })
         )
-        for (const chars of [10, "drew@krafty.ai".length]) {
+        for (let chars = 2; chars <= "drew@kraftybot.app".length; chars += 2) {
           update({ screen: { ...current.current.screen, emailChars: chars } })
-          await delay(70)
+          await delay(60)
         }
-        update({
-          screen: {
-            ...current.current.screen,
-            passwordChars: 9,
-            focus: "password",
-          },
-        })
-        await delay(120)
+        await delay(250)
+        for (let chars = 1; chars <= 9; chars++) {
+          update({
+            screen: {
+              ...current.current.screen,
+              passwordChars: chars,
+              focus: "password",
+            },
+          })
+          await delay(55)
+        }
+        await delay(300)
         await move("portal-submit")
         await click(() =>
           update({
             screen: { ...current.current.screen, view: "portal", focus: null },
           })
         )
-        await delay(850)
+        await delay(1300)
         await move("screen-done")
         await click(() =>
           update({
@@ -226,11 +254,11 @@ export function useHeroDemo(frame: RefObject<HTMLDivElement | null>) {
             screen: { ...current.current.screen, isWorking: true },
           })
         )
-        await delay(400)
+        await delay(500)
         update({ cursor: hiddenCursor })
-        await delay(1500)
+        await delay(1800)
         await compose(5, "Wrapping the run")
-        await delay(800)
+        await delay(900)
         update({
           computerStatus: "done",
           screen: {
@@ -239,24 +267,23 @@ export function useHeroDemo(frame: RefObject<HTMLDivElement | null>) {
             isWorking: false,
           },
         })
-        await delay(700)
-        await delay(900)
+        await read(5)
         add(6)
-        await delay(600)
-        await compose(7, "Receiving context")
-        await delay(900)
-        await compose(8, "Drafting")
-        await delay(1400)
-        add(9)
         await delay(700)
+        await compose(7, "Receiving context")
+        await read(7)
+        await compose(8, "Drafting")
+        await read(8)
+        await type(9)
+        await delay(900)
         update({
           entries: current.current.entries.map((entry, index) =>
             index === 9 ? { ...entry, reactions: ["👍"] } : entry
           ),
         })
-        await delay(700)
+        await delay(900)
         add(10)
-        await delay(300)
+        await delay(700)
         await compose(11, "Thinking")
         update({ complete: true })
       } catch (error) {
@@ -268,15 +295,21 @@ export function useHeroDemo(frame: RefObject<HTMLDivElement | null>) {
     }
     const observer = new IntersectionObserver(
       ([entry]) => {
-        visible = entry.isIntersecting && entry.intersectionRatio >= 0.35
+        visible = entry.isIntersecting && entry.intersectionRatio >= 0.15
         element.toggleAttribute("data-demo-offscreen", !visible)
         if (visible) visibleWaiters.forEach((resolve) => resolve())
-        if (visible && !started.current && !current.current.complete) {
+        // Start as soon as any of the demo is on screen, which on most
+        // viewports is the moment the page loads.
+        if (
+          entry.isIntersecting &&
+          !started.current &&
+          !current.current.complete
+        ) {
           started.current = true
           void run()
         }
       },
-      { threshold: [0.0, 0.35] }
+      { threshold: [0, 0.15] }
     )
     observer.observe(element)
     const reducedTimer = motion.matches
@@ -292,7 +325,7 @@ export function useHeroDemo(frame: RefObject<HTMLDivElement | null>) {
       })
       motion.removeEventListener("change", motionChanged)
     }
-  }, [frame, finish])
+  }, [frame, finish, enabled])
 
   return { ...state, finish }
 }

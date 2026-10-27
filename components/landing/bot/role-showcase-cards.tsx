@@ -2,9 +2,11 @@ import Link from "next/link"
 import { BotMark } from "./bot-mark"
 import {
   roleScenarios,
+  roles,
   type BotRole,
   type RoleEntry,
 } from "./role-showcase-data"
+import { ComputerCursor } from "../computer-cursor"
 import styles from "./role-showcase.module.css"
 
 const cursorGlyphs = {
@@ -79,17 +81,18 @@ export function MiniDesktop({
   roleId: string
   workspaceHref: string
 }) {
-  const wallpaper = [4, 3, 2][Object.keys(roleScenarios).indexOf(roleId) % 3]
+  const wallpaper = [4, 1, 2][Object.keys(roleScenarios).indexOf(roleId) % 3]
   return (
     <Link
       className={styles.computerPreview}
       href={workspaceHref}
       aria-label="Open your shared computer"
     >
+      <ComputerCursor />
       <span
         className={styles.desktopWallpaper}
         style={{
-          backgroundImage: `url(/landing/bot/cloud-agents-${wallpaper}.webp)`,
+          backgroundImage: `url(/landing/bot/krafty-wallpaper-${wallpaper}.webp)`,
         }}
       />
       <span className={styles.terminalWindow}>
@@ -266,15 +269,17 @@ export function TranscriptEntry({
         </Link>
       </div>
     )
+  const { source, summary } = entry.event
+  const sourceRole = roles.find(
+    (role) => roleScenarios[role.id]?.name === source.name
+  )
   return (
     <div className={styles.sharedContext}>
       <span>
-        <BotMark
-          color={entry.event.source.name === "Chief" ? "#ed712e" : "#3c82f6"}
-        />
-        {entry.event.source.name}
+        <BotMark color={sourceRole?.color ?? "#3c82f6"} />
+        {source.name}
       </span>{" "}
-      shared <em>{entry.event.summary}</em>
+      shared <em>{summary}</em>
     </div>
   )
 }

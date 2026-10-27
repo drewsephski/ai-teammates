@@ -47,6 +47,7 @@ export function BotMark({
   active = true,
   sequence,
   compact = false,
+  dimensional = false,
   personality,
 }: {
   className?: string
@@ -56,6 +57,8 @@ export function BotMark({
   active?: boolean
   sequence?: CharacterSequence
   compact?: boolean
+  /** Light the body like a soft 3D form: key light, bounce rim and a gloss. */
+  dimensional?: boolean
   personality?: string
 }) {
   const svg = useRef<SVGSVGElement>(null)
@@ -559,6 +562,43 @@ export function BotMark({
         <clipPath id={`${id}-face`}>
           <path ref={clip} d={geometry.head} />
         </clipPath>
+        {dimensional && (
+          <>
+            <radialGradient
+              id={`${id}-key`}
+              gradientUnits="userSpaceOnUse"
+              cx="78"
+              cy="58"
+              r="190"
+            >
+              <stop offset="0" stopColor="#fff" stopOpacity=".7" />
+              <stop offset=".32" stopColor="#fff" stopOpacity=".12" />
+              <stop offset=".64" stopColor="#2a2f4a" stopOpacity="0" />
+              <stop offset="1" stopColor="#1d2240" stopOpacity=".55" />
+            </radialGradient>
+            <radialGradient
+              id={`${id}-rim`}
+              gradientUnits="userSpaceOnUse"
+              cx="114"
+              cy="104"
+              r="122"
+            >
+              <stop offset=".78" stopColor="#ffd2b0" stopOpacity="0" />
+              <stop offset="1" stopColor="#ffd2b0" stopOpacity=".5" />
+            </radialGradient>
+            <radialGradient
+              id={`${id}-gloss`}
+              gradientUnits="userSpaceOnUse"
+              cx="70"
+              cy="46"
+              r="34"
+              gradientTransform="rotate(-28 70 46) scale(1.6 1) translate(-26 0)"
+            >
+              <stop offset="0" stopColor="#fff" stopOpacity=".95" />
+              <stop offset="1" stopColor="#fff" stopOpacity="0" />
+            </radialGradient>
+          </>
+        )}
       </defs>
       <g ref={confetti} />
       <g ref={trailsBack} />
@@ -595,6 +635,17 @@ export function BotMark({
           strokeWidth={compact ? 1.5 : undefined}
         />
         <g clipPath={`url(#${id}-face)`}>
+          {dimensional &&
+            ["key", "rim", "gloss"].map((layer) => (
+              <rect
+                key={layer}
+                x="-20"
+                y="-20"
+                width="270"
+                height="270"
+                fill={`url(#${id}-${layer})`}
+              />
+            ))}
           {initialEyes.map((eye, index) => (
             <g
               key={index}

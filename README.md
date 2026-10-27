@@ -71,7 +71,8 @@ flowchart LR
         METER[meter-sandboxes<br/>every minute]
     end
 
-    AGENT -- GLM-5.3 Flash / Luna vision --> GATEWAY[Neon AI Gateway]
+    AGENT -- Claude Haiku 5.5 --> ANTHROPIC[Anthropic API]
+    AGENT -- fallback: GLM-5.3 Flash / Luna vision --> GATEWAY[Neon AI Gateway]
     AGENT -- search and read public sources --> WEB[Tavily]
     AGENT -- shell, files, mouse, keyboard --> SANDBOX[E2B desktop sandboxes]
     APP -- live desktop over noVNC --> SANDBOX
@@ -87,7 +88,7 @@ flowchart LR
 ```
 
 - **A chat turn** (`trigger/chat.ts`) builds the bot's instructions from its job and streams a reply with the sandbox tools attached (`lib/sandbox-tools.ts`). It stops after 50 steps or when the allowance is spent.
-- **The models** (`lib/model.ts`) use GLM-5.3 Flash for text and tools, and GPT-5.6 Luna for steps containing images, through Neon AI Gateway. Both use low reasoning effort. Standard rates per million tokens are $0.15 input / $0.50 output for GLM and $0.20 input / $1.20 output for Luna. Usage is metered per step, including cached input and Luna's long-context tier; current rates are published in [Neon's model catalog](https://neon.com/models.json).
+- **The models** (`lib/model.ts`) answer every app-funded call with Claude Haiku 5.5 on Anthropic's API when `ANTHROPIC_API_KEY` is set, for text, tools and screenshots alike, at low effort with prompt caching. When the key is missing, or Anthropic fails a call before it starts answering (an error, an outage, no credit left), the call goes to Neon AI Gateway instead: GLM-5.3 Flash for text and tools, GPT-5.6 Luna for steps containing images, both at low reasoning effort. Each step is priced as the model that served it. Standard rates per million tokens are $0.10 input / $0.50 output for Haiku up to 100K input tokens ($0.50 / $2.50 above), $0.15 / $0.50 for GLM and $0.20 / $1.20 for Luna, with cached input and long-context tiers metered too. Current rates are published in [Anthropic's pricing](https://platform.claude.com/docs/en/about-claude/pricing) and [Neon's model catalog](https://neon.com/models.json). People on their own ChatGPT plan are unaffected: their turns never reach either.
 - **In a group chat** the bot also gets a `handoff` tool, which gives the rest of the turn to a teammate. A request cannot bounce back to a bot that already held it.
 - **Across chats**, `listTeammates`, `createTeammate`, `delegateToTeammate`, and `createGroupChat` let bots route work to the right role. The destination receives a complete brief and starts on the server before navigation. Destination IDs are stable per user message, and Trigger.dev atomically starts the destination session with its first message. Replaying that operation does not send a second task. Automatic delegation is limited to three hops; a new human message starts a new chain. Groups support two to eight members, and teams are capped at 50 bots. Creating a specialist uses the existing paid-plan and sandbox allowance.
 - **Usage** is an append-only ledger. Model spend is written when a turn completes; sandbox time by a task that charges every running sandbox each minute and stops those of owners who have run out. Limits live in `lib/billing-policy.ts`: free accounts get a one-time $1 AI allowance, one bot, and one connected app. Paid accounts get $10 AI usage and 50 computer hours per billing period. Free accounts can chat and use connected-app tools; computers and their persistent memory/files require paid access. Free credit uses lifetime usage, so deleting a bot or changing subscriptions never replenishes it. Bot creation and app authorization are serialized per user, and durable workers recheck access on every turn/tool execution.
@@ -119,9 +120,13 @@ NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/
 DATABASE_URL=
 DATABASE_URL_UNPOOLED=
 
-# Neon AI Gateway
+# Neon AI Gateway: the fallback for every app-funded model call
 NEON_AI_GATEWAY_BASE_URL=
 NEON_AI_GATEWAY_TOKEN=
+
+# Optional: Anthropic API key. Claude Haiku 5.5 answers app-funded calls first;
+# leave empty to use only the Neon AI Gateway. Railway and Trigger.dev both read it.
+ANTHROPIC_API_KEY=
 
 # Optional: Composio project API key for the Apps marketplace and agent tools
 COMPOSIO_API_KEY=
@@ -221,6 +226,7 @@ CLERK_SECRET_KEY=
 E2B_API_KEY=
 NEON_AI_GATEWAY_BASE_URL=
 NEON_AI_GATEWAY_TOKEN=
+ANTHROPIC_API_KEY=
 COMPOSIO_API_KEY=
 
 # Optional: only if you use Sentry

@@ -5,7 +5,13 @@ import { useRef } from "react"
 import { AirplaneIcon, type AirplaneIconHandle } from "@/components/ui/airplane"
 import styles from "./bot-landing.module.css"
 
-export function GetStartedButton({ href }: { href: string }) {
+export function GetStartedButton({
+  href,
+  label = "Try Krafty free",
+}: {
+  href: string
+  label?: string
+}) {
   const airplane = useRef<AirplaneIconHandle>(null)
 
   return (
@@ -24,7 +30,7 @@ export function GetStartedButton({ href }: { href: string }) {
         className="inline-flex shrink-0"
         aria-hidden="true"
       />
-      Get started
+      {label}
     </Link>
   )
 }

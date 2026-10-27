@@ -16,23 +16,32 @@ import {
 // lib/billing-policy.ts before changing one.
 
 /** Answer-first definition, about 60 words, for "what is Krafty Bot". */
-export const definition = `${productName} is a workspace of AI teammates you can give real work to. Each Bot has its own memory and working instructions, and all the Bots on your account share one persistent cloud computer with a desktop and browser. Bots use the apps you connect, research the web, run routines on a schedule, and keep working after you close your browser.`
+export const definition = `${productName} is an AI workspace where you hand Bots actual tasks, not just questions. Each Bot has its own memory and working instructions, and all the Bots on your account share one persistent cloud computer with a desktop and browser. Bots use the apps you connect, research the web, run routines on a schedule, and keep working after you close your browser.`
 
+/** One-line definition for the home page, beside the full `definition`. */
+export const definitionShort =
+  "You tell a Bot what you need done. It works through the steps in your apps and on a cloud computer, keeps going after you log off, and checks with you before anything goes out."
+
+/** Each step's `summary` is its one-line version for the home page. */
 export const howItWorks = [
   {
     title: "Describe the job",
+    summary: "Tell a Bot what you need. A few questions and it’s set up.",
     body: "Create a Bot and tell it what you need. It asks a few setup questions, then saves its name, role, and working instructions.",
   },
   {
     title: "Connect the apps it needs",
+    summary: "You sign in yourself, and can disconnect any time.",
     body: "The first time a task needs an app, the Bot asks you to connect it. You sign in yourself, and you can disconnect an app at any time.",
   },
   {
     title: "Let it work",
+    summary: "It works in your apps and on its own computer.",
     body: "The Bot works in your apps and on its cloud computer, alone or with other Bots in a group chat. Ask it to repeat the job and it saves a routine that runs on a schedule.",
   },
   {
     title: "Review and approve",
+    summary: "Changes to your connected apps wait for your OK.",
     body: "When the Bot finishes, has a question, or wants to change something in a connected app, it tells you in the chat and on your Activity page. Changes wait for your approval.",
   },
 ] as const

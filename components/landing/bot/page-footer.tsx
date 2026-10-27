@@ -13,6 +13,10 @@ export function PageFooter({ className }: { className?: string }) {
         <Link href="/">Overview</Link>
         <Link href="/how-it-works">How it works</Link>
         <Link href="/use-cases">Use cases</Link>
+        <Link href="/ai-agents-for-business">AI agents for business</Link>
+        <Link href="/ai-employees">AI employees</Link>
+        <Link href="/manus-alternatives">Manus alternatives</Link>
+        <Link href="/autonomous-ai-agent">Autonomous AI agent</Link>
         <Link href="/#pricing">Pricing</Link>
         <Link href="/#faqs">FAQs</Link>
       </nav>
@@ -31,8 +35,8 @@ export function PageFooter({ className }: { className?: string }) {
         <Link href="/terms">Terms of service</Link>
       </nav>
       <p className={styles.footerNote}>
-        © {new Date().getFullYear()} {brandName}. AI teammates with a memory and
-        a computer of their own.
+        © {new Date().getFullYear()} {brandName}. AI that does the work. Built
+        independently by Drew Sepeczi.
       </p>
     </footer>
   )

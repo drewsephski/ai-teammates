@@ -345,13 +345,14 @@ async function runScan({ userId, has }: Caller, now: Date) {
   const signal = AbortSignal.timeout(75_000)
   const onUsage = async (
     tokens: Parameters<typeof chatModelCost>[0],
-    step: number
+    step: number,
+    modelId: string
   ) => {
     await recordUsage([
       {
         userId,
         kind: "ai",
-        amount: chatModelCost(tokens),
+        amount: chatModelCost(tokens, modelId),
         idempotencyKey: `for-you:${scanId}:${step}`,
       },
     ])

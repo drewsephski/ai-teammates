@@ -6,20 +6,20 @@ import { freePlanIncludes } from "@/lib/marketing/site"
 export const faqs = [
   ["What is Krafty Bot?", definition],
   [
-    "How is Krafty Bot different from AI assistants?",
-    "Bots have a cloud computer, so they work inside your apps and tools instead of only answering questions. Several can run at once, and they keep going after you close your browser.",
+    "How is Krafty Bot different from a chat assistant?",
+    "Krafty is built around doing the task instead of explaining it. Bots work in the apps you connect and on a cloud computer with a browser, several can run at once, and they keep going after you close your browser.",
   ],
   [
     "Does a Bot change things in my apps without asking?",
     "No. Reading your connected apps needs no approval, but anything that writes to them, such as sending an email or updating a record, waits for you to approve it. You can choose to always allow a specific action for a specific Bot, except for high-risk actions.",
   ],
   [
-    "Who can use Krafty Bot?",
-    `Anyone can start free with ${freePlanIncludes}. More teammates and hours of computer time require a paid plan. See the available plans in your workspace.`,
+    "Who is Krafty Bot for?",
+    `Anyone with work they keep putting off: independent founders, freelancers, developers, and small businesses. Start free with ${freePlanIncludes}. More Bots and hours of computer time need a paid plan.`,
   ],
   [
     "Where do I talk to Krafty Bot?",
-    "Open Krafty in your browser on your desktop or phone. Your workspace brings individual chats, group conversations, and your teammates together.",
+    "In your browser, on your laptop or your phone. Your workspace has a chat with each Bot, group chats, and an Activity page for anything waiting on you.",
   ],
   [
     "How much does Krafty Bot cost?",
