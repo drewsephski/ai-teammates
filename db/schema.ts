@@ -17,6 +17,7 @@ import { createInsertSchema } from "drizzle-zod"
 import { nanoid } from "nanoid"
 import { z } from "zod"
 
+import { featureIds } from "@/lib/feature-votes"
 import { containsSecret } from "@/lib/memory-policy"
 import {
   routineScheduleSchema,
@@ -1047,3 +1048,23 @@ export const appWaitlist = pgTable(
   },
   (table) => [primaryKey({ columns: [table.email, table.platform] })]
 )
+
+// Anonymous votes in the home page's "what should we build next" poll. The
+// voter is a SHA-256 of a random cookie, never an account, so each browser has
+// one vote it can move to another option.
+export const featureVotes = pgTable(
+  "feature_votes",
+  {
+    voterHash: text().primaryKey(),
+    featureId: text({ enum: featureIds }).notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("feature_votes_feature_id_idx").on(table.featureId)]
+)
+
+export const featureVoteSchema = createInsertSchema(featureVotes)
+  .pick({ featureId: true })
+  .required()
+
+export type FeatureVoteInput = z.infer<typeof featureVoteSchema>

@@ -161,6 +161,13 @@ export default function PrivacyPage() {
       </p>
 
       <p>
+        If you vote in the feature poll on our home page, we set a cookie
+        holding a random identifier so you can change your vote later. We store
+        only a one-way hash of that identifier with your choice, not your
+        account, email, or IP address.
+      </p>
+
+      <p>
         The mobile app uses secure device storage for sign-in tokens and your
         AI-processing permission. App updates may use an installation identifier
         to deliver compatible software updates. The app does not display

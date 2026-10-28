@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import type { Metadata } from "next"
 import Link from "next/link"
 import localFont from "next/font/local"
@@ -15,6 +16,7 @@ import { BotChatDemo } from "@/components/landing/bot/chat-demo"
 import { BotFeatures } from "@/components/landing/bot/features"
 import { RoleShowcase } from "@/components/landing/bot/role-showcase"
 import { BotFaq } from "@/components/landing/bot/faq"
+import { FeatureVote } from "@/components/landing/bot/feature-vote"
 import { HowItWorksSteps } from "@/components/landing/bot/how-it-works-steps"
 import { GetStartedButton } from "@/components/landing/bot/get-started-button"
 import { LandingPricing } from "@/components/landing/pricing"
@@ -25,6 +27,7 @@ import { homeJsonLd } from "@/lib/marketing/json-ld"
 import { definitionShort } from "@/lib/marketing/content"
 import { marketingSeoPages } from "@/lib/marketing/seo-pages"
 import { useCases } from "@/app/use-cases/use-cases-data"
+import { loadFeatureVotes } from "@/queries/feature-votes"
 import {
   brandName,
   freePlanIncludes,
@@ -55,6 +58,12 @@ export const metadata: Metadata = {
     locale: "en_US",
     images: [{ ...socialImage, type: "image/jpeg" }],
   },
+}
+
+// Streams in after the rest of the page, so the poll's database read never
+// holds up the first paint.
+async function FeatureVoteResults() {
+  return <FeatureVote initialVotes={await loadFeatureVotes()} />
 }
 
 export default async function LandingPage() {
@@ -219,6 +228,22 @@ export default async function LandingPage() {
           >
             Open your workspace <ArrowRightIcon size={16} />
           </Link>
+        </section>
+        <section
+          id="next"
+          className={`${styles.container} ${styles.section} ${styles.split}`}
+          aria-labelledby="next-title"
+        >
+          <div className={styles.splitCopy}>
+            <h2 id="next-title">What should we build next?</h2>
+            <p>
+              Pick the one you’d use most. Voting is anonymous, and you can
+              change your vote any time.
+            </p>
+          </div>
+          <Suspense fallback={<FeatureVote initialVotes={null} />}>
+            <FeatureVoteResults />
+          </Suspense>
         </section>
         <section
           id="faqs"
