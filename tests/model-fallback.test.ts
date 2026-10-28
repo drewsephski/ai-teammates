@@ -7,6 +7,7 @@ import {
   chatModel,
   chatModelBound,
   chatModelCost,
+  followUpModel,
   withFallback,
   withoutEarlierImages,
 } from "../lib/model"
@@ -187,12 +188,43 @@ test("without an Anthropic key the gateway serves every call", () => {
   const saved = process.env.ANTHROPIC_API_KEY
   try {
     delete process.env.ANTHROPIC_API_KEY
-    assert.equal(chatModel().modelId, "glm-5-3-flash")
+    assert.equal(chatModel([], { anthropic: true }).modelId, "glm-5-3-flash")
     process.env.ANTHROPIC_API_KEY = "  "
-    assert.equal(chatModel().modelId, "glm-5-3-flash")
+    assert.equal(chatModel([], { anthropic: true }).modelId, "glm-5-3-flash")
     process.env.ANTHROPIC_API_KEY = "sk-ant-test"
-    assert.equal(chatModel().modelId, "claude-haiku-5-5")
-    assert.equal(chatModel().provider, "anthropic.messages")
+    assert.equal(chatModel([], { anthropic: true }).modelId, "claude-haiku-5-5")
+    assert.equal(
+      chatModel([], { anthropic: true }).provider,
+      "anthropic.messages"
+    )
+  } finally {
+    if (saved === undefined) delete process.env.ANTHROPIC_API_KEY
+    else process.env.ANTHROPIC_API_KEY = saved
+  }
+})
+
+test("Anthropic serves only an account that allows it, even with the key", () => {
+  const saved = process.env.ANTHROPIC_API_KEY
+  try {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test"
+    // Off unless the caller passes the account's permission
+    assert.equal(chatModel().modelId, "glm-5-3-flash")
+    assert.equal(chatModel([], { anthropic: false }).modelId, "glm-5-3-flash")
+    assert.equal(followUpModel().modelId, "glm-5-3-flash")
+    assert.equal(followUpModel({ anthropic: false }).modelId, "glm-5-3-flash")
+    assert.equal(followUpModel({ anthropic: true }).modelId, "claude-haiku-5-5")
+    // An image turn without permission goes to the gateway's vision model
+    assert.equal(
+      chatModel([
+        {
+          role: "user",
+          content: [
+            { type: "file", mediaType: "image/png", data: "iVBORw0KGgo=" },
+          ],
+        },
+      ]).modelId,
+      "gpt-5-6-luna"
+    )
   } finally {
     if (saved === undefined) delete process.env.ANTHROPIC_API_KEY
     else process.env.ANTHROPIC_API_KEY = saved
@@ -323,7 +355,7 @@ test("Claude is called as Haiku 5.5 at low effort, cached, with stale thinking d
   )
 
   const result = streamText({
-    model: chatModel(),
+    model: chatModel([], { anthropic: true }),
     system: "You are Quill",
     messages: [
       {

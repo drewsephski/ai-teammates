@@ -28,6 +28,8 @@ export function createTeammateConsultation(context: {
   usageKey: () => string
   unrecordedCost: () => number
   onCost: (cost: number) => void
+  // Whether this turn's account allows Anthropic (anthropicAllowed)
+  anthropic: () => boolean
 }) {
   const consulted = new Set<string>()
   return createConsultationTool(
@@ -85,7 +87,7 @@ export function createTeammateConsultation(context: {
       const answer = await generateConsultation({
         model: chatgpt
           ? await chatGPTModelForUser(context.userId)
-          : chatModel(),
+          : chatModel([], { anthropic: context.anthropic() }),
         bot,
         prompt,
         recentConversation: followUpContext(
