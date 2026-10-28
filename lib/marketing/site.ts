@@ -19,8 +19,7 @@ export const socialImage = {
  * listings). They become the Organization's `sameAs`, which tells search
  * engines and AI answers that those profiles and this site are one entity, so
  * Krafty Bot isn't confused with similarly named products. List only live
- * profiles that Krafty controls: the Tulimoa listing linked from the home page
- * footer (https://tulimoa.com/discover/krafty-bot) answered 404 on 2026-10-27.
+ * profiles that Krafty controls.
  */
 export const brandProfiles: readonly string[] = []
 

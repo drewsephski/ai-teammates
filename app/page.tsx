@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import Image from "next/image"
 import localFont from "next/font/local"
 import { auth } from "@clerk/nextjs/server"
 import {
@@ -258,20 +257,6 @@ export default async function LandingPage() {
               Krafty
             </Link>
             <span>© {new Date().getFullYear()} Krafty</span>
-            <a
-              href="https://tulimoa.com/discover/krafty-bot"
-              target="_blank"
-              rel="noopener noreferrer"
-              data-tulimoa-badge="light"
-            >
-              <Image
-                src="https://tulimoa.com/badge/light.svg"
-                alt="Listed on Tulimoa"
-                width={150}
-                height={41}
-                unoptimized
-              />
-            </a>
           </div>
           <div className={styles.footerColumn}>
             <p className={styles.footerHeading}>Product</p>

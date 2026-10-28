@@ -1,3 +1,6 @@
+[mcp_servers.submitmystartup]
+url = "https://submitmystartup.com/mcp"
+
 [mcp_servers.trigger]
 command = "npx"
 args = [
