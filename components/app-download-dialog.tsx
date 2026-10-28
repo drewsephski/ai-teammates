@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { CheckIcon, CopyIcon, DownloadIcon, SmartphoneIcon } from "lucide-react"
 
+import { AppWaitlist } from "@/components/app-waitlist"
 import { AppDownloadQr } from "@/components/app-download-qr"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
@@ -23,9 +24,6 @@ import {
   type MobilePlatform,
 } from "@/lib/app-download"
 
-// "Get the app" in the sidebar footer. The person picks their phone; Android
-// gets a QR code to the download page (or the download itself when they are
-// already on the phone), iPhone says the App Store release is coming.
 export function AppDownloadDialog({
   androidAvailable,
 }: {
@@ -48,7 +46,7 @@ export function AppDownloadDialog({
         <DialogHeader>
           <DialogTitle>Get the app</DialogTitle>
           <DialogDescription>
-            Chat with your bots and review their work from your phone.
+            Chat with your bots and review their work on your favorite devices.
           </DialogDescription>
         </DialogHeader>
         <AppDownloadChooser androidAvailable={androidAvailable} />
@@ -64,14 +62,17 @@ function AppDownloadChooser({
 }) {
   // Mounted only while the dialog is open, so navigator is always defined.
   const [device] = useState(() => detectMobilePlatform(navigator.userAgent))
-  const [platform, setPlatform] = useState<MobilePlatform>(device ?? "android")
+  const [platform, setPlatform] = useState<MobilePlatform | "mac">(
+    device ?? "mac"
+  )
 
   return (
     <Tabs
       value={platform}
-      onValueChange={(value) => setPlatform(value as MobilePlatform)}
+      onValueChange={(value) => setPlatform(value as MobilePlatform | "mac")}
     >
-      <TabsList className="w-full" aria-label="Your phone">
+      <TabsList className="w-full" aria-label="Your device">
+        <TabsTrigger value="mac">Mac</TabsTrigger>
         <TabsTrigger value="ios">iPhone</TabsTrigger>
         <TabsTrigger value="android">Android</TabsTrigger>
       </TabsList>
@@ -105,11 +106,11 @@ function AppDownloadChooser({
           </div>
         )}
       </TabsContent>
+      <TabsContent value="mac" className="pt-2">
+        <AppWaitlist initialPlatform="mac" compact />
+      </TabsContent>
       <TabsContent value="ios" className="pt-2">
-        <p className="text-muted-foreground">
-          Krafty for iPhone is coming soon to the App Store. Until then, open{" "}
-          {new URL(appDownloadUrl).host} in Safari to use Krafty on your iPhone.
-        </p>
+        <AppWaitlist initialPlatform="iphone" compact />
       </TabsContent>
     </Tabs>
   )

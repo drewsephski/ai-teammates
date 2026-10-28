@@ -24,6 +24,8 @@ const prompts: Record<string, string> = {
 type UseCaseDetails = {
   /** Search-shaped page title, "AI agent for …". */
   headline: string
+  /** The job a Bot created from this page starts with (`bots.job`). */
+  job: string
   /** One answer-first paragraph for the role page. */
   summary: string
   /** Apps the starter prompt names. Each one is connected by the person. */
@@ -41,6 +43,7 @@ type UseCaseDetails = {
 const details: Record<string, UseCaseDetails> = {
   "sales-outbound": {
     headline: "AI agent for outbound sales",
+    job: "Outbound sales researcher",
     summary:
       "A Sales Outbound Bot researches target accounts overnight, finds the right contact, and drafts short emails in your voice. You start the day with a ranked review list instead of a blank sequence.",
     apps: ["HubSpot", "Gmail", "Google Sheets", "Slack"],
@@ -58,6 +61,7 @@ const details: Record<string, UseCaseDetails> = {
   },
   "talent-scout": {
     headline: "AI agent for recruiting and sourcing",
+    job: "Recruiting sourcer",
     summary:
       "A Talent Scout Bot sources candidates who match your brief and skips anyone already in your applicant tracking system. Its outreach references each person's actual work.",
     apps: ["Greenhouse", "Google Sheets", "Gmail", "Google Calendar"],
@@ -75,6 +79,7 @@ const details: Record<string, UseCaseDetails> = {
   },
   "paid-media": {
     headline: "AI agent for paid media reporting",
+    job: "Paid media analyst",
     summary:
       "A Paid Media Bot pulls yesterday's spend and results every morning, compares them with your monthly plan, and posts a short summary. It recommends budget moves and changes nothing until you agree.",
     apps: ["Google Ads", "Meta Ads", "Google Sheets", "Slack"],
@@ -92,6 +97,7 @@ const details: Record<string, UseCaseDetails> = {
   },
   "expense-manager": {
     headline: "AI agent for receipts and expenses",
+    job: "Expense bookkeeper",
     summary:
       "An Expense Manager Bot collects the week's receipts from your inbox, files them, and logs each one in your expense sheet. The books are clean before review.",
     apps: ["Gmail", "Google Drive", "Google Sheets", "Slack"],
@@ -109,6 +115,7 @@ const details: Record<string, UseCaseDetails> = {
   },
   "product-performance": {
     headline: "AI agent for performance investigations",
+    job: "Performance investigator",
     summary:
       "A Product Performance Bot signs in to your observability tool on its cloud computer and compares this week's latency with last week's. When something slowed down, it writes up the likely cause with screenshots.",
     apps: ["Datadog", "GitHub", "Notion", "Slack"],
@@ -125,6 +132,7 @@ const details: Record<string, UseCaseDetails> = {
   },
   "bug-reproduction": {
     headline: "AI agent for bug reproduction",
+    job: "Bug reproduction engineer",
     summary:
       "A Bug Reproduction Bot follows a customer's steps on your staging site in its own browser and captures what fails. Engineers get a repro pack with steps, screenshots, and console errors.",
     apps: ["Intercom", "Linear"],
@@ -141,6 +149,7 @@ const details: Record<string, UseCaseDetails> = {
   },
   "account-health": {
     headline: "AI agent for customer account health",
+    job: "Account health analyst",
     summary:
       "An Account Health Bot reads usage, CRM, and support signals for every account renewing soon. It ranks the ones that need attention, with one line of reasoning each.",
     apps: ["Salesforce", "Stripe", "Zendesk", "Gmail", "Google Sheets"],
@@ -158,6 +167,7 @@ const details: Record<string, UseCaseDetails> = {
   },
   "chief-of-staff": {
     headline: "AI executive assistant for your inbox and calendar",
+    job: "Chief of staff",
     summary:
       "An AI executive assistant reads your unread email, direct messages, and today's calendar to prepare a morning brief. It covers the meetings that need prep, the replies due today, and the threads you promised to follow up on.",
     apps: ["Gmail", "Slack", "Google Calendar"],
@@ -175,6 +185,7 @@ const details: Record<string, UseCaseDetails> = {
   },
   "support-triage": {
     headline: "AI agent for support ticket triage",
+    job: "Support triage agent",
     summary:
       "A Support Triage Bot reads new tickets every hour and drafts answers to how-to questions from your help center. It routes billing issues and links real bugs to an existing issue or drafts a new one.",
     apps: ["Zendesk", "Notion", "Linear", "Slack"],

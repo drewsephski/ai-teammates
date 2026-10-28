@@ -74,7 +74,7 @@ export function desktopHeartbeatMs(
 }
 
 // What a person sees when the computer allowance is spent. The free allowance
-// is a one-time 300 seconds; the paid one renews with the billing period.
+// is a one-time allowance; the paid one renews with the billing period.
 export function computerTimeUsedUpMessage(tier?: "free" | "paid") {
   if (tier === "free")
     return "Your free computer time is used up. Upgrade to keep using the computer."

@@ -40,6 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { TimePicker } from "@/components/ui/time-picker"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
@@ -226,26 +227,19 @@ function RoutineForm({
                     </SelectContent>
                   </Select>
                   {schedule.kind === "daily" && (
-                    <Input
-                      type="time"
-                      aria-label="Time"
-                      className="w-32"
+                    <TimePicker
                       value={schedule.time}
-                      aria-invalid={fieldState.invalid}
-                      onChange={(event) =>
-                        field.onChange({
-                          ...schedule,
-                          time: event.target.value,
-                        })
-                      }
+                      invalid={fieldState.invalid}
+                      onBlur={field.onBlur}
+                      onChange={(time) => field.onChange({ ...schedule, time })}
                     />
                   )}
                   {schedule.kind === "interval" && (
                     <div className="flex items-center gap-2">
                       <Input
-                        type="number"
-                        min={1}
-                        max={168}
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
                         aria-label="Hours between runs"
                         className="w-20"
                         value={
@@ -255,7 +249,9 @@ function RoutineForm({
                         onChange={(event) =>
                           field.onChange({
                             ...schedule,
-                            hours: event.target.valueAsNumber,
+                            hours: /^\d+$/.test(event.target.value)
+                              ? Number(event.target.value)
+                              : Number.NaN,
                           })
                         }
                       />

@@ -6,7 +6,7 @@ import { marketingUpdated, siteUrl } from "@/lib/marketing/site"
 
 // Last edits to the legal pages; keep in sync with their "Last updated" lines.
 const legalUpdated = {
-  privacy: "2026-10-17",
+  privacy: "2026-10-27",
   terms: "2026-10-15",
   support: "2026-10-15",
   deleteAccount: "2026-10-17",

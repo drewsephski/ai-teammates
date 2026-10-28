@@ -875,7 +875,12 @@
   .mobileMenu {
     display: block;
   }
-  .mobileMenu summary {
+  .mobileMenu > button {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: inherit;
+    font-family: inherit;
     cursor: pointer;
     list-style: none;
     display: flex;
@@ -883,9 +888,6 @@
     gap: 6px;
     min-height: 44px;
     font-size: 11px;
-  }
-  .mobileMenu summary::-webkit-details-marker {
-    display: none;
   }
   .mobileMenu nav {
     position: absolute;

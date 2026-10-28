@@ -27,7 +27,7 @@ export default function PrivacyPage() {
           name: "Privacy policy",
           description:
             "How Krafty collects, uses, and handles your information.",
-          dateModified: "2026-10-26",
+          dateModified: "2026-10-27",
           isPartOf: { "@id": `${siteUrl}/#website` },
           breadcrumb: breadcrumbJsonLd([
             { name: "Home", path: "/" },
@@ -36,7 +36,7 @@ export default function PrivacyPage() {
         }}
       />
       <h1>Privacy policy</h1>
-      <p>Last updated: October 26, 2026</p>
+      <p>Last updated: October 27, 2026</p>
       <p>
         Krafty provides AI teammates, connected tools, and cloud computers. This
         policy describes how information is handled when you use kraftybot.app
@@ -47,6 +47,12 @@ export default function PrivacyPage() {
 
       <h2>Information we collect</h2>
       <ul>
+        <li>
+          If you join an app waitlist, we store your email address, the devices
+          you choose, and your signup date to send updates about those app
+          launches. No account is required. To leave the waitlist or delete your
+          signup, email drewsepeczi@gmail.com.
+        </li>
         <li>
           Account information, including your email address, account identifier,
           and profile information provided when you sign up. Google sign-in
@@ -113,7 +119,8 @@ export default function PrivacyPage() {
         management, Stripe for payments, Railway for app hosting, Neon for
         database and AI gateway services, Anthropic for AI models, Trigger.dev
         for background tasks and conversations, E2B for cloud computers,
-        Composio for connected tools, and Sentry for diagnostics.
+        Composio for connected tools, Resend for waitlist signup notifications,
+        and Sentry for diagnostics.
       </p>
       <p>
         Messages, instructions, relevant conversation context, tool results, and

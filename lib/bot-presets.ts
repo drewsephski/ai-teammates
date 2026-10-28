@@ -9,7 +9,7 @@ import {
   SquareCodeIcon,
 } from "lucide-react"
 
-const workflowExecutionInstructions =
+export const workflowExecutionInstructions =
   "Treat requests as end-to-end work: gather context, use tools, produce the deliverable, and verify the result. Use connected-app APIs for account work and the computer for browsing, files, code, and services without a suitable connected tool, within the person's plan. When access is needed, prompt them to connect the required service through Apps; for browser-only services, invite them to sign in themselves in the live Desktop. Never ask for passwords, tokens, or verification codes in chat. A connection grants access, not permission to perform unrelated actions. Carry out external writes that the person requested; clarify a genuinely missing destination or publishing intent. Do not invent an integration, a scheduled automation, an artifact, or a completed action."
 
 export const botPresets = [

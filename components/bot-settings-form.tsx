@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip"
 import { useId } from "react"
 import { useRouter } from "next/navigation"
 import { Controller, useForm, useWatch } from "react-hook-form"
@@ -159,28 +164,36 @@ export function BotSettingsForm({
                     className="grid grid-cols-6 gap-1"
                   >
                     {botShapes.map((shape) => (
-                      <Button
-                        key={shape}
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`Use ${shape} shape`}
-                        title={shape.replace(/^./, (letter) =>
-                          letter.toUpperCase()
-                        )}
-                        aria-pressed={avatar?.shape === shape}
-                        disabled={isSubmitting}
-                        className="h-10 w-full rounded-lg aria-pressed:bg-muted aria-pressed:ring-1 aria-pressed:ring-ring"
-                        onClick={() =>
-                          field.onChange(`blob:${shape}:${colorIndex}`)
-                        }
-                      >
-                        <ChatAvatar
-                          seed={`blob:${shape}:${colorIndex}`}
-                          interactive
-                          className="size-7"
+                      <Tooltip key={shape}>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              key={shape}
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`Use ${shape} shape`}
+                              aria-pressed={avatar?.shape === shape}
+                              disabled={isSubmitting}
+                              className="h-10 w-full rounded-lg aria-pressed:bg-muted aria-pressed:ring-1 aria-pressed:ring-ring"
+                              onClick={() =>
+                                field.onChange(`blob:${shape}:${colorIndex}`)
+                              }
+                            >
+                              <ChatAvatar
+                                seed={`blob:${shape}:${colorIndex}`}
+                                interactive
+                                className="size-7"
+                              />
+                            </Button>
+                          }
                         />
-                      </Button>
+                        <TooltipContent>
+                          {shape.replace(/^./, (letter) =>
+                            letter.toUpperCase()
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
                     ))}
                   </div>
                   <FieldLabel>Color</FieldLabel>

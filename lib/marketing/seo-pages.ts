@@ -572,7 +572,7 @@ export const manusAlternativesPage: MarketingPage = {
     ],
     [
       "Which Manus alternative has a free plan?",
-      "Krafty Bot has a free plan with one Bot, one connected app, a one-time AI allowance, and a few minutes of computer time. Lindy's site lists free starting credits. Check each site for current terms.",
+      `Krafty Bot has a free plan with one Bot, one connected app, a one-time AI allowance, and ${planLimits.free.sandbox / 60} minutes of computer time, once. Lindy's site lists free starting credits. Check each site for current terms.`,
     ],
     [
       "Does Krafty Bot run tasks without me?",
@@ -605,44 +605,67 @@ export const manusAlternativesPage: MarketingPage = {
 
 export const grokBotAlternativesPage: MarketingPage = {
   path: "/grokbot-alternatives",
-  title: "Grok Bot alternatives: 4 AI teammate products",
+  title: "Grok Bot alternatives: 4 AI teammates, compared",
   description:
-    "Grok Bot alternatives if you don't have a SuperGrok or Cursor plan: four agents with named Bots, a shared computer, and approvals, in their own words.",
+    "Grok Bot alternatives, read from their own sites on Oct 27, 2026: which plans include Grok Bot, four agents with named Bots and approvals, and a fit verdict.",
   summary:
-    "Agents with named Bots, a shared cloud computer and approvals, for people without a SuperGrok or Cursor plan.",
+    "Which plans include Grok Bot, four agents with named Bots and a shared computer, and a plain verdict on who should choose what.",
   h1: "Grok Bot alternatives",
-  lead: "Grok Bot is xAI's team of persistent AI assistants: named Bots with jobs and memory that work on a shared cloud computer and come back to you for approvals. Its documentation lists eligible paid Cursor, linked SuperGrok, and self-serve Grok Business plans; check the current eligibility before choosing. If you want that shape of product without one of those subscriptions, or with a different approval model, this page lists the alternatives the way their own sites describe them and explains where Krafty Bot fits.",
+  lead: `Grok Bot is xAI's team of persistent AI teammates: named Bots with jobs and memory that work on one shared cloud computer and come back to you for approvals. It is included with paid Cursor plans, linked SuperGrok subscriptions, and Grok Business seats, so people looking for an alternative are usually asking one of three things: can I get this shape of product without one of those subscriptions, with a free plan, or with a stricter approval model. This page answers all three. Every statement about another product was read from its own site on ${checkedVendors}, and the page ends with a plain verdict on who should choose what.`,
   sections: [
     {
       id: "what-grok-bot-is",
       title: "What is Grok Bot?",
-      body: "According to xAI's documentation, Grok Bot gives you AI teammates with names, jobs, and context that compounds over time. Each Bot works on a persistent cloud computer with a browser, file system, and terminal, and all the Bots on your account share that one computer, including its files, browser sessions, and app logins. Bots use connected apps where available and the computer for everything else, keep working while your laptop is closed, can save a multi-step workflow as a skill and rerun it on a schedule, and come back to you when something needs your approval. The overview documentation lists every paid individual Cursor plan, Cursor Teams, linked individual SuperGrok subscriptions, and self-serve Grok Business seats as access paths, with usage limits. Check the current plan matrix before subscribing. We are not affiliated with xAI.",
+      body: "According to xAI's documentation, Grok Bot gives you AI teammates with names, jobs, and context that compounds over time. Each Bot works on a persistent cloud computer with a browser, file system, and terminal. All the Bots on your account share that one computer, including its files, browser sessions, and app logins, and the documentation says to treat anything placed on it as available to every Bot you run. Bots use connected apps where available and the computer for everything else, keep working while your laptop is closed, can learn a multi-step workflow by watching you do it once and rerun it as a skill on a schedule, and come back when something needs your approval. It runs as desktop apps for macOS, Windows, and Linux and mobile apps for iOS and Android, and in some regions a Bot can be given work by tagging it on X. We are not affiliated with xAI.",
       links: [
         {
-          label: "Source: Grok Bot overview and plan eligibility",
+          label: "Source: Grok Bot overview",
           href: "https://docs.x.ai/grok-bot/overview",
         },
       ],
     },
     {
+      id: "plans",
+      title: "Which plans include Grok Bot, and what does Krafty cost?",
+      body: "Grok Bot is not sold on its own. According to its documentation and site, you reach it through one of these.",
+      bullets: [
+        "Every paid individual Cursor plan and the Cursor Teams plan include Grok Bot.",
+        "An individual SuperGrok, SuperGrok Plus, or SuperGrok Heavy subscription can be linked to it.",
+        "A seat on a self-serve Grok Business plan can sign in.",
+        "The Grok Bot site also lists its own tiers, Premium, Super, and Ultra, billed monthly, with usage that rises by tier. We don't quote other vendors' prices; check the site for the current figures and plan matrix, which have changed since launch.",
+        `Krafty Bot is a separate product with its own plans. ${startFree}`,
+        "If you sign in to Krafty with a ChatGPT plan, your Bots' model calls can run on that plan instead of the AI allowance.",
+      ],
+      links: [
+        {
+          label: "Source: Grok Bot plan eligibility",
+          href: "https://docs.x.ai/grok-bot/overview",
+        },
+        { label: "Source: Grok Bot site and tiers", href: "https://x.ai/bot" },
+        { label: "Krafty Bot pricing", href: "/#pricing" },
+      ],
+      note: vendorNote,
+    },
+    {
       id: "why-alternative",
       title: "Why look for a Grok Bot alternative?",
       bullets: [
-        "You don't have, or don't want, a SuperGrok, Cursor, or Grok Business subscription.",
-        "You want a free plan to try one real job first.",
+        "You don't have, or don't want, a Cursor, SuperGrok, or Grok Business subscription.",
+        "You want a free plan to try one real job before paying.",
         "You want every write to a connected app held for approval by default, with the option to allow specific actions per Bot.",
         "You want the agent to live in Gmail, Sheets, Slack, or your CRM through your own sign-ins rather than mainly on a computer.",
-        "You want to run on the web without installing a desktop app.",
+        "You want to run in a browser without installing a desktop app.",
+        "You want each reply to show what it cost, and a spend limit per task.",
       ],
     },
     {
       id: "alternatives",
       title: "Four Grok Bot alternatives",
-      body: "Each description is drawn from the product's own site. Visit the site for current features and prices.",
+      body: `Each description is drawn from the product's own site, read on ${checkedVendors}. Visit the site for current features and prices.`,
       cards: [
         {
           title: "Krafty Bot",
-          body: `Named Bots with their own memory and working instructions. One persistent cloud computer per account with a desktop and browser, shared by all its Bots, so files and sign-ins carry over. Connected apps through your own sign-ins, routines on a schedule, group chats and handoffs, and approval before any write to a connected app. Runs in the browser on laptop and phone, with an Android app. Free to start; Pro is $20 a month.`,
+          body: `Named Bots with their own memory and working instructions. One persistent cloud computer per account with a desktop and browser, shared by all its Bots, so files and sign-ins carry over. Connected apps through your own sign-ins, routines on a schedule or when something happens in an app, group chats and handoffs, and approval before any write to a connected app. Runs in the browser on laptop and phone, with an Android app. Free to start; Pro is $20 a month.`,
           href: "/how-it-works",
         },
         {
@@ -657,7 +680,7 @@ export const grokBotAlternativesPage: MarketingPage = {
         },
         {
           title: "Lindy",
-          body: "Describes itself as an AI employee that plugs into your tools, with more than 1,500 integrations, skills you teach once for the whole team, triggers on a schedule or an event, browser use on higher plans, and approval before irreversible actions.",
+          body: "Describes itself as an AI employee that plugs into your tools, with more than 1,500 integrations, skills you teach once for the whole team, triggers on a schedule or an event, browser use on higher plans, and approval before irreversible actions. Free credits to start, then pricing per user.",
           href: "https://www.lindy.ai/",
         },
       ],
@@ -666,19 +689,27 @@ export const grokBotAlternativesPage: MarketingPage = {
     {
       id: "compare",
       title: "Krafty Bot compared with Grok Bot, in plain words",
-      body: "The two products have the same shape, so the differences are in the details. This is what each one's own documentation says, not a scorecard.",
+      body: "The two products have the same shape, so the differences are in the details. This is what each one's own documentation says, not a scorecard. Where Grok Bot does something Krafty doesn't, it says so.",
       cards: [
         {
           title: "Shared computer",
           body: "Both: one persistent cloud computer per account, shared by all Bots, with files and browser sessions that carry over. Grok Bot's docs add a file system and terminal per Bot screen; Krafty gives Bots a desktop and browser, and holds terminal commands on it to a stricter rule.",
         },
         {
+          title: "Who holds the logins",
+          body: "On both, anything signed in on the shared computer is available to every Bot on the account. On Krafty, connected apps are separate from the computer: you sign in to each app yourself, the Bot never sees your password in chat, and you can disconnect an app at any time.",
+        },
+        {
           title: "Approvals",
-          body: "Both come back to you for approval. On Krafty, every write to a connected app waits by default, you can always-allow a specific action for a specific Bot, high-risk actions never qualify, and a separate model checks each click on the computer against a screenshot.",
+          body: "Both come back to you for approval. On Krafty, every write to a connected app waits by default, sending and posting always ask, you can always-allow a specific action for a specific Bot, high-risk actions never qualify, a separate model checks each click on the computer against a screenshot, and nothing in a web page or email can approve an action.",
+        },
+        {
+          title: "Teaching a workflow",
+          body: "Grok Bot can learn a workflow by watching you do it once and save it as a skill. Krafty does not record demonstrations. You describe the job in plain language, and when it goes well the Bot saves it as a routine.",
         },
         {
           title: "Scheduled work",
-          body: "Grok Bot saves a workflow as a skill and reruns it on a schedule. Krafty saves a job that went well as a routine that runs daily, every few hours, or once at a set time, in your timezone.",
+          body: "Grok Bot reruns a saved skill on a schedule. Krafty saves a job as a routine that runs daily, every few hours, or once at a set time, in your timezone, or each time something happens in a connected app, such as a new email or Slack message.",
         },
         {
           title: "Memory and handoffs",
@@ -686,14 +717,34 @@ export const grokBotAlternativesPage: MarketingPage = {
         },
         {
           title: "Where it runs",
-          body: "Grok Bot lists desktop apps for macOS, Windows, and Linux and mobile apps, plus tagging a Bot on X in some regions. Krafty runs in the browser on any laptop or phone, with an Android app and an iPhone app on the way.",
+          body: "Grok Bot lists desktop apps for macOS, Windows, and Linux, mobile apps for iOS and Android, and tagging a Bot on X in some regions. Krafty runs in the browser on any laptop or phone, with an Android app and an iPhone app on the way.",
         },
         {
-          title: "Plans",
-          body: "Grok Bot is included with SuperGrok, Cursor, and Grok Business plans, with usage metered separately. Krafty has a free plan and a $20 a month Pro plan, with an AI allowance and computer hours in each. People who sign in with a ChatGPT plan can run model calls on that plan.",
+          title: "Plans and spend",
+          body: "Grok Bot is included with Cursor, SuperGrok, and Grok Business plans, with its own tiers and usage limits. Krafty has a free plan and a $20 a month Pro plan with an AI allowance and computer hours in each, shows what each reply used, lets you cap what a task may spend, and refunds the allowance a failed reply used.",
         },
       ],
       note: vendorNote,
+    },
+    {
+      id: "verdict",
+      title: "Which should you choose?",
+      body: "A plain verdict, based on what each product's own site says it does.",
+      cards: [
+        {
+          title: "Choose Grok Bot if",
+          body: "You already pay for an eligible Cursor, SuperGrok, or Grok Business plan, you want a Bot to learn a fiddly workflow by watching you do it, you want a terminal on the Bot's computer, or you want to hand work to a Bot by tagging it on X.",
+        },
+        {
+          title: "Choose Krafty Bot if",
+          body: "You want the same shape of product without one of those subscriptions, a free plan to try one job, every write to your apps held for approval by default, a browser instead of a desktop app, and a visible cost per reply. It fits repeating jobs in your own apps: inbox briefs, receipts, support triage, outbound research, reporting.",
+          href: "/use-cases",
+        },
+        {
+          title: "Choose something else if",
+          body: "You want one-off deliverables such as slides, websites, or games, where Manus's starting points are built for that. You want an agent inside ChatGPT on a plan you already have, where ChatGPT agent fits. Or you want the widest list of integrations in a no-code builder, where Lindy's site lists more than 1,500.",
+        },
+      ],
     },
     {
       id: "check",
@@ -702,6 +753,7 @@ export const grokBotAlternativesPage: MarketingPage = {
         "Which subscriptions you already pay for, and whether an agent is bundled with one of them.",
         "Which of your apps have a connector, and whether the agent can use a browser for the rest.",
         "What waits for a human by default, and whether you can narrow that per action and per Bot.",
+        "Who can reach a login placed on the shared computer, and how you revoke it.",
         "Whether you need a desktop app, a mobile app, or just a browser.",
         "How usage is metered and what happens when the allowance runs out mid-task.",
       ],
@@ -711,15 +763,29 @@ export const grokBotAlternativesPage: MarketingPage = {
         { label: "Manus alternatives", href: "/manus-alternatives" },
       ],
     },
+    {
+      id: "how-we-checked",
+      title: "How this page was checked",
+      body: `Grok Bot's description and plan eligibility come from xAI's overview documentation and the Grok Bot site, read on ${checkedVendors}. ChatGPT agent, Manus, and Lindy are described from their own sites on the same date. Krafty Bot's limits and prices are generated from the same code that enforces them, so they match the product on the day you read this. If a statement about another product is out of date, tell us through the support page and we will correct it.`,
+      links: [{ label: "Support", href: "/support" }],
+    },
   ],
   faqs: [
     [
       "Is Krafty Bot a Grok Bot alternative?",
-      "Yes, for the same shape of work: named Bots with memory on one shared cloud computer, with approvals and scheduled routines. Krafty has a free plan and a $20 Pro plan rather than being bundled with a SuperGrok or Cursor subscription, and it holds every connected-app write for approval by default.",
+      "Yes, for the same shape of work: named Bots with memory on one shared cloud computer, with approvals and scheduled routines. Krafty has a free plan and a $20 Pro plan rather than being bundled with a Cursor, SuperGrok, or Grok Business subscription, and it holds every connected-app write for approval by default.",
     ],
     [
       "Do I need a Grok or Cursor subscription for Krafty Bot?",
       "No. Krafty is a separate product with its own free and Pro plans. If you sign in with a ChatGPT plan, your Bots' model calls can run on that plan instead of the AI allowance.",
+    ],
+    [
+      "Which Grok Bot alternative has a free plan?",
+      `Krafty Bot does: ${startFree} Lindy's site lists free starting credits. Grok Bot's documentation lists it as included with paid plans; check its site for any trial terms.`,
+    ],
+    [
+      "Can Krafty Bot learn a task by watching me, like Grok Bot?",
+      "No. Grok Bot's documentation describes learning a workflow from a demonstration and saving it as a skill. On Krafty you describe the job in plain language, and when it goes well the Bot saves it as a routine that runs on a schedule or when something happens in a connected app.",
     ],
     [
       "Does Krafty Bot have a terminal on the cloud computer?",

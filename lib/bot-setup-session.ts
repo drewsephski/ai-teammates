@@ -8,11 +8,15 @@ import { postChatMessage } from "@/lib/chat-dispatch"
 export async function startBotSetupSession(
   chatId: string,
   bot: OpeningBot,
-  firstName?: string | null
+  firstName?: string | null,
+  brief?: string
 ) {
   const sent = await postChatMessage(
     chatId,
-    { id: botSetupMessageId(bot.id), text: botOpeningPrompt(bot, firstName) },
+    {
+      id: botSetupMessageId(bot.id),
+      text: botOpeningPrompt(bot, firstName, brief),
+    },
     { once: true }
   )
   if (!sent?.publicAccessToken) throw new Error("Couldn't reach the bot")

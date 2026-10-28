@@ -217,7 +217,6 @@ export function MemoryEditDialog({
             variant="ghost"
             size="icon-sm"
             aria-label="Edit memory"
-            title="Edit"
           />
         }
       >

@@ -3,6 +3,8 @@ import { auth } from "@clerk/nextjs/server"
 import { AppPageHeader } from "@/components/app-page-header"
 import { CreateBotButton } from "@/components/create-bot-button"
 import { botPresets } from "@/lib/bot-presets"
+import { findBotTemplate } from "@/lib/bot-templates"
+import { BotTemplateDialog } from "@/components/bot-template-dialog"
 import { WorkspaceBots } from "@/components/workspace-bots"
 import { WorkspacePresets } from "@/components/workspace-presets"
 import { WorkspaceRefresh } from "@/components/workspace-refresh"
@@ -22,7 +24,7 @@ export default async function WorkspacePage({
   await auth.protect()
 
   const params = await searchParams
-  const { role } = params
+  const { role, create } = params
   const connectionCallback =
     params.apps === "connect"
       ? {
@@ -41,6 +43,9 @@ export default async function WorkspacePage({
         }
       : undefined
   const preset = botPresets.find((preset) => preset.id === role)
+  // A public page's "Create this Bot" link (createBotHref) lands here
+  const template =
+    typeof create === "string" ? findBotTemplate(create) : undefined
   const [bots, connections, forYou, notices] = await Promise.all([
     getWorkspaceBots(),
     getWorkspaceApps(),
@@ -56,6 +61,7 @@ export default async function WorkspacePage({
         </CreateBotButton>
       </AppPageHeader>
       <WorkspaceRefresh />
+      {template && <BotTemplateDialog key={template.id} template={template} />}
       <div className="mx-auto w-full max-w-4xl space-y-10 px-4 py-8 sm:px-6 sm:py-10">
         <WorkspaceNotices notices={notices} />
         <WorkspaceBots bots={bots} />

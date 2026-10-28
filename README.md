@@ -128,6 +128,11 @@ NEON_AI_GATEWAY_TOKEN=
 # leave empty to use only the Neon AI Gateway. Railway and Trigger.dev both read it.
 ANTHROPIC_API_KEY=
 
+# Optional: app waitlist owner notifications (Railway only; not Trigger.dev)
+# Use a verified sender from your Resend domain. Notifications go to Drew.
+RESEND_API_KEY=
+RESEND_FROM_EMAIL=
+
 # Optional: Composio project API key for the Apps marketplace and agent tools
 COMPOSIO_API_KEY=
 
@@ -319,3 +324,7 @@ chat, or backgrounding the app. Add the `expo-audio` config plugin for microphon
 permissions; if the module or native permissions aren't in the installed app,
 ship a new native build. Keep the OpenRouter key exclusively on the server and
 release the server endpoint before a mobile build calls it.
+
+### App waitlist
+
+`/download` and the sidebar’s Get the app dialog accept public Mac/iPhone waitlist signups. `app_waitlist` stores normalized email/platform pairs, so retries do not create duplicates. Configure `RESEND_API_KEY` and `RESEND_FROM_EMAIL` in `.env.local` and Railway to notify `drewsepeczi@gmail.com` after a new signup. The sender must be verified in Resend. No email is sent to the subscriber. Notification errors are reported without failing the saved signup; delivery is best effort and not automatically retried. Duplicate submissions do not resend notifications.

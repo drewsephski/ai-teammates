@@ -20,6 +20,17 @@ export const socialImage = {
  */
 export const marketingUpdated = "2026-10-27"
 
+/**
+ * Where a "Create this Bot" link on a public page goes. The workspace opens a
+ * preview of the template (lib/bot-templates.ts), after sign-up when signed out.
+ */
+export function createBotHref(templateId: string, isAuthenticated: boolean) {
+  const destination = `/workspace?create=${encodeURIComponent(templateId)}`
+  return isAuthenticated
+    ? destination
+    : `/sign-up?redirect_url=${encodeURIComponent(destination)}`
+}
+
 const usd = (millionths: number) => millionths / 1_000_000
 
 /** The free plan's one-time computer time, in minutes. */

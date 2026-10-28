@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip"
 import { useEffect, useRef, useState, type RefObject } from "react"
 import { AudioLinesIcon, LoaderCircleIcon, XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -176,40 +181,52 @@ export function ChatSpeechButton({
             </span>
           )}
           {phase !== "transcribing" && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Cancel dictation"
-              title="Cancel dictation"
-              onClick={cancel}
-            >
-              <XIcon className="size-3.5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Cancel dictation"
+                    onClick={cancel}
+                  >
+                    <XIcon className="size-3.5" />
+                  </Button>
+                }
+              />
+              <TooltipContent>{"Cancel dictation"}</TooltipContent>
+            </Tooltip>
           )}
         </>
       )}
-      <Button
-        type="button"
-        variant={phase === "recording" ? "secondary" : "ghost"}
-        size="icon-sm"
-        aria-label={label}
-        title={label}
-        aria-pressed={phase === "recording"}
-        disabled={phase === "starting" || phase === "transcribing"}
-        onClick={() => {
-          if (phase === "recording") void finish()
-          else void start()
-        }}
-      >
-        {phase === "recording" ? (
-          <Wave className="h-4 w-5" aria-hidden="true" />
-        ) : phase === "idle" ? (
-          <AudioLinesIcon className="size-4" />
-        ) : (
-          <LoaderCircleIcon className="size-4 animate-spin motion-reduce:animate-none" />
-        )}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant={phase === "recording" ? "secondary" : "ghost"}
+              size="icon-sm"
+              aria-label={label}
+              aria-pressed={phase === "recording"}
+              disabled={phase === "starting" || phase === "transcribing"}
+              onClick={() => {
+                if (phase === "recording") void finish()
+                else void start()
+              }}
+            >
+              {phase === "recording" ? (
+                <Wave className="h-4 w-5" aria-hidden="true" />
+              ) : phase === "idle" ? (
+                <AudioLinesIcon className="size-4" />
+              ) : (
+                <LoaderCircleIcon className="size-4 animate-spin motion-reduce:animate-none" />
+              )}
+            </Button>
+          }
+        />
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
     </div>
   )
 }

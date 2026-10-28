@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip"
 import Link from "next/link"
 import { useState } from "react"
 import { ChevronDownIcon, PlayIcon, Trash2Icon } from "lucide-react"
@@ -66,12 +71,19 @@ function RunList({ id, runs }: { id: string; runs: PublicRoutineRun[] }) {
             {run.detail ? ` · ${run.detail}` : ""}
           </span>
           {run.spent > 0 && (
-            <span
-              className="shrink-0 tabular-nums"
-              title="AI allowance this run used, after any credit"
-            >
-              {formatSpend(run.spent)}
-            </span>
+            <Tooltip>
+              <TooltipTrigger
+                tabIndex={0}
+                render={
+                  <span className="shrink-0 tabular-nums">
+                    {formatSpend(run.spent)}
+                  </span>
+                }
+              />
+              <TooltipContent>
+                {"AI allowance this run used, after any credit"}
+              </TooltipContent>
+            </Tooltip>
           )}
         </li>
       ))}

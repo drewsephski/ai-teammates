@@ -373,7 +373,6 @@ function SidebarRail({
       aria-valuemin={open ? MIN_SIDEBAR_WIDTH : undefined}
       aria-valuemax={open ? MAX_SIDEBAR_WIDTH : undefined}
       aria-valuenow={open ? width : undefined}
-      title={open ? "Drag to resize sidebar" : "Expand sidebar"}
       onPointerDown={(event) => {
         onPointerDown?.(event)
         if (!open || event.button !== 0 || event.defaultPrevented) return

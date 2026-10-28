@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip"
 import { useEffect, useState } from "react"
 import { CheckIcon, CopyIcon } from "lucide-react"
 
@@ -56,14 +61,21 @@ function ChatMessageActions({
         </MessageAction>
       )}
       {spend && (
-        <span
-          data-slot="chat-turn-spend"
-          title={spendTitle}
-          className="px-1.5 text-xs text-muted-foreground tabular-nums"
-        >
-          {spend}
-          <span className="sr-only"> {spendTitle.toLowerCase()}</span>
-        </span>
+        <Tooltip>
+          <TooltipTrigger
+            tabIndex={0}
+            render={
+              <span
+                data-slot="chat-turn-spend"
+                className="px-1.5 text-xs text-muted-foreground tabular-nums"
+              >
+                {spend}
+                <span className="sr-only"> {spendTitle.toLowerCase()}</span>
+              </span>
+            }
+          />
+          <TooltipContent>{spendTitle}</TooltipContent>
+        </Tooltip>
       )}
     </MessageActions>
   )

@@ -16,7 +16,12 @@ import {
   breadcrumbJsonLd,
   pageMetadata,
 } from "@/lib/marketing/content"
-import { marketingUpdated, productName, siteUrl } from "@/lib/marketing/site"
+import {
+  createBotHref,
+  marketingUpdated,
+  productName,
+  siteUrl,
+} from "@/lib/marketing/site"
 import { JsonLd } from "@/components/json-ld"
 
 const botFont = localFont({
@@ -116,10 +121,19 @@ export default async function UseCasesPage() {
               </h2>
               <p>{role.description}</p>
               <CopyPrompt prompt={role.prompt} />
-              <Link href={`/use-cases/${role.id}`} className={page.more}>
-                How the {role.name} Bot works
-                <span aria-hidden="true"> →</span>
-              </Link>
+              <div className={page.links}>
+                <Link
+                  href={createBotHref(role.id, isAuthenticated)}
+                  prefetch={false}
+                  className={page.create}
+                >
+                  Create this Bot
+                </Link>
+                <Link href={`/use-cases/${role.id}`} className={page.more}>
+                  How the {role.name} Bot works
+                  <span aria-hidden="true"> →</span>
+                </Link>
+              </div>
             </li>
           ))}
         </ul>

@@ -15,7 +15,7 @@ import {
   breadcrumbJsonLd,
   pageMetadata,
 } from "@/lib/marketing/content"
-import { marketingUpdated, siteUrl } from "@/lib/marketing/site"
+import { createBotHref, marketingUpdated, siteUrl } from "@/lib/marketing/site"
 import { faqPageJsonLd } from "@/lib/marketing/json-ld"
 import { roleWalkthroughFor } from "@/lib/marketing/role-walkthroughs"
 import { RoleWalkthroughPlayer } from "@/components/role-walkthrough-player"
@@ -68,9 +68,7 @@ export default async function UseCasePage({ params }: Props) {
   const workspaceHref = isAuthenticated
     ? "/workspace"
     : `/sign-in?redirect_url=${encodeURIComponent("/workspace")}`
-  const startHref = isAuthenticated
-    ? "/workspace"
-    : "/sign-up?redirect_url=%2Fworkspace"
+  const createHref = createBotHref(useCase.id, isAuthenticated)
   const guide = useCaseGuides[useCase.id]
   const walkthrough = roleWalkthroughFor(useCase.id)
   const path = `/use-cases/${useCase.id}`
@@ -116,7 +114,7 @@ export default async function UseCasePage({ params }: Props) {
           <h1>{useCase.headline}</h1>
           <p className={page.lead}>{useCase.summary}</p>
           <div className={styles.actions}>
-            <Link href={startHref} prefetch={false} className={styles.button}>
+            <Link href={createHref} prefetch={false} className={styles.button}>
               Create this Bot free
             </Link>
             <Link href="/how-it-works" className={styles.secondaryButton}>

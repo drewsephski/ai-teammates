@@ -4,6 +4,7 @@ import localFont from "next/font/local"
 import { headers } from "next/headers"
 import { auth } from "@clerk/nextjs/server"
 
+import { AppWaitlist } from "@/components/app-waitlist"
 import { AppDownloadQr } from "@/components/app-download-qr"
 import { BotNavigation } from "@/components/landing/bot/navigation"
 import styles from "@/components/landing/bot/bot-landing.module.css"
@@ -22,8 +23,8 @@ const botFont = localFont({
   display: "swap",
 })
 
-const title = "Download Krafty for Android · iPhone coming soon"
-const description = `Download ${productName} for Android. The iPhone app is coming soon to the App Store.`
+const title = "Krafty apps · Mac and iPhone waitlist"
+const description = `Download ${productName} for Android. Join the waitlist for the Mac and iPhone apps.`
 
 export const metadata: Metadata = {
   title,
@@ -87,19 +88,6 @@ export default async function DownloadPage() {
     </li>
   )
 
-  const iphone = (
-    <li key="ios" className={page.card}>
-      <h2>iPhone</h2>
-      <p>
-        Coming soon to the App Store. Until then, use {brandName} in Safari.
-      </p>
-      <span className={page.soon}>Coming soon</span>
-      <Link href={workspaceHref} prefetch={false} className={page.textLink}>
-        Open {brandName} in your browser
-      </Link>
-    </li>
-  )
-
   return (
     <div className={`${styles.landing} ${botFont.variable}`} id="top">
       <a className={styles.skip} href="#main">
@@ -108,15 +96,14 @@ export default async function DownloadPage() {
       <BotNavigation workspaceHref={workspaceHref} />
       <main id="main" className={styles.container}>
         <header className={`${styles.centerHeading} ${page.intro}`}>
-          <h1>{brandName} on your phone</h1>
+          <h1>Good work travels with you.</h1>
           <p>
-            Chat with your Bots, answer their questions, and review their work
-            from anywhere.
+            Krafty is coming to Mac and iPhone. Join the waitlist, and keep
+            getting things done on the web while you wait.
           </p>
         </header>
-        <ul className={page.grid}>
-          {device === "ios" ? [iphone, android] : [android, iphone]}
-        </ul>
+        <AppWaitlist initialPlatform={device === "ios" ? "iphone" : "mac"} />
+        <ul className={page.grid}>{android}</ul>
       </main>
       <footer className={`${styles.container} ${page.footer}`}>
         <span>

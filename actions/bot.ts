@@ -4,12 +4,12 @@ import { auth, currentUser } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
 
 import type { BotInsert } from "@/db/schema"
-import type { BotPresetId } from "@/lib/bot-presets"
 import * as service from "@/services/bots"
 
 export async function createBot(input: {
   requestId: string
-  presetId?: BotPresetId
+  // A workspace preset or a public page's template (lib/bot-templates.ts)
+  presetId?: string
 }): Promise<service.CreateBotResult> {
   const { isAuthenticated, userId, has } = await auth()
   if (!isAuthenticated) throw new Error("Unauthorized")

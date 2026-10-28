@@ -288,7 +288,7 @@ Shared cards have extra-large corners, card fill, a thin foreground ring, and (1
 
 Shared fields are (40px) tall with quiet input borders, extra-large corners, and (12px) horizontal padding. Dark fields use input color at (30%) as fill. Placeholder copy uses muted foreground. Phone input text stays at (16px); shared fields use (14px) from the medium breakpoint. Focus has the shared ring/border treatment; invalid fields use destructive styling and disabled fields are visibly muted.
 
-Bot settings use the existing labeled field and validation patterns in the right panel or mobile sheet; the context-menu editor retains a dialog using the same form. Group editing retains its scrolling dialog. Teammate creation starts a conversation immediately; it has no creation form.
+Bot settings use the existing labeled field and validation patterns in the right panel or mobile sheet; the context-menu editor retains a dialog using the same form. Group editing retains its scrolling dialog. Teammate creation starts a conversation immediately; it has no creation form. The one exception is a "Create this Bot" link from a public role page: it opens the workspace with a preview dialog (the bot's avatar, name, job, what it does, its apps and schedule) and creates the bot only when the person confirms. Closing the dialog drops the link's query so it doesn't reopen.
 
 ### First-run workspace
 

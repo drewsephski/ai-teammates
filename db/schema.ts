@@ -1035,3 +1035,15 @@ export type NewChatMember = typeof chatMembers.$inferInsert
 export type ForYouItem = typeof forYouItems.$inferSelect
 export type ForYouCategory = (typeof forYouCategory.enumValues)[number]
 export type ForYouUrgency = (typeof forYouUrgency.enumValues)[number]
+
+// Public launch subscriptions, independent of Clerk accounts. No account IDs
+// are collected; one row per email and platform makes retries idempotent.
+export const appWaitlist = pgTable(
+  "app_waitlist",
+  {
+    email: text().notNull(),
+    platform: text({ enum: ["mac", "iphone"] }).notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.email, table.platform] })]
+)
