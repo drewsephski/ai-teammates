@@ -254,11 +254,19 @@ describe("Markdown routing for agents", () => {
   it("knows every top-level route under app/", () => {
     const app = join(process.cwd(), "app")
     const segments = new Set<string>()
+    // Git doesn't keep empty folders, so a folder with no files is no route.
+    const hasFiles = (dir: string): boolean =>
+      readdirSync(dir, { withFileTypes: true }).some((entry) =>
+        entry.isDirectory() ? hasFiles(join(dir, entry.name)) : true
+      )
     const visit = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue
-        if (/^\(.+\)$/.test(entry.name)) visit(join(dir, entry.name))
-        else if (!entry.name.startsWith("_")) segments.add(entry.name)
+        const path = join(dir, entry.name)
+        if (/^\(.+\)$/.test(entry.name)) visit(path)
+        else if (!entry.name.startsWith("_") && hasFiles(path)) {
+          segments.add(entry.name)
+        }
       }
     }
     visit(app)

@@ -24,7 +24,6 @@ export const appSegments: ReadonlySet<string> = new Set([
   "auth",
   "auth.md",
   "autonomous-ai-agent",
-  "chat-list-check",
   "chats",
   "delete-account",
   "download",
