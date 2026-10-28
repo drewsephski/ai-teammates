@@ -16,7 +16,7 @@ const paidItem = {
   plan: { features: [{ slug: "bots" }, { slug: "sandboxes" }] },
 }
 
-test("a default free subscription has lifetime $1 AI credit and 300 computer seconds", () => {
+test("a default free subscription has lifetime $1 AI credit and 20 minutes of computer time", () => {
   for (const items of [
     [],
     [{ ...paidItem, periodEnd: null, plan: { features: [{ slug: "bots" }] } }],
@@ -25,7 +25,7 @@ test("a default free subscription has lifetime $1 AI credit and 300 computer sec
     assert.equal(plan.tier, "free")
     assert.deepEqual(plan.period, { start: null, end: null })
     assert.equal(plan.limits.ai, 1_000_000)
-    assert.equal(plan.limits.sandbox, 300)
+    assert.equal(plan.limits.sandbox, 20 * 60)
   }
 })
 

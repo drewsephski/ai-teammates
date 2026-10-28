@@ -47,23 +47,23 @@ after(async () => {
   await database?.stop()
 })
 
-test("the free computer allowance is 300 seconds for the account's whole life", async () => {
+test("the free computer allowance is 1200 seconds for the account's whole life", async () => {
   await plan("free_user", "free")
-  assert.equal((await usage.getUsage("free_user")).remaining.sandbox, 300)
+  assert.equal((await usage.getUsage("free_user")).remaining.sandbox, 1200)
   // Time used long ago still counts: nothing resets the free allowance
   await spend("free_user", 120, monthAgo())
   await spend("free_user", 100)
   assert.deepEqual((await usage.getUsage("free_user")).used.sandbox, 220)
-  assert.equal((await usage.getUsage("free_user")).remaining.sandbox, 80)
+  assert.equal((await usage.getUsage("free_user")).remaining.sandbox, 980)
 })
 
 test("the free allowance bottoms out at zero and stays there", async () => {
   await plan("free_spent", "free")
-  await spend("free_spent", 290, monthAgo())
+  await spend("free_spent", 1190, monthAgo())
   await spend("free_spent", 90)
   const spent = await usage.getUsage("free_spent")
   assert.equal(spent.remaining.sandbox, 0)
-  assert.equal(spent.used.sandbox, 380)
+  assert.equal(spent.used.sandbox, 1280)
 })
 
 test("the paid allowance is unchanged and counts only the current period", async () => {

@@ -322,7 +322,7 @@ test("free accounts get the computer for their one-time allowance", () => {
     undefined,
     { paid: false, clock: "Owner's timezone: America/Chicago." }
   )
-  assert.match(free, /5 minutes of computer time, once/)
+  assert.match(free, /20 minutes of computer time, once/)
   assert.match(free, /prefer bash and reading text over screenshots/)
   assert.match(free, /Own the task from start to verified result/)
   assert.match(free, /Owner's timezone: America\/Chicago/)

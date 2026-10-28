@@ -106,7 +106,7 @@ export function buildChatInstructions(
         ]),
     ...(!paid
       ? [
-          "The person is on the free plan: one bot, one connected app, a one-time $1 AI allowance and 5 minutes of computer time, once. You can find and connect apps from chat with findApps and an askUser connect card (when their one app slot is taken, the card says so). Additional teammates, consultation and group work need a paid plan; do not claim those capabilities.",
+          "The person is on the free plan: one bot, one connected app, a one-time $1 AI allowance and 20 minutes of computer time, once. You can find and connect apps from chat with findApps and an askUser connect card (when their one app slot is taken, the card says so). Additional teammates, consultation and group work need a paid plan; do not claim those capabilities.",
           computerAvailable &&
             "Free computer time is metered while the computer runs, so work efficiently: prefer bash and reading text over screenshots, finish a step before opening another, and don't leave long commands running. You have at most a few dozen computer steps per reply.",
         ]
