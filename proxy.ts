@@ -1,8 +1,17 @@
 import { clerkMiddleware } from "@clerk/nextjs/server"
-import { NextResponse } from "next/server"
+import { createGeoProxy } from "@usenotra/geo/next"
+import { after, NextResponse } from "next/server"
+
+const geo = createGeoProxy({
+  token: process.env.NOTRA_GEO_TOKEN ?? "",
+  endpoint: "https://ingest.usenotra.com",
+})
 
 export default clerkMiddleware(
   async (auth, request) => {
+    // Register the SDK's actual send with Next so it survives the response.
+    await geo(request, { waitUntil: (pending) => after(() => pending) })
+
     // Serve the site on the apex only, so search engines see one copy of each
     // page. Railway's proxy terminates TLS, so build the target from the Host
     // header rather than request.url, which is internal there.

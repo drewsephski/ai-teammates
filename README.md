@@ -140,6 +140,9 @@ COMPOSIO_WEBHOOK_SECRET=
 # Tavily: server-side public web search and page reading for every bot, including unfinished setup
 TAVILY_API_KEY=
 
+# Optional: Notra AI crawler and referral analytics (Railway only)
+NOTRA_GEO_TOKEN=
+
 # Optional: Firecrawl reads web pages first, free to the person (app-funded,
 # 30 reads per turn). Trigger.dev only: the worker reads it, Railway doesn't.
 FIRECRAWL_API_KEY=

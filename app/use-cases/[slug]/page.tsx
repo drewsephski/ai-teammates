@@ -17,6 +17,8 @@ import {
 } from "@/lib/marketing/content"
 import { marketingUpdated, siteUrl } from "@/lib/marketing/site"
 import { faqPageJsonLd } from "@/lib/marketing/json-ld"
+import { roleWalkthroughFor } from "@/lib/marketing/role-walkthroughs"
+import { RoleWalkthroughPlayer } from "@/components/role-walkthrough-player"
 import { CopyPrompt } from "../copy-prompt"
 import { useCaseGuides } from "../use-case-guides"
 import { findUseCase, useCases, type UseCase } from "../use-cases-data"
@@ -70,6 +72,7 @@ export default async function UseCasePage({ params }: Props) {
     ? "/workspace"
     : "/sign-up?redirect_url=%2Fworkspace"
   const guide = useCaseGuides[useCase.id]
+  const walkthrough = roleWalkthroughFor(useCase.id)
   const path = `/use-cases/${useCase.id}`
   const trail = [
     { name: "Home", path: "/" },
@@ -121,6 +124,26 @@ export default async function UseCasePage({ params }: Props) {
             </Link>
           </div>
         </header>
+
+        {walkthrough && (
+          <section className={page.section} aria-labelledby="walkthrough-title">
+            <h2 id="walkthrough-title">{walkthrough.title}</h2>
+            <RoleWalkthroughPlayer
+              slug={walkthrough.slug}
+              title={walkthrough.title}
+            />
+            <p className={page.note}>
+              Animated example with sample data. No external actions are
+              performed. Playback starts muted; use the video controls for
+              sound.
+            </p>
+            <ol className={page.steps} aria-label="Walkthrough transcript">
+              {walkthrough.transcript.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+          </section>
+        )}
 
         <section className={page.section} aria-labelledby="steps-title">
           <h2 id="steps-title">What the Bot does</h2>

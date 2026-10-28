@@ -2,6 +2,7 @@ import { planLimits } from "@/lib/billing-policy"
 import { ROUTINE_LIMITS } from "@/lib/routine-policy"
 
 import { absoluteUrl } from "./content"
+import { emailAssistantPage } from "./email-assistant"
 
 /**
  * Shared SEO landing pages. Copy must match real product behavior: check
@@ -83,6 +84,11 @@ export const aiAgentsForBusinessPage: MarketingPage = {
       title: "Which jobs should a small business hand off first?",
       body: "Start with work that is repetitive, has a clear finish line, and lives in one or two apps. Those jobs are easy to describe, easy to check, and easy to turn into a routine once they go well.",
       cards: [
+        {
+          title: "Email triage and reply drafts",
+          body: "Read a bounded set of Gmail threads, prioritize replies, and prepare drafts for review before anything is sent.",
+          href: "/use-cases/email-assistant",
+        },
         {
           title: "Receipts and expenses",
           body: "Pull the week's receipts from Gmail, file the PDFs in Drive, and log each one in a sheet every Friday.",
@@ -475,13 +481,13 @@ export const autonomousAiAgentPage: MarketingPage = {
 
 export const manusAlternativesPage: MarketingPage = {
   path: "/manus-alternatives",
-  title: "Manus alternatives: 5 agents with a cloud computer",
+  title: "Manus alternatives: 4 AI agents to consider",
   description:
-    "Looking for a Manus alternative? Five agents that work on their own cloud computer, described from their own sites, with what to check before you switch.",
+    "Looking for a Manus alternative? Four AI agents described from their own sites, with their approaches to connected apps, approvals, and scheduled work.",
   summary:
-    "Five agents that work on a cloud computer, in their own words, and what to check before switching.",
+    "Four AI agents, in their own words, and what to check before switching.",
   h1: "Manus alternatives",
-  lead: "Manus is a general-purpose AI agent that works in a cloud computer: you give it a goal and it browses, writes files, and runs code to get there. If you are looking for an alternative, the field has grown. This page describes five options the way their own sites do, lists what to check before you move a job, and explains where Krafty Bot fits. It does not score anyone.",
+  lead: "Manus is a general-purpose AI agent that works in a cloud computer: you give it a goal and it browses, writes files, and runs code to get there. If you are looking for an alternative, the field has grown. This page describes four alternatives the way their own sites do, lists what to check before you move a job, and explains where Krafty Bot fits. It does not score anyone.",
   sections: [
     {
       id: "what-manus-is",
@@ -504,7 +510,7 @@ export const manusAlternativesPage: MarketingPage = {
     },
     {
       id: "alternatives",
-      title: "Five Manus alternatives",
+      title: "Four Manus alternatives",
       body: "Each description is drawn from the product's own site. Visit the site for current features and prices.",
       cards: [
         {
@@ -527,13 +533,14 @@ export const manusAlternativesPage: MarketingPage = {
           body: "Describes itself as an AI employee that plugs into your tools, with more than 1,500 integrations, skills you teach once for the whole team, triggers on a schedule or an event, browser use on higher plans, and approval before irreversible actions. Free credits to start, then team pricing per active user.",
           href: "https://www.lindy.ai/",
         },
-        {
-          title: "Manus Desktop with My Computer",
-          body: "If what you miss is the agent working on your own machine rather than in the cloud, Manus's own desktop app adds a My Computer capability that works with local files, tools, and applications. Worth checking before switching vendors.",
-          href: "https://manus.im/",
-        },
       ],
       note: vendorNote,
+    },
+    {
+      id: "before-switching",
+      title: "Before switching: Manus Desktop with My Computer",
+      body: "If what you miss is the agent working on your own machine rather than in the cloud, Manus's own desktop app adds a My Computer capability that works with local files, tools, and applications. It is part of Manus, not a separate alternative. Check whether it fits your job before switching vendors.",
+      links: [{ label: "Source: Manus", href: "https://manus.im/" }],
     },
     {
       id: "check",
@@ -729,7 +736,7 @@ export const grokBotAlternativesPage: MarketingPage = {
     {
       label: "Manus alternatives",
       href: "/manus-alternatives",
-      description: "Five agents with a cloud computer, in their own words.",
+      description: "Four AI agents, in their own words.",
     },
     {
       label: "AI agent with human approval",
@@ -1113,6 +1120,7 @@ export const aiAgentVsChatbotPage: MarketingPage = {
 }
 
 export const marketingSeoPages = [
+  emailAssistantPage,
   aiAgentsForBusinessPage,
   aiEmployeesPage,
   aiTeammatesPage,

@@ -157,9 +157,9 @@ const details: Record<string, UseCaseDetails> = {
     ],
   },
   "chief-of-staff": {
-    headline: "AI chief of staff for your inbox and calendar",
+    headline: "AI executive assistant for your inbox and calendar",
     summary:
-      "A Chief of Staff Bot reads your unread email, direct messages, and today's calendar every morning, then sends you one brief. It covers the meetings that need prep, the replies due today, and the threads you promised to follow up on.",
+      "An AI executive assistant reads your unread email, direct messages, and today's calendar to prepare a morning brief. It covers the meetings that need prep, the replies due today, and the threads you promised to follow up on.",
     apps: ["Gmail", "Slack", "Google Calendar"],
     schedule: "Every weekday morning, as a routine",
     steps: [

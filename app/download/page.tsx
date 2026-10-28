@@ -22,7 +22,7 @@ const botFont = localFont({
   display: "swap",
 })
 
-const title = "Get the Krafty app for Android and iPhone"
+const title = "Download Krafty for Android · iPhone coming soon"
 const description = `Download ${productName} for Android. The iPhone app is coming soon to the App Store.`
 
 export const metadata: Metadata = {

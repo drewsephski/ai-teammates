@@ -89,6 +89,25 @@ describe("public pages for search and AI answers", () => {
     }
   })
 
+  it("counts separate vendors as Manus alternatives", () => {
+    const page = marketingSeoPages.find(
+      (entry) => entry.path === "/manus-alternatives"
+    )!
+    const alternatives = page.sections.find(
+      (section) => section.id === "alternatives"
+    )!
+    assert.equal(alternatives.cards?.length, 4)
+    assert.match(page.title, /4 AI agents/)
+    assert.ok(
+      alternatives.cards?.every((card) => !card.href?.includes("manus.im"))
+    )
+    assert.ok(
+      page.sections
+        .find((section) => section.id === "before-switching")
+        ?.body?.includes("not a separate alternative")
+    )
+  })
+
   it("puts the guide pages in llms-full.txt", () => {
     const full = llmsFullTxt()
     for (const page of marketingSeoPages) {

@@ -38,7 +38,7 @@ export default function SupportPage() {
       />
       <h1>Krafty support</h1>
       <p>
-        For help with Krafty on the web or iPhone, email{" "}
+        For help with Krafty on the web or Android, email{" "}
         <a href="mailto:drewsepeczi@gmail.com">drewsepeczi@gmail.com</a>. Krafty
         is operated by Drew Sepeczi.
       </p>
@@ -46,10 +46,11 @@ export default function SupportPage() {
       <h2>Report a problem</h2>
       <p>
         Tell us what you were trying to do, what happened, and whether you were
-        using the website or iPhone app. Include your app version and device
-        model if you know them. A screenshot can help, but remove any private
-        information first. Never send passwords, sign-in codes, API keys, or
-        connected-account credentials.
+        using the website or Android app. If you are testing an iPhone preview,
+        mention that too. Include your app version and device model if you know
+        them. A screenshot can help, but remove any private information first.
+        Never send passwords, sign-in codes, API keys, or connected-account
+        credentials.
       </p>
 
       <h2>Account and sign-in</h2>
@@ -63,10 +64,10 @@ export default function SupportPage() {
       <p>
         To delete your Krafty account without the app, visit{" "}
         <Link href="/delete-account">Delete your account</Link>, sign in, and
-        confirm deletion. On iPhone, open Account and choose Delete account. You
-        can also email us with privacy or deletion requests. See our{" "}
-        <Link href="/privacy">privacy policy</Link> for information about data
-        handling and retention, and our{" "}
+        confirm deletion. In the mobile app, open Account and choose Delete
+        account. You can also email us with privacy or deletion requests. See
+        our <Link href="/privacy">privacy policy</Link> for information about
+        data handling and retention, and our{" "}
         <Link href="/terms">terms of service</Link> for service terms.
       </p>
     </article>
