@@ -39,7 +39,7 @@ const botFont = localFont({
   display: "swap",
 })
 
-const homeTitle = "Krafty — AI agents that do the work, not just talk about it"
+const homeTitle = "Krafty — AI agents that do the work and ask before sending"
 const homeDescription = siteDescription
 
 export const metadata: Metadata = {

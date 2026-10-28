@@ -11,7 +11,7 @@ export const socialImage = {
   url: "/brand/krafty-social-v1.jpg",
   width: 1200,
   height: 630,
-  alt: "Krafty — AI teammates you can give real work to. An ivory sculptural bot on a charcoal backdrop.",
+  alt: "Krafty, AI teammates you can hand a job to. An ivory bot figure on a charcoal background.",
 }
 
 /**
@@ -27,7 +27,7 @@ export const brandProfiles: readonly string[] = []
  * Bump when the public marketing pages change meaningfully so the sitemap's
  * lastmod stays honest.
  */
-export const marketingUpdated = "2026-10-27"
+export const marketingUpdated = "2026-10-28"
 
 /**
  * Where a "Create this Bot" link on a public page goes. The workspace opens a

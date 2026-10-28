@@ -156,7 +156,7 @@ export const aiAgentsForBusinessPage: MarketingPage = {
   summary:
     "Which jobs to hand to an AI agent first, what it needs from you, and how you stay in control.",
   h1: "AI agents for small business",
-  lead: "An AI agent for a small business is software you give a job to, not a question. It signs in to the tools you already use, works through the steps, and comes back with the result or a decision that needs you. This page covers what that looks like in practice, which jobs to start with, and what stays in your hands.",
+  lead: "An AI agent for a small business is software you give a job to. It signs in to the tools you already use, works through the steps, and comes back with the result or a decision that needs you.",
   sections: [
     {
       id: "what-is",
@@ -166,7 +166,7 @@ export const aiAgentsForBusinessPage: MarketingPage = {
     {
       id: "jobs",
       title: "Which jobs should a small business hand off first?",
-      body: "Start with work that is repetitive, has a clear finish line, and lives in one or two apps. Those jobs are easy to describe, easy to check, and easy to turn into a routine once they go well.",
+      body: "Start with work that is repetitive, has a clear finish line, and lives in one or two apps. They're easy to describe and easy to check, and once one goes well it can become a routine.",
       cards: [
         {
           title: "Email triage and reply drafts",
@@ -310,7 +310,7 @@ export const aiEmployeesPage: MarketingPage = {
   summary:
     "How to give a Bot a role and a brief, which roles work today, and how you supervise it.",
   h1: "AI employees",
-  lead: "An AI employee is an agent that owns an ongoing job rather than answering one prompt: it has a role, a brief, the tools for the work, and someone it reports to. Krafty Bot does not employ anyone and does not replace payroll. It gives you Bots you name, instruct, and supervise, and this page is about doing that well.",
+  lead: "An AI employee is an agent that owns an ongoing job rather than answering one prompt: it has a role, a brief, the tools for the work, and someone it reports to. Krafty Bot does not employ anyone and does not replace payroll. It gives you Bots you name, instruct, and supervise. Here's how to do that well.",
   sections: [
     {
       id: "meaning",
@@ -436,12 +436,12 @@ export const autonomousAiAgentPage: MarketingPage = {
   summary:
     "The definition, how much autonomy is useful, and what stops a Bot on Krafty.",
   h1: "What is an autonomous AI agent?",
-  lead: "An autonomous AI agent is software that takes a goal, plans the steps, uses tools to carry them out, and keeps going without you typing each instruction. The useful question is not whether an agent is autonomous but what it may do without you, and what makes it stop and ask. This page answers both, with Krafty Bot as the worked example.",
+  lead: "An autonomous AI agent is software that takes a goal, plans the steps, uses tools to carry them out, and keeps going without you typing each instruction. Whether a given agent counts as autonomous matters less than two practical questions: what may it do without you, and what makes it stop and ask? Krafty Bot is the worked example below.",
   sections: [
     {
       id: "definition",
       title: "The definition in one paragraph",
-      body: "An agent is autonomous when it can take an outcome you describe, break it into steps, carry out those steps with tools such as a browser, your apps, or a terminal, check its own progress, and continue across time without a person prompting each move. A chat assistant answers one message at a time while you watch. An autonomous agent is still working after you close the laptop. Autonomy is a dial, not a switch: most useful agents act freely on reads and pause on writes.",
+      body: "An agent is autonomous when it can take an outcome you describe, break it into steps, carry out those steps with tools such as a browser, your apps, or a terminal, check its own progress, and continue across time without a person prompting each move. A chat assistant answers one message at a time while you watch. An autonomous agent is still working after you close the laptop. Autonomy comes in degrees. Most useful agents act freely on reads and pause on writes.",
     },
     {
       id: "how-much",
@@ -571,7 +571,7 @@ export const manusAlternativesPage: MarketingPage = {
   summary:
     "Four AI agents, in their own words, and what to check before switching.",
   h1: "Manus alternatives",
-  lead: "Manus is a general-purpose AI agent that works in a cloud computer: you give it a goal and it browses, writes files, and runs code to get there. If you are looking for an alternative, the field has grown. This page describes four alternatives the way their own sites do, lists what to check before you move a job, and explains where Krafty Bot fits. It does not score anyone.",
+  lead: "Manus is a general-purpose AI agent that works in a cloud computer: you give it a goal and it browses, writes files, and runs code to get there. Several other agents now do similar work. Below are four of them, described the way their own sites describe them, then what to check before you move a job and where Krafty Bot fits. We don't score anyone.",
   sections: [
     {
       id: "what-manus-is",
@@ -642,7 +642,7 @@ export const manusAlternativesPage: MarketingPage = {
     {
       id: "krafty-fit",
       title: "Where Krafty Bot fits",
-      body: "Krafty Bot is built for jobs that live in your own apps and repeat: inbox and calendar briefs, receipts, support triage, outbound research, reporting. Each Bot is a teammate with a role and memory, all Bots share one cloud computer with a desktop and browser, and every write to a connected app waits for your approval unless you allowed that action for that Bot. It is less suited to one-off creative builds such as generating a game or a slide deck. Try it on the free plan with a throwaway workflow if you want firsthand behavior.",
+      body: "Krafty Bot is built for jobs that live in your own apps and repeat: inbox and calendar briefs, receipts, support triage, outbound research, reporting. Each Bot is a teammate with a role and memory, all Bots share one cloud computer with a desktop and browser, and every write to a connected app waits for your approval unless you allowed that action for that Bot. It is less suited to one-off creative builds such as generating a game or a slide deck. Try it on the free plan with a throwaway job to see how it behaves.",
       links: [
         { label: "How Krafty Bot works", href: "/how-it-works" },
         { label: "Grok Bot alternatives", href: "/grokbot-alternatives" },
@@ -653,7 +653,7 @@ export const manusAlternativesPage: MarketingPage = {
   faqs: [
     [
       "Is Krafty Bot a Manus replacement?",
-      "For jobs inside your own apps that repeat on a schedule, it can be. For one-off creative outputs such as slides, websites, or games, Manus's own starting points are built for that and Krafty is not. Only you can decide which jobs you actually gave the other tool.",
+      "For jobs inside your own apps that repeat on a schedule, it can be. For one-off creative outputs such as slides, websites, or games, Manus's own starting points are built for that and Krafty is not. It depends on what you were using Manus for.",
     ],
     [
       "Which Manus alternative has a free plan?",
@@ -696,7 +696,7 @@ export const grokBotAlternativesPage: MarketingPage = {
   summary:
     "Which plans include Grok Bot, four agents with named Bots and a shared computer, and a plain verdict on who should choose what.",
   h1: "Grok Bot alternatives",
-  lead: `Grok Bot is xAI's team of persistent AI teammates: named Bots with jobs and memory that work on one shared cloud computer and come back to you for approvals. It is included with paid Cursor plans, linked SuperGrok subscriptions, and Grok Business seats, so people looking for an alternative are usually asking one of three things: can I get this shape of product without one of those subscriptions, with a free plan, or with a stricter approval model. This page answers all three. Every statement about another product was read from its own site on ${checkedVendors}, and the page ends with a plain verdict on who should choose what.`,
+  lead: `Grok Bot is xAI's team of persistent AI teammates: named Bots with jobs and memory that work on one shared cloud computer and come back to you for approvals. It is included with paid Cursor plans, linked SuperGrok subscriptions, and Grok Business seats, so people looking for an alternative are usually asking one of three things: can I get this shape of product without one of those subscriptions, with a free plan, or with a stricter approval model. Every statement about another product was read from its own site on ${checkedVendors}, and the page ends with a plain verdict on who should choose what.`,
   sections: [
     {
       id: "what-grok-bot-is",
@@ -775,7 +775,7 @@ export const grokBotAlternativesPage: MarketingPage = {
     {
       id: "compare",
       title: "Krafty Bot compared with Grok Bot, in plain words",
-      body: "The two products have the same shape, so the differences are in the details. This is what each one's own documentation says, not a scorecard. Where Grok Bot does something Krafty doesn't, it says so.",
+      body: "The two products have the same shape, so the differences are in the details. Everything below comes from each product's own documentation. Where Grok Bot does something Krafty doesn't, we say so.",
       cards: [
         {
           title: "Shared computer",
@@ -906,7 +906,7 @@ export const aiTeammatesPage: MarketingPage = {
   summary:
     "What makes an agent a teammate: a name, a role, memory, tools, handoffs, and approvals.",
   h1: "AI teammates",
-  lead: "An AI teammate is an agent you can hand work to the way you would hand it to a colleague: it has a name, a role, memory of how you like things done, the tools for the job, and a place in your chats where it reports back. Krafty Bot is built around that idea. This page explains what separates a teammate from a chatbot or a script, how teammates work together, and what they still can't do.",
+  lead: "An AI teammate is an agent you can hand work to the way you would hand it to a colleague: it has a name, a role, memory of how you like things done, the tools for the job, and a place in your chats where it reports back. Krafty Bot is built around that idea.",
   sections: [
     {
       id: "what-makes",
@@ -1050,7 +1050,7 @@ export const aiAgentHumanApprovalPage: MarketingPage = {
   summary:
     "What needs your OK on Krafty, what doesn't, how always-allow is bounded, and what the gate can't guarantee.",
   h1: "AI agents with human approval",
-  lead: "An AI agent with human approval does the reading, searching, and drafting on its own and stops before anything that would be hard to undo: sending, posting, paying, or changing a record. On Krafty Bot that gate is enforced by the server, not left to the model's judgment. This page says exactly what waits for you, what doesn't, and what the gate cannot promise.",
+  lead: "An AI agent with human approval does the reading, searching, and drafting on its own and stops before anything that would be hard to undo: sending, posting, paying, or changing a record. On Krafty Bot the server enforces that gate. The model doesn't get to decide.",
   sections: [
     {
       id: "why",

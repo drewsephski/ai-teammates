@@ -237,7 +237,7 @@ export const useCaseGuides: Record<string, UseCaseGuide> = {
     faqs: [
       [
         "Does it see new bug tags right away?",
-        "Not instantly. Krafty has no event triggers yet, so a routine checks Intercom on a schedule, at most once an hour, and picks up tags added since the last check. Mention a conversation in the chat and the Bot starts on it straight away.",
+        "Not instantly. Event routines cover new Gmail and Slack messages, not Intercom tags, so a routine checks Intercom on a schedule, at most once an hour, and picks up tags added since the last check. Mention a conversation in the chat and the Bot starts on it straight away.",
       ],
       [
         "What if it can't reproduce the bug?",

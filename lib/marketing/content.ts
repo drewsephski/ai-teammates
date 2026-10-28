@@ -18,7 +18,7 @@ import {
 // lib/billing-policy.ts before changing one.
 
 /** Answer-first definition, about 60 words, for "what is Krafty Bot". */
-export const definition = `${productName} is an AI workspace where you hand Bots actual tasks, not just questions. Each Bot has its own memory and working instructions, and all the Bots on your account share one persistent cloud computer with a desktop and browser. Bots use the apps you connect, research the web, run routines on a schedule, and keep working after you close your browser.`
+export const definition = `${productName} is an AI workspace where you hand tasks to Bots and they do them. Each Bot has its own memory and working instructions, and all the Bots on your account share one persistent cloud computer with a desktop and browser. Bots use the apps you connect, research the web, run routines on a schedule, and keep working after you close your browser.`
 
 /** One-line definition for the home page, beside the full `definition`. */
 export const definitionShort =
@@ -110,7 +110,7 @@ export const limitations = [
 export const comparisons = [
   {
     title: "Compared with a chat assistant",
-    body: "A chat assistant answers in a chat window while you watch. A Bot works in your apps and on its own computer, keeps going after you close the browser, and brings back finished work.",
+    body: "A chat assistant answers in a window while you watch. A Bot works in your apps and on its own computer, keeps going after you close the browser, and tells you when the work is done.",
   },
   {
     title: "Compared with workflow automation",

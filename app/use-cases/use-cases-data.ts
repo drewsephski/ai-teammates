@@ -63,7 +63,7 @@ const details: Record<string, UseCaseDetails> = {
     headline: "AI agent for recruiting and sourcing",
     job: "Recruiting sourcer",
     summary:
-      "A Talent Scout Bot sources candidates who match your brief and skips anyone already in your applicant tracking system. Its outreach references each person's actual work.",
+      "A Talent Scout Bot sources candidates who match your brief and skips anyone already in your applicant tracking system. Each note it drafts mentions something the person has worked on.",
     apps: ["Greenhouse", "Google Sheets", "Gmail", "Google Calendar"],
     schedule: "On request, or as a weekly routine",
     steps: [
@@ -99,7 +99,7 @@ const details: Record<string, UseCaseDetails> = {
     headline: "AI agent for receipts and expenses",
     job: "Expense bookkeeper",
     summary:
-      "An Expense Manager Bot collects the week's receipts from your inbox, files them, and logs each one in your expense sheet. The books are clean before review.",
+      "An Expense Manager Bot collects the week's receipts from your inbox, files them, and logs each one in your expense sheet. It flags anything large or without a clear category.",
     apps: ["Gmail", "Google Drive", "Google Sheets", "Slack"],
     schedule: "Every Friday afternoon, as a routine",
     steps: [
@@ -210,56 +210,56 @@ const roleSummaries = [
     name: "Sales Outbound",
     color: "#54b9a6",
     description:
-      "Generate pipeline overnight. Researches accounts, scores contacts by intent, drafts email and LinkedIn in your voice, and leaves a review list for you to approve each morning.",
+      "Researches target accounts overnight, finds the right contact, and drafts a short email in your voice for each. You wake up to a ranked list and drafts. Nothing is sent.",
   },
   {
     id: "talent-scout",
     name: "Talent Scout",
     color: "#885cf5",
     description:
-      "Keep your talent pipeline moving. Sources candidates, drafts outreach in your voice, skips anyone already in the ATS, and handles interview scheduling once you approve.",
+      "Finds candidates who match your brief, skips anyone already in your ATS, and drafts a note that mentions their work. Once you approve, it sends the notes and offers interview slots.",
   },
   {
     id: "paid-media",
     name: "Paid Media",
     color: "#eb4699",
     description:
-      "Protect your ad budget. Pulls live channel and campaign data every day, recommends reallocations against your monthly plan, and holds every bid change until you approve it.",
+      "Every morning it pulls yesterday's spend and results, compares them with your monthly plan, and posts a short summary. It suggests budget moves and changes nothing until you approve.",
   },
   {
     id: "expense-manager",
     name: "Expense Manager",
     color: "#5bc67a",
     description:
-      "Close the week with clean books. Builds the weekly summary from your expense tool and sheets, files receipts from email, and nudges owners on missing categories before review.",
+      "Every Friday it pulls the week's receipts from your inbox, files them, and logs each one in your expense sheet. Large or uncategorized expenses get flagged for you.",
   },
   {
     id: "product-performance",
     name: "Product Performance",
     color: "#ea4045",
     description:
-      "Know what slowed down and why. Logs into observability tools, reads the flamegraphs, and comes back with the hot spots and a short writeup with screenshots.",
+      "Signs in to your observability tool and compares this week's latency with last week's. When something slowed down, it writes up the likely cause with flamegraph screenshots.",
   },
   {
     id: "bug-reproduction",
     name: "Bug Reproduction",
     color: "#ea4045",
     description:
-      "Hand engineers bugs they can reproduce. Picks up the support thread, clicks the same path in staging, captures the failure, and drops a repro pack with steps and screenshots.",
+      "Reads the support thread, follows the customer's steps on your staging site, and captures what fails. Engineers get numbered steps, screenshots, and console errors.",
   },
   {
     id: "account-health",
     name: "Account Health",
     color: "#3c82f6",
     description:
-      "See risk and expansion before the QBR. Reads usage, CRM, and support signals across your book and ranks the accounts that need attention, with next steps.",
+      "Every Monday it checks usage, tickets, and your last email for each account renewing soon, then ranks them by churn risk with a line of reasoning for each.",
   },
   {
     id: "chief-of-staff",
     name: "Chief of Staff",
     color: "#ed712e",
     description:
-      "Keep your week from slipping. Scans Slack, email, calendar, and meeting notes, flags what matches your priorities, and follows up on dropped threads before they go cold.",
+      "Each weekday morning it reads your unread email, Slack DMs, and calendar, then sends one brief: meetings to prep for, replies due today, and threads you said you'd follow up on.",
   },
 ]
 
@@ -275,7 +275,7 @@ export const useCases = [
     name: "Support Triage",
     color: "#e5b53a",
     description:
-      "Clear the queue before you log on. Triages new tickets, drafts replies grounded in your docs, files real bugs with repro steps, and escalates anything urgent to you.",
+      "Reads new tickets every hour, drafts answers to how-to questions from your help center, tags billing issues, and links bugs to existing issues or drafts new ones.",
   },
 ].map((useCase) => ({
   ...useCase,

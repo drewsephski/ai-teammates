@@ -36,7 +36,7 @@ export const emailAssistantPage: MarketingPage = {
     },
     {
       id: "results",
-      title: "Check what actually finished",
+      title: "Check what finished",
       body: "Ask for a final summary listing the threads reviewed, drafts prepared, actions completed, and anything still waiting. A proposed draft or pending approval does not mean an email was sent. Check the tool result and your Gmail Sent folder when confirming a send. This walkthrough describes a workflow to try, not a recorded customer run.",
     },
     {

@@ -7,7 +7,7 @@ export const faqs = [
   ["What is Krafty Bot?", definition],
   [
     "How is Krafty Bot different from a chat assistant?",
-    "Krafty is built around doing the task instead of explaining it. Bots work in the apps you connect and on a cloud computer with a browser, several can run at once, and they keep going after you close your browser.",
+    "A chat assistant tells you how to do the task. A Krafty Bot does it. Bots work in the apps you connect and on a cloud computer with a browser, several can run at once, and they keep going after you close your browser.",
   ],
   [
     "Does a Bot change things in my apps without asking?",
