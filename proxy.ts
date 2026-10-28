@@ -9,13 +9,25 @@ const geo = createGeoProxy({
 
 export default clerkMiddleware(
   async (auth, request) => {
+    // Railway's request URL is internal; attribute visits to the public host.
+    const trackingUrl = new URL(request.url)
+    const host = request.headers.get("host") ?? ""
+    if (host) {
+      trackingUrl.port = ""
+      trackingUrl.host = host
+    }
+    trackingUrl.protocol =
+      request.headers.get("x-forwarded-proto") === "https" ? "https:" : "http:"
+    const trackingRequest = new Request(trackingUrl, {
+      method: request.method,
+      headers: request.headers,
+    })
     // Register the SDK's actual send with Next so it survives the response.
-    await geo(request, { waitUntil: (pending) => after(() => pending) })
+    await geo(trackingRequest, { waitUntil: (pending) => after(() => pending) })
 
     // Serve the site on the apex only, so search engines see one copy of each
     // page. Railway's proxy terminates TLS, so build the target from the Host
     // header rather than request.url, which is internal there.
-    const host = request.headers.get("host") ?? ""
     if (host.toLowerCase() === "www.kraftybot.app") {
       const { pathname, search } = request.nextUrl
       return NextResponse.redirect(
