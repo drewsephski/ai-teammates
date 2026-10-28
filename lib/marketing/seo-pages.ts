@@ -25,12 +25,23 @@ export type MarketingCard = {
   href?: string
 }
 
+/** A comparison table. Each row's `cells` follow `columns`. */
+export type MarketingTable = {
+  caption: string
+  /** Header for the first column, which names each row. */
+  rowHeader: string
+  columns: readonly string[]
+  rows: readonly { label: string; cells: readonly string[] }[]
+}
+
 export type MarketingSection = {
   id: string
   title: string
   /** Direct answer first, then detail. */
   body?: string
   bullets?: readonly string[]
+  /** Shown before the cards, as their at-a-glance summary. */
+  table?: MarketingTable
   cards?: readonly MarketingCard[]
   links?: readonly { label: string; href: string }[]
   /** Small print under the section, such as when vendor facts were checked. */
@@ -61,6 +72,79 @@ const paidAllowance = planLimits.paid.ai / 1_000_000
 /** When the descriptions of other products were last read from their own sites. */
 export const checkedVendors = "October 27, 2026"
 const vendorNote = `Descriptions of other products come from their own websites, read on ${checkedVendors}. We don't score vendors, quote their prices, or run benchmarks, and their features may have changed since.`
+
+// One row per product for the alternatives tables. Every cell restates the
+// product's card on the same page, so the table can't claim more than the
+// sources do. `notDescribed` marks what the sources we read don't say.
+const notDescribed = "Not described in the sources we read"
+const alternativesColumns = [
+  "Where it works",
+  "Your apps",
+  "What waits for you",
+  "Scheduled work",
+  "How you get it",
+] as const
+const alternativeRows = {
+  krafty: {
+    label: "Krafty Bot",
+    cells: [
+      "One persistent cloud computer per account, with a desktop and browser, shared by all its Bots",
+      "Connected apps through your own sign-ins",
+      "Writes to your connected apps, unless you always-allow that action for that Bot",
+      "Routines on a schedule, or when something happens in a connected app",
+      "Free plan; Pro is $20 a month",
+    ],
+  },
+  grokBot: {
+    label: "Grok Bot (xAI)",
+    cells: [
+      "One cloud computer shared by all Bots, with a browser, file system, and terminal",
+      "Connected apps where available, the computer for the rest",
+      "Bots come back when something needs approval",
+      "Saved skills rerun on a schedule",
+      "Included with SuperGrok, Cursor, and Grok Business plans",
+    ],
+  },
+  chatgptAgent: {
+    label: "ChatGPT agent (OpenAI)",
+    cells: [
+      "Its own virtual computer with a browser",
+      "Connectors to your apps",
+      "Actions with real-world consequences",
+      notDescribed,
+      "ChatGPT's paid plans",
+    ],
+  },
+  manus: {
+    label: "Manus",
+    cells: [
+      "An isolated cloud computer with a browser, file system, and command line",
+      "A Slack integration",
+      notDescribed,
+      notDescribed,
+      "Web, desktop, and mobile apps, and an API",
+    ],
+  },
+  lindy: {
+    label: "Lindy",
+    cells: [
+      "Plugs into your tools, with browser use on higher plans",
+      "More than 1,500 integrations",
+      "Irreversible actions",
+      "Triggers on a schedule or an event",
+      "Free credits to start, then pricing per user",
+    ],
+  },
+} as const
+
+const alternativesTable = (
+  rows: readonly (keyof typeof alternativeRows)[]
+): MarketingTable => ({
+  caption: `At a glance, from each product's own site, read on ${checkedVendors}`,
+  rowHeader: "Product",
+  columns: alternativesColumns,
+  rows: rows.map((row) => alternativeRows[row]),
+})
 
 const startFree = `The free plan includes one Bot, one connected app, a one-time $${planLimits.free.ai / 1_000_000} AI allowance, and ${planLimits.free.sandbox / 60} minutes of computer time, once. Pro is $20 a month for up to ${paidBots} Bots, unlimited connected apps, a $${paidAllowance} AI allowance, and ${paidHours} hours of cloud computer time each billing period.`
 
@@ -512,6 +596,7 @@ export const manusAlternativesPage: MarketingPage = {
       id: "alternatives",
       title: "Four Manus alternatives",
       body: "Each description is drawn from the product's own site. Visit the site for current features and prices.",
+      table: alternativesTable(["krafty", "grokBot", "chatgptAgent", "lindy"]),
       cards: [
         {
           title: "Krafty Bot",
@@ -662,6 +747,7 @@ export const grokBotAlternativesPage: MarketingPage = {
       id: "alternatives",
       title: "Four Grok Bot alternatives",
       body: `Each description is drawn from the product's own site, read on ${checkedVendors}. Visit the site for current features and prices.`,
+      table: alternativesTable(["krafty", "chatgptAgent", "manus", "lindy"]),
       cards: [
         {
           title: "Krafty Bot",

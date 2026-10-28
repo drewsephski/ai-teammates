@@ -11,6 +11,7 @@ import { siteUrl } from "@/lib/marketing/site"
 
 export const metadata: Metadata = pageMetadata({
   path: "/support",
+  markdown: false,
   title: "Support",
   description:
     "Get help with your Krafty account, teammates, and conversations.",

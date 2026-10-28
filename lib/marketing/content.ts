@@ -135,16 +135,25 @@ export function pageMetadata({
   path,
   title,
   description,
+  markdown = true,
 }: {
   path: string
   title: string
   description: string
+  /** Advertise the page's Markdown copy. False for pages without one. */
+  markdown?: boolean
 }): Metadata {
   const fullTitle = `${title} · ${brandName}`
   return {
     title,
     description,
-    alternates: { canonical: path },
+    alternates: {
+      canonical: path,
+      // Served by app/md from lib/marketing/markdown.ts.
+      ...(markdown && {
+        types: { "text/markdown": path === "/" ? "/md" : `/md${path}` },
+      }),
+    },
     openGraph: {
       url: path,
       title: fullTitle,

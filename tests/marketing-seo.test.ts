@@ -11,6 +11,11 @@ import { definition, pageMetadata } from "@/lib/marketing/content"
 import { marketingSeoPages } from "@/lib/marketing/seo-pages"
 import { homeJsonLd } from "@/lib/marketing/json-ld"
 import { llmsFullTxt, llmsTxt } from "@/lib/marketing/llms"
+import {
+  markdownForPath,
+  markdownPaths,
+  pricingMarkdown,
+} from "@/lib/marketing/markdown"
 
 describe("public pages for search and AI answers", () => {
   it("lists every role page in the sitemap and llms.txt", () => {
@@ -87,6 +92,60 @@ describe("public pages for search and AI answers", () => {
         `${path} has a score`
       )
     }
+  })
+
+  it("tables the same products the comparison cards describe", () => {
+    for (const path of ["/grokbot-alternatives", "/manus-alternatives"]) {
+      const page = marketingSeoPages.find((entry) => entry.path === path)!
+      const section = page.sections.find(
+        (entry) => entry.id === "alternatives"
+      )!
+      const table = section.table
+      assert.ok(table, path)
+      assert.deepEqual(
+        table.rows.map((row) => row.label),
+        section.cards?.map((card) => card.title),
+        path
+      )
+      for (const row of table.rows) {
+        assert.equal(row.cells.length, table.columns.length, row.label)
+      }
+      assert.ok(markdownForPath(path)?.includes(`| ${table.rowHeader} |`), path)
+    }
+  })
+
+  it("has a Markdown copy of every public marketing page", () => {
+    const legal = [
+      "/privacy",
+      "/terms",
+      "/support",
+      "/delete-account",
+      "/download",
+    ]
+    for (const { url } of sitemap()) {
+      const path = new URL(url).pathname
+      if (legal.includes(path)) continue
+      assert.ok(markdownPaths.has(path), path)
+      const markdown = markdownForPath(path) ?? ""
+      assert.ok(markdown.startsWith("# "), path)
+      assert.ok(
+        markdown.includes(`https://kraftybot.app${path === "/" ? "/" : path}`),
+        path
+      )
+    }
+    assert.equal(markdownForPath("/workspace"), null)
+    assert.equal(
+      markdownForPath("/how-it-works/"),
+      markdownForPath("/how-it-works")
+    )
+  })
+
+  it("lists both plans and their limits in pricing.md", () => {
+    const pricing = pricingMarkdown()
+    assert.ok(pricing.includes("## Free"))
+    assert.ok(pricing.includes("$20 per month"))
+    assert.ok(pricing.includes(`Up to ${planLimits.paid.bots} bots`))
+    assert.ok(llmsTxt().includes("https://kraftybot.app/pricing.md"))
   })
 
   it("counts separate vendors as Manus alternatives", () => {

@@ -127,6 +127,40 @@ export function MarketingSeoPage({
                 ))}
               </ul>
             )}
+            {section.table && (
+              <div
+                className={page.tableWrap}
+                role="region"
+                aria-labelledby={`${section.id}-caption`}
+                tabIndex={0}
+              >
+                <table className={page.table}>
+                  <caption id={`${section.id}-caption`}>
+                    {section.table.caption}
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">{section.table.rowHeader}</th>
+                      {section.table.columns.map((column) => (
+                        <th key={column} scope="col">
+                          {column}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {section.table.rows.map((row) => (
+                      <tr key={row.label}>
+                        <th scope="row">{row.label}</th>
+                        {row.cells.map((cell, index) => (
+                          <td key={index}>{cell}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             {section.cards && (
               <div className={page.grid}>
                 {section.cards.map((card) => (

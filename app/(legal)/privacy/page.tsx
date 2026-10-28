@@ -11,6 +11,7 @@ import { siteUrl } from "@/lib/marketing/site"
 
 export const metadata: Metadata = pageMetadata({
   path: "/privacy",
+  markdown: false,
   title: "Privacy policy",
   description: "How Krafty collects, uses, and handles your information.",
 })

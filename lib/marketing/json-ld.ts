@@ -3,6 +3,7 @@ import { capabilities, definition } from "./content"
 import type { MarketingFaq } from "./seo-pages"
 import {
   brandName,
+  brandProfiles,
   marketingUpdated,
   productName,
   publicPlans,
@@ -44,6 +45,7 @@ export function homeJsonLd() {
         },
         description: definition,
         founder: { "@id": founderId },
+        ...(brandProfiles.length > 0 && { sameAs: brandProfiles }),
         contactPoint: {
           "@type": "ContactPoint",
           contactType: "customer support",

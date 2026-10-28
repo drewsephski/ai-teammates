@@ -12,14 +12,13 @@ import {
   safeguards,
   spendControls,
 } from "./content"
+import { list, sectionMarkdown } from "./markdown"
 import { marketingUpdated, productName, siteDescription } from "./site"
 
 // /llms.txt and /llms-full.txt (llmstxt.org): a plain Markdown map of the public
 // site for AI assistants and answer engines, built from the same data as the
-// pages so the two can't drift.
-
-const list = (items: readonly string[]) =>
-  items.map((item) => `- ${item}`).join("\n")
+// pages so the two can't drift. The marketing pages also have Markdown copies
+// for agents that send `Accept: text/markdown` (lib/marketing/markdown.ts).
 
 export function llmsTxt() {
   return `# ${productName}
@@ -37,6 +36,7 @@ ${marketingSeoPages
   .join("\n")}
 - [Use cases](${absoluteUrl("/use-cases")}): jobs people give a Bot, each with a starter prompt
 - [Pricing](${absoluteUrl("/#pricing")}): Free and Pro plans
+- [Pricing in Markdown](${absoluteUrl("/pricing.md")}): plans, limits, and what a task costs, as plain text
 - [Support](${absoluteUrl("/support")}): help and contact
 
 ## Use cases
@@ -103,21 +103,7 @@ ${marketingSeoPages
 
 ${page.lead}
 
-${page.sections
-  .map((section) => {
-    const parts = [`#### ${section.title}`]
-    if (section.body) parts.push(section.body)
-    if (section.bullets) parts.push(list(section.bullets))
-    if (section.cards)
-      parts.push(
-        section.cards
-          .map((card) => `- **${card.title}.** ${card.body}`)
-          .join("\n")
-      )
-    if (section.note) parts.push(`_${section.note}_`)
-    return parts.join("\n\n")
-  })
-  .join("\n\n")}
+${page.sections.map((section) => sectionMarkdown(section, 4)).join("\n\n")}
 
 ${page.faqs.map(([question, answer]) => `**${question}** ${answer}`).join("\n\n")}
 

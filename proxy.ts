@@ -2,6 +2,9 @@ import { clerkMiddleware } from "@clerk/nextjs/server"
 import { createGeoProxy } from "@usenotra/geo/next"
 import { after, NextResponse } from "next/server"
 
+import { prefersMarkdown } from "@/lib/content-negotiation"
+import { markdownHref, markdownPaths } from "@/lib/marketing/markdown"
+
 const geo = createGeoProxy({
   token: process.env.NOTRA_GEO_TOKEN ?? "",
   endpoint: "https://ingest.usenotra.com",
@@ -33,6 +36,16 @@ export default clerkMiddleware(
       return NextResponse.redirect(
         `https://kraftybot.app${pathname}${search}`,
         308
+      )
+    }
+    // AI agents that ask for Markdown get the page's Markdown copy at the same
+    // URL. Browsers never send text/markdown, so people always get HTML.
+    if (
+      markdownPaths.has(request.nextUrl.pathname) &&
+      prefersMarkdown(request.headers.get("accept"))
+    ) {
+      return NextResponse.rewrite(
+        new URL(markdownHref(request.nextUrl.pathname), request.url)
       )
     }
     if (request.nextUrl.pathname === "/pricing") {

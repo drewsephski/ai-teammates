@@ -247,6 +247,17 @@ COMPOSIO_API_KEY=
 NEXT_PUBLIC_SENTRY_DSN=
 ```
 
+**4. Tell search engines about changed pages**
+
+After a release that changes the public pages, submit them to IndexNow (Bing and the other engines that share it). The script checks that production serves the key file in `public/` first, and needs no environment variables:
+
+```bash
+pnpm exec tsx scripts/submit-indexnow.ts --dry-run   # list the URLs
+pnpm exec tsx scripts/submit-indexnow.ts
+```
+
+AI agents that send `Accept: text/markdown` get a Markdown copy of each marketing page at the same URL (also served at `/md/<path>`), and `/pricing.md` lists the plans. Both are built in `lib/marketing/markdown.ts`.
+
 ## 🤝 Contributing
 
 Issues and pull requests are welcome. Run `pnpm typecheck` and `pnpm test` before opening one, and lint and format only the files you changed (`pnpm exec eslint <files>`, `pnpm exec prettier --write <files>`). `pnpm format` rewrites many untouched files; see `AGENTS.md`.
