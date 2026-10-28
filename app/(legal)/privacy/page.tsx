@@ -36,7 +36,7 @@ export default function PrivacyPage() {
         }}
       />
       <h1>Privacy policy</h1>
-      <p>Last updated: October 26, 2026</p>
+      <p>Last updated: October 27, 2026</p>
       <p>
         Krafty provides AI teammates, connected tools, and cloud computers. This
         policy describes how information is handled when you use kraftybot.app
@@ -113,12 +113,22 @@ export default function PrivacyPage() {
         management, Stripe for payments, Railway for app hosting, Neon for
         database and AI gateway services, Anthropic for AI models, Trigger.dev
         for background tasks and conversations, E2B for cloud computers,
-        Composio for connected tools, and Sentry for diagnostics.
+        Composio for connected tools, Tavily and Firecrawl for web search and
+        reading web pages, Expo for push notifications and app updates, and
+        Sentry for diagnostics. When a teammate researches the web, Tavily
+        receives the search terms it writes from your request and Firecrawl or
+        Tavily receive the addresses of the pages it reads.
       </p>
       <p>
-        Messages, instructions, relevant conversation context, tool results, and
-        files or screenshots needed for your request may be processed by AI
-        model providers, directly or through our AI gateway. Providers process
+        Messages, instructions, relevant conversation context, saved memories,
+        tool results, information from connected apps used for your request or
+        for suggestions, and files or screenshots needed for your request are
+        processed by AI model providers: Anthropic (Claude), and Neon’s AI
+        gateway, whose models are hosted by Databricks. The gateway currently
+        uses GLM, a Z.ai model, for text, and GPT from OpenAI when the request
+        includes an image. Anthropic answers when it is available, and the
+        gateway answers otherwise. Saved memories are also turned into search
+        data by an embedding model through the same gateway. Providers process
         this information under their own applicable terms and privacy policies.
         Avoid submitting information you are not authorized to share.
       </p>
