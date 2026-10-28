@@ -9,6 +9,7 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toast"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { WebMcpTools } from "@/components/webmcp-tools"
 import { cn } from "@/lib/utils"
 import {
   brandName,
@@ -83,6 +84,9 @@ export default async function RootLayout({
       )}
     >
       <body>
+        {/* React hoists this into <head>: the site's agent resources (ARD). */}
+        <link rel="ard" href="/.well-known/ard.json" type="application/json" />
+        <WebMcpTools />
         <ClerkProvider
           dynamic
           nonce={nonce}

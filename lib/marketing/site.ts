@@ -21,7 +21,27 @@ export const socialImage = {
  * Krafty Bot isn't confused with similarly named products. List only live
  * profiles that Krafty controls.
  */
-export const brandProfiles: readonly string[] = []
+export const brandProfiles: readonly string[] = [
+  "https://www.linkedin.com/company/kraftybot/",
+]
+
+/**
+ * The founder's own profiles, the Person's `sameAs`. Kept apart from
+ * brandProfiles because they identify Drew, not Krafty.
+ */
+export const founderProfiles: readonly string[] = [
+  "https://github.com/drewsephski",
+  "https://www.instagram.com/drew.sepeczi/",
+  "https://www.linkedin.com/in/drewsepeczi/",
+  "https://x.com/SepecziDre72128",
+]
+
+/** Where Krafty is based, for the Organization's address. */
+export const brandLocation = {
+  addressLocality: "Chicago",
+  addressRegion: "IL",
+  addressCountry: "US",
+} as const
 
 /**
  * Bump when the public marketing pages change meaningfully so the sitemap's

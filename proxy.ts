@@ -2,8 +2,7 @@ import { clerkMiddleware } from "@clerk/nextjs/server"
 import { createGeoProxy } from "@usenotra/geo/next"
 import { after, NextResponse } from "next/server"
 
-import { prefersMarkdown } from "@/lib/content-negotiation"
-import { markdownHref, markdownPaths } from "@/lib/marketing/markdown"
+import { markdownRewrite } from "@/lib/marketing/markdown-routing"
 
 const geo = createGeoProxy({
   token: process.env.NOTRA_GEO_TOKEN ?? "",
@@ -38,15 +37,16 @@ export default clerkMiddleware(
         308
       )
     }
-    // AI agents that ask for Markdown get the page's Markdown copy at the same
-    // URL. Browsers never send text/markdown, so people always get HTML.
-    if (
-      markdownPaths.has(request.nextUrl.pathname) &&
-      prefersMarkdown(request.headers.get("accept"))
-    ) {
-      return NextResponse.rewrite(
-        new URL(markdownHref(request.nextUrl.pathname), request.url)
-      )
+    // AI agents that ask for Markdown (Accept: text/markdown, ?mode=agent, or
+    // the path plus .md) get the page's Markdown copy, or a Markdown 404.
+    // Browsers ask none of these ways, so people always get HTML.
+    const markdownTarget = markdownRewrite(
+      request.nextUrl.pathname,
+      request.nextUrl.searchParams,
+      request.headers.get("accept")
+    )
+    if (markdownTarget) {
+      return NextResponse.rewrite(new URL(markdownTarget, request.url))
     }
     if (request.nextUrl.pathname === "/pricing") {
       const { isAuthenticated } = await auth()

@@ -12,6 +12,7 @@ import {
   safeguards,
   spendControls,
 } from "./content"
+import { docsMcpPath } from "./docs-mcp"
 import { list, sectionMarkdown } from "./markdown"
 import { marketingUpdated, productName, siteDescription } from "./site"
 
@@ -47,6 +48,14 @@ ${useCases
       `- [${useCase.name}](${absoluteUrl(`/use-cases/${useCase.id}`)}): ${useCase.summary}`
   )
   .join("\n")}
+
+## For AI agents
+
+- [Docs MCP server](${absoluteUrl(docsMcpPath)}): read-only Streamable HTTP MCP server with search, page and pricing tools, no sign-in
+- [MCP server card](${absoluteUrl("/.well-known/mcp/server-card.json")}): how to connect to it
+- [Agent resources](${absoluteUrl("/.well-known/ard.json")}): ARD manifest of what this site offers agents
+- [auth.md](${absoluteUrl("/auth.md")}): what agents can and can't do with a ${productName} account
+- Markdown copies: add \`.md\` to a page's path, such as ${absoluteUrl("/how-it-works.md")}, or use ${absoluteUrl("/index.md")} for the home page
 
 ## Optional
 

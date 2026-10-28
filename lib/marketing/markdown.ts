@@ -304,3 +304,21 @@ export function markdownForPath(path: string) {
 /** Where the Markdown copy of a page is served directly. */
 export const markdownHref = (path: string) =>
   path === "/" ? "/md" : `/md${path}`
+
+/** The Markdown 404 for agents, with somewhere to go next. */
+export function notFoundMarkdown(path: string) {
+  return `# Page not found
+
+There's no page at ${absoluteUrl(path)}. It doesn't exist or has moved.
+
+## Where to go instead
+
+- ${link("Home", "/")} ([Markdown](${absoluteUrl("/index.md")}))
+- ${link("How it works", "/how-it-works")}
+- ${link("Use cases", "/use-cases")}
+- ${link("Pricing in Markdown", "/pricing.md")}
+- ${link("Every public page, for AI assistants", "/llms.txt")}
+
+Any public page is also available as Markdown at its path plus \`.md\`.
+`
+}

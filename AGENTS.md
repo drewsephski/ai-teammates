@@ -299,7 +299,8 @@ The public pages (`app/page.tsx`, `app/use-cases/`, `components/landing/bot/`) a
 - Wrap pages in `styles.landing` from `components/landing/bot/bot-landing.module.css`, and style them with CSS modules and literal dark values, not the app's semantic tokens, which flip in the light theme.
 - Take the domain and names from `lib/marketing/site.ts`. Set `alternates.canonical` to a relative path, and emit structured data with `JsonLd` (`components/json-ld.tsx`). Point calls to action at `/workspace` when signed in, otherwise at `/sign-up?redirect_url=%2Fworkspace`.
 - Product facts that public pages, `/llms.txt`, `/llms-full.txt` and structured data share (definition, how it works, capabilities, safeguards, limits, pricing sentences) live in `lib/marketing/content.ts`; change them there, and only to what the code does. Give a public page its metadata with `pageMetadata` from the same file, so it keeps the social image and its own `og:url`. Role pages under `/use-cases/[slug]` read `app/use-cases/use-cases-data.ts`. `tests/marketing-seo.test.ts` checks the sitemap, `llms.txt`, robots and role data.
-- Add a new public page to `app/sitemap.ts`, the footer in `components/landing/bot/page-footer.tsx`, and the page list in `lib/marketing/llms.ts`. Add a new signed-in route to the `disallow` list in `app/robots.ts` and to the `X-Robots-Tag` source pattern in `next.config.ts`.
+- Add a new public page to `app/sitemap.ts`, the footer in `components/landing/bot/page-footer.tsx`, and the page list in `lib/marketing/llms.ts`. Add a new signed-in route to the `disallow` list in `lib/marketing/robots.ts` (served by `app/robots.txt/route.ts`, which adds `Content-Signal` and `Agentmap` lines Next's robots format can't) and to the `X-Robots-Tag` source pattern in `next.config.ts`.
+- Agents get the public site four more ways, all built from the same data: Markdown at a page's path plus `.md`, with `?mode=agent` or `Accept: text/markdown`, and a Markdown 404 for unknown paths (`lib/marketing/markdown-routing.ts`, whose `appSegments` must list every new top-level route); the read-only docs MCP server at `/mcp` (`lib/marketing/docs-mcp.ts`, with an MCP Apps pricing view); in-page WebMCP tools (`components/webmcp-tools.tsx`); and discovery files (`/.well-known/ard.json`, `ai-catalog.json`, `mcp/server-card.json`, `agent-skills/`, `/auth.md`, in `lib/marketing/agent-discovery.ts`). They expose public facts only. Don't publish OAuth metadata, `agent_auth` or a Web Bot Auth directory until something real backs it, and keep `/auth.md` true about what agents can't do.
 - Plan limits and prices come from `planLimits` in `lib/billing-policy.ts`; derive copy from it, as `publicPlans` in `lib/marketing/site.ts` does. When a limit or price changes, also grep for the copy that hardcodes it ("one bot, one connected app", "$1 AI allowance", "$20").
 - Only `components/landing/bot/`, `components/landing/pricing.tsx` and `components/landing/halftone-wordmark-footer.tsx` are live. The other top-level files in `components/landing/` are unused leftovers of the previous landing page; don't edit or copy from them.
 
@@ -362,6 +363,7 @@ This project has Trigger.dev agent skills installed in `.agents/skills/`. Before
 
 <!-- BEGIN TESTSPRITE AGENT SECTION (testsprite agent install codex) -->
 <!-- testsprite-skill: testsprite-verify+testsprite-onboard+testsprite-ci v0.15.0 sha256:e45c7d3bdbf7 -->
+
 # TestSprite Verification Loop
 
 Run relevant tests and inspect failures before reporting. Skip docs/build-config
@@ -483,7 +485,7 @@ testsprite test create --plan-from plan.json --dry-run --output json
 
 Setup: `npm install -g @testsprite/testsprite-cli`; `testsprite setup`.
 
-**First-time setup:** if this repo has no TestSprite tests yet, seed a *broad* first suite across its main user flows — not just one test — each with a concrete, observable assertion, before reporting setup as done. Try `testsprite test plan generate --project <id>` then `test plan accept` first; author plans by hand only if generation is unavailable.
+**First-time setup:** if this repo has no TestSprite tests yet, seed a _broad_ first suite across its main user flows — not just one test — each with a concrete, observable assertion, before reporting setup as done. Try `testsprite test plan generate --project <id>` then `test plan accept` first; author plans by hand only if generation is unavailable.
 
 **CI gate:** to run TestSprite on every pull request, use `testsprite ci init github --project <id> --env <name>`, finish the `REPLACE ME` step for how PRs deploy (platform-deployed previews → `on: deployment_status`; the workflow deploys → keep `pull_request`), set the `TESTSPRITE_API_KEY` secret, then prove it on one real, non-draft pull request. If the GitHub App already gates the project, ask before adding a second gate.
 <!-- END TESTSPRITE AGENT SECTION -->

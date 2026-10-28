@@ -38,6 +38,21 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // Discovery for agents that read headers before the page
+        // (lib/marketing/agent-discovery.ts).
+        source: "/",
+        headers: [
+          {
+            key: "Link",
+            value: [
+              '</.well-known/ard.json>; rel="ard"; type="application/json"',
+              '</index.md>; rel="alternate"; type="text/markdown"',
+              '</llms.txt>; rel="describedby"; type="text/plain"',
+            ].join(", "),
+          },
+        ],
+      },
+      {
         // Brand assets are versioned in the filename (krafty-social-v1.jpg), so
         // they can be cached for a year.
         source: "/brand/:asset(krafty-social-v1.jpg|krafty-icon-v1.png)",

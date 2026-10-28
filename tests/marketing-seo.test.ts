@@ -1,7 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import robots from "@/app/robots"
 import sitemap from "@/app/sitemap"
 import { useCaseGuides } from "@/app/use-cases/use-case-guides"
 import { useCases } from "@/app/use-cases/use-cases-data"
@@ -11,6 +10,7 @@ import { definition, pageMetadata } from "@/lib/marketing/content"
 import { marketingSeoPages } from "@/lib/marketing/seo-pages"
 import { homeJsonLd } from "@/lib/marketing/json-ld"
 import { llmsFullTxt, llmsTxt } from "@/lib/marketing/llms"
+import { robots, robotsTxt } from "@/lib/marketing/robots"
 import {
   markdownForPath,
   markdownPaths,
@@ -231,6 +231,15 @@ describe("public pages for search and AI answers", () => {
     for (const bot of ["OAI-SearchBot", "PerplexityBot", "Claude-SearchBot"]) {
       assert.ok(agents.includes(bot), bot)
     }
+    const text = robotsTxt()
+    assert.match(
+      text,
+      /^User-Agent: \*\nContent-Signal: search=yes, ai-input=yes, ai-train=yes\n/
+    )
+    assert.ok(text.includes("Sitemap: https://kraftybot.app/sitemap.xml\n"))
+    assert.ok(
+      text.includes("Agentmap: https://kraftybot.app/.well-known/ard.json\n")
+    )
   })
 
   it("keeps the social image on pages that set their own Open Graph", () => {
@@ -242,6 +251,27 @@ describe("public pages for search and AI answers", () => {
     assert.equal(metadata.alternates?.canonical, "/how-it-works")
     assert.equal(metadata.openGraph?.url, "/how-it-works")
     assert.ok([metadata.openGraph?.images].flat().length > 0)
+  })
+
+  it("links the organization and founder to their own profiles", () => {
+    const graph = homeJsonLd()["@graph"] as Record<string, unknown>[]
+    const organization = graph.find((node) => node["@type"] === "Organization")
+    const founder = graph.find((node) => node["@type"] === "Person")
+    assert.deepEqual(organization?.sameAs, [
+      "https://www.linkedin.com/company/kraftybot/",
+    ])
+    assert.deepEqual(organization?.address, {
+      "@type": "PostalAddress",
+      addressLocality: "Chicago",
+      addressRegion: "IL",
+      addressCountry: "US",
+    })
+    const profiles = founder?.sameAs as string[]
+    assert.ok(profiles.includes("https://github.com/drewsephski"))
+    assert.ok(profiles.includes("https://x.com/SepecziDre72128"))
+    for (const url of [...(organization?.sameAs as string[]), ...profiles]) {
+      assert.match(url, /^https:\/\//, url)
+    }
   })
 
   it("uses only valid offer pricing in structured data", () => {
