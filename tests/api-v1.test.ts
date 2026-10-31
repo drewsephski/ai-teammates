@@ -505,6 +505,46 @@ test("connect requests accept chat context, and questionId or botId without chat
   )
 })
 
+test("API key errors map to stable codes, and a bad key is a 400 with its message", async () => {
+  const { secretSaveSchema } = await import("../db/schema")
+  for (const [message, status, code] of [
+    ["Key not found", 404, "not_found"],
+    // lib/user-secrets.ts reports the cause before throwing
+    ["Couldn't save the key", 502, "upstream"],
+  ] as const) {
+    const response = apiErrorResponse(new Error(message))
+    assert.deepEqual(
+      [response.status, response.body.error.code, response.expected],
+      [status, code, true],
+      message
+    )
+  }
+  const base = { name: "OPENAI_API_KEY", label: "OpenAI", value: "sk-test" }
+  assert.equal(secretSaveSchema.safeParse(base).success, true)
+  for (const [input, message] of [
+    [
+      { ...base, name: "openai" },
+      "Use capital letters, digits and underscores, like OPENAI_API_KEY.",
+    ],
+    [
+      { ...base, name: "PATH" },
+      "That name is used by the computer. Pick another.",
+    ],
+    [{ ...base, label: " " }, "Name this key."],
+    [{ ...base, value: "  " }, "Paste the key."],
+  ] as const) {
+    const bad = secretSaveSchema.safeParse(input)
+    assert.equal(bad.success, false)
+    const response = apiErrorResponse(bad.error)
+    assert.deepEqual(
+      [response.status, response.body.error.code, response.body.error.message],
+      [400, "invalid_request", message]
+    )
+    // The rejected value never comes back in the error body
+    assert.doesNotMatch(JSON.stringify(response.body), /sk-test/)
+  }
+})
+
 test("the complete route returns the service's { connected, woke } result", async () => {
   const { readFileSync } = await import("node:fs")
   const source = readFileSync(

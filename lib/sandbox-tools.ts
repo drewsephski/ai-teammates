@@ -12,6 +12,7 @@ import {
 } from "@/lib/computer-approval-policy"
 import type { ComputerGate } from "@/lib/computer-approval-tools"
 import { sandboxPath } from "@/lib/sandbox-policy"
+import { redactSecrets } from "@/lib/secret-policy"
 import type { HandoffTools } from "@/lib/handoff-tool"
 
 // Enough for a model to work with, without one noisy command filling its context
@@ -31,6 +32,13 @@ function allowedPath(path: string) {
 function truncate(text: string) {
   if (text.length <= MAX_TEXT_LENGTH) return text
   return `${text.slice(0, MAX_TEXT_LENGTH)}\n… truncated ${text.length - MAX_TEXT_LENGTH} more characters`
+}
+
+// What the model may see of command output or a file: every saved key's value
+// becomes `[secret NAME]`. Redacted before truncating, so a value cut in two
+// at the limit can't slip through half-hidden.
+export function modelText(text: string, secrets: Record<string, string> = {}) {
+  return truncate(redactSecrets(text, secrets))
 }
 
 const point = {
@@ -102,8 +110,14 @@ export function createSandboxTools(
     // Runs when a computer call ends, so the lease counts from the last call
     // finishing rather than starting
     afterCall?: () => Promise<unknown> | unknown
+    // The person's saved API keys (lib/user-secrets.ts). Read on every call,
+    // so a key saved mid-chat works, set as environment variables in bash and
+    // redacted from what the model reads
+    secretEnv?: () => Promise<Record<string, string>>
   } = {}
 ) {
+  const secretEnv = async () => (await options.secretEnv?.()) ?? {}
+
   // When each call still in flight may end. A step's tool calls run in
   // parallel, so a short call's renewal must not cut a long command's lease.
   const inFlight: number[] = []
@@ -199,17 +213,19 @@ export function createSandboxTools(
               ? await gate.shell(command, approvalId)
               : {}
             try {
+              const envs = await secretEnv()
               // Stop kills the command: the computer is shared with other bots
               const response = await runSandboxCommand(
                 sandbox,
                 command,
                 cwd ? allowedPath(cwd) : undefined,
                 timeout * 1000,
-                abortSignal
+                abortSignal,
+                Object.keys(envs).length ? envs : undefined
               )
               const result = {
                 exitCode: response.exitCode,
-                output: truncate(response.stdout + response.stderr),
+                output: modelText(response.stdout + response.stderr, envs),
               }
               if (claimed)
                 await gate.complete(claimed, {
@@ -245,7 +261,7 @@ export function createSandboxTools(
       execute: async ({ path }) =>
         runInSandbox(async (sandbox) => {
           const file = await sandbox.files.read(allowedPath(path))
-          return { content: truncate(file) }
+          return { content: modelText(file, await secretEnv()) }
         }),
     }),
 
@@ -494,6 +510,7 @@ export type ChatUIMessage = UIMessage<
       import("@/lib/app-catalog-tools").AppCatalogTools &
       import("@/lib/web-tools").WebTools &
       import("@/lib/routine-tools").RoutineTools &
-      import("@/lib/computer-approval-tools").ComputerApprovalTools
+      import("@/lib/computer-approval-tools").ComputerApprovalTools &
+      import("@/lib/secret-tools").SecretTools
   >
 >

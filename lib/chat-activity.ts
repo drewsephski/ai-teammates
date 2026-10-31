@@ -94,11 +94,14 @@ export function chatActivity(
       .filter((message) => message.role === "user")
       .map((message) => message.metadata?.questionId)
   )
+  // A question or a key card the person hasn't answered yet
   if (
     parts.some(
       (part) =>
-        part.type === "tool-askUser" &&
-        part.state === "output-available" &&
+        ((part.type === "tool-askUser" && part.state === "output-available") ||
+          (part.type === "tool-requestSecret" &&
+            part.state === "output-available" &&
+            part.output.state === "requested")) &&
         !answered.has(part.toolCallId)
     )
   )

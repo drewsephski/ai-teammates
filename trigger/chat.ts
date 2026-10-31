@@ -128,6 +128,8 @@ import { assertBotAccess } from "@/lib/teammates"
 import { createFirecrawlClient } from "@/lib/firecrawl"
 import { createTavilyClient, tavilyCost } from "@/lib/tavily"
 import { createWebTools } from "@/lib/web-tools"
+import { createSecretTools } from "@/lib/secret-tools"
+import { hasUserSecret, loadUserSecretEnv } from "@/lib/user-secrets"
 import { isChatGPTSelected } from "@/lib/chatgpt-connection"
 import { chatGPTModelForUser } from "@/lib/chatgpt-model"
 import { canSuggestFollowUps } from "@/lib/chat-follow-ups"
@@ -558,6 +560,13 @@ export const chatAgent = chat
         },
         // The lease lapses two minutes after the last call ends, never sooner
         afterCall: () => renewComputerLease(userId, turnModelUsage.usageKey),
+        // Saved API keys are environment variables in bash, and redacted
+        // from everything the model reads back
+        secretEnv: () => loadUserSecretEnv(userId),
+      })
+      // Keys for the computer's commands, asked for with a private card
+      const secretTools = createSecretTools({
+        hasSecret: (name) => hasUserSecret(userId, name),
       })
 
       const teamTools = createDelegationTools({
@@ -718,7 +727,11 @@ export const chatAgent = chat
             free: plan.tier === "free",
           })
         : {}
-      const computerTools = { ...sandboxTools, ...computerApprovalTools }
+      const computerTools = {
+        ...sandboxTools,
+        ...computerApprovalTools,
+        ...secretTools,
+      }
       const sharedTools = {
         ...computerTools,
         ...memoryTools,
@@ -928,7 +941,11 @@ export const chatAgent = chat
               : part.type === "tool-askUser" &&
                   part.state === "output-available"
                 ? [part.output.question]
-                : []
+                : part.type === "tool-requestSecret" &&
+                    part.state === "output-available" &&
+                    part.output.state === "requested"
+                  ? [`Needs ${part.output.label}`]
+                  : []
           )
           .join(" ") ?? ""
       ).slice(0, 160)
@@ -1354,7 +1371,12 @@ export const chatAgent = chat
             ({ steps }) =>
               steps.some((step) =>
                 step.toolResults.some(
-                  (result) => result?.toolName === "askUser"
+                  (result) =>
+                    result?.toolName === "askUser" ||
+                    // A key card waits for the person, like a question
+                    (result?.toolName === "requestSecret" &&
+                      (result.output as { state?: string } | undefined)
+                        ?.state === "requested")
                 )
               ),
             // A computer step waits for the owner now; app actions from one
@@ -1422,6 +1444,19 @@ export const chatAgent = chat
     },
   })
 
+// A key card the reply ended on, still waiting for the person (lib/secret-tools.ts)
+function pendingSecretRequest(message?: ChatUIMessage) {
+  const part = message?.parts.findLast(
+    (part) =>
+      part.type === "tool-requestSecret" && part.state === "output-available"
+  )
+  return part?.type === "tool-requestSecret" &&
+    part.state === "output-available" &&
+    part.output.state === "requested"
+    ? part.output
+    : undefined
+}
+
 // How a routine's run ended: stopped for the owner, failed, or done
 function routineTurnOutcome({
   failed,
@@ -1437,6 +1472,12 @@ function routineTurnOutcome({
   )
   if (turnModelUsage.approvalRequested)
     return { status: "blocked" as const, detail: "Waiting for your approval" }
+  const secret = pendingSecretRequest(responseMessage)
+  if (secret)
+    return {
+      status: "blocked" as const,
+      detail: `Waiting for you to save ${secret.label}`.slice(0, 300),
+    }
   if (
     question?.type === "tool-askUser" &&
     question.state === "output-available"
@@ -1528,6 +1569,25 @@ async function reportUnattendedTurn(turn: {
         dedupeKey,
       },
       { title: `${name} has a question`, body: question.output.question, path }
+    )
+    return
+  }
+  // A key card waits for the person the same way a question does
+  const secret = pendingSecretRequest(turn.responseMessage)
+  if (secret) {
+    const title = `${name} needs ${secret.label}`
+    const body = `Open the chat to save it. ${secret.description}`
+    await recordActivity(
+      {
+        userId: turn.userId,
+        kind: "question_asked",
+        title,
+        detail: body,
+        botId: bot?.id,
+        chatId: turn.chatId,
+        dedupeKey,
+      },
+      { title, body, path }
     )
     return
   }

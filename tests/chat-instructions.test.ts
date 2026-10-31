@@ -429,3 +429,58 @@ test("bots learn they may email the owner's verified addresses without a card, a
   const without = buildChatInstructions(configured, undefined, true, true, true)
   assert.doesNotMatch(without, /Email to the owner/)
 })
+
+test("API keys are asked for with the key card and never seen, printed or pasted in chat", () => {
+  const configured = { ...bot, setupComplete: true, job: "Developer" }
+  for (const paid of [false, true]) {
+    const text = buildChatInstructions(
+      configured,
+      undefined,
+      true,
+      true,
+      true,
+      undefined,
+      { paid }
+    )
+    assert.match(text, /ask for it only with requestSecret/)
+    assert.match(text, /like OPENAI_API_KEY/)
+    assert.match(text, /https page where it's created/)
+    assert.match(text, /environment variables in every bash command/)
+    assert.match(text, /\[secret NAME\]/)
+    assert.match(text, /Never print, echo, log or write a key's value/)
+    assert.match(text, /Never ask the person to paste a key in chat/)
+    assert.match(text, /If they paste one anyway, don't repeat it/)
+    assert.match(text, /Passwords and verification codes never go in chat/)
+  }
+  // No computer, no key card
+  const offline = buildChatInstructions(
+    configured,
+    undefined,
+    true,
+    false,
+    true,
+    undefined,
+    { paid: true }
+  )
+  assert.doesNotMatch(offline, /requestSecret/)
+})
+
+test("preset workflows ask for API keys only with the key card", async () => {
+  const { workflowExecutionInstructions } = await import("../lib/bot-presets")
+  assert.match(
+    workflowExecutionInstructions,
+    /ask for it only with requestSecret/
+  )
+  assert.match(
+    workflowExecutionInstructions,
+    /never print, echo or write their values/
+  )
+  assert.match(
+    workflowExecutionInstructions,
+    /don't repeat it and offer the key card/
+  )
+  assert.match(
+    workflowExecutionInstructions,
+    /Never ask for passwords, tokens, or verification codes in chat/
+  )
+})

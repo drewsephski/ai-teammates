@@ -269,14 +269,19 @@ export async function runSandboxCommand(
   cwd = "/home/user",
   timeoutMs = 60_000,
   // Kills the command when aborted, instead of leaving it running
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  // Extra environment variables for this command only, such as the person's
+  // saved API keys (lib/user-secrets.ts)
+  envs?: Record<string, string>
 ) {
   try {
-    if (!signal) return await sandbox.commands.run(command, { cwd, timeoutMs })
+    if (!signal)
+      return await sandbox.commands.run(command, { cwd, timeoutMs, envs })
     signal.throwIfAborted()
     const handle = await sandbox.commands.run(command, {
       cwd,
       timeoutMs,
+      envs,
       background: true,
     })
     const kill = () => void handle.kill().catch(() => {})

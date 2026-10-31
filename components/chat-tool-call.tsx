@@ -45,6 +45,7 @@ import {
   ListChecksIcon,
   ShieldAlertIcon,
   ShieldCheckIcon,
+  KeyRoundIcon,
 } from "lucide-react"
 
 type ToolPart = Extract<
@@ -147,6 +148,11 @@ const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
     "Deleting routine",
     "Deleted routine",
   ],
+  "tool-requestSecret": [
+    "Ask for API key",
+    "Asking for API key",
+    "Asked for API key",
+  ],
 }
 
 const toolIcons: Record<ToolPart["type"], LucideIcon> = {
@@ -186,6 +192,7 @@ const toolIcons: Record<ToolPart["type"], LucideIcon> = {
   "tool-listRoutines": ListChecksIcon,
   "tool-updateRoutine": CalendarClockIcon,
   "tool-deleteRoutine": CalendarXIcon,
+  "tool-requestSecret": KeyRoundIcon,
 }
 
 // Keep previews short even for pasted text. The complete value stays in details.

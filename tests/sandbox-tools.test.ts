@@ -148,3 +148,52 @@ test("a key name can't smuggle a shell command to the computer", () => {
   for (const key of ["tab;curl x", "a b", "$(id)", "Return`id`", ""])
     assert.equal(schema.safeParse({ key }).success, false, key)
 })
+
+test("saved keys are redacted from what the model reads, before truncating", () => {
+  const secrets = { OPENAI_API_KEY: "sk-live-abcdef1234567890" }
+  assert.equal(
+    tools.modelText(`key=${secrets.OPENAI_API_KEY}\n`, secrets),
+    "key=[secret OPENAI_API_KEY]\n"
+  )
+  // A value straddling the length limit is still hidden whole, not cut in two
+  const padded = `${"x".repeat(19_990)}${secrets.OPENAI_API_KEY}${"y".repeat(100)}`
+  const text = tools.modelText(padded, secrets)
+  assert.equal(text.includes("sk-live"), false)
+  assert.match(text, /\[secret OP/)
+  assert.match(text, /truncated \d+ more characters/)
+  // Without keys the text only gets truncated
+  assert.equal(tools.modelText("plain"), "plain")
+})
+
+test("a command gets the saved keys as environment variables", async () => {
+  const { runSandboxCommand } = await import("../lib/e2b")
+  const runs: { command: string; options: Record<string, unknown> }[] = []
+  const result = { exitCode: 0, stdout: "ok", stderr: "" }
+  const sandbox = {
+    commands: {
+      run: async (command: string, options: Record<string, unknown>) => {
+        runs.push({ command, options })
+        return options.background
+          ? { wait: async () => result, kill: async () => true }
+          : result
+      },
+    },
+  } as unknown as Parameters<typeof runSandboxCommand>[0]
+  const envs = { OPENAI_API_KEY: "sk-live-abcdef1234567890" }
+
+  await runSandboxCommand(sandbox, "env", undefined, 1000, undefined, envs)
+  await runSandboxCommand(
+    sandbox,
+    "env",
+    undefined,
+    1000,
+    new AbortController().signal,
+    envs
+  )
+  // Existing callers pass no keys
+  await runSandboxCommand(sandbox, "ls")
+  assert.deepEqual(runs[0].options.envs, envs)
+  assert.deepEqual(runs[1].options.envs, envs)
+  assert.equal(runs[1].options.background, true)
+  assert.equal(runs[2].options.envs, undefined)
+})

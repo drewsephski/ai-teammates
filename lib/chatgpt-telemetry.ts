@@ -25,9 +25,20 @@ export function redactChatGPTEvent<T extends Event>(event: T): T {
     event.request.headers = undefined
     event.request.query_string = undefined
   }
+  // A saved API key travels in the body of POST /api/v1/secrets and of the
+  // saveSecret server action. Server action bodies are dropped wholesale: their
+  // arguments are whatever the form sent.
+  const secretRequest =
+    event.request?.url?.includes("/api/v1/secrets") ||
+    Object.keys(event.request?.headers ?? {}).some(
+      (header) => header.toLowerCase() === "next-action"
+    )
+  if (secretRequest && event.request) event.request.data = undefined
   const authStack = event.exception?.values?.some((exception) =>
-    exception.stacktrace?.frames?.some((frame) =>
-      frame.filename?.includes("chatgpt")
+    exception.stacktrace?.frames?.some(
+      (frame) =>
+        frame.filename?.includes("chatgpt") ||
+        frame.filename?.includes("secret")
     )
   )
   if (authRequest || authStack)
