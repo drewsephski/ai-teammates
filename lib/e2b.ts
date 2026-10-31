@@ -3,6 +3,7 @@ import {
   Sandbox,
   SandboxNotFoundError,
   type SandboxInfo,
+  type SandboxOpts,
 } from "@e2b/desktop"
 import * as Sentry from "@sentry/node"
 import { randomUUID } from "node:crypto"
@@ -10,6 +11,14 @@ import { eq } from "drizzle-orm"
 
 import { db } from "@/db"
 import { computers, sandboxSessions, usageEntries } from "@/db/schema"
+import {
+  COMPUTER_TEMPLATE,
+  computerShellFor,
+  DESKTOP_HOME,
+  HARDEN_DESKTOP_SCRIPT,
+  HARDEN_ROOT_SCRIPT,
+  type ComputerShell,
+} from "@/lib/computer-shell"
 import {
   COMPUTERS_BUSY_ERROR,
   IDLE_TIMEOUT_MS,
@@ -135,11 +144,89 @@ export const getComputerInfo = lifecycle.getInfo
 export const renewComputerDesktop = lifecycle.renewDesktop
 export const pauseComputer = lifecycle.pause
 
+// Thrown when a computer from the template can't be hardened: its shell would
+// reach the desktop, so nothing runs on it
+export const COMPUTER_UNSECURED_ERROR =
+  "The computer couldn't be secured for this step. Try again shortly."
+
+// Each computer is hardened once per process before its first use. A computer
+// made from the template keeps its kernel and display state across pause and
+// resume, so this only repairs what a restart could have lost.
+const shells = new Map<string, Promise<ComputerShell>>()
+
+async function hardenComputer(sandbox: Sandbox): Promise<ComputerShell> {
+  const root = await sandbox.commands.run(HARDEN_ROOT_SCRIPT, {
+    user: "root",
+    timeoutMs: 15_000,
+  })
+  const shell = computerShellFor(root.stdout)
+  if (shell.isolated)
+    await sandbox.commands.run(HARDEN_DESKTOP_SCRIPT, { timeoutMs: 15_000 })
+  return shell
+}
+
+// Who runs this computer's shell commands and file tools. Fails closed: when
+// a computer from the template can't be hardened, no shell runs on it.
+export function computerShell(sandbox: Sandbox) {
+  let shell = shells.get(sandbox.sandboxId)
+  if (!shell) {
+    shell = hardenComputer(sandbox).catch((error: unknown) => {
+      shells.delete(sandbox.sandboxId)
+      Sentry.captureException(error, {
+        tags: { "sandbox.operation": "harden" },
+        extra: { sandboxId: sandbox.sandboxId },
+      })
+      throw new Error(COMPUTER_UNSECURED_ERROR, { cause: error })
+    })
+    shells.set(sandbox.sandboxId, shell)
+  }
+  return shell
+}
+
+// @e2b/desktop starts the display with `-ac`, which turns X access control off
+// for the server's whole life: any local user could drive the screen, and
+// `xhost -` can't undo it. Account computers start it the same way without
+// `-ac`, and computerShell then admits only the desktop's user.
+class AccountDesktop extends Sandbox {
+  protected override async _start(
+    display: string,
+    opts?: SandboxOpts & { resolution?: [number, number]; dpi?: number }
+  ) {
+    this.display = display
+    const [width, height] = opts?.resolution ?? [1024, 768]
+    const xvfb = await this.commands.run(
+      `Xvfb ${display} -screen 0 ${width}x${height}x24 -retro -dpi ${opts?.dpi ?? 96} -nolisten tcp -nolisten unix`,
+      { background: true, timeoutMs: 0 }
+    )
+    await xvfb.disconnect()
+    if (
+      !(await this.waitAndVerify(
+        `xdpyinfo -display ${display}`,
+        (result) => result.exitCode === 0
+      ))
+    )
+      throw new Error("Could not start Xvfb")
+    const xfce = await this.commands.run("startxfce4", {
+      background: true,
+      timeoutMs: 0,
+    })
+    await xfce.disconnect()
+    if (
+      !(await this.waitAndVerify(
+        "pgrep -x xfce4-session >/dev/null && pgrep -x xfwm4 >/dev/null && pgrep -x xfdesktop >/dev/null",
+        (result) => result.exitCode === 0,
+        60
+      ))
+    )
+      throw new Error("Could not start XFCE")
+  }
+}
+
 export async function createAccountSandbox(userId: string) {
   const creationId = randomUUID()
   let sandbox: Sandbox | undefined
   try {
-    sandbox = await Sandbox.create({
+    sandbox = await AccountDesktop.create(COMPUTER_TEMPLATE, {
       resolution: [1024, 768],
       ...providerOptions,
       metadata: { app: APP, userId, creationId },
@@ -147,6 +234,8 @@ export async function createAccountSandbox(userId: string) {
       lifecycle: { onTimeout: "pause", autoResume: false },
       network: { allowPublicTraffic: false },
     })
+    // A computer whose shell could reach its desktop is never handed out
+    await computerShell(sandbox)
     // Creating a computer should not keep an unused one running.
     await sandbox.pause()
     return sandbox.sandboxId
@@ -266,22 +355,25 @@ export async function listAppSandboxes() {
 export async function runSandboxCommand(
   sandbox: Sandbox,
   command: string,
-  cwd = "/home/user",
+  cwd = DESKTOP_HOME,
   timeoutMs = 60_000,
   // Kills the command when aborted, instead of leaving it running
   signal?: AbortSignal,
   // Extra environment variables for this command only, such as the person's
   // saved API keys (lib/user-secrets.ts)
-  envs?: Record<string, string>
+  envs?: Record<string, string>,
+  // Who runs it: the shell user from computerShell for bots' commands
+  user?: string
 ) {
   try {
     if (!signal)
-      return await sandbox.commands.run(command, { cwd, timeoutMs, envs })
+      return await sandbox.commands.run(command, { cwd, timeoutMs, envs, user })
     signal.throwIfAborted()
     const handle = await sandbox.commands.run(command, {
       cwd,
       timeoutMs,
       envs,
+      user,
       background: true,
     })
     const kill = () => void handle.kill().catch(() => {})

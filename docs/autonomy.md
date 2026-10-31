@@ -88,15 +88,32 @@ Every gesture on the account computer that could commit something outside it is 
 - **Spending:** `spendComputerApproval` is atomic. The first spend needs the approval to be approved within the last hour, by the same owner, bot and chat; from then on it covers at most three checked gestures within 90 seconds (a delete and its confirmation). Each gesture must still pass the guard, and the guard's category must match the approved action (`approvalCovers`); when the guard reads a hostname from the address bar, it must match the approved site. When the guard can't see an address bar, the window title must name the approved site. Text typed with more than one Enter is refused on a committing step. Changing account security (passwords, permissions, ownership) and typing commands into a terminal window are never approvable: the bot asks the person to do those themselves. Every outcome is appended to `result`.
 - **The shell:** `shellCommandRisk` reads the command line, with quotes and backslashes removed. It refuses command lines that drive the desktop (`xdotool`, `pyautogui`, `DISPLAY=`), take over the browser (remote debugging, CDP), touch the browser's profile, or schedule work for later (`crontab`, `nohup`, `tmux`, `systemctl`, start-up files). The file tools refuse the same paths. Obvious external writes (`curl` with data or a write method, `git push`, `gh`, `ssh`/`scp`/`rsync`/`nc`, mail tools, package publishing, cloud CLIs, `requests.post`) need an approval naming the exact command, with its data inline rather than in a file or piped input; that command runs once under it.
 
+### The shell user and reading the screen
+
+Computers are created from the `krafty-desktop` E2B template (`COMPUTER_TEMPLATE` in `lib/computer-shell.ts`, built by `scripts/build-e2b-template.ts`).
+
+- **Shell user.** `bash`, `readFile`, `writeFile` and `listFiles` run as `worker`, in `/home/worker`. The desktop, Firefox and its sign-ins belong to `user`. Firefox saves downloads to `/home/worker/Downloads`, and `user` can read `worker`'s files, so the browser can upload what a bot made.
+- **Hardening.** `computerShell` (`lib/e2b.ts`) hardens each computer as root before its first use in a process, and fails closed: a computer that can't be hardened runs no shell, and a new one isn't handed out.
+  - The display starts without `-ac` (`AccountDesktop`), and `xhost` admits only `SI:localuser:user`. `xhost -local:` drops the hidden every-local-user entry.
+  - nftables rejects `worker`'s TCP to the computer's own sshd, rpcbind, x11vnc, noVNC and envd (IPv4 and IPv6) and to the metadata service. Its other local ports and the internet stay open.
+  - `/home/user` is `700`, root's and `user`'s passwords are locked, and `/usr/local` is no longer writable by everyone.
+  - These steps run at first use, not in the template, because E2B's own config step runs after the template's steps and resets them.
+  - `scripts/verify-screen-reader.ts` checks each of these from the shell user on a real computer.
+- **Older computers.** A computer made before the template has no `worker`. Its shell runs as `user`, as before, until the person resets their computer.
+- **readScreen.** It reads the focused window through the desktop's accessibility bus (AT-SPI). The walker runs as `user`, sent inline with the command. Firefox starts with `GNOME_ACCESSIBILITY=1` (a wrapper from the template). Text inside a web page is read whole; a control scrolled out of view is listed without a ref.
+- **clickElement and fillElement.** They turn a ref into the element's position on screen and run the same checked gestures as `mouseClick` and `keyboardType`. The element's role and name are page content and never decide whether a step runs.
+- **openOnScreen.** It opens an http or https address with `x-www-browser` as `user`, unchecked, like typing an address and pressing Enter.
+
 ### What is enforced, and what isn't
 
-Enforced by the server: app writes run only from the stored call; high-risk app actions never get a standing rule; standing rules are bound to bot, account and action, and revocable; every click, drag, Enter and non-navigation key on the computer is judged by a separate model from a screenshot the server takes, and high-impact gestures run only inside a claimed, time-boxed approval for that bot and chat; the guard fails closed; account-security changes and desktop terminal commands are never approvable; a held shell command runs once, exactly as the owner saw it; a decline blocks every new approval request for the rest of the turn it wakes, and an app call declined unchanged is refused for a day. Nothing in a web page, document or tool result can grant an approval; only the owner's decision in the database can.
+Enforced by the server: app writes run only from the stored call; high-risk app actions never get a standing rule; standing rules are bound to bot, account and action, and revocable; every click, drag, Enter and non-navigation key on the computer is judged by a separate model from a screenshot the server takes, and high-impact gestures run only inside a claimed, time-boxed approval for that bot and chat; the guard fails closed; account-security changes and desktop terminal commands are never approvable; a held shell command runs once, exactly as the owner saw it; a decline blocks every new approval request for the rest of the turn it wakes, and an app call declined unchanged is refused for a day; on computers from the template, shell commands and file tools run as a user that can't reach the display, the browser profile, the accessibility bus or the desktop's local services. Nothing in a web page, document or tool result can grant an approval; only the owner's decision in the database can.
 
 Not enforced, only reduced:
 
 - The guard is a model reading pixels. It can be wrong, or deceived by overlays, misleading labels or a confirmation it can't foresee, and a page can change between its screenshot and the gesture.
 - Typing without Enter can still commit on some sites (an auto-submitting field, a space on a focused button).
-- **The shell is not a boundary.** It runs as the same user as the browser, with the desktop's display. The command-line rules stop obvious commands only: a script written with `writeFile` or downloaded, string-built names (`'pyauto'+'gui'`), or an unlisted tool can make network writes, drive the screen or read cookies, and a page can try to talk the bot into that. The real boundary is a separate Unix user for `bash` without the display or the browser profile, in a custom E2B template (follow-up).
+- **On computers made before the template, the shell is not a boundary.** It runs as the same user as the browser, with the desktop's display. The command-line rules stop obvious commands only: a script written with `writeFile` or downloaded, string-built names (`'pyauto'+'gui'`), or an unlisted tool can make network writes, drive the screen or read cookies, and a page can try to talk the bot into that. Resetting the computer moves it to the template.
+- **On computers from the template, the shell can still make network writes.** The command-line rules are its only check: a script written with `writeFile` or downloaded can post data, and a page can try to talk the bot into that. It can also leave files in its home or `~/Downloads` that the browser later uploads.
 - A computer decline isn't remembered after its turn: the next message can lead the bot to ask again (the owner sees a new card; nothing runs without it). Delegated teammates and routines go through the same gates, and a decline in one chat doesn't stop another chat from asking.
 - The guard's 15-second check runs inside the computer's lock, so a second call in the same step can time out waiting and must be retried.
 
@@ -135,6 +152,6 @@ Not enforced, only reduced:
 ## Not built yet
 
 - Event triggers beyond the six in `ROUTINE_EVENTS` (GitHub, webhooks of the person's own), and an event option in the web and app routine forms (event routines are made in chat today).
-- A separate Unix user for shell commands on the computer, so scripts can't reach the desktop or the browser profile.
+- Moving computers made before the `krafty-desktop` template to it without a reset.
 - Undo for app writes.
 - Approval from a lock-screen action without opening the app (today the action opens the app, which calls the API with the session).

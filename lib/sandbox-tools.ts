@@ -1,9 +1,23 @@
+import { setTimeout as sleep } from "node:timers/promises"
+
 import type { Sandbox } from "@e2b/desktop"
 import { tool, type InferUITools, type UIMessage } from "ai"
 import { z } from "zod"
 
-import { withComputer, runSandboxCommand } from "@/lib/e2b"
+import { computerShell, withComputer, runSandboxCommand } from "@/lib/e2b"
 import { isComputerBusy, type ComputerBusy } from "@/lib/computer-lease-policy"
+import { shellPath, shellQuote } from "@/lib/computer-shell"
+import {
+  buildScreenSnapshot,
+  openUrlSchema,
+  parseScreenRead,
+  READ_TIMEOUT_MS,
+  SCREEN_UNREADABLE,
+  screenReaderCommand,
+  visibleCenter,
+  type ScreenElement,
+  type ScreenSnapshot,
+} from "@/lib/screen-reader"
 import {
   gestureNeedsCheck,
   protectedPath,
@@ -11,7 +25,6 @@ import {
   type ComputerGesture,
 } from "@/lib/computer-approval-policy"
 import type { ComputerGate } from "@/lib/computer-approval-tools"
-import { sandboxPath } from "@/lib/sandbox-policy"
 import { redactSecrets } from "@/lib/secret-policy"
 import type { HandoffTools } from "@/lib/handoff-tool"
 
@@ -20,8 +33,8 @@ const MAX_TEXT_LENGTH = 20_000
 
 // The browser's profile and the places that run things later stay off limits
 // to the file tools, as they are to the shell
-function allowedPath(path: string) {
-  const resolved = sandboxPath(path)
+function allowedPath(path: string, home: string) {
+  const resolved = shellPath(path, home)
   if (protectedPath(resolved) || protectedPath(path))
     throw new Error(
       "That path holds the browser's sign-ins or start-up settings, which bots can't read or change. Nothing was done."
@@ -54,6 +67,34 @@ const approvalId = z
   .describe(
     "The approvalId from the owner's approval message, only when repeating the step they approved"
   )
+
+// A control from the latest readScreen
+const ref = z
+  .string()
+  .regex(/^e\d{1,4}$/, "Use a ref from readScreen, such as e4.")
+  .describe("The element's ref from your latest readScreen, such as e4")
+
+async function clickAt(
+  sandbox: Sandbox,
+  {
+    x,
+    y,
+    button,
+    double,
+  }: { x: number; y: number; button: string; double: boolean }
+) {
+  const click =
+    button === "right"
+      ? sandbox.rightClick.bind(sandbox)
+      : button === "middle"
+        ? sandbox.middleClick.bind(sandbox)
+        : sandbox.leftClick.bind(sandbox)
+  if (double && button === "left") await sandbox.doubleClick(x, y)
+  else {
+    await click(x, y)
+    if (double) await click(x, y)
+  }
+}
 
 export async function takeScreenshot(sandbox: Sandbox) {
   const [shot, screen] = await Promise.all([
@@ -117,6 +158,22 @@ export function createSandboxTools(
   } = {}
 ) {
   const secretEnv = async () => (await options.secretEnv?.()) ?? {}
+
+  // The latest readScreen in this turn: refs point into it
+  let reading: ScreenSnapshot | undefined
+  function element(id: string): ScreenElement & { x: number; y: number } {
+    const found = reading?.refs.get(id)
+    if (!reading || !found)
+      throw new Error(
+        `There's no ${id} in your latest readScreen. Call readScreen again and use a ref from it.`
+      )
+    const center = visibleCenter(found, reading.screen)
+    if (!center)
+      throw new Error(
+        `${id} isn't on the screen. Scroll to it, then call readScreen again.`
+      )
+    return { ...found, ...center }
+  }
 
   // When each call still in flight may end. A step's tool calls run in
   // parallel, so a short call's renewal must not cut a long command's lease.
@@ -213,15 +270,17 @@ export function createSandboxTools(
               ? await gate.shell(command, approvalId)
               : {}
             try {
+              const shell = await computerShell(sandbox)
               const envs = await secretEnv()
               // Stop kills the command: the computer is shared with other bots
               const response = await runSandboxCommand(
                 sandbox,
                 command,
-                cwd ? allowedPath(cwd) : undefined,
+                cwd ? allowedPath(cwd, shell.home) : shell.home,
                 timeout * 1000,
                 abortSignal,
-                Object.keys(envs).length ? envs : undefined
+                Object.keys(envs).length ? envs : undefined,
+                shell.user
               )
               const result = {
                 exitCode: response.exitCode,
@@ -260,7 +319,10 @@ export function createSandboxTools(
       }),
       execute: async ({ path }) =>
         runInSandbox(async (sandbox) => {
-          const file = await sandbox.files.read(allowedPath(path))
+          const { home, user } = await computerShell(sandbox)
+          const file = await sandbox.files.read(allowedPath(path, home), {
+            user,
+          })
           return { content: modelText(file, await secretEnv()) }
         }),
     }),
@@ -276,8 +338,9 @@ export function createSandboxTools(
       }),
       execute: async ({ path, content }) =>
         runInSandbox(async (sandbox) => {
+          const { home, user } = await computerShell(sandbox)
           const file = Buffer.from(content, "utf8")
-          await sandbox.files.write(allowedPath(path), content)
+          await sandbox.files.write(allowedPath(path, home), content, { user })
           return { path, bytes: file.byteLength }
         }),
     }),
@@ -294,7 +357,10 @@ export function createSandboxTools(
       }),
       execute: async ({ path }) =>
         runInSandbox(async (sandbox) => {
-          const files = await sandbox.files.list(allowedPath(path))
+          const { home, user } = await computerShell(sandbox)
+          const files = await sandbox.files.list(allowedPath(path, home), {
+            user,
+          })
           return {
             files: files.map((file) => ({
               name: file.name,
@@ -322,17 +388,7 @@ export function createSandboxTools(
             approvalId,
             context,
             async () => {
-              const click =
-                button === "right"
-                  ? sandbox.rightClick.bind(sandbox)
-                  : button === "middle"
-                    ? sandbox.middleClick.bind(sandbox)
-                    : sandbox.leftClick.bind(sandbox)
-              if (double && button === "left") await sandbox.doubleClick(x, y)
-              else {
-                await click(x, y)
-                if (double) await click(x, y)
-              }
+              await clickAt(sandbox, { x, y, button, double })
               return { x, y }
             }
           )
@@ -454,6 +510,152 @@ export function createSandboxTools(
             }
           )
         ),
+    }),
+
+    readScreen: tool({
+      description:
+        "Read the focused window on the computer's desktop as text: its controls, links, fields and text, with a ref such as e4 on each control you can pass to clickElement or fillElement. It is cheaper and more precise than viewScreen for finding what to click or type into, so try it first; use viewScreen when you need to see images, layout or anything it leaves out, or when it says the window can't be read. Refs belong to the latest reading only.",
+      inputSchema: z.object({}),
+      execute: async () =>
+        runInSandbox(async (sandbox) => {
+          const screen = await sandbox.getScreenSize()
+          const response = await runSandboxCommand(
+            sandbox,
+            screenReaderCommand(screen),
+            undefined,
+            READ_TIMEOUT_MS
+          )
+          let read
+          try {
+            read = parseScreenRead(response.stdout)
+          } catch {
+            read = undefined
+          }
+          if (!read || "error" in read) {
+            reading = undefined
+            return { status: "unreadable" as const, message: SCREEN_UNREADABLE }
+          }
+          const snapshot = buildScreenSnapshot(read, screen)
+          // Nothing to act on: a window without an accessibility tree
+          if (!snapshot.count && !read.elements.length) {
+            reading = undefined
+            return { status: "unreadable" as const, message: SCREEN_UNREADABLE }
+          }
+          reading = snapshot
+          options.onScreenViewed?.()
+          return {
+            status: "read" as const,
+            app: read.app,
+            window: read.window,
+            url: read.url,
+            elements: snapshot.count,
+            text: modelText(snapshot.text, await secretEnv()),
+          }
+        }),
+    }),
+
+    clickElement: tool({
+      description:
+        "Click a control from your latest readScreen by its ref, such as e4. Krafty checks the click like any other before it runs. Call readScreen again after the screen changes, because refs from an older reading may point at something else.",
+      inputSchema: z.object({
+        ref,
+        button: z.enum(["left", "right", "middle"]).default("left"),
+        double: z.boolean().default(false).describe("Double-click"),
+        approvalId,
+      }),
+      execute: async ({ ref: id, button, double, approvalId }, context) => {
+        const target = element(id)
+        const { x, y } = target
+        return runInSandbox((sandbox) =>
+          guarded(
+            sandbox,
+            { tool: "mouseClick", x, y, button, double },
+            approvalId,
+            context,
+            async () => {
+              await clickAt(sandbox, { x, y, button, double })
+              return { ref: id, role: target.role, name: target.name, x, y }
+            }
+          )
+        )
+      },
+    }),
+
+    fillElement: tool({
+      description:
+        "Replace the text in a field from your latest readScreen by its ref, such as e4: it clicks the field, selects what's in it and types the new text. An empty text clears the field. Newlines are typed as Enter, which may submit the form.",
+      inputSchema: z.object({
+        ref,
+        text: z.string().max(10_000).describe("The field's new text"),
+        approvalId,
+      }),
+      execute: async ({ ref: id, text, approvalId }, context) => {
+        const target = element(id)
+        const { x, y } = target
+        return runInSandbox(async (sandbox) => {
+          await guarded(
+            sandbox,
+            { tool: "mouseClick", x, y, button: "left", double: false },
+            approvalId,
+            context,
+            () => sandbox.leftClick(x, y)
+          )
+          // Select-all and Backspace only edit the field
+          await guarded(
+            sandbox,
+            { tool: "keyboardPress", key: "a", modifiers: ["ctrl"] },
+            undefined,
+            context,
+            () => sandbox.press(["ctrl", "a"])
+          )
+          if (!text)
+            await guarded(
+              sandbox,
+              { tool: "keyboardPress", key: "backspace", modifiers: [] },
+              undefined,
+              context,
+              () => sandbox.press("backspace")
+            )
+          else
+            await guarded(
+              sandbox,
+              { tool: "keyboardType", text },
+              approvalId,
+              // Its own check, metered apart from the click's
+              { ...context, toolCallId: `${context.toolCallId}:type` },
+              () => sandbox.write(text)
+            )
+          return {
+            ref: id,
+            role: target.role,
+            name: target.name,
+            typed: text.length,
+          }
+        })
+      },
+    }),
+
+    openOnScreen: tool({
+      description:
+        "Open a web page in the browser on the computer's desktop, in a new tab when the browser is already open. Use this to go to a website instead of opening it from bash. Then call readScreen or viewScreen to see it.",
+      inputSchema: z.object({
+        url: openUrlSchema.describe(
+          "The full http or https address, such as https://www.espn.com/fantasy/"
+        ),
+      }),
+      execute: async ({ url }) =>
+        runInSandbox(async (sandbox) => {
+          // The desktop's browser, as its own user, with its accessibility
+          // tree on so readScreen can read the page
+          const handle = await sandbox.commands.run(
+            `x-www-browser ${shellQuote(url)} >/dev/null 2>&1`,
+            { background: true, envs: { GNOME_ACCESSIBILITY: "1" } }
+          )
+          await handle.disconnect()
+          // A moment for the page to load before the bot reads it
+          await sleep(2500)
+          return { url }
+        }),
     }),
 
     viewScreen: tool({

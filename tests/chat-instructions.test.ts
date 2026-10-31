@@ -101,6 +101,17 @@ test("authentication guidance uses connected apps and only offers browser sign-i
   assert.doesNotMatch(free, /use askUser with computerLogin/)
 })
 
+test("the desktop is read as text first, and pages open outside the shell", () => {
+  const instructions = buildChatInstructions(bot, undefined, true, true, true)
+  assert.match(instructions, /Call readScreen first/)
+  assert.match(instructions, /clickElement and fillElement act on a ref/)
+  assert.match(instructions, /Call viewScreen when you need to see images/)
+  assert.match(instructions, /open the official URL with openOnScreen/)
+  // The shell can't reach the desktop, so it never opens pages
+  assert.match(instructions, /Shell commands run as their own user/)
+  assert.doesNotMatch(instructions, /open the official URL with bash/)
+})
+
 test("complex website work is owned through discovery, computer fallback and verification", () => {
   for (const connected of [true, false]) {
     const instructions = buildChatInstructions(

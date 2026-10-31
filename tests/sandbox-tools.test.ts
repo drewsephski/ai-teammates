@@ -197,3 +197,39 @@ test("a command gets the saved keys as environment variables", async () => {
   assert.equal(runs[1].options.background, true)
   assert.equal(runs[2].options.envs, undefined)
 })
+
+test("a ref from no reading is refused before the computer is touched", async () => {
+  let touched = 0
+  const set = tools.createSandboxTools(() => {
+    touched++
+    throw new Error("The computer was touched")
+  }, open)
+  await assert.rejects(
+    () =>
+      Promise.resolve(
+        set.clickElement.execute!(
+          { ref: "e3", button: "left", double: false },
+          call
+        )
+      ),
+    /no e3 in your latest readScreen/
+  )
+  await assert.rejects(
+    () =>
+      Promise.resolve(set.fillElement.execute!({ ref: "e1", text: "x" }, call)),
+    /Call readScreen again/
+  )
+  assert.equal(touched, 0)
+})
+
+test("a busy screen reading counts as no look at the screen", async () => {
+  let viewed = 0
+  const set = tools.createSandboxTools(
+    async () => policy.busyResult("Researcher"),
+    open,
+    { onScreenViewed: () => void viewed++ }
+  )
+  const read = await set.readScreen.execute!({}, call)
+  assert.equal(policy.isComputerBusy(read), true)
+  assert.equal(viewed, 0)
+})

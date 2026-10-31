@@ -31,7 +31,9 @@ import {
   MousePointerClickIcon,
   MousePointerIcon,
   MoveIcon,
+  AppWindowIcon,
   ScanEyeIcon,
+  ScanTextIcon,
   SquareTerminalIcon,
   TextCursorInputIcon,
   UsersRoundIcon,
@@ -80,6 +82,10 @@ const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
   "tool-keyboardPress": ["Press key", "Pressing key", "Pressed key"],
   "tool-viewScreen": ["Check screen", "Checking screen", "Checked screen"],
   "tool-showScreen": ["Share screen", "Sharing screen", "Shared screen"],
+  "tool-readScreen": ["Read screen", "Reading screen", "Read screen"],
+  "tool-clickElement": ["Click", "Clicking", "Clicked"],
+  "tool-fillElement": ["Fill in field", "Filling in field", "Filled in field"],
+  "tool-openOnScreen": ["Open page", "Opening page", "Opened page"],
   "tool-handoff": ["Ask teammate", "Asking teammate", "Asked teammate"],
   "tool-listTeammates": [
     "Find teammate",
@@ -176,6 +182,10 @@ const toolIcons: Record<ToolPart["type"], LucideIcon> = {
   "tool-keyboardPress": KeyboardIcon,
   "tool-viewScreen": ScanEyeIcon,
   "tool-showScreen": MonitorUpIcon,
+  "tool-readScreen": ScanTextIcon,
+  "tool-clickElement": MousePointerClickIcon,
+  "tool-fillElement": TextCursorInputIcon,
+  "tool-openOnScreen": AppWindowIcon,
   "tool-handoff": UsersRoundIcon,
   "tool-listTeammates": UsersRoundIcon,
   "tool-createTeammate": UsersRoundIcon,
@@ -357,6 +367,19 @@ function toolSummary(part: ToolPart): string | undefined {
       return part.state === "output-available" && !isComputerBusy(part.output)
         ? `${part.output.width} × ${part.output.height}`
         : undefined
+    case "tool-readScreen":
+      if (part.state !== "output-available" || isComputerBusy(part.output))
+        return undefined
+      return part.output.status === "read"
+        ? preview(part.output.window || part.output.app)
+        : "Couldn't read the window"
+    case "tool-clickElement":
+    case "tool-fillElement":
+      return part.state === "output-available" && !isComputerBusy(part.output)
+        ? preview(`${part.output.role} “${part.output.name}”`)
+        : part.input?.ref
+    case "tool-openOnScreen":
+      return preview(part.input?.url)
     case "tool-handoff":
       return preview(part.input?.note)
     case "tool-createTeammate":
@@ -782,6 +805,23 @@ function toolResult(part: ToolPart) {
       )
     case "tool-mouseClick":
       return textResult(`Clicked at ${part.output.x}, ${part.output.y}.`)
+    // What the bot read stays its own, like viewScreen's screenshot
+    case "tool-readScreen":
+      return textResult(
+        part.output.status === "read"
+          ? `Read ${part.output.elements} controls on the screen.`
+          : part.output.message
+      )
+    case "tool-clickElement":
+      return textResult(
+        `Clicked ${part.output.role} “${part.output.name}” at ${part.output.x}, ${part.output.y}.`
+      )
+    case "tool-fillElement":
+      return textResult(
+        `Typed ${part.output.typed} characters into ${part.output.role} “${part.output.name}”.`
+      )
+    case "tool-openOnScreen":
+      return textResult(`Opened ${part.output.url}.`)
     case "tool-mouseMove":
       return textResult(
         `Moved the pointer to ${part.output.x}, ${part.output.y}.`
