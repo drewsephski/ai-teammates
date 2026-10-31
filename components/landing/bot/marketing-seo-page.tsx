@@ -16,6 +16,7 @@ import {
 import { JsonLd } from "@/components/json-ld"
 import { absoluteUrl, breadcrumbJsonLd } from "@/lib/marketing/content"
 import { faqPageJsonLd } from "@/lib/marketing/json-ld"
+import { TimeCostCalculator } from "@/components/landing/bot/time-cost-calculator"
 
 /** Internal links stay in the app; links to other products open in a new tab. */
 function CardLink({
@@ -83,9 +84,22 @@ export function MarketingSeoPage({
               name: `${config.title} · Krafty`,
               description: config.description,
               dateModified: marketingUpdated,
+              author: { "@id": `${siteUrl}/#founder` },
               isPartOf: { "@id": `${siteUrl}/#website` },
               about: { "@id": `${siteUrl}/#app` },
               breadcrumb: breadcrumbJsonLd(trail),
+              ...(config.widget && {
+                mainEntity: {
+                  "@type": "WebApplication",
+                  name: config.h1,
+                  url: pageUrl,
+                  applicationCategory: "BusinessApplication",
+                  operatingSystem: "Any",
+                  isAccessibleForFree: true,
+                  offers: { "@type": "Offer", price: 0, priceCurrency: "USD" },
+                  publisher: { "@id": `${siteUrl}/#organization` },
+                },
+              }),
             },
             faqPageJsonLd(config.faqs, `${pageUrl}#faqs`),
           ],
@@ -100,7 +114,12 @@ export function MarketingSeoPage({
         <header className={page.header}>
           <h1>{config.h1}</h1>
           <p className={page.lead}>{config.lead}</p>
-          <p className={page.updated}>Updated {updated}</p>
+          <p className={page.updated}>
+            Updated {updated} · By{" "}
+            <Link href="/about" className={page.link} rel="author">
+              Drew Sepeczi
+            </Link>
+          </p>
           <div className={styles.actions}>
             <Link href={startHref} prefetch={false} className={styles.button}>
               Start free
@@ -110,6 +129,8 @@ export function MarketingSeoPage({
             </Link>
           </div>
         </header>
+
+        {config.widget === "time-cost-calculator" && <TimeCostCalculator />}
 
         {config.sections.map((section) => (
           <section

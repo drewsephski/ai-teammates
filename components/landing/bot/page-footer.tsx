@@ -1,7 +1,7 @@
 import Link from "next/link"
 
 import { useCases } from "@/app/use-cases/use-cases-data"
-import { marketingSeoPages } from "@/lib/marketing/seo-pages"
+import { guidePages } from "@/lib/marketing/seo-pages"
 import { brandName } from "@/lib/marketing/site"
 import styles from "./page-chrome.module.css"
 
@@ -20,7 +20,7 @@ export function PageFooter({ className }: { className?: string }) {
       </nav>
       <nav aria-label="Guides" className={styles.footerColumn}>
         <p className={styles.footerHeading}>Guides</p>
-        {marketingSeoPages.map((page) => (
+        {guidePages.map((page) => (
           <Link key={page.path} href={page.path}>
             {page.h1}
           </Link>
@@ -36,6 +36,7 @@ export function PageFooter({ className }: { className?: string }) {
       </nav>
       <nav aria-label="Company" className={styles.footerColumn}>
         <p className={styles.footerHeading}>Company</p>
+        <Link href="/about">About</Link>
         <Link href="/support">Support</Link>
         <Link href="/privacy">Privacy policy</Link>
         <Link href="/terms">Terms of service</Link>

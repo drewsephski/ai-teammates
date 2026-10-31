@@ -25,7 +25,7 @@ import styles from "@/components/landing/bot/bot-landing.module.css"
 import { JsonLd } from "@/components/json-ld"
 import { homeJsonLd } from "@/lib/marketing/json-ld"
 import { definitionShort } from "@/lib/marketing/content"
-import { marketingSeoPages } from "@/lib/marketing/seo-pages"
+import { guidePages } from "@/lib/marketing/seo-pages"
 import { useCases } from "@/app/use-cases/use-cases-data"
 import { loadFeatureVotes } from "@/queries/feature-votes"
 import {
@@ -297,7 +297,7 @@ export default async function LandingPage() {
           </div>
           <div className={styles.footerColumn}>
             <p className={styles.footerHeading}>Guides</p>
-            {marketingSeoPages.map((page) => (
+            {guidePages.map((page) => (
               <Link key={page.path} href={page.path}>
                 {page.h1}
               </Link>
@@ -334,6 +334,7 @@ export default async function LandingPage() {
             AI that does the work. Built independently by Drew Sepeczi.
           </span>
           <div className="flex flex-wrap gap-4">
+            <Link href="/about">About</Link>
             <Link href="/support">Support</Link>
             <Link href="/privacy">Privacy policy</Link>
             <Link href="/terms">Terms of service</Link>
