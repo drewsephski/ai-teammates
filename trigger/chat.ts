@@ -128,6 +128,8 @@ import { assertBotAccess } from "@/lib/teammates"
 import { createFirecrawlClient } from "@/lib/firecrawl"
 import { createTavilyClient, tavilyCost } from "@/lib/tavily"
 import { createWebTools } from "@/lib/web-tools"
+import { createContextDevClient, contextDevCost } from "@/lib/context-dev"
+import { createSocialTools } from "@/lib/social-tools"
 import { createSecretTools } from "@/lib/secret-tools"
 import { hasUserSecret, loadUserSecretEnv } from "@/lib/user-secrets"
 import { isChatGPTSelected } from "@/lib/chatgpt-connection"
@@ -665,38 +667,50 @@ export const chatAgent = chat
           return deleteRoutine(userId, routineId, { botId: current.id })
         },
       })
+      // Web, review and social data billed to the allowance: checked before
+      // each request, recorded per tool call under the provider's own key
+      // prefix, and added to the turn's spend so the stop condition sees it
+      const meteredWeb = (
+        price: (credits: number) => number,
+        kind: string
+      ) => ({
+        beforeRequest: async (maxCredits: number) => {
+          const usage = await getUsage(userId)
+          if (
+            usage.remaining.ai - (turnModelUsage.cost - turnModelUsage.held) <
+            price(maxCredits)
+          )
+            throw new Error(USAGE_LIMIT_ERROR)
+        },
+        onUsage: async (credits: number, toolCallId: string) => {
+          const cost = price(credits)
+          if (cost === 0) return
+          await recordUsage([
+            {
+              userId,
+              kind: "ai",
+              amount: cost,
+              idempotencyKey: `${turnModelUsage.usageKey}:${kind}:${toolCallId}`,
+            },
+          ])
+          turnModelUsage.webCost += cost
+        },
+      })
+      const contextDev = process.env.CONTEXT_DEV_API_KEY?.trim()
+        ? createContextDevClient(meteredWeb(contextDevCost, "context"))
+        : undefined
       const webTools = process.env.TAVILY_API_KEY?.trim()
         ? createWebTools(
-            createTavilyClient({
-              beforeRequest: async (maxCredits) => {
-                const usage = await getUsage(userId)
-                if (
-                  usage.remaining.ai -
-                    (turnModelUsage.cost - turnModelUsage.held) <
-                  tavilyCost(maxCredits)
-                )
-                  throw new Error(USAGE_LIMIT_ERROR)
-              },
-              onUsage: async (credits, toolCallId) => {
-                const cost = tavilyCost(credits)
-                if (cost === 0) return
-                await recordUsage([
-                  {
-                    userId,
-                    kind: "ai",
-                    amount: cost,
-                    idempotencyKey: `${turnModelUsage.usageKey}:web:${toolCallId}`,
-                  },
-                ])
-                turnModelUsage.webCost += cost
-              },
-            }),
+            createTavilyClient(meteredWeb(tavilyCost, "web")),
             // App-funded and free to the person, on every plan
             process.env.FIRECRAWL_API_KEY?.trim()
               ? createFirecrawlClient()
-              : undefined
+              : undefined,
+            contextDev
           )
         : {}
+      // Every plan, like web research
+      const socialTools = contextDev ? createSocialTools(contextDev) : {}
       const setupTools = createBotSetupTools(
         (profile) => configureBotProfile(userId, current.id, profile),
         {
@@ -740,6 +754,7 @@ export const chatAgent = chat
         ...connectorTools,
         ...catalogTools,
         ...webTools,
+        ...socialTools,
         ...setupTools,
         ...routineTools,
       }
@@ -751,6 +766,7 @@ export const chatAgent = chat
           ...connectorTools,
           ...catalogTools,
           ...webTools,
+          ...socialTools,
           ...setupTools,
           ...memoryTools,
           ...routineTools,
@@ -1265,6 +1281,8 @@ export const chatAgent = chat
         const appToolsAvailable =
           "searchAppTools" in tools && "executeAppTool" in tools
         const webToolsAvailable = "searchWeb" in tools && "readWebPage" in tools
+        const socialToolsAvailable =
+          "readReviews" in tools && "readSocialMedia" in tools
         const computerAvailable = "bash" in tools && usage.remaining.sandbox > 0
 
         // Stamped on the reply and kept in the transcript with it
@@ -1296,7 +1314,12 @@ export const chatAgent = chat
               computerAvailable,
               webToolsAvailable,
               memory,
-              { paid: usage.tier === "paid", clock, ownerEmails }
+              {
+                paid: usage.tier === "paid",
+                clock,
+                ownerEmails,
+                socialToolsAvailable,
+              }
             ),
             composerContext,
             connectionContext,
@@ -1335,7 +1358,12 @@ export const chatAgent = chat
                     computerAvailable,
                     webToolsAvailable,
                     await memoryFor(updated.id),
-                    { paid: usage.tier === "paid", clock, ownerEmails }
+                    {
+                      paid: usage.tier === "paid",
+                      clock,
+                      ownerEmails,
+                      socialToolsAvailable,
+                    }
                   ),
                   composerContext,
                   connectionContext,

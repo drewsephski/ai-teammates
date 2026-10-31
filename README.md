@@ -152,6 +152,11 @@ NOTRA_GEO_TOKEN=
 # 30 reads per turn). Trigger.dev only: the worker reads it, Railway doesn't.
 FIRECRAWL_API_KEY=
 
+# Optional: context.dev review and social data (readReviews, readSocialMedia)
+# and a readWebPage reader between Firecrawl and Tavily, billed to the person's
+# AI allowance. Trigger.dev only: the worker reads it, Railway doesn't.
+CONTEXT_DEV_API_KEY=
+
 # Optional: server-side Voxtral dictation (Railway only, not Trigger.dev)
 OPENROUTER_API_KEY=
 

@@ -42,3 +42,20 @@ test("property presets work from public data and leave contact and publishing to
   assert.match(flyIn.instructions, /not Google Earth or drone footage/)
   assert.match(flyIn.instructions, /never publish or post the video/)
 })
+
+test("the competitor preset reads public reviews and social data and never posts or invents", () => {
+  const rival = botPresets.find((preset) => preset.id === "competitor-reviews")
+  assert.ok(rival)
+  assert.match(rival.summary, /what customers hate about your competitors/)
+  assert.match(rival.instructions, /readReviews/)
+  assert.match(rival.instructions, /readSocialMedia/)
+  assert.match(rival.instructions, /maxRating 2/)
+  assert.match(
+    rival.instructions,
+    /never invent a review, a quote, a rating or a count/
+  )
+  assert.match(rival.instructions, /never post, reply, review or message/)
+  assert.match(rival.instructions, /never collect their contact details/)
+  assert.match(rival.instructions, /other bots can work from it/)
+  assert.match(rival.instructions, /scheduleRoutine/)
+})

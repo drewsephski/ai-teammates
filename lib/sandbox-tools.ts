@@ -711,6 +711,7 @@ export type ChatUIMessage = UIMessage<
       import("@/lib/composio").ConnectorTools &
       import("@/lib/app-catalog-tools").AppCatalogTools &
       import("@/lib/web-tools").WebTools &
+      import("@/lib/social-tools").SocialTools &
       import("@/lib/routine-tools").RoutineTools &
       import("@/lib/computer-approval-tools").ComputerApprovalTools &
       import("@/lib/secret-tools").SecretTools

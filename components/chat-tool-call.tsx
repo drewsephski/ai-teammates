@@ -16,6 +16,8 @@ import {
 import { computerHold, type ComputerHold } from "@/components/computer-hold"
 import { isComputerBusy } from "@/lib/computer-lease-policy"
 import type { ChatUIMessage } from "@/lib/sandbox-tools"
+import type { SocialParser } from "@/lib/context-dev"
+import { reviewRating } from "@/lib/review-records"
 import {
   ArrowDownUpIcon,
   BookmarkPlusIcon,
@@ -42,6 +44,8 @@ import {
   CircleHelpIcon,
   SearchIcon,
   GlobeIcon,
+  MessageSquareWarningIcon,
+  AtSignIcon,
   CalendarClockIcon,
   CalendarXIcon,
   ListChecksIcon,
@@ -60,6 +64,12 @@ type ToolPart = Extract<
 const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
   "tool-searchWeb": ["Search web", "Searching web", "Searched web"],
   "tool-readWebPage": ["Read webpage", "Reading webpage", "Read webpage"],
+  "tool-readReviews": ["Read reviews", "Reading reviews", "Read reviews"],
+  "tool-readSocialMedia": [
+    "Read social posts",
+    "Reading social posts",
+    "Read social posts",
+  ],
   "tool-askUser": ["Question", "Question", "Answered question"],
   "tool-configureBot": [
     "Configure bot",
@@ -164,6 +174,8 @@ const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
 const toolIcons: Record<ToolPart["type"], LucideIcon> = {
   "tool-searchWeb": SearchIcon,
   "tool-readWebPage": GlobeIcon,
+  "tool-readReviews": MessageSquareWarningIcon,
+  "tool-readSocialMedia": AtSignIcon,
   "tool-askUser": CircleHelpIcon,
   "tool-configureBot": SettingsIcon,
   "tool-bash": SquareTerminalIcon,
@@ -215,7 +227,10 @@ function appToolError(part: ToolPart): string | undefined {
   if (part.state === "output-available" && isComputerBusy(part.output))
     return `${part.output.heldBy} was using the computer.`
   if (
-    (part.type === "tool-searchWeb" || part.type === "tool-readWebPage") &&
+    (part.type === "tool-searchWeb" ||
+      part.type === "tool-readWebPage" ||
+      part.type === "tool-readReviews" ||
+      part.type === "tool-readSocialMedia") &&
     part.state === "output-available"
   )
     return part.output.status === "failed" ? part.output.message : undefined
@@ -317,6 +332,8 @@ function toolSummary(part: ToolPart): string | undefined {
     case "tool-searchWeb":
       return preview(part.input?.query)
     case "tool-readWebPage":
+    case "tool-readReviews":
+    case "tool-readSocialMedia":
       return preview(part.input?.url)
     case "tool-bash":
       return preview(part.input?.command)
@@ -630,6 +647,8 @@ function ToolCallDetails({ part }: { part: ToolPart }) {
 const resultLabels: Partial<Record<ToolPart["type"], string>> = {
   "tool-searchWeb": "Sources found",
   "tool-readWebPage": "Page content",
+  "tool-readReviews": "Reviews found",
+  "tool-readSocialMedia": "Social data",
   "tool-remember": "Saved memory",
   "tool-updateMemory": "Updated memory",
   "tool-forget": "Forgotten",
@@ -655,6 +674,43 @@ function routineLastRun(routine: {
     (routine.lastStatus && routineStatusLabels[routine.lastStatus]) ??
     "Last ran"
   return `${label} ${routine.lastRunLocal}`
+}
+
+function reviewCountLine(output: {
+  fetched: number
+  matching: number
+  returned: number
+  truncated: boolean
+}) {
+  const filtered =
+    output.matching === output.fetched
+      ? `${output.fetched} reviews`
+      : `${output.matching} of ${output.fetched} reviews matched`
+  return output.returned < output.matching
+    ? `${filtered}, showing ${output.returned}.`
+    : `${filtered}.`
+}
+
+// Review records keep the provider's field names; show the likeliest text
+function reviewText(review: unknown) {
+  if (!review || typeof review !== "object") return String(review)
+  const fields = review as Record<string, unknown>
+  const text = ["title", "snippet", "text", "content", "body", "review"]
+    .map((key) => fields[key])
+    .filter((value): value is string => typeof value === "string")
+    .join(" · ")
+  return text || JSON.stringify(review)
+}
+
+const socialLabels: Record<SocialParser, string> = {
+  "instagram-profile": "an Instagram profile",
+  "instagram-post": "an Instagram post",
+  "instagram-feed": "an Instagram feed",
+  "tiktok-profile": "a TikTok profile",
+  "tiktok-video": "a TikTok video",
+  "tiktok-feed": "TikTok videos",
+  "tiktok-comments": "TikTok comments",
+  "tiktok-user-search": "TikTok accounts",
 }
 
 function textResult(text: string) {
@@ -726,6 +782,38 @@ function toolResult(part: ToolPart) {
             </p>
           )}
         </div>
+      )
+    case "tool-readReviews":
+      if (part.output.status === "failed") return undefined
+      return (
+        <div className="space-y-2 p-2.5">
+          <p className="text-xs text-muted-foreground">
+            {reviewCountLine(part.output)}
+          </p>
+          {part.output.reviews.length ? (
+            <ul className="space-y-2">
+              {part.output.reviews.map((review, index) => (
+                <li key={index} className="space-y-0.5">
+                  {reviewRating(review) !== undefined && (
+                    <p className="text-xs text-muted-foreground">
+                      {reviewRating(review)} stars
+                    </p>
+                  )}
+                  <p className="break-words whitespace-pre-wrap">
+                    {reviewText(review)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>No reviews matched.</p>
+          )}
+        </div>
+      )
+    case "tool-readSocialMedia":
+      if (part.output.status === "failed") return undefined
+      return textResult(
+        `Read ${socialLabels[part.output.parser]} from ${part.output.url}${part.output.truncated ? ", shortened" : ""}.`
       )
     case "tool-readFile":
       return part.output.content

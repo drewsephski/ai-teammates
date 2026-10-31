@@ -2,7 +2,10 @@ import type { Bot, Chat } from "@/db/schema"
 import { connectedAppInstructions } from "@/lib/agent-tool-instructions"
 import { botPersonalityInstructions } from "@/lib/bot-personality"
 import { buildBotSetupInstructions } from "@/lib/bot-setup-tools"
-import { webSearchInstructions } from "@/lib/web-search-instructions"
+import {
+  socialDataInstructions,
+  webSearchInstructions,
+} from "@/lib/web-search-instructions"
 import { LOOP_STEP_LIMIT } from "@/lib/turn-spend"
 
 // What a bot is told on top of its own job when it answers in a group chat
@@ -76,7 +79,13 @@ export function buildChatInstructions(
   // clock: the owner's local time line (routineClock).
   // ownerEmails: addresses verified on their Krafty account, which may receive
   // mail without approval
-  options: { paid?: boolean; clock?: string; ownerEmails?: string[] } = {}
+  // socialToolsAvailable: readReviews and readSocialMedia are registered
+  options: {
+    paid?: boolean
+    clock?: string
+    ownerEmails?: string[]
+    socialToolsAvailable?: boolean
+  } = {}
 ) {
   const paid = options.paid ?? computerAvailable
   const settingUp = !bot.setupComplete && !group
@@ -93,6 +102,7 @@ export function buildChatInstructions(
     `Current date (UTC): ${new Date().toISOString().slice(0, 10)}.`,
     options.clock,
     webSearchInstructions(webToolsAvailable),
+    socialDataInstructions(options.socialToolsAvailable ?? false),
     `Krafty stops a reply that takes the same step with the same result ${LOOP_STEP_LIMIT} times in a row, and the person may set a spend limit per task that ends a reply early. When you need to wait for something (a build, a page loading, a reply), wait inside one step, such as a shell command that sleeps and then checks, instead of repeating the same check, and say what you are waiting for. If you have tried the same thing twice without progress, try another way or tell the person what is blocking you.`,
     ...(computerAvailable
       ? [
