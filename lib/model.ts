@@ -17,8 +17,9 @@ type ModelStream = Awaited<ReturnType<Model["doStream"]>>
 type StreamPart =
   ModelStream["stream"] extends ReadableStream<infer T> ? T : never
 
-// Anthropic, on the app's ANTHROPIC_API_KEY, answers first; the Neon AI
-// Gateway answers when that key is missing or Anthropic fails the call.
+// Anthropic, on the app's ANTHROPIC_API_KEY, answers first for an account
+// that accepted AI permission v3 or later (lib/ai-consent.ts); the Neon AI
+// Gateway answers otherwise, or when Anthropic fails the call.
 const claudeModelId = "claude-haiku-5-5"
 const textModelId = "glm-5-3-flash"
 const visionModelId = "gpt-5-6-luna"
@@ -293,18 +294,28 @@ function reportFallback(error: unknown) {
   })
 }
 
-// Every app-funded call: Claude Haiku when ANTHROPIC_API_KEY is set, with the
-// Neon AI Gateway as the fallback, otherwise the gateway alone.
-export function chatModel(messages: readonly ModelMessage[] = []): Model {
+export type ChatModelOptions = {
+  // The account accepted an AI permission that names Anthropic, read with
+  // anthropicAllowed (lib/ai-consent-store.ts). Off unless a caller says so.
+  anthropic?: boolean
+}
+
+// Every app-funded call: Claude Haiku when ANTHROPIC_API_KEY is set and the
+// account allows Anthropic, with the Neon AI Gateway as the fallback;
+// otherwise the gateway alone.
+export function chatModel(
+  messages: readonly ModelMessage[] = [],
+  { anthropic = false }: ChatModelOptions = {}
+): Model {
   const gateway = gatewayModel(messages)
-  if (!process.env.ANTHROPIC_API_KEY?.trim()) return gateway
+  if (!anthropic || !process.env.ANTHROPIC_API_KEY?.trim()) return gateway
   return withFallback(claudeModel(), gateway, reportFallback)
 }
 
 // Recommendations only contain prose and always use the app's own models,
 // independently of the provider selected for the main conversation.
-export function followUpModel(): Model {
-  return chatModel()
+export function followUpModel(options: ChatModelOptions = {}): Model {
+  return chatModel([], options)
 }
 
 // Dollars per million tokens: Claude's from Anthropic's pricing (cache reads

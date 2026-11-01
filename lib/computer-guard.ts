@@ -44,6 +44,7 @@ export async function checkComputerGesture({
   gesture,
   windowTitle,
   model,
+  anthropic = false,
   signal,
   onUsage,
 }: {
@@ -57,6 +58,8 @@ export async function checkComputerGesture({
   windowTitle?: string
   // Injected in tests; production uses the app's vision model
   model?: LanguageModel
+  // The account allows Anthropic (chatModel's option of the same name)
+  anthropic?: boolean
   signal?: AbortSignal
   onUsage: (usage: LanguageModelUsage, modelId: string) => Promise<void>
 }): Promise<GuardVerdict> {
@@ -83,7 +86,7 @@ export async function checkComputerGesture({
     },
   ]
   const result = streamText({
-    model: model ?? chatModel(messages),
+    model: model ?? chatModel(messages, { anthropic }),
     system: guardInstructions,
     messages,
     // Room for low-effort reasoning as well as the short JSON answer

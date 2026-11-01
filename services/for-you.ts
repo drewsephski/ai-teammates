@@ -51,6 +51,7 @@ import {
 } from "@/lib/generate-for-you"
 import { postChatMessage } from "@/lib/chat-dispatch"
 import { getUserSettings } from "@/lib/memory"
+import { anthropicAllowed } from "@/lib/ai-consent-store"
 import { chatModelCost, followUpModel } from "@/lib/model"
 import { tryWithSandboxLock, withSandboxLock } from "@/lib/sandbox-lock"
 import { teamOperationId } from "@/lib/team-policy"
@@ -357,7 +358,8 @@ async function runScan({ userId, has }: Caller, now: Date) {
       },
     ])
   }
-  const model = followUpModel()
+  // Connected-app records go to Anthropic only with the account's v3 permission
+  const model = followUpModel({ anthropic: await anthropicAllowed(userId) })
   const runtime = createReadOnlyRuntime(userId, accounts)
   const toolkits = [...new Set(accounts.map((a) => a.toolkit))]
   const [direct, explored, memory, feedback, settingsRecent] =

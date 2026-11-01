@@ -11,7 +11,8 @@ import { openChatMessages } from "@/lib/chat-content-key"
 import { chatTranscriptStorage } from "@/lib/chat-transcript-storage"
 import { isModelUnavailable, MODEL_UNAVAILABLE_ERROR } from "@/lib/chat-turn"
 import { createHandoffTool, type Handoff } from "@/lib/handoff-tool"
-import { chatModel, chatModelCost } from "@/lib/model"
+import { anthropicAllowed } from "@/lib/ai-consent-store"
+import { chatModel, chatModelCost, followUpModel } from "@/lib/model"
 import {
   createSandboxTools,
   takeScreenshot,
@@ -218,9 +219,12 @@ const turnModelUsage = chat.local<{
   messageId: string
   usageKey: string
   chatgpt: boolean
+  // The owner accepted an AI permission that names Anthropic (v3 or later).
+  // Read once per turn; every app-funded call in the turn follows it.
+  anthropic: boolean
   composerText: string
   mentions: BotMention[]
-  followUps?: { signal: AbortSignal }
+  followUps?: { signal: AbortSignal; anthropic: boolean }
 }>({
   id: "chat-turn-model-cost",
 })
@@ -349,6 +353,7 @@ export const chatAgent = chat
         messageId: "",
         usageKey: "",
         chatgpt: false,
+        anthropic: false,
         composerText: "",
         mentions: [],
       })
@@ -385,6 +390,7 @@ export const chatAgent = chat
       turnModelUsage.lastFinishReason = undefined
       turnModelUsage.startedAt = Date.now()
       turnModelUsage.chatgpt = false
+      turnModelUsage.anthropic = false
       turnModelUsage.followUps = undefined
       const latest = uiMessages.findLast((message) => message.role === "user")
       if (!latest) throw new Error("No task to delegate")
@@ -528,6 +534,7 @@ export const chatAgent = chat
         check: ({ toolCallId, ...input }) =>
           checkComputerGesture({
             ...input,
+            anthropic: turnModelUsage.anthropic,
             onUsage: async (usage, modelId) => {
               const cost = chatModelCost(usage, modelId)
               if (cost <= 0) return
@@ -587,6 +594,7 @@ export const chatAgent = chat
         onCost: (cost) => {
           turnModelUsage.consultationCost += cost
         },
+        anthropic: () => turnModelUsage.anthropic,
       })
       const sourceConfig = (await sessions.retrieve(chatId)).metadata?.forYou
       const source =
@@ -861,7 +869,8 @@ export const chatAgent = chat
             const unrecordedCost = turnModelUsage.cost - turnModelUsage.held
             if (currentUsage.remaining.ai - unrecordedCost < 10_000) return
             const suggestions = await generateChatFollowUps({
-              ...config,
+              signal: config.signal,
+              model: followUpModel({ anthropic: config.anthropic }),
               messages: uiMessages,
               profile: `${bot.name}: ${bot.job}\n${bot.instructions ?? ""}`,
               capabilities: {
@@ -1222,6 +1231,7 @@ export const chatAgent = chat
       if (!canUseAI(usage.remaining.ai, chatgptSelected))
         throw new Error(USAGE_LIMIT_ERROR)
       turnModelUsage.chatgpt = chatgptSelected
+      turnModelUsage.anthropic = await anthropicAllowed(row.userId)
       // Resolve from the authoritative connection, never browser clientData.
       // Every tool step revalidates/refreshes this user's credential.
       const subscriptionModel = chatgptSelected
@@ -1229,6 +1239,7 @@ export const chatAgent = chat
         : null
       turnModelUsage.followUps = {
         signal,
+        anthropic: turnModelUsage.anthropic,
       }
 
       // The <memory> block, per answering bot: a handoff brings in that bot's
@@ -1303,7 +1314,9 @@ export const chatAgent = chat
           })
 
         return streamText({
-          model: subscriptionModel ?? chatModel(history),
+          model:
+            subscriptionModel ??
+            chatModel(history, { anthropic: turnModelUsage.anthropic }),
           maxRetries: chatgptSelected ? 0 : undefined,
           // The managed streamText takes the prompt as `system` on every AI SDK version
           system: [
@@ -1348,7 +1361,9 @@ export const chatAgent = chat
               : current
 
             return {
-              model: subscriptionModel ?? chatModel(messages),
+              model:
+                subscriptionModel ??
+                chatModel(messages, { anthropic: turnModelUsage.anthropic }),
               ...(updated && {
                 instructions: [
                   buildChatInstructions(
