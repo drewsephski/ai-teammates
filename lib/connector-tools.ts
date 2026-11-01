@@ -18,6 +18,14 @@ import {
   expiredToolkits,
   flagAccountRejected,
 } from "@/lib/connection-health"
+import { zonedParts } from "@/lib/routine-policy"
+import {
+  DEFAULT_STALE_DAYS,
+  quoteSheet,
+  reviewTracker as reviewTrackerValues,
+  spreadsheetIdFrom,
+  trackerRoles,
+} from "@/lib/tracker-review"
 
 // `label` and `connectedAt` only help the person tell two accounts apart
 export type AppAccount = {
@@ -299,10 +307,43 @@ function thrownOutcome(
   }
 }
 
+// The read reviewTracker runs: the whole tab, unformatted, so real date cells
+// arrive as serial numbers whatever the sheet's locale
+export const TRACKER_READ_SLUG = "GOOGLESHEETS_BATCH_GET"
+const TRACKER_TOOLKIT = "googlesheets"
+
+// The values and A1 range of a Sheets read, in either of Composio's shapes
+function sheetValues(data: unknown) {
+  const record =
+    data && typeof data === "object" ? (data as Record<string, unknown>) : {}
+  const ranges = (record.valueRanges ?? record.value_ranges) as
+    | { range?: unknown; values?: unknown }[]
+    | undefined
+  const first = Array.isArray(ranges) ? ranges[0] : record
+  const values = first?.values
+  return {
+    range: typeof first?.range === "string" ? first.range : undefined,
+    values: Array.isArray(values)
+      ? values.map((row) => (Array.isArray(row) ? (row as unknown[]) : []))
+      : [],
+  }
+}
+
+function localDate(timeZone: string, now: Date) {
+  const p = zonedParts(now, timeZone)
+  const pad = (value: number) => String(value).padStart(2, "0")
+  return `${p.year}-${pad(p.month)}-${pad(p.day)}`
+}
+
 export function createAppTools(
   userId: string,
   runtime: ConnectorRuntime,
-  gate?: ApprovalGate
+  gate?: ApprovalGate,
+  options: {
+    // The owner's saved timezone, for "today" in a tracker review
+    timeZone?: () => Promise<string | null | undefined>
+    now?: () => Date
+  } = {}
 ) {
   // The accounts each schema was loaded under, so a replaced account is caught
   const discovered = new Map<string, { tool: AppTool; accountIds: string[] }>()
@@ -312,6 +353,56 @@ export function createAppTools(
       .map((a) => a.id)
     if (entry.inputSchema && ids.length)
       discovered.set(entry.slug, { tool: entry, accountIds: ids })
+  }
+  // Which of the person's accounts a call runs as, or the answer to give when
+  // none can: expired, disconnected, or a choice they have to make
+  async function chooseAccount(toolkit: string, requestedAccountId?: string) {
+    const expired = (accountId?: string) =>
+      boundedResult({
+        status: "failed",
+        code: "CONNECTION_EXPIRED",
+        toolkit,
+        ...(accountId && { accountId }),
+        reconnect: { toolkit },
+        message: CONNECTION_EXPIRED_MESSAGE,
+      })
+    // Only the account that was rejected: the person's other accounts for
+    // this app stay usable
+    if (requestedAccountId && accountExpired(userId, requestedAccountId))
+      return { reply: expired(requestedAccountId) }
+    const selection = selectAccount(
+      await runtime.accounts(userId),
+      toolkit,
+      requestedAccountId
+    )
+    if (!selection.ok && selection.reason === "none")
+      return {
+        reply: expiredToolkits(userId).has(toolkit)
+          ? expired()
+          : failure(
+              "APP_DISCONNECTED",
+              "This app is no longer connected. Call findApps and show a connect card, or tell the person to reconnect it in Apps. This attempt did not run."
+            ),
+      }
+    if (!selection.ok)
+      return {
+        reply: boundedResult({
+          status: "requires_input",
+          code:
+            selection.reason === "unknown"
+              ? "ACCOUNT_NOT_FOUND"
+              : "ACCOUNT_CHOICE_REQUIRED",
+          toolkit,
+          accounts: selection.choices,
+          message:
+            selection.reason === "unknown"
+              ? "That accountId isn't one of the person's connected accounts for this app. This attempt did not run. Ask which account to use with askUser, naming the accounts by label, then call again with the accountId."
+              : "The person has more than one account connected for this app, so nothing ran. Ask which one to use with askUser, naming the accounts by label (and connectedAt if labels are missing), then call again with that accountId. Never pick one yourself.",
+        }),
+      }
+    if (accountExpired(userId, selection.account.id))
+      return { reply: expired(selection.account.id) }
+    return { account: selection.account }
   }
   return {
     searchAppTools: tool({
@@ -449,47 +540,9 @@ export function createAppTools(
             "SCHEMA_REQUIRED",
             "Load the full schema with getAppToolSchema (for a known slug) or searchAppTools before executing. This attempt did not run."
           )
-        const expired = (accountId?: string) =>
-          boundedResult({
-            status: "failed",
-            code: "CONNECTION_EXPIRED",
-            toolkit: entry.toolkit,
-            ...(accountId && { accountId }),
-            reconnect: { toolkit: entry.toolkit },
-            message: CONNECTION_EXPIRED_MESSAGE,
-          })
-        // Only the account that was rejected: the person's other accounts for
-        // this app stay usable
-        if (requestedAccountId && accountExpired(userId, requestedAccountId))
-          return expired(requestedAccountId)
-        const selection = selectAccount(
-          await runtime.accounts(userId),
-          entry.toolkit,
-          requestedAccountId
-        )
-        if (!selection.ok && selection.reason === "none")
-          return expiredToolkits(userId).has(entry.toolkit)
-            ? expired()
-            : failure(
-                "APP_DISCONNECTED",
-                "This app is no longer connected. Call findApps and show a connect card, or tell the person to reconnect it in Apps. This attempt did not run."
-              )
-        if (!selection.ok)
-          return boundedResult({
-            status: "requires_input",
-            code:
-              selection.reason === "unknown"
-                ? "ACCOUNT_NOT_FOUND"
-                : "ACCOUNT_CHOICE_REQUIRED",
-            toolkit: entry.toolkit,
-            accounts: selection.choices,
-            message:
-              selection.reason === "unknown"
-                ? "That accountId isn't one of the person's connected accounts for this app. This attempt did not run. Ask which account to use with askUser, naming the accounts by label, then call again with the accountId."
-                : "The person has more than one account connected for this app, so nothing ran. Ask which one to use with askUser, naming the accounts by label (and connectedAt if labels are missing), then call again with that accountId. Never pick one yourself.",
-          })
-        const account = selection.account
-        if (accountExpired(userId, account.id)) return expired(account.id)
+        const chosen = await chooseAccount(entry.toolkit, requestedAccountId)
+        if (!chosen.account) return chosen.reply
+        const account = chosen.account
         if (!requestedAccountId && !loaded?.accountIds.includes(account.id))
           return failure(
             "ACCOUNT_CHANGED",
@@ -579,6 +632,144 @@ export function createAppTools(
             thrownOutcome(userId, entry.toolkit, account.id, error)
           )
         }
+      },
+    }),
+    reviewTracker: tool({
+      description:
+        "Review a project tracker in Google Sheets, read-only. It reads one tab, works out which columns hold the task, owner, status, due date, last update and blocker, and lists every unfinished task that is overdue, blocked, or hasn't been updated in staleDays, judged on the person's local date. Each row comes with the sheet's own row number and the A1 address of its cells. Use it for any tracker or task-list review instead of reading the cells and counting rows yourself, and pass find with task names to get a task's row, current values and cells: before changing it, and again afterwards to read the change back. Report what it returns: cite its row numbers as given, don't add or drop flagged rows, and ask the person about each item in unsure before relying on that part.",
+      inputSchema: z.object({
+        spreadsheet: z
+          .string()
+          .trim()
+          .min(1)
+          .max(500)
+          .describe("The spreadsheet's Google Sheets link or ID"),
+        sheet: z
+          .string()
+          .trim()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe("The tab's name. Omit it for the first tab."),
+        columns: z
+          .object(
+            Object.fromEntries(
+              trackerRoles.map((role) => [
+                role,
+                z.string().trim().min(1).max(100).optional(),
+              ])
+            ) as Record<
+              (typeof trackerRoles)[number],
+              z.ZodOptional<z.ZodString>
+            >
+          )
+          .optional()
+          .describe(
+            "Columns the person named, by header text or letter, when the guess was wrong or unsure"
+          ),
+        staleDays: z
+          .number()
+          .int()
+          .min(1)
+          .max(90)
+          .optional()
+          .describe(
+            `Days without an update that make a task stale. Default ${DEFAULT_STALE_DAYS}.`
+          ),
+        find: z
+          .array(z.string().trim().min(1).max(200))
+          .max(10)
+          .optional()
+          .describe("Task names to locate, for the row and cells of each"),
+        accountId: z
+          .string()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe(
+            "Which connected Google Sheets account, from a requires_input result's accounts. Omit it when there is one."
+          ),
+      }),
+      execute: async (
+        { spreadsheet, sheet, columns, staleDays, find, accountId },
+        { abortSignal }
+      ) => {
+        const spreadsheetId = spreadsheetIdFrom(spreadsheet)
+        if (!spreadsheetId)
+          return failure(
+            "SPREADSHEET_ID_REQUIRED",
+            "Pass the spreadsheet's link (docs.google.com/spreadsheets/d/...) or its ID. A published-to-web link or a name won't work: find the sheet with searchAppTools or ask the person for its link. Nothing was read."
+          )
+        const chosen = await chooseAccount(TRACKER_TOOLKIT, accountId)
+        if (!chosen.account) return chosen.reply
+        const account = chosen.account
+        const zone = (await options.timeZone?.()) || undefined
+        const today = localDate(zone ?? "UTC", options.now?.() ?? new Date())
+        let result: unknown
+        try {
+          result = await runtime.execute(
+            userId,
+            TRACKER_READ_SLUG,
+            {
+              spreadsheet_id: spreadsheetId,
+              ...(sheet && { ranges: [quoteSheet(sheet)] }),
+              majorDimension: "ROWS",
+              valueRenderOption: "UNFORMATTED_VALUE",
+              dateTimeRenderOption: "SERIAL_NUMBER",
+            },
+            account,
+            abortSignal
+          )
+        } catch (error) {
+          abortSignal?.throwIfAborted()
+          const outcome = thrownOutcome(userId, TRACKER_TOOLKIT, account.id, error)
+          // A read changes nothing, so an unknown outcome is just a failure
+          return boundedResult({
+            ...outcome,
+            status: "failed",
+            message:
+              "Reading the sheet failed; nothing was changed. Retry once, then tell the person what went wrong. " +
+              (typeof outcome.message === "string" ? outcome.message : ""),
+          })
+        }
+        const described = describeResult(
+          userId,
+          TRACKER_TOOLKIT,
+          account.id,
+          result
+        )
+        if (!described.ok)
+          return boundedResult({
+            ...described.value,
+            status: "failed",
+            message:
+              "Reading the sheet failed; nothing was changed. Check the link and tab name; if the sheet isn't shared with the connected Google account, ask the person to share it or reconnect with the account that owns it.",
+          })
+        const { range, values } = sheetValues(
+          (result as Record<string, unknown>).data
+        )
+        const review = reviewTrackerValues(values, {
+          today,
+          range: range ?? (sheet ? `${quoteSheet(sheet)}!A1` : undefined),
+          staleDays,
+          columns,
+          find,
+        })
+        return boundedResult({
+          status: "succeeded",
+          spreadsheetId,
+          ...review,
+          ...(!zone && {
+            timezoneNote:
+              "The person's timezone isn't set, so today is the UTC date.",
+          }),
+          ...(review.rowLimitReached && {
+            rowLimitNote:
+              "Only the first 5,000 rows were reviewed. Say so in the report.",
+          }),
+          message:
+            "These are the sheet's own row numbers and cell addresses; cite them exactly. Every unfinished task that is overdue, blocked or stale is in flagged (unless flaggedOmitted says more were cut). Ask about each unsure item before relying on that part. To change a task, write only its listed cells.",
+        })
       },
     }),
     runApprovedAction: tool({

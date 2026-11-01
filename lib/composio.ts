@@ -373,6 +373,8 @@ export function createConnectorTools(
     readOnly?: boolean
     accountBindings?: Record<string, string>
     approvals?: ApprovalGate
+    // The owner's saved timezone, for the date a tracker review judges by
+    timeZone?: () => Promise<string | null | undefined>
   } = {}
 ) {
   return createAppTools(
@@ -389,7 +391,8 @@ export function createConnectorTools(
         createConnectorSession(owner, toolkits, accounts, options),
       { readOnly: options.readOnly }
     ),
-    options.approvals
+    options.approvals,
+    { timeZone: options.timeZone }
   )
 }
 

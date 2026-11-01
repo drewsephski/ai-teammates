@@ -20,6 +20,8 @@ export type BotTemplate = {
   schedule: string
   /** The starter prompt from the page. The bot opens by proposing it. */
   prompt: string
+  /** How this bot does its work reliably, added to its instructions. */
+  guidance?: string[]
 }
 
 const avatars: Record<string, string> = {
@@ -94,6 +96,7 @@ export function botTemplateInstructions(template: BotTemplate) {
     `What waits for the person: ${template.waitsForYou.map(sentence).join(" ")}`,
     `Your starting brief, which the person may change: ${JSON.stringify(template.prompt)} Swap in the apps, names, and thresholds they actually use, and ask only for a detail that would change the result.`,
     `Usual timing: ${sentence(template.schedule)} Do one run on request first; when the person likes the result, offer to repeat it with scheduleRoutine.`,
+    ...(template.guidance?.map(sentence) ?? []),
     workflowExecutionInstructions,
   ].join(" ")
 }

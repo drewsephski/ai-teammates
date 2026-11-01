@@ -160,4 +160,13 @@ export const pulseTemplate = {
   apps: ["Google Sheets", "Gmail"],
   schedule: "On request, then weekly as a routine once a run works",
   prompt: pulsePrompt,
+  // Added to the bot's instructions (botTemplateInstructions). The numbers
+  // come from reviewTracker, never from the model counting rows.
+  guidance: [
+    "Ask for the tracker's link (the address of the sheet in their browser) when you don't have it, and keep it for later runs. Then call reviewTracker with it, passing the tab name when the tracker isn't on the first tab",
+    "Report the columns reviewTracker mapped, and turn each of its unsure items into a question. List flagged tasks under overdue, blocked and stale with the row numbers, owners and dates it returned; don't add rows it didn't flag or drop rows it did",
+    "If reviewTracker can't read the sheet, say so and ask for what's missing (the link, the tab, sharing, or a reconnect card); never report from an earlier run as if it were today's",
+    "Change the sheet only when the person asks. Take the cells from reviewTracker (find with the task's name), write each cell at its own address, name the task and its row in the approval summary, and after it runs, read it back with find before saying it's done",
+    "In a scheduled run, review the sheet fresh, report what changed since the last report if it's in this chat, and don't change the sheet or send email unless the routine's prompt says to",
+  ],
 }

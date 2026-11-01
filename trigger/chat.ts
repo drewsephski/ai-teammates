@@ -620,6 +620,7 @@ export const chatAgent = chat
             ...(source && {
               accountBindings: { [source.toolkit]: source.accountId },
             }),
+            timeZone: () => savedTimeZone(userId),
             approvals: {
               ...approvalGate,
               request: async (call) => {
