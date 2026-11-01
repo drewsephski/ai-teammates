@@ -1,0 +1,468 @@
+.stepper {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 56px;
+  align-items: center;
+}
+
+/* Step list */
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.list li {
+  position: relative;
+  border-top: 1px solid #222;
+}
+.list li:last-child {
+  border-bottom: 1px solid #222;
+}
+.tab {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  width: 100%;
+  padding: 22px 0;
+  border: 0;
+  background: none;
+  color: #6b6f75;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+.tab:hover,
+.list li[data-active] .tab {
+  color: #fff;
+}
+.number {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+.tabTitle {
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+.progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  overflow: hidden;
+}
+.progress span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #efe7dc;
+  transform: scaleX(0);
+  transform-origin: left;
+}
+.list li[data-active] .progress span {
+  transform: scaleX(1);
+}
+.stepper[data-running] .list li[data-active] .progress span {
+  animation: fill var(--step-ms) linear forwards;
+}
+@keyframes fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.body {
+  overflow: hidden;
+  color: #8f9398;
+  font-size: 16px;
+  line-height: 1.6;
+  text-wrap: pretty;
+  max-height: 0;
+  opacity: 0;
+  padding-left: 36px;
+  transition:
+    max-height 0.45s ease,
+    opacity 0.45s ease,
+    padding 0.45s ease;
+}
+.list li[data-active] .body {
+  max-height: 160px;
+  opacity: 1;
+  padding-bottom: 24px;
+}
+
+/* Stage */
+.stage {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  border-radius: 28px;
+  overflow: hidden;
+  background: #0a0a0a;
+  isolation: isolate;
+}
+.stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px #ffffff0d;
+  pointer-events: none;
+  z-index: 3;
+}
+.visual {
+  object-fit: cover;
+  opacity: 0;
+  transform: scale(1.06);
+  transition:
+    opacity 0.9s ease,
+    transform 1.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.visual[data-active] {
+  opacity: 1;
+  transform: scale(1);
+}
+.demo {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: 28px;
+  width: min(360px, calc(100% - 40px));
+  translate: -50% 0;
+  animation: rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Shared glass card used by every demo */
+.composer,
+.reply,
+.demoConnect,
+.demoWork,
+.demoApprove {
+  border: 1px solid #ffffff14;
+  background: #141414d9;
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: 0 20px 50px #00000080;
+}
+
+/* 1. Describe */
+.demoDescribe {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.composer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 18px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 14px;
+}
+.field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+.typed {
+  overflow: hidden;
+  white-space: nowrap;
+  border-right: 1px solid #efe7dc;
+  width: 0;
+  max-width: max-content;
+  animation:
+    type 1.6s steps(28, end) 0.3s forwards,
+    caret 0.8s step-end 6;
+}
+@keyframes type {
+  to {
+    width: 100%;
+  }
+}
+@keyframes caret {
+  50% {
+    border-color: transparent;
+  }
+}
+.send {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #fff;
+  color: #0a0a0a;
+}
+.reply {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  align-self: flex-start;
+  padding: 10px 16px;
+  border-radius: 18px;
+  color: #d4d4d4;
+  font-size: 13px;
+  opacity: 0;
+  animation: rise 0.5s ease 2.3s forwards;
+}
+.replyDot {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, #efe7dc 55%, #b9ab99);
+}
+
+/* 2. Connect */
+.demoConnect {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 20px;
+}
+.appRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #ffffff08;
+  color: #d4d4d4;
+  font-size: 13px;
+  text-transform: capitalize;
+}
+.appLogo {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  background: center / contain no-repeat;
+}
+.appName {
+  flex: 1;
+}
+.appState {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff10;
+  color: transparent;
+  animation: connected 0.4s ease forwards;
+  animation-delay: calc(0.5s + var(--i) * 0.45s);
+}
+@keyframes connected {
+  to {
+    background: #3ecf8e;
+    color: #0a0a0a;
+  }
+}
+
+/* 3. Work */
+.demoWork {
+  padding: 16px 18px;
+  border-radius: 20px;
+}
+.workHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px !important;
+  color: #fff;
+  font-size: 13px;
+}
+.spin {
+  animation: spin 1s linear infinite;
+  color: #efe7dc;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.demoWork ol {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.demoWork li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #a1a1a1;
+  font-size: 13px;
+  opacity: 0;
+  animation: rise 0.45s ease forwards;
+  animation-delay: calc(0.4s + var(--i) * 0.9s);
+}
+.demoWork li svg {
+  color: #3ecf8e;
+}
+
+/* 4. Approve */
+.demoApprove {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 20px;
+}
+.approveKicker {
+  color: #e5b53a;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.approveTitle {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+}
+.approveLine {
+  height: 7px;
+  border-radius: 4px;
+  background: #ffffff12;
+}
+.approveLine.short {
+  width: 62%;
+}
+.approveActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+.deny,
+.allow {
+  display: inline-grid;
+  place-items: center;
+  height: 32px;
+  padding-inline: 16px;
+  border-radius: 999px;
+}
+.deny {
+  background: #ffffff10;
+  color: #d4d4d4;
+}
+.allow {
+  background: #fff;
+  color: #0a0a0a;
+  animation: press 0.35s ease 2.2s both;
+}
+.allowLabel,
+.sentLabel {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.allowLabel {
+  animation: out 0.2s ease 2.4s forwards;
+}
+.sentLabel {
+  opacity: 0;
+  animation: in 0.25s ease 2.5s forwards;
+}
+@keyframes press {
+  50% {
+    transform: scale(0.94);
+  }
+  to {
+    background: #3ecf8e;
+  }
+}
+@keyframes out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes in {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 1023px) {
+  .stepper {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+  .stage {
+    order: -1;
+  }
+}
+@media (max-width: 639px) {
+  .tabTitle {
+    font-size: 19px;
+  }
+  .body {
+    padding-left: 0;
+  }
+  .stage {
+    border-radius: 20px;
+  }
+  .demo {
+    bottom: 16px;
+  }
+  .demoConnect {
+    grid-template-columns: 1fr;
+  }
+  .appRow:nth-child(n + 3) {
+    display: none;
+  }
+}
+
+/* Reduced motion: show every demo in its finished state. */
+@media (prefers-reduced-motion: reduce) {
+  .typed {
+    width: auto;
+    border-right: 0;
+  }
+  .reply,
+  .demoWork li,
+  .sentLabel {
+    opacity: 1;
+  }
+  .allowLabel {
+    opacity: 0;
+  }
+  .appState {
+    background: #3ecf8e;
+    color: #0a0a0a;
+  }
+  .allow {
+    background: #3ecf8e;
+  }
+}

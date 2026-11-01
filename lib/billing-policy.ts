@@ -1,19 +1,19 @@
 export const MAX_TEAMMATES = 50
 export type PlanTier = "free" | "paid"
-export const FREE_BOT_LIMIT_ERROR =
-  "The free plan includes one bot. Upgrade to add more teammates."
-// Legacy API error retained for older clients; deletion now cancels subscriptions.
-export const ACTIVE_PLAN_ERROR =
-  "Cancel your paid plan on kraftybot.app before deleting your account."
-export const FREE_APP_LIMIT_ERROR =
-  "The free plan includes one connected app. Disconnect your current app or upgrade to connect another."
 
-// Free allowances are one-time: the free period has no start, so usage is
-// summed over the account's whole life (lib/usage.ts). `sandbox` is seconds.
+// Pro's free trial, configured on the Pro plan in Clerk Billing (Dashboard →
+// Billing → Plans → Pro → Free trial). Clerk collects a card, runs the trial
+// as an active subscription item with isFreeTrial, and charges when it ends
+// unless the person cancels. Keep this in step with the Clerk setting: the
+// public pages quote it.
+export const PRO_TRIAL_DAYS = 7
+
+// Free allowances renew on the first of every month (UTC), like a billing
+// period, so a free account never runs dry for good. `sandbox` is seconds.
 export const FREE_SANDBOX_SECONDS = 20 * 60
 
 export const planLimits = {
-  free: { ai: 1_000_000, sandbox: FREE_SANDBOX_SECONDS, bots: 1, apps: 1 },
+  free: { ai: 1_000_000, sandbox: FREE_SANDBOX_SECONDS, bots: 3, apps: 3 },
   paid: {
     ai: 10_000_000,
     sandbox: 50 * 60 * 60,
@@ -22,15 +22,46 @@ export const planLimits = {
   },
 } as const
 
+const words = ["zero", "one", "two", "three", "four", "five", "six", "seven"]
+
+// "three": small counts spelled out for sentences
+export const countWord = (count: number) => words[count] ?? String(count)
+
+// "one bot", "three connected apps"
+export function planCount(count: number, singular: string, plural?: string) {
+  const noun = count === 1 ? singular : (plural ?? `${singular}s`)
+  return `${countWord(count)} ${noun}`
+}
+
+export const FREE_BOT_LIMIT_ERROR = `The free plan includes ${planCount(planLimits.free.bots, "bot")}. Upgrade to add more teammates.`
+// Legacy API error retained for older clients; deletion now cancels subscriptions.
+export const ACTIVE_PLAN_ERROR =
+  "Cancel your paid plan on kraftybot.app before deleting your account."
+export const FREE_APP_LIMIT_ERROR = `The free plan includes ${planCount(planLimits.free.apps, "connected app")}. Disconnect one or upgrade to connect another.`
+
+// The free plan's current period: this calendar month, UTC
+export function freePeriod(now = Date.now()) {
+  const date = new Date(now)
+  const year = date.getUTCFullYear()
+  const month = date.getUTCMonth()
+  return {
+    start: new Date(Date.UTC(year, month, 1)),
+    end: new Date(Date.UTC(year, month + 1, 1)),
+  }
+}
+
 type SubscriptionItem = {
   status: string
   periodStart: number
   periodEnd: number | null
+  // A Pro trial: an active item whose period ends when the trial does
+  isFreeTrial?: boolean
   plan: { features: { slug: string }[] } | null
 }
 
 // Only a current subscription with computer access receives paid allowances.
-// A canceled item retains access through its already-paid period.
+// A canceled item retains access through its already-paid period. A Pro
+// trial is an active item whose period is the trial, so it gets Pro in full.
 export function accountPlan(items: SubscriptionItem[], now = Date.now()) {
   const paid = items.find(
     (item) =>
@@ -51,7 +82,7 @@ export function accountPlan(items: SubscriptionItem[], now = Date.now()) {
       }
     : {
         tier: "free" as const,
-        period: { start: null, end: null },
+        period: freePeriod(now),
         limits: planLimits.free,
       }
 }

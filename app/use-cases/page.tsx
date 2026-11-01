@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react"
 import type { Metadata } from "next"
 import Link from "next/link"
 import localFont from "next/font/local"
@@ -8,6 +7,7 @@ import { BotNavigation } from "@/components/landing/bot/navigation"
 import styles from "@/components/landing/bot/bot-landing.module.css"
 import page from "./use-cases.module.css"
 import { CopyPrompt } from "./copy-prompt"
+import { RoleCard } from "./role-card"
 import { useCases } from "./use-cases-data"
 import { Breadcrumbs } from "@/components/landing/bot/breadcrumbs"
 import { PageFooter } from "@/components/landing/bot/page-footer"
@@ -88,7 +88,7 @@ export default async function UseCasesPage() {
         Skip to content
       </a>
       <BotNavigation workspaceHref={workspaceHref} />
-      <main id="main" className={styles.container}>
+      <main id="main" className={styles.wide}>
         <Breadcrumbs trail={trail} />
         <header className={`${styles.centerHeading} ${page.intro}`}>
           <h1>AI teammate use cases</h1>
@@ -110,16 +110,7 @@ export default async function UseCasesPage() {
         </header>
         <ul className={page.grid}>
           {useCases.map((role) => (
-            <li
-              key={role.id}
-              id={role.id}
-              className={page.card}
-              style={{ "--role-color": role.color } as CSSProperties}
-            >
-              <h2>
-                <Link href={`/use-cases/${role.id}`}>{role.name}</Link>
-              </h2>
-              <p>{role.description}</p>
+            <RoleCard key={role.id} role={role} title={role.name}>
               <CopyPrompt prompt={role.prompt} />
               <div className={page.links}>
                 <Link
@@ -134,7 +125,7 @@ export default async function UseCasesPage() {
                   <span aria-hidden="true"> →</span>
                 </Link>
               </div>
-            </li>
+            </RoleCard>
           ))}
         </ul>
       </main>

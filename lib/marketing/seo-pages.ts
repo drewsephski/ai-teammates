@@ -1,4 +1,5 @@
-import { planLimits } from "@/lib/billing-policy"
+import { countWord, planCount, planLimits } from "@/lib/billing-policy"
+import { freePlanIncludes, plansSentence, proTrial } from "@/lib/marketing/site"
 import { ROUTINE_LIMITS } from "@/lib/routine-policy"
 
 import { aboutPage } from "./about"
@@ -73,7 +74,7 @@ export type MarketingPage = {
 
 const paidBots = planLimits.paid.bots
 const paidHours = planLimits.paid.sandbox / 3600
-const paidAllowance = planLimits.paid.ai / 1_000_000
+const freeBots = planCount(planLimits.free.bots, "Bot")
 
 /** When the descriptions of other products were last read from their own sites. */
 export const checkedVendors = "October 27, 2026"
@@ -183,7 +184,7 @@ const alternativesTable = (
   rows: rows.map((row) => alternativeRows[row]),
 })
 
-const startFree = `The free plan includes one Bot, one connected app, a one-time $${planLimits.free.ai / 1_000_000} AI allowance, and ${planLimits.free.sandbox / 60} minutes of computer time, once. Pro is $20 a month for up to ${paidBots} Bots, unlimited connected apps, a $${paidAllowance} AI allowance, and ${paidHours} hours of cloud computer time each billing period.`
+const startFree = plansSentence
 
 export const aiAgentsForBusinessPage: MarketingPage = {
   path: "/ai-agents-for-business",
@@ -308,7 +309,7 @@ export const aiAgentsForBusinessPage: MarketingPage = {
     ],
     [
       "Can several agents share the work?",
-      `Yes. Put several Bots in one group chat and they pass work between themselves, or have one Bot brief another and pick up the result. The free plan includes one Bot; Pro includes up to ${paidBots}.`,
+      `Yes. Put several Bots in one group chat and they pass work between themselves, or have one Bot brief another and pick up the result. The free plan includes ${freeBots}; Pro includes up to ${paidBots}.`,
     ],
     [
       "What happens when the agent is unsure?",
@@ -439,7 +440,7 @@ export const aiEmployeesPage: MarketingPage = {
     ],
     [
       "How many Bots can I run?",
-      `The free plan includes one Bot. Pro includes up to ${paidBots} Bots, unlimited connected apps, and ${paidHours} hours of cloud computer time each billing period.`,
+      `The free plan includes ${freeBots}. Pro includes up to ${paidBots} Bots, unlimited connected apps, and ${paidHours} hours of cloud computer time each billing period, and starts with a ${proTrial}.`,
     ],
     [
       "How is an AI employee different from an AI teammate?",
@@ -637,7 +638,7 @@ export const manusAlternativesPage: MarketingPage = {
       cards: [
         {
           title: "Krafty Bot",
-          body: `Named Bots with their own memory and instructions, one persistent cloud computer per account shared by all of them, connected apps through your own sign-ins, routines on a schedule, group chats and handoffs, and approval before any write to a connected app. Free to start with one Bot; Pro is $20 a month.`,
+          body: `Named Bots with their own memory and instructions, one persistent cloud computer per account shared by all of them, connected apps through your own sign-ins, routines on a schedule, group chats and handoffs, and approval before any write to a connected app. Free to start with ${freeBots}; Pro is $20 a month, with a ${proTrial}.`,
           href: "/how-it-works",
         },
         {
@@ -694,7 +695,7 @@ export const manusAlternativesPage: MarketingPage = {
     ],
     [
       "Which Manus alternative has a free plan?",
-      `Krafty Bot has a free plan with one Bot, one connected app, a one-time AI allowance, and ${planLimits.free.sandbox / 60} minutes of computer time, once. Lindy's site lists free starting credits. Check each site for current terms.`,
+      `Krafty Bot has a free plan with ${freePlanIncludes}, and Pro starts with a ${proTrial}. Lindy's site lists free starting credits. Check each site for current terms.`,
     ],
     [
       "Does Krafty Bot run tasks without me?",
@@ -1045,7 +1046,7 @@ export const aiTeammatesPage: MarketingPage = {
     ],
     [
       "How many AI teammates can I have?",
-      `One on the free plan and up to ${paidBots} on Pro. All the Bots on an account share one cloud computer, memory is per Bot, and routines are counted per account: ${ROUTINE_LIMITS.free} on free and up to ${ROUTINE_LIMITS.paid} on Pro.`,
+      `${countWord(planLimits.free.bots).replace(/^./, (c) => c.toUpperCase())} on the free plan and up to ${paidBots} on Pro. All the Bots on an account share one cloud computer, memory is per Bot, and routines are counted per account: ${ROUTINE_LIMITS.free} on free and up to ${ROUTINE_LIMITS.paid} on Pro.`,
     ],
     [
       "Can AI teammates talk to each other?",

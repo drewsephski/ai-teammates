@@ -13,12 +13,12 @@ import { freeComputerMinutes } from "@/lib/marketing/site"
 
 const planMessages: Record<Feature, string> = {
   bots: "Choose a plan to start using your bot.",
-  // The free plan includes a little computer time, once; the paid plan renews it
-  sandboxes: `The free plan includes ${freeComputerMinutes} minutes of computer time, once. Upgrade for hours each billing period.`,
+  // The free plan includes a little computer time each month; Pro has hours
+  sandboxes: `The free plan includes ${freeComputerMinutes} minutes of computer time a month. Upgrade for hours each billing period.`,
 }
 
 const usageMessages: Record<UsageKind, string> = {
-  ai: "Your AI allowance is used up. View your usage or upgrade to continue.",
+  ai: "Your AI usage is used up for now. View your usage or upgrade to continue.",
   sandbox:
     "Your computer time is used up. View your usage or upgrade to continue.",
 }

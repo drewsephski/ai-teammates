@@ -10,7 +10,7 @@ export function formatClock(totalSeconds: number) {
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`
 }
 
-// The free allowance is small and one-time, so the clock is always there; a
+// The free allowance is a few minutes a month, so the clock is always there; a
 // paid account sees it only when the period's time is nearly gone.
 export function showComputerClock(
   tier: "free" | "paid" | null,

@@ -1,0 +1,586 @@
+/* Shared layout for the public guide pages (MarketingSeoPage): an image-led
+   header, a sticky "On this page" rail, and quiet text sections instead of
+   boxed card grids. Values follow bot-landing.module.css. */
+
+.hero,
+.widget,
+.layout,
+.final {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+  padding-inline: 24px;
+}
+
+/* Header */
+.hero {
+  position: relative;
+  isolation: isolate;
+  min-height: 640px;
+  padding-top: 112px;
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 72px;
+}
+.heroImage {
+  z-index: -1;
+  object-fit: cover;
+  object-position: right center;
+  -webkit-mask-image: radial-gradient(
+    ellipse 62% 58% at 68% 52%,
+    #000 52%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 62% 58% at 68% 52%,
+    #000 52%,
+    transparent 100%
+  );
+  animation: settle 1.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.heroCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 560px;
+  animation: enter 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 0.1s both;
+}
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.heroCopy nav {
+  padding-top: 0;
+}
+.hero h1 {
+  font-size: clamp(42px, 6.4vw, 72px);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+.lead {
+  color: #a3a6ab;
+  font-size: 19px;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+.byline {
+  color: #5d6066;
+  font-size: 13px;
+}
+.byline a {
+  color: #8f9398;
+}
+.byline a:hover {
+  color: #fff;
+}
+
+.widget {
+  padding-bottom: 56px;
+}
+
+/* Body: rail plus reading column */
+.layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 80px;
+  padding-top: 24px;
+}
+.rail {
+  position: relative;
+}
+.toc {
+  position: sticky;
+  top: 112px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.tocHeading {
+  color: #5d6066;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.toc ol {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-left: 1px solid #1f1f1f;
+}
+.toc a {
+  position: relative;
+  display: block;
+  padding: 7px 0 7px 16px;
+  color: #6b6f75;
+  font-size: 14px;
+  line-height: 1.4;
+  transition: color 0.2s ease;
+}
+.toc a::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: #efe7dc;
+  transform: scaleY(0);
+  transition: transform 0.3s ease;
+}
+.toc a:hover {
+  color: #d4d4d4;
+}
+.toc a[aria-current] {
+  color: #fff;
+}
+.toc a[aria-current]::before {
+  transform: scaleY(1);
+}
+.content {
+  min-width: 0;
+}
+/* Text keeps a reading width; tables use the whole column. */
+.section > :not(.tableWrap, .points, .tiles) {
+  max-width: 760px;
+}
+
+/* Sections */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding-block: 56px;
+  border-top: 1px solid #1a1a1a;
+  scroll-margin-top: 96px;
+}
+.section:first-child {
+  border-top: 0;
+  padding-top: 8px;
+}
+.section h2 {
+  font-size: clamp(28px, 3.4vw, 36px);
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+}
+.body {
+  color: #a3a6ab;
+  font-size: 18px;
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+.bullets {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bullets li {
+  position: relative;
+  padding: 14px 0 14px 28px;
+  border-top: 1px solid #1a1a1a;
+  color: #a3a6ab;
+  font-size: 16px;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+.bullets li:first-child {
+  border-top: 0;
+}
+.bullets li::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1.45em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #efe7dc;
+  opacity: 0.55;
+}
+.link {
+  color: #fff;
+  text-decoration: underline;
+  text-decoration-color: #ffffff40;
+  text-underline-offset: 4px;
+  transition: text-decoration-color 0.2s ease;
+}
+.link:hover {
+  text-decoration-color: #fff;
+}
+.note {
+  color: #5d6066;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.linkList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.linkList a {
+  display: inline-flex;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: #1a1a1a;
+  color: #d4d4d4;
+  font-size: 14px;
+  text-decoration: none;
+  transition: background-color 0.2s ease;
+}
+.linkList a:hover {
+  background: #262626;
+  color: #fff;
+}
+
+/* Cards become an airy two-column list of points */
+.points {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 40px;
+}
+.point {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 22px 0;
+  border-top: 1px solid #1f1f1f;
+  scroll-margin-top: 96px;
+}
+.point h3 {
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.point h3 .link {
+  text-decoration: none;
+}
+.point h3 .link::after {
+  content: " ↗";
+  color: #6b6f75;
+  transition: color 0.2s ease;
+}
+.point h3 .link:hover::after {
+  color: #fff;
+}
+.point p {
+  color: #8f9398;
+  font-size: 15px;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+/* Table */
+.tableWrap {
+  overflow-x: auto;
+  border-radius: 20px;
+  background: #121212;
+  box-shadow: inset 0 0 0 1px #1f1f1f;
+}
+.tableWrap:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.table caption {
+  padding: 18px 20px 6px;
+  color: #6b6f75;
+  font-size: 13px;
+  text-align: left;
+}
+.table th,
+.table td {
+  padding: 14px 20px;
+  border-top: 1px solid #1f1f1f;
+  text-align: left;
+  vertical-align: top;
+}
+.table thead th {
+  border-top: 0;
+  color: #8f9398;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.table tbody tr {
+  transition: background-color 0.2s ease;
+}
+.table tbody tr:hover {
+  background: #ffffff05;
+}
+.table tbody th {
+  min-width: 132px;
+  color: #fff;
+  font-weight: 500;
+}
+.table td {
+  color: #a3a6ab;
+}
+
+/* Starter prompts: link tiles */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 24px 48px 24px 24px;
+  border-radius: 20px;
+  background: #141414;
+  transition:
+    background-color 0.25s ease,
+    transform 0.25s ease;
+}
+.tile:hover {
+  background: #1c1c1c;
+  transform: translateY(-2px);
+}
+.tile h3 {
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.tile p {
+  color: #8f9398;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.tileArrow {
+  position: absolute;
+  top: 24px;
+  right: 20px;
+  color: #6b6f75;
+  transition:
+    color 0.25s ease,
+    transform 0.25s ease;
+}
+.tile:hover .tileArrow {
+  color: #fff;
+  transform: translate(2px, -2px);
+}
+
+/* Related pages */
+.related {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.related li {
+  border-top: 1px solid #1f1f1f;
+}
+.related li:last-child {
+  border-bottom: 1px solid #1f1f1f;
+}
+.related a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 0;
+  color: #6b6f75;
+  transition: color 0.2s ease;
+}
+.related a span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.related strong {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 500;
+}
+.related small {
+  color: #8f9398;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.related a svg {
+  flex: none;
+  transition: transform 0.25s ease;
+}
+.related a:hover {
+  color: #fff;
+}
+.related a:hover svg {
+  transform: translateX(4px);
+}
+
+/* Closing panel, like the landing's statement card */
+.final {
+  padding-block: 96px 112px;
+}
+.finalCopy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 340px;
+  padding: 48px 42% 48px 48px;
+  border-radius: 28px;
+  background: #1a1a1a;
+  overflow: hidden;
+  isolation: isolate;
+}
+.finalCopy h2 {
+  font-size: clamp(30px, 4vw, 44px);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+.finalCopy p {
+  max-width: 460px;
+  color: #8f9398;
+  font-size: 16px;
+  line-height: 1.6;
+}
+.finalCopy p a {
+  color: #d4d4d4;
+  text-decoration: underline;
+  text-decoration-color: #ffffff40;
+  text-underline-offset: 4px;
+}
+.finalMark {
+  position: absolute !important;
+  z-index: -1;
+  right: -2%;
+  bottom: -28%;
+  width: min(44%, 460px);
+  height: auto;
+  pointer-events: none;
+  filter: drop-shadow(0 18px 32px #00000080);
+}
+
+@media (max-width: 1023px) {
+  .hero {
+    min-height: 560px;
+  }
+  .heroImage {
+    opacity: 0.55;
+  }
+  .layout {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .rail {
+    display: none;
+  }
+}
+@media (max-width: 639px) {
+  .hero,
+  .widget,
+  .layout,
+  .final {
+    padding-inline: 16px;
+  }
+  .hero {
+    min-height: 0;
+    padding-top: 112px;
+    padding-bottom: 48px;
+  }
+  .heroImage {
+    opacity: 0.4;
+  }
+  .lead,
+  .body {
+    font-size: 17px;
+  }
+  .points,
+  .tiles {
+    grid-template-columns: 1fr;
+  }
+  .section {
+    padding-block: 44px;
+  }
+  .finalCopy {
+    min-height: 0;
+    padding: 32px 24px 180px;
+    border-radius: 20px;
+  }
+  .finalMark {
+    right: -8%;
+    bottom: -18%;
+    width: 220px;
+  }
+  .final {
+    padding-bottom: 112px;
+  }
+}
+
+/* Narrow screens: the illustration sits above the copy instead of behind it,
+   so the lead stays readable. */
+@media (max-width: 767px) {
+  .hero {
+    flex-direction: column;
+    align-items: stretch;
+    min-height: 0;
+    padding-top: 88px;
+  }
+  .heroImage {
+    position: relative !important;
+    inset: auto !important;
+    order: -1;
+    width: calc(100% + 32px) !important;
+    height: auto !important;
+    max-width: none;
+    aspect-ratio: 20 / 11;
+    margin: 0 -16px 4px;
+    object-position: 72% center;
+    opacity: 1;
+    -webkit-mask-image: radial-gradient(
+      ellipse 58% 62% at 62% 50%,
+      #000 45%,
+      transparent 100%
+    );
+    mask-image: radial-gradient(
+      ellipse 58% 62% at 62% 50%,
+      #000 45%,
+      transparent 100%
+    );
+  }
+}

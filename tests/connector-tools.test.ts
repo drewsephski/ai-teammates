@@ -172,11 +172,13 @@ test("another user's tools and a new turn cannot reuse a prior discovery", async
   }
 })
 
-test("a downgrade between discovery and execution blocks a second connected app", async () => {
+test("a downgrade between discovery and execution blocks an app past the free plan's three", async () => {
   let paid = true
   let executed = false
   const accounts = [
     { id: "alice-gmail", toolkit: "gmail" },
+    { id: "alice-slack", toolkit: "slack" },
+    { id: "alice-notion", toolkit: "notion" },
     { id: "alice-github", toolkit: "github" },
   ]
   const tools = createAppTools(

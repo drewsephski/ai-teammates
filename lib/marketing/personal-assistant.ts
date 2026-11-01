@@ -1,9 +1,6 @@
-import { planLimits } from "@/lib/billing-policy"
-import { ROUTINE_LIMITS } from "@/lib/routine-policy"
+import { freePlanIncludes, plansSentence, proTrial } from "@/lib/marketing/site"
 
 import type { MarketingPage } from "./seo-pages"
-
-const freeMinutes = planLimits.free.sandbox / 60
 
 // Hub for the "AI personal assistant" search. Every claim follows from the
 // chief-of-staff and email-assistant workflows and docs/autonomy.md.
@@ -88,7 +85,7 @@ export const aiPersonalAssistantPage: MarketingPage = {
     {
       id: "cost",
       title: "What does it cost?",
-      body: `The free plan includes one Bot, one connected app, a one-time $${planLimits.free.ai / 1_000_000} AI allowance, ${ROUTINE_LIMITS.free} routine, and ${freeMinutes} minutes of computer time, once. Pro is $20 a month for up to ${planLimits.paid.bots} Bots, unlimited connected apps, a $${planLimits.paid.ai / 1_000_000} AI allowance, up to ${ROUTINE_LIMITS.paid} routines, and ${planLimits.paid.sandbox / 3600} hours of cloud computer time each billing period. If you sign in with a ChatGPT plan, model calls can run on that plan instead of the allowance.`,
+      body: `${plansSentence} If you sign in with a ChatGPT plan, model calls can run on that plan instead of the allowance.`,
     },
   ],
   useCasesTitle: "More jobs for a personal assistant",
@@ -123,7 +120,7 @@ export const aiPersonalAssistantPage: MarketingPage = {
     ],
     [
       "Is an AI personal assistant free?",
-      `Krafty's free plan lets you try one Bot with one connected app and a one-time AI allowance. Pro is $20 a month when you want more Bots, apps, routines, and computer time.`,
+      `Yes. Krafty's free plan includes ${freePlanIncludes}. Pro is $20 a month when you want more Bots, apps, routines, and computer time, and it starts with a ${proTrial}.`,
     ],
   ],
   related: [

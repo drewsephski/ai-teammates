@@ -140,9 +140,10 @@ test("schedules read naturally", () => {
 
 test("plan limits and unattended turn origins", () => {
   assert.doesNotThrow(() => assertRoutineCapacity("free", 0))
+  assert.doesNotThrow(() => assertRoutineCapacity("free", 2))
   assert.throws(
-    () => assertRoutineCapacity("free", 1),
-    /free plan includes one routine/
+    () => assertRoutineCapacity("free", 3),
+    /free plan includes three routines/
   )
   assert.doesNotThrow(() => assertRoutineCapacity("paid", 49))
   assert.throws(() => assertRoutineCapacity("paid", 50))

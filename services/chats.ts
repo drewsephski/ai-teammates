@@ -244,7 +244,7 @@ export async function loadTranscript(userId: string, chatId: string) {
 }
 
 // Every plan can view its computer while it has seconds left: the free plan
-// has a one-time allowance, so the check is the remaining time, not the plan.
+// has a small monthly allowance, so the check is the remaining time, not the plan.
 export async function getDesktopUrl(caller: Caller, chatId: string) {
   // Any chat of the person's shows the account's one computer
   const chat = await ownedChat(caller.userId, chatId)

@@ -1,6 +1,6 @@
 .intro {
   padding-top: 36px;
-  padding-bottom: 56px;
+  padding-bottom: 72px;
 }
 .intro h1 {
   font-size: clamp(40px, 6vw, 60px);
@@ -18,8 +18,8 @@
 }
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
   margin: 0;
   padding: 0 0 112px;
   list-style: none;
@@ -27,19 +27,93 @@
 .card {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 24px;
-  border: 1px solid #262626;
-  border-top: 2px solid var(--role-color);
-  border-radius: 10px;
-  background: #121212;
+  overflow: hidden;
+  border-radius: 24px;
+  background: #141414;
+  scroll-margin-top: 96px;
+  transition:
+    background-color 0.3s ease,
+    transform 0.3s ease;
 }
-.card h2 {
+.card:hover {
+  background: #191919;
+}
+.cover {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #000;
+}
+.cover::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 40%;
+  background: linear-gradient(to top, #141414, transparent);
+  transition: background 0.3s ease;
+}
+.card:hover .cover::after {
+  background: linear-gradient(to top, #191919, transparent);
+}
+.coverImage {
+  object-fit: cover;
+  transition: transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.card:hover .coverImage {
+  transform: scale(1.05);
+}
+.coverArrow {
+  position: absolute;
+  z-index: 1;
+  top: 16px;
+  right: 16px;
+  width: 34px !important;
+  height: 34px !important;
+  padding: 8px;
+  border-radius: 50%;
+  background: #ffffff14;
+  color: #fff;
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  transform: translate(-4px, 4px);
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
+}
+.card:hover .coverArrow {
+  opacity: 1;
+  transform: none;
+}
+.cardBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 24px 24px;
+}
+.card h2,
+.card h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: 20px;
+  font-weight: 500;
   line-height: 1.3;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
-.card h2 a:hover {
+.card h2::before,
+.card h3::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--role-color);
+  box-shadow: 0 0 12px var(--role-color);
+}
+.card h2 a:hover,
+.card h3 a:hover {
   color: var(--role-color);
 }
 .more {
@@ -50,19 +124,29 @@
   color: #fff;
 }
 .card p {
-  color: #a1a1a1;
+  color: #8f9398;
   font-size: 15px;
   line-height: 1.6;
+  text-wrap: pretty;
+}
+@media (max-width: 1023px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 639px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
 }
 .prompt {
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin: auto 0 0;
-  padding: 12px 14px 14px;
-  border: 1px solid #222;
-  border-radius: 8px;
-  background: #0b0b0b;
+  padding: 14px 16px 16px;
+  border-radius: 16px;
+  background: #0d0d0d;
 }
 .prompt figcaption {
   display: flex;
@@ -141,4 +225,28 @@
 .create:focus-visible {
   outline: 2px solid var(--role-color);
   outline-offset: 2px;
+}
+
+/* On the index the prompt previews in three lines and opens on hover or
+   focus; the full text stays in the page. */
+.card .prompt blockquote {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+.card:hover .prompt blockquote,
+.card:focus-within .prompt blockquote {
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+.intro h1 {
+  font-size: clamp(44px, 7vw, 76px);
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+}
+.intro p {
+  color: #8f9398;
+  text-wrap: balance;
 }

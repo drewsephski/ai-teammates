@@ -104,10 +104,14 @@ test("the search limit never exceeds the catalog page size", async () => {
   assert.deepEqual(calls.search, [MAX_CATALOG_PAGE])
 })
 
-test("the free plan blocks other apps once one is connected", async () => {
+test("the free plan blocks other apps once three are connected", async () => {
   const { value } = deps({
     plan: "free",
-    connected: [{ id: "1", toolkit: "gmail" }],
+    connected: [
+      { id: "1", toolkit: "gmail" },
+      { id: "2", toolkit: "slack" },
+      { id: "3", toolkit: "notion" },
+    ],
   })
   const result = await findApps("u", { query: "a", limit: 5 }, value)
   assert.equal(result.apps[0].blockedByPlan, true)
@@ -137,7 +141,11 @@ test("prepareAppConnection uses the catalog's name and logo, not the model's", a
 test("prepareAppConnection reports the plan-limit state", async () => {
   const { value } = deps({
     plan: "free",
-    connected: [{ id: "1", toolkit: "gmail" }],
+    connected: [
+      { id: "1", toolkit: "gmail" },
+      { id: "2", toolkit: "slack" },
+      { id: "3", toolkit: "notion" },
+    ],
   })
   const card = await prepareAppConnection(
     "u",

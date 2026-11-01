@@ -442,11 +442,12 @@ test("a run that can't start is recorded as failed, and one that fails the check
   assert.equal(posts.length, 0)
 })
 
-test("plan limits: the free plan gets one routine, a paid plan fifty", async () => {
-  await lib.createRoutine(FREE, input("bot_free", "free_1"))
+test("plan limits: the free plan gets three routines, a paid plan fifty", async () => {
+  for (const id of ["free_1", "free_2", "free_3"])
+    await lib.createRoutine(FREE, input("bot_free", id))
   await assert.rejects(
-    lib.createRoutine(FREE, input("bot_free", "free_2")),
-    /free plan includes one routine/
+    lib.createRoutine(FREE, input("bot_free", "free_4")),
+    /free plan includes three routines/
   )
   for (let index = 0; index < 50; index++)
     await lib.createRoutine(BIG, input("bot_big", `big_${index}`))

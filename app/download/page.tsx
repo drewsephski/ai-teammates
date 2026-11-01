@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import Image from "next/image"
 import Link from "next/link"
 import localFont from "next/font/local"
 import { headers } from "next/headers"
@@ -102,6 +103,16 @@ export default async function DownloadPage() {
             getting things done on the web while you wait.
           </p>
         </header>
+        <figure className={page.art}>
+          <Image
+            src="/marketing/visuals/pages/download.webp"
+            alt="A cream laptop and phone glowing side by side, with a small rounded companion between them"
+            fill
+            priority
+            sizes="(max-width: 1024px) 100vw, 976px"
+            className={page.artImage}
+          />
+        </figure>
         <AppWaitlist initialPlatform={device === "ios" ? "iphone" : "mac"} />
         <ul className={page.grid}>{android}</ul>
       </main>

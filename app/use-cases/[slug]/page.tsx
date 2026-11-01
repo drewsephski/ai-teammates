@@ -1,10 +1,12 @@
 import type { CSSProperties } from "react"
 import type { Metadata } from "next"
+import Image from "next/image"
 import Link from "next/link"
 import localFont from "next/font/local"
 import { notFound } from "next/navigation"
 import { auth } from "@clerk/nextjs/server"
 
+import { BotFaq } from "@/components/landing/bot/faq"
 import { BotNavigation } from "@/components/landing/bot/navigation"
 import { Breadcrumbs } from "@/components/landing/bot/breadcrumbs"
 import { PageFooter } from "@/components/landing/bot/page-footer"
@@ -15,11 +17,18 @@ import {
   breadcrumbJsonLd,
   pageMetadata,
 } from "@/lib/marketing/content"
-import { createBotHref, marketingUpdated, siteUrl } from "@/lib/marketing/site"
+import { countWord, planLimits } from "@/lib/billing-policy"
+import {
+  createBotHref,
+  marketingUpdated,
+  proTrial,
+  siteUrl,
+} from "@/lib/marketing/site"
 import { faqPageJsonLd } from "@/lib/marketing/json-ld"
 import { roleWalkthroughFor } from "@/lib/marketing/role-walkthroughs"
 import { RoleWalkthroughPlayer } from "@/components/role-walkthrough-player"
 import { CopyPrompt } from "../copy-prompt"
+import { RoleCard, roleCover } from "../role-card"
 import { useCaseGuides } from "../use-case-guides"
 import { findUseCase, useCases, type UseCase } from "../use-cases-data"
 import cards from "../use-cases.module.css"
@@ -110,16 +119,32 @@ export default async function UseCasePage({ params }: Props) {
       <main id="main" className={styles.container}>
         <Breadcrumbs trail={trail} />
         <header className={page.header}>
-          <p className={page.eyebrow}>{useCase.name} Bot</p>
-          <h1>{useCase.headline}</h1>
-          <p className={page.lead}>{useCase.summary}</p>
-          <div className={styles.actions}>
-            <Link href={createHref} prefetch={false} className={styles.button}>
-              Create this Bot free
-            </Link>
-            <Link href="/how-it-works" className={styles.secondaryButton}>
-              How Krafty works
-            </Link>
+          <div className={page.headerCopy}>
+            <p className={page.eyebrow}>{useCase.name} Bot</p>
+            <h1>{useCase.headline}</h1>
+            <p className={page.lead}>{useCase.summary}</p>
+            <div className={styles.actions}>
+              <Link
+                href={createHref}
+                prefetch={false}
+                className={styles.button}
+              >
+                Create this Bot free
+              </Link>
+              <Link href="/how-it-works" className={styles.secondaryButton}>
+                How Krafty works
+              </Link>
+            </div>
+          </div>
+          <div className={page.headerArt}>
+            <Image
+              src={roleCover(useCase.id)}
+              alt=""
+              fill
+              priority
+              sizes="(max-width: 1023px) 100vw, 480px"
+              className={page.headerImage}
+            />
           </div>
         </header>
 
@@ -197,8 +222,20 @@ export default async function UseCasePage({ params }: Props) {
         <section className={page.section} aria-labelledby="setup-title">
           <h2 id="setup-title">Apps and schedule</h2>
           <p>
-            This starter prompt uses {useCase.apps.length} connected apps and
-            needs Pro. To try the free plan, narrow it to one connected app.{" "}
+            {useCase.apps.length > planLimits.free.apps ? (
+              <>
+                This starter prompt uses {useCase.apps.length} connected apps
+                and needs Pro, which starts with a {proTrial}. To try the free
+                plan, narrow it to {countWord(planLimits.free.apps)} connected
+                apps.
+              </>
+            ) : (
+              <>
+                This starter prompt uses {useCase.apps.length} connected{" "}
+                {useCase.apps.length === 1 ? "app" : "apps"}, which fits the
+                free plan.
+              </>
+            )}{" "}
             <Link href="/#pricing">Compare plan limits</Link>.
           </p>
           <dl className={page.facts}>
@@ -236,30 +273,19 @@ export default async function UseCasePage({ params }: Props) {
 
         <section className={page.section} aria-labelledby="questions-title">
           <h2 id="questions-title">Questions about this role</h2>
-          <dl className={page.questions}>
-            {guide.faqs.map(([question, answer]) => (
-              <div key={question}>
-                <dt>{question}</dt>
-                <dd>{answer}</dd>
-              </div>
-            ))}
-          </dl>
+          <BotFaq questions={guide.faqs} />
         </section>
 
         <section className={page.section} aria-labelledby="related-title">
           <h2 id="related-title">More jobs for a Bot</h2>
-          <ul className={cards.grid}>
+          <ul className={`${cards.grid} ${page.relatedGrid}`}>
             {related(useCase).map((other) => (
-              <li
+              <RoleCard
                 key={other.id}
-                className={cards.card}
-                style={{ "--role-color": other.color } as CSSProperties}
-              >
-                <h3>
-                  <Link href={`/use-cases/${other.id}`}>{other.headline}</Link>
-                </h3>
-                <p>{other.description}</p>
-              </li>
+                role={other}
+                title={other.headline}
+                heading="h3"
+              />
             ))}
           </ul>
         </section>

@@ -4,6 +4,8 @@ import { planLimits } from "../lib/billing-policy"
 import { usageNotice, usageNoticeCopy } from "../lib/usage-notice"
 
 const periodEnd = new Date(2026, 10, 2, 12)
+// The free period ends at midnight UTC, the evening before in the Americas
+const monthEnd = new Date(Date.UTC(2026, 11, 1))
 const paid = (remaining: { ai: number; sandbox: number }) => ({
   tier: "paid" as const,
   period: { end: periodEnd },
@@ -12,7 +14,7 @@ const paid = (remaining: { ai: number; sandbox: number }) => ({
 })
 const free = (ai: number, sandbox: number = planLimits.free.sandbox) => ({
   tier: "free" as const,
-  period: { end: null },
+  period: { end: monthEnd },
   limits: planLimits.free,
   remaining: { ai, sandbox },
 })
@@ -47,16 +49,16 @@ test("ChatGPT-backed replies don't warn about the AI allowance", () => {
   )
 })
 
-test("copy states what is left and leads paid users to usage, free users to plans", () => {
+test("copy states what is left, never in dollars, and leads paid users to usage, free users to a trial", () => {
   const lowAI = paid({ ai: 1_400_000, sandbox: 40 * 3600 })
   assert.deepEqual(usageNoticeCopy({ kind: "ai", level: "low" }, lowAI), {
-    message: "$1.40 of AI usage left this period.",
+    message: "14% of your AI usage left this period.",
     action: { label: "View usage", href: "/usage" },
   })
   assert.equal(
     usageNoticeCopy({ kind: "ai", level: "out" }, paid({ ai: 0, sandbox: 0 }))
       .message,
-    "Your AI allowance is used up until November 2."
+    "Your AI usage is used up until November 2."
   )
   assert.equal(
     usageNoticeCopy(
@@ -75,17 +77,17 @@ test("copy states what is left and leads paid users to usage, free users to plan
   assert.deepEqual(
     usageNoticeCopy({ kind: "ai", level: "low" }, free(150_000)),
     {
-      message: "$0.15 of your free AI allowance left.",
-      action: { label: "Upgrade", href: "/pricing" },
+      message: "15% of this month's free AI usage left.",
+      action: { label: "Try Pro free", href: "/pricing" },
     }
   )
   assert.equal(
     usageNoticeCopy({ kind: "ai", level: "out" }, free(0)).message,
-    "Your free AI allowance is used up."
+    "This month's free AI usage is used up until December 1."
   )
 })
 
-test("the free computer time is one-time, so its notices never mention a period", () => {
+test("the free computer time renews monthly, so its notices say when", () => {
   assert.deepEqual(usageNotice(free(500_000, 0)), {
     kind: "sandbox",
     level: "out",
@@ -93,11 +95,11 @@ test("the free computer time is one-time, so its notices never mention a period"
   assert.equal(
     usageNoticeCopy({ kind: "sandbox", level: "out" }, free(500_000, 0))
       .message,
-    "Your free computer time is used up."
+    "This month's free computer time is used up until December 1."
   )
   assert.equal(
     usageNoticeCopy({ kind: "sandbox", level: "low" }, free(500_000, 50))
       .message,
-    "1 computer minute left of your free computer time."
+    "1 computer minute of free computer time left this month."
   )
 })

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { nanoid } from "nanoid"
 import { PlusIcon } from "lucide-react"
 import { createBot } from "@/actions/bot"
+import { FREE_BOT_LIMIT_ERROR } from "@/lib/billing-policy"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
@@ -33,9 +34,8 @@ export function useCreateBot(presetId?: string) {
         if ("planLimit" in result) {
           toast.add({
             type: "error",
-            title: "Your free bot is already created",
-            description:
-              "The free plan includes one bot. Upgrade to add more teammates.",
+            title: "Your free bots are already created",
+            description: FREE_BOT_LIMIT_ERROR,
             actionProps: {
               children: "See plans",
               onClick: () => router.push("/pricing"),

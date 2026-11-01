@@ -30,14 +30,22 @@ test("a connected toolkit reads as connected and never blocked", () => {
   assert.equal(entry.blockedByPlan, false)
 })
 
-test("the free plan blocks a second app but not the connected one", () => {
-  const accounts = [{ toolkit: "gmail" }]
+test("the free plan blocks a fourth app but not a connected one", () => {
+  const accounts = [
+    { toolkit: "gmail" },
+    { toolkit: "slack" },
+    { toolkit: "notion" },
+  ]
   const auth = { ...none, noAuth: true }
   assert.equal(
     appCatalogEntry(sheets, auth, accounts, "free").blockedByPlan,
     true
   )
   assert.equal(appCatalogEntry(sheets, auth, [], "free").blockedByPlan, false)
+  assert.equal(
+    appCatalogEntry(sheets, auth, accounts.slice(0, 2), "free").blockedByPlan,
+    false
+  )
   assert.equal(
     appCatalogEntry({ toolkit: "gmail", name: "Gmail" }, auth, accounts, "free")
       .blockedByPlan,
@@ -62,7 +70,12 @@ test("connection state: connect, planLimit, or an error written for the model", 
   )
   assert.equal(
     appConnectionState(
-      appCatalogEntry(sheets, auth, [{ toolkit: "gmail" }], "free")
+      appCatalogEntry(
+        sheets,
+        auth,
+        [{ toolkit: "gmail" }, { toolkit: "slack" }, { toolkit: "notion" }],
+        "free"
+      )
     ),
     "planLimit"
   )

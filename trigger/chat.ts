@@ -767,7 +767,7 @@ export const chatAgent = chat
         ...setupTools,
         ...routineTools,
       }
-      // The free plan gets the computer for its one-time allowance; teammates,
+      // The free plan gets the computer for its monthly allowance; teammates,
       // consultation and handoffs stay paid
       if (plan.tier === "free")
         return {

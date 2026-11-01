@@ -1,4 +1,5 @@
-import { planLimits } from "@/lib/billing-policy"
+import { planCount, planLimits } from "@/lib/billing-policy"
+import { freePlanIncludes, proTrial } from "@/lib/marketing/site"
 import { ROUTINE_LIMITS } from "@/lib/routine-policy"
 
 import type { MarketingPage } from "./seo-pages"
@@ -15,8 +16,8 @@ export const pulseName = "Krafty Pulse"
 export const pulsePath = "/pulse"
 export const pulseTemplateId = "project-coordinator"
 
-const freeApps = planLimits.free.apps
-const freeRoutines = ROUTINE_LIMITS.free
+const freeApps = planCount(planLimits.free.apps, "connected app")
+const freeRoutines = planCount(ROUTINE_LIMITS.free, "routine")
 
 export const pulsePrompt =
   "Read my project tracker in Google Sheets. First tell me which columns hold the task, owner, status, due date and last update, and ask me about any you're unsure of. Then list every task that is overdue, blocked, or hasn't been updated in five days, with its row number and owner. Draft a short, friendly follow-up for each owner and a five-line status summary for this week, here in this chat. Don't change the sheet or send anything."
@@ -87,7 +88,7 @@ export const pulsePage: MarketingPage = {
     {
       id: "plans",
       title: "Start with one sheet for free",
-      body: `The free plan includes ${freeApps} connected app and ${freeRoutines} routine, which is enough to connect Google Sheets and get a weekly report in chat. Sending the follow-ups from Gmail, or adding Google Calendar or Slack, means connecting more apps, which needs Pro.`,
+      body: `The free plan includes ${freeApps} and ${freeRoutines}, which is enough to connect Google Sheets and Gmail, add Google Calendar or Slack, and get a weekly report with follow-ups to approve. Pro removes the app limit and adds more Bots and hours of computer time, and it starts with a ${proTrial}.`,
       links: [{ label: "Plans and limits", href: "/#pricing" }],
     },
     {
@@ -111,7 +112,7 @@ export const pulsePage: MarketingPage = {
     ],
     [
       "Can I try it on the free plan?",
-      `Yes. The free plan includes one Bot, ${freeApps} connected app and ${freeRoutines} routine, so you can connect Google Sheets and get the report and drafts in chat. Sending from Gmail as well needs Pro, which allows more connected apps.`,
+      `Yes. The free plan includes ${freePlanIncludes}, so you can connect Google Sheets and Gmail, get the report in chat and send the follow-ups you approve. Pro adds more Bots, unlimited apps and hours of computer time, and it starts with a ${proTrial}.`,
     ],
     [
       "Can it check the tracker every week on its own?",

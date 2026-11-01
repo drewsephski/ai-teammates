@@ -88,9 +88,10 @@ export async function isFreePlanVerified(
   return (await getPlan(userId, { fresh: true })).tier === "free"
 }
 
-// Free credit is lifetime usage, so deleting bots, reconnecting apps, or
-// switching plans cannot reset the starter allowance. AI spend that running
-// turns hold but haven't written yet counts too.
+// Usage counts from the start of the plan's period: the billing period on
+// Pro, the calendar month on free (lib/billing-policy.ts), so deleting bots or
+// reconnecting apps can't reset an allowance. AI spend that running turns hold
+// but haven't written yet counts too.
 export async function getUsage(
   userId: string,
   options: { fresh?: boolean } = {}

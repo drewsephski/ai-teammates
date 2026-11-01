@@ -5,14 +5,14 @@ import {
   eventPromptBlock,
   eventScheduleSchema,
 } from "@/lib/routine-events"
+import { planCount } from "@/lib/billing-policy"
 import { rootMessageId } from "@/lib/turn-continuation"
 
 // Browser-safe: the routine form and db/schema.ts import this module.
 
-export const ROUTINE_LIMITS = { free: 1, paid: 50 } as const
+export const ROUTINE_LIMITS = { free: 3, paid: 50 } as const
 export const MIN_INTERVAL_HOURS = 1
-export const ROUTINE_LIMIT_ERROR =
-  "The free plan includes one routine. Upgrade to schedule more."
+export const ROUTINE_LIMIT_ERROR = `The free plan includes ${planCount(ROUTINE_LIMITS.free, "routine")}. Upgrade to schedule more.`
 export const PAID_ROUTINE_LIMIT_ERROR = `You can have up to ${ROUTINE_LIMITS.paid} routines.`
 
 const time = z

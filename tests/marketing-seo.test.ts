@@ -5,7 +5,7 @@ import sitemap from "@/app/sitemap"
 import { useCaseGuides } from "@/app/use-cases/use-case-guides"
 import { useCases } from "@/app/use-cases/use-cases-data"
 import { faqs } from "@/components/landing/bot/faq-data"
-import { planLimits } from "@/lib/billing-policy"
+import { planCount, planLimits, PRO_TRIAL_DAYS } from "@/lib/billing-policy"
 import { definition, pageMetadata } from "@/lib/marketing/content"
 import {
   findHelpTopic,
@@ -242,7 +242,24 @@ describe("public pages for search and AI answers", () => {
     assert.ok(pricing.includes("## Free"))
     assert.ok(pricing.includes("$20 per month"))
     assert.ok(pricing.includes(`Up to ${planLimits.paid.bots} bots`))
+    assert.ok(pricing.includes(`${PRO_TRIAL_DAYS}-day free trial`))
     assert.ok(llmsTxt().includes("https://kraftybot.app/pricing.md"))
+  })
+
+  it("never quotes the AI allowance in dollars or calls the free plan one-time", () => {
+    const published = [
+      pricingMarkdown(),
+      llmsFullTxt(),
+      JSON.stringify(faqs),
+      JSON.stringify(marketingSeoPages),
+    ].join("\n")
+    for (const pattern of [
+      /\$\d+(\.\d+)? AI (allowance|usage|credit)/i,
+      /AI allowance of \$/i,
+      /one-time (\$|AI|allowance|computer)/i,
+      /minutes of computer time, once/i,
+    ])
+      assert.doesNotMatch(published, pattern)
   })
 
   it("counts separate vendors as Manus alternatives", () => {
@@ -395,7 +412,7 @@ describe("public pages for search and AI answers", () => {
     const plans = pulsePage.sections.find((entry) => entry.id === "plans")
     assert.ok(
       plans?.body?.includes(
-        `${planLimits.free.apps} connected app and ${ROUTINE_LIMITS.free} routine`
+        `${planCount(planLimits.free.apps, "connected app")} and ${planCount(ROUTINE_LIMITS.free, "routine")}`
       )
     )
     // The prompt it opens with is read-only

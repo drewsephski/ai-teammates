@@ -1,10 +1,16 @@
+import Image from "next/image"
 import Link from "next/link"
+import { ArrowRightIcon, ArrowUpRightIcon } from "lucide-react"
+
+import { BotFaq } from "@/components/landing/bot/faq"
+import { BotMark } from "@/components/landing/bot/bot-mark"
+import { GuideToc } from "@/components/landing/bot/guide-toc"
 
 import { Breadcrumbs, type Crumb } from "@/components/landing/bot/breadcrumbs"
 import { BotNavigation } from "@/components/landing/bot/navigation"
 import { PageFooter } from "@/components/landing/bot/page-footer"
 import styles from "@/components/landing/bot/bot-landing.module.css"
-import page from "@/app/how-it-works/how-it-works.module.css"
+import page from "./guide-page.module.css"
 import type { MarketingPage } from "@/lib/marketing/seo-pages"
 import { planLimits } from "@/lib/billing-policy"
 import {
@@ -45,6 +51,23 @@ function CardLink({
   )
 }
 
+// Illustration for each page's header, from public/marketing/visuals/guides.
+const guideArt: Record<string, string> = {
+  "/ai-agent-human-approval": "approval",
+  "/ai-agent-vs-chatbot": "agent-vs-chatbot",
+  "/autonomous-ai-agent": "autonomous-agent",
+  "/ai-teammates": "teammates",
+  "/ai-employees": "teammates",
+  "/ai-agents-for-business": "business",
+  "/best-ai-agents-small-business": "business",
+  "/manus-alternatives": "alternatives",
+  "/grokbot-alternatives": "alternatives",
+  "/ai-personal-assistant": "personal-assistant",
+  "/use-cases/email-assistant": "personal-assistant",
+  "/time-cost-calculator": "time",
+  "/about": "about",
+}
+
 type Props = {
   config: MarketingPage
   workspaceHref: string
@@ -63,6 +86,15 @@ export function MarketingSeoPage({
     { name: config.h1, path: config.path },
   ]
   const pageUrl = absoluteUrl(config.path)
+  const art = guideArt[config.path] ?? "teammates"
+  const toc = [
+    ...config.sections.map(({ id, title }) => ({ id, title })),
+    ...(config.useCases?.length
+      ? [{ id: "use-cases", title: config.useCasesTitle ?? "Starter prompts" }]
+      : []),
+    { id: "faqs", title: "FAQs" },
+    { id: "related", title: "Related pages" },
+  ]
   const updated = new Date(`${marketingUpdated}T12:00:00Z`).toLocaleDateString(
     "en-US",
     { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }
@@ -109,174 +141,206 @@ export function MarketingSeoPage({
         Skip to content
       </a>
       <BotNavigation workspaceHref={workspaceHref} />
-      <main id="main" className={styles.container}>
-        <Breadcrumbs trail={trail} />
-        <header className={page.header}>
-          <h1>{config.h1}</h1>
-          <p className={page.lead}>{config.lead}</p>
-          <p className={page.updated}>
-            Updated {updated} · By{" "}
-            <Link href="/about" className={page.link} rel="author">
-              Drew Sepeczi
-            </Link>
-          </p>
-          <div className={styles.actions}>
-            <Link href={startHref} prefetch={false} className={styles.button}>
-              Start free
-            </Link>
-            <Link href="/how-it-works" className={styles.secondaryButton}>
-              How {productName} works
-            </Link>
+      <main id="main">
+        <header className={page.hero}>
+          <Image
+            src={`/marketing/visuals/guides/${art}.webp`}
+            alt=""
+            fill
+            priority
+            sizes="(max-width: 1280px) 100vw, 1280px"
+            className={page.heroImage}
+          />
+          <div className={page.heroCopy}>
+            <Breadcrumbs trail={trail} />
+            <h1>{config.h1}</h1>
+            <p className={page.lead}>{config.lead}</p>
+            <div className={page.heroActions}>
+              <Link href={startHref} prefetch={false} className={styles.button}>
+                Start free
+              </Link>
+              <Link href="/how-it-works" className={styles.secondaryButton}>
+                How {productName} works
+              </Link>
+            </div>
+            <p className={page.byline}>
+              Updated {updated} · By{" "}
+              <Link href="/about" rel="author">
+                Drew Sepeczi
+              </Link>
+            </p>
           </div>
         </header>
 
-        {config.widget === "time-cost-calculator" && <TimeCostCalculator />}
+        {config.widget === "time-cost-calculator" && (
+          <div className={page.widget}>
+            <TimeCostCalculator />
+          </div>
+        )}
 
-        {config.sections.map((section) => (
-          <section
-            key={section.id}
-            id={section.id}
-            className={page.section}
-            aria-labelledby={`${section.id}-title`}
-          >
-            <h2 id={`${section.id}-title`}>{section.title}</h2>
-            {section.body && <p>{section.body}</p>}
-            {section.bullets && (
-              <ul className={page.list}>
-                {section.bullets.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            )}
-            {section.table && (
-              <div
-                className={page.tableWrap}
-                role="region"
-                aria-labelledby={`${section.id}-caption`}
-                tabIndex={0}
+        <div className={page.layout}>
+          <aside className={page.rail}>
+            <GuideToc items={toc} />
+          </aside>
+          <div className={page.content}>
+            {config.sections.map((section) => (
+              <section
+                key={section.id}
+                id={section.id}
+                className={page.section}
+                aria-labelledby={`${section.id}-title`}
               >
-                <table className={page.table}>
-                  <caption id={`${section.id}-caption`}>
-                    {section.table.caption}
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">{section.table.rowHeader}</th>
-                      {section.table.columns.map((column) => (
-                        <th key={column} scope="col">
-                          {column}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {section.table.rows.map((row) => (
-                      <tr key={row.label}>
-                        <th scope="row">{row.label}</th>
-                        {row.cells.map((cell, index) => (
-                          <td key={index}>{cell}</td>
-                        ))}
-                      </tr>
+                <h2 id={`${section.id}-title`}>{section.title}</h2>
+                {section.body && <p className={page.body}>{section.body}</p>}
+                {section.bullets && (
+                  <ul className={page.bullets}>
+                    {section.bullets.map((item) => (
+                      <li key={item}>{item}</li>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </ul>
+                )}
+                {section.table && (
+                  <div
+                    className={page.tableWrap}
+                    role="region"
+                    aria-labelledby={`${section.id}-caption`}
+                    tabIndex={0}
+                  >
+                    <table className={page.table}>
+                      <caption id={`${section.id}-caption`}>
+                        {section.table.caption}
+                      </caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">{section.table.rowHeader}</th>
+                          {section.table.columns.map((column) => (
+                            <th key={column} scope="col">
+                              {column}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {section.table.rows.map((row) => (
+                          <tr key={row.label}>
+                            <th scope="row">{row.label}</th>
+                            {row.cells.map((cell, index) => (
+                              <td key={index}>{cell}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {section.cards && (
+                  <div className={page.points}>
+                    {section.cards.map((card) => (
+                      <article key={card.title} className={page.point}>
+                        <h3>
+                          {card.href ? (
+                            <CardLink href={card.href}>{card.title}</CardLink>
+                          ) : (
+                            card.title
+                          )}
+                        </h3>
+                        <p>{card.body}</p>
+                      </article>
+                    ))}
+                  </div>
+                )}
+                {section.note && <p className={page.note}>{section.note}</p>}
+                {section.links && (
+                  <ul className={page.linkList}>
+                    {section.links.map((link) => (
+                      <li key={link.href}>
+                        <CardLink href={link.href}>{link.label}</CardLink>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            ))}
+
+            {config.useCases && config.useCases.length > 0 && (
+              <section
+                id="use-cases"
+                className={page.section}
+                aria-labelledby="use-cases-title"
+              >
+                <h2 id="use-cases-title">
+                  {config.useCasesTitle ?? "Starter prompts"}
+                </h2>
+                <div className={page.tiles}>
+                  {config.useCases.map((useCase) => (
+                    <Link
+                      key={useCase.href}
+                      href={useCase.href}
+                      className={page.tile}
+                    >
+                      <h3>{useCase.title}</h3>
+                      <p>{useCase.body}</p>
+                      <ArrowUpRightIcon
+                        size={16}
+                        className={page.tileArrow}
+                        aria-hidden
+                      />
+                    </Link>
+                  ))}
+                </div>
+              </section>
             )}
-            {section.cards && (
-              <div className={page.grid}>
-                {section.cards.map((card) => (
-                  <article key={card.title}>
-                    <h3>
-                      {card.href ? (
-                        <CardLink href={card.href}>{card.title}</CardLink>
-                      ) : (
-                        card.title
-                      )}
-                    </h3>
-                    <p>{card.body}</p>
-                  </article>
-                ))}
-              </div>
-            )}
-            {section.note && <p className={page.note}>{section.note}</p>}
-            {section.links && (
-              <ul className={page.list}>
-                {section.links.map((link) => (
-                  <li key={link.href}>
-                    <CardLink href={link.href}>{link.label}</CardLink>
+
+            <section
+              id="faqs"
+              className={page.section}
+              aria-labelledby="faq-title"
+            >
+              <h2 id="faq-title">FAQs</h2>
+              <BotFaq questions={config.faqs} />
+            </section>
+
+            <section
+              id="related"
+              className={page.section}
+              aria-labelledby="related-title"
+            >
+              <h2 id="related-title">Related pages</h2>
+              <ul className={page.related}>
+                {config.related.map((item) => (
+                  <li key={item.href}>
+                    <Link href={item.href}>
+                      <span>
+                        <strong>{item.label}</strong>
+                        <small>{item.description}</small>
+                      </span>
+                      <ArrowRightIcon size={18} aria-hidden />
+                    </Link>
                   </li>
                 ))}
               </ul>
-            )}
-          </section>
-        ))}
-
-        {config.useCases && config.useCases.length > 0 && (
-          <section
-            id="use-cases"
-            className={page.section}
-            aria-labelledby="use-cases-title"
-          >
-            <h2 id="use-cases-title">
-              {config.useCasesTitle ?? "Starter prompts"}
-            </h2>
-            <div className={page.grid}>
-              {config.useCases.map((useCase) => (
-                <article key={useCase.href}>
-                  <h3>
-                    <Link href={useCase.href} className={page.link}>
-                      {useCase.title}
-                    </Link>
-                  </h3>
-                  <p>{useCase.body}</p>
-                </article>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <section id="faqs" className={page.section} aria-labelledby="faq-title">
-          <h2 id="faq-title">FAQs</h2>
-          <div className={page.grid}>
-            {config.faqs.map(([question, answer]) => (
-              <article key={question}>
-                <h3>{question}</h3>
-                <p>{answer}</p>
-              </article>
-            ))}
+            </section>
           </div>
-        </section>
-
-        <section className={page.section} aria-labelledby="related-title">
-          <h2 id="related-title">Related pages</h2>
-          <div className={page.grid}>
-            {config.related.map((item) => (
-              <article key={item.href}>
-                <h3>
-                  <Link href={item.href} className={page.link}>
-                    {item.label}
-                  </Link>
-                </h3>
-                <p>{item.description}</p>
-              </article>
-            ))}
-          </div>
-        </section>
+        </div>
 
         <section className={page.final} aria-labelledby="start-title">
-          <h2 id="start-title">Try an AI teammate</h2>
-          <p>
-            Start free with one Bot and one connected app. Pro is $
-            {publicPlans[1].price} a month for up to {planLimits.paid.bots} Bots
-            and {planLimits.paid.sandbox / 3600} hours of computer time.{" "}
-            <Link href="/ai-agent-human-approval" className={page.link}>
-              App writes wait for approval unless an eligible rule allows them.
-            </Link>
-          </p>
-          <div className={styles.actions}>
-            <Link href={startHref} prefetch={false} className={styles.button}>
-              Get started
-            </Link>
+          <div className={page.finalCopy}>
+            <h2 id="start-title">Try an AI teammate</h2>
+            <p>
+              Start free with one Bot and one connected app. Pro is $
+              {publicPlans[1].price} a month for up to {planLimits.paid.bots}{" "}
+              Bots and {planLimits.paid.sandbox / 3600} hours of computer time.{" "}
+              <Link href="/ai-agent-human-approval">
+                App writes wait for approval unless an eligible rule allows
+                them.
+              </Link>
+            </p>
+            <div className={page.heroActions}>
+              <Link href={startHref} prefetch={false} className={styles.button}>
+                Get started
+              </Link>
+            </div>
+            <BotMark className={page.finalMark} color="#efe7dc" dimensional />
           </div>
         </section>
       </main>

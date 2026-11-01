@@ -326,7 +326,7 @@ test("connected apps: one failed search, reconnects, accounts and approvals", ()
   )
 })
 
-test("free accounts get the computer for their one-time allowance", () => {
+test("free accounts get the computer for their monthly allowance", () => {
   const configured = { ...bot, setupComplete: true, job: "Analyst" }
   const free = buildChatInstructions(
     configured,
@@ -337,7 +337,9 @@ test("free accounts get the computer for their one-time allowance", () => {
     undefined,
     { paid: false, clock: "Owner's timezone: America/Chicago." }
   )
-  assert.match(free, /20 minutes of computer time, once/)
+  assert.match(free, /three bots, three connected apps and three routines/)
+  assert.match(free, /20 minutes of computer time that renew on the 1st/)
+  assert.doesNotMatch(free, /\$1/)
   assert.match(free, /prefer bash and reading text over screenshots/)
   assert.match(free, /Own the task from start to verified result/)
   assert.match(free, /Owner's timezone: America\/Chicago/)
@@ -351,7 +353,7 @@ test("free accounts get the computer for their one-time allowance", () => {
     undefined,
     { paid: false }
   )
-  assert.match(spent, /one-time computer time is used up/)
+  assert.match(spent, /This month's free computer time is used up/)
   assert.doesNotMatch(spent, /Own the task from start/)
   const paidSpent = buildChatInstructions(
     configured,

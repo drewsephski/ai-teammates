@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import Link from "next/link"
+import Image from "next/image"
 import localFont from "next/font/local"
 import { auth } from "@clerk/nextjs/server"
 
@@ -16,6 +16,7 @@ import {
 } from "@/lib/marketing/content"
 import { helpIndex, helpTopicPath, helpTopics } from "@/lib/marketing/help"
 import { marketingUpdated, productName, siteUrl } from "@/lib/marketing/site"
+import { HelpTopicSearch } from "./help-topic-search"
 import { HelpContact } from "./help-contact"
 import help from "./help.module.css"
 
@@ -79,20 +80,27 @@ export default async function HelpPage() {
       <BotNavigation workspaceHref={workspaceHref} />
       <main id="main" className={styles.container}>
         <Breadcrumbs trail={trail} />
-        <header className={page.header}>
+        <header className={help.hero}>
+          <div className={help.heroArt}>
+            <Image
+              src="/marketing/visuals/pages/help.webp"
+              alt=""
+              fill
+              priority
+              sizes="(max-width: 1024px) 100vw, 976px"
+              className={help.heroImage}
+            />
+          </div>
           <h1>{helpIndex.h1}</h1>
           <p className={page.lead}>{helpIndex.lead}</p>
         </header>
-        <ul className={help.topics} aria-label="Help topics">
-          {helpTopics.map((topic) => (
-            <li key={topic.slug} className={help.topic}>
-              <h2>
-                <Link href={helpTopicPath(topic.slug)}>{topic.h1}</Link>
-              </h2>
-              <p>{topic.summary}</p>
-            </li>
-          ))}
-        </ul>
+        <HelpTopicSearch
+          topics={helpTopics.map((topic) => ({
+            href: helpTopicPath(topic.slug),
+            title: topic.h1,
+            summary: topic.summary,
+          }))}
+        />
         <HelpContact />
       </main>
       <div className={styles.container}>

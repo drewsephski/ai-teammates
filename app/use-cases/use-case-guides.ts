@@ -5,6 +5,10 @@
 // approval; every write to a connected app waits for the person unless they
 // always allow that action for that Bot. Sample outputs are fictional.
 
+import { planCount, planLimits } from "@/lib/billing-policy"
+
+const freeApps = planCount(planLimits.free.apps, "connected app")
+
 export type UseCaseGuide = {
   /** 3 to 5 numbered steps for a person's first run, second person, present tense, each one sentence. */
   firstRun: readonly string[]
@@ -44,7 +48,7 @@ export const useCaseGuides: Record<string, UseCaseGuide> = {
       ],
       [
         "What if HubSpot isn't connected?",
-        "The Bot asks you to connect it on the first run and waits. You sign in to HubSpot yourself, and you can disconnect it later from your account. The free plan includes one connected app, so this prompt, which names four, needs the Pro plan.",
+        `The Bot asks you to connect it on the first run and waits. You sign in to HubSpot yourself, and you can disconnect it later from your account. The free plan includes ${freeApps}, so this prompt, which names four, needs the Pro plan.`,
       ],
       [
         "How long does a nightly run take?",
@@ -285,7 +289,7 @@ export const useCaseGuides: Record<string, UseCaseGuide> = {
       ],
       [
         "Does it need all five apps?",
-        "The prompt names five, and the free plan includes one connected app, so this job needs Pro. You can drop a source and the Bot ranks on what's left, with less to go on. Each app is connected by you and can be disconnected later.",
+        `The prompt names five, and the free plan includes ${freeApps}, so this job needs Pro. You can drop a source and the Bot ranks on what's left, with less to go on. Each app is connected by you and can be disconnected later.`,
       ],
       [
         "How long does a Monday run take?",

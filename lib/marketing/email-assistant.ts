@@ -1,3 +1,5 @@
+import { freePlanIncludes, proTrial } from "@/lib/marketing/site"
+
 import type { MarketingPage } from "./seo-pages"
 
 export const emailAssistantPage: MarketingPage = {
@@ -59,7 +61,7 @@ export const emailAssistantPage: MarketingPage = {
   faqs: [
     [
       "Can I try Gmail on the free plan?",
-      "Yes. The free plan includes one Bot and one connected app, so you can start with Gmail alone within the included usage allowance. Adding Slack or Google Calendar requires more connected apps on Pro.",
+      `Yes. The free plan includes ${freePlanIncludes}, so Gmail, Slack and Google Calendar all fit. Pro adds more Bots, unlimited apps and hours of computer time, and it starts with a ${proTrial}.`,
     ],
     [
       "Will it send email without asking?",

@@ -1,5 +1,10 @@
 import { APPROVAL_TTL_MS, SELF_EMAILS_PER_TURN } from "@/lib/approval-policy"
-import { planLimits } from "@/lib/billing-policy"
+import {
+  countWord,
+  planCount,
+  planLimits,
+  PRO_TRIAL_DAYS,
+} from "@/lib/billing-policy"
 import { composerCommands } from "@/lib/composer"
 import { LEASE_WAIT_MS } from "@/lib/computer-lease-policy"
 import { FREE_RETENTION_DAYS } from "@/lib/computer-retention-policy"
@@ -66,11 +71,10 @@ export type HelpTopic = {
 export const helpPath = "/help"
 export const helpTopicPath = (slug: string) => `${helpPath}/${slug}`
 
-const usd = (millionths: number) => millionths / 1_000_000
 const paidBots = planLimits.paid.bots
 const paidHours = planLimits.paid.sandbox / 3600
-const paidAllowance = usd(planLimits.paid.ai)
-const freeAllowance = usd(planLimits.free.ai)
+const freeBots = planCount(planLimits.free.bots, "Bot")
+const freeApps = planCount(planLimits.free.apps, "connected app")
 const proPrice = publicPlans[1].price
 
 const minutes = (ms: number) => ms / 60_000
@@ -183,7 +187,7 @@ export const helpTopics: readonly HelpTopic[] = [
     faqs: [
       [
         "Can I have more than one Bot?",
-        `The free plan includes ${planLimits.free.bots} Bot. Pro allows up to ${paidBots}.`,
+        `The free plan includes ${freeBots}. Pro allows up to ${paidBots}, and you can try it free for ${PRO_TRIAL_DAYS} days.`,
       ],
       [
         "Do I have to finish setup in one go?",
@@ -395,7 +399,7 @@ export const helpTopics: readonly HelpTopic[] = [
         id: "limits",
         title: "Plan limits",
         body: [
-          `The free plan includes ${planLimits.free.apps} connected app; Pro has no limit. To switch apps on the free plan, disconnect the one you have first. If you go back to the free plan with several apps connected, Bots can use only one of them.`,
+          `The free plan includes ${freeApps}; Pro has no limit. To connect another app when the free plan's are in use, disconnect one first. If you go back to the free plan with more apps connected, Bots can use only ${countWord(planLimits.free.apps)} of them.`,
         ],
       },
       {
@@ -451,7 +455,7 @@ export const helpTopics: readonly HelpTopic[] = [
         title: "Pausing and computer time",
         body: [
           `The computer pauses ${minutes(IDLE_TIMEOUT_MS)} minutes after its last use, and on the free plan as soon as a Bot's task ends. It resumes when a Bot needs it, with its files and sign-ins intact. While Desktop is open, it keeps running. A single session runs for at most ${minutes(SESSION_LIMIT_MS)} minutes; then it pauses and picks up again on the next use.`,
-          `Computer time counts only while the computer is running. The free plan includes ${freeComputerMinutes} minutes, once. Pro includes ${paidHours} hours each billing period. When your time runs out, the computer pauses until it renews or you upgrade.`,
+          `Computer time counts only while the computer is running. The free plan includes ${freeComputerMinutes} minutes a month. Pro includes ${paidHours} hours each billing period. When your time runs out, the computer pauses until it renews or you upgrade.`,
         ],
         links: [
           {
@@ -706,7 +710,7 @@ export const helpTopics: readonly HelpTopic[] = [
               .join("; ")}.`
         ),
         body: [
-          `Free allowances are one-time and don't renew. Pro allowances renew each billing period, and the Usage page shows when. Prices are in US dollars.`,
+          `Free allowances renew on the 1st of every month. Pro allowances renew each billing period, and the Usage page shows when. Pro starts with a ${PRO_TRIAL_DAYS}-day free trial: a card is needed to start it, and you aren't charged if you cancel before it ends. Prices are in US dollars.`,
         ],
       },
       {
@@ -721,7 +725,7 @@ export const helpTopics: readonly HelpTopic[] = [
         id: "computer-time",
         title: "Computer time",
         body: [
-          `Computer time counts while your cloud computer is running, whichever Bot is using it. The free plan includes ${freeComputerMinutes} minutes, once; Pro includes ${paidHours} hours each billing period. When it runs out, the computer pauses. Computer time isn't part of a reply's cost or the spend limit per task.`,
+          `Computer time counts while your cloud computer is running, whichever Bot is using it. The free plan includes ${freeComputerMinutes} minutes a month; Pro includes ${paidHours} hours each billing period. When it runs out, the computer pauses. Computer time isn't part of a reply's cost or the spend limit per task.`,
         ],
         links: [
           { label: "The cloud computer", href: helpTopicPath("computer") },
@@ -747,7 +751,7 @@ export const helpTopics: readonly HelpTopic[] = [
         title: "Upgrade, change or cancel",
         body: [
           "Open Plans & billing in the sidebar to upgrade, change or cancel your plan. Checkout happens on that page.",
-          `If you cancel Pro, you keep it until the end of the period you paid for. Then the free limits apply: only your first Bot works, Bots can use one connected app, and the free allowances are the one-time ones.`,
+          `If you cancel Pro, you keep it until the end of the period you paid for. Then the free limits apply: only your first ${freeBots} work, Bots can use ${freeApps}, and the free monthly allowances apply.`,
           "Deleting your account cancels your subscription first.",
           `Bots don't handle billing in chat. For a billing question, email ${supportEmail}.`,
         ],
@@ -756,7 +760,7 @@ export const helpTopics: readonly HelpTopic[] = [
     faqs: [
       [
         "Does the free allowance reset each month?",
-        `No. The free plan's $${freeAllowance} AI allowance and ${freeComputerMinutes} minutes of computer time are one-time. Pro's $${paidAllowance} and ${paidHours} hours renew each billing period.`,
+        `Yes. The free plan's AI usage and ${freeComputerMinutes} minutes of computer time renew on the 1st of every month. Pro's allowances and ${paidHours} hours of computer time renew each billing period.`,
       ],
       [
         "Why did my Bot stop in the middle of a task?",

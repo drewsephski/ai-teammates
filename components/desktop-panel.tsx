@@ -383,7 +383,7 @@ function DesktopPanelProvider({
   return <DesktopPanelContext value={value}>{children}</DesktopPanelContext>
 }
 
-// Time left on the computer: always for the one-time free allowance, and for a
+// Time left on the computer: always for the small free allowance, and for a
 // paid account once the period's time is nearly gone
 function DesktopClock() {
   const { time, status } = useDesktopPanel()

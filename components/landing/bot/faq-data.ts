@@ -1,6 +1,9 @@
-import { planLimits } from "@/lib/billing-policy"
 import { definition } from "@/lib/marketing/content"
-import { freePlanIncludes } from "@/lib/marketing/site"
+import {
+  freePlanIncludes,
+  proPlanIncludes,
+  proTrial,
+} from "@/lib/marketing/site"
 
 // Shared by the FAQ accordion and the homepage FAQPage structured data.
 export const faqs = [
@@ -15,7 +18,7 @@ export const faqs = [
   ],
   [
     "Who is Krafty Bot for?",
-    `Anyone with work they keep putting off: independent founders, freelancers, developers, and small businesses. Start free with ${freePlanIncludes}. More Bots and hours of computer time need a paid plan.`,
+    `Anyone with work they keep putting off: independent founders, freelancers, developers, and small businesses. Start free with ${freePlanIncludes}. Try Pro with a ${proTrial} when you want more Bots and hours of computer time.`,
   ],
   [
     "Where do I talk to Krafty Bot?",
@@ -23,7 +26,7 @@ export const faqs = [
   ],
   [
     "How much does Krafty Bot cost?",
-    `Krafty is free to start with one bot. Pro is $20 per month for up to ${planLimits.paid.bots} bots, unlimited connected apps, a $${planLimits.paid.ai / 1_000_000} AI allowance, and ${planLimits.paid.sandbox / 3600} hours of cloud computer time each billing period. Your usage page tracks both for the current period.`,
+    `Krafty is free to start, with ${freePlanIncludes}. Pro is $20 per month for ${proPlanIncludes}, and it starts with a ${proTrial}: you aren't charged if you cancel before the trial ends. Your usage page shows what you've used this period.`,
   ],
   [
     "Do Bots share one computer?",

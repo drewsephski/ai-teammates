@@ -1,0 +1,435 @@
+/* How it works: one idea per screen, pictures and demos instead of card
+   grids. Values follow the landing (bot-landing.module.css). */
+
+.hero,
+.section,
+.final {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+  padding-inline: 24px;
+}
+
+/* Hero */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding-bottom: 40px;
+}
+.heroCrumbs {
+  align-self: stretch;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 28px;
+}
+.hero h1 {
+  max-width: 900px;
+  font-size: clamp(44px, 7vw, 76px);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+  animation: enter 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.lead {
+  max-width: 600px;
+  margin: 22px auto 32px !important;
+  color: #8f9398;
+  font-size: 19px;
+  line-height: 1.6;
+  text-wrap: balance;
+  animation: enter 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 0.08s both;
+}
+.hero > div:has(> a) {
+  animation: enter 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) 0.16s both;
+}
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.heroArt {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin: 56px 0 0;
+  border-radius: 32px;
+  overflow: hidden;
+  background: #0a0a0a;
+  animation: settle 1.4s cubic-bezier(0.2, 0.7, 0.2, 1) 0.2s both;
+}
+.heroArt::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px #ffffff0a;
+  background: radial-gradient(ellipse at 50% 120%, #0a0a0a 0%, transparent 55%);
+  pointer-events: none;
+}
+.heroImage {
+  object-fit: cover;
+}
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.definition {
+  max-width: 720px;
+  margin-top: 48px !important;
+  color: #d4d4d4;
+  font-size: clamp(19px, 2.2vw, 24px);
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  text-wrap: pretty;
+}
+.updated {
+  margin-top: 20px !important;
+  color: #5d6066;
+  font-size: 13px;
+}
+
+/* Sections */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+  padding-block: 120px;
+  scroll-margin-top: 80px;
+}
+.heading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+.eyebrow {
+  color: #efe7dc;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.heading h2,
+.splitCopy h2,
+.final h2 {
+  font-size: clamp(32px, 4.4vw, 48px);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+/* Approvals: copy and accordion beside the demo */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 64px;
+  align-items: center;
+}
+.splitCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.splitCopy .accordion {
+  margin-top: 20px;
+}
+
+/* Accordion (native details, one open at a time) */
+.accordion {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid #222;
+}
+.accordion details {
+  border-bottom: 1px solid #222;
+}
+.accordion summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 0;
+  color: #a1a1a1;
+  font-size: 17px;
+  line-height: 1.4;
+  list-style: none;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+.accordion summary::-webkit-details-marker {
+  display: none;
+}
+.accordion summary:hover,
+.accordion details[open] summary {
+  color: #fff;
+}
+.accordion summary svg {
+  flex: none;
+  color: #6b6f75;
+}
+.minus,
+.accordion details[open] .plus {
+  display: none;
+}
+.accordion details[open] .minus {
+  display: block;
+}
+.accordion details p {
+  max-width: 560px;
+  padding-bottom: 20px;
+  color: #8f9398;
+  font-size: 15px;
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+@supports (interpolate-size: allow-keywords) {
+  .accordion {
+    interpolate-size: allow-keywords;
+  }
+  .accordion details::details-content {
+    height: 0;
+    overflow: clip;
+    opacity: 0;
+    transition:
+      height 0.35s ease,
+      opacity 0.35s ease,
+      content-visibility 0.35s allow-discrete;
+  }
+  .accordion details[open]::details-content {
+    height: auto;
+    opacity: 1;
+  }
+}
+
+/* Pricing */
+.plans {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  max-width: 880px;
+  width: 100%;
+  margin-inline: auto;
+}
+.plan {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 36px;
+  border-radius: 28px;
+  background: #141414;
+}
+.plan:last-child {
+  background:
+    radial-gradient(140% 90% at 100% 0%, #efe7dc14, transparent 55%), #1a1a1a;
+}
+.plan h3 {
+  color: #a1a1a1;
+  font-size: 16px;
+  font-weight: 500;
+}
+.price {
+  font-size: 56px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+.price span {
+  margin-left: 4px;
+  color: #6b6f75;
+  font-size: 18px;
+  letter-spacing: 0;
+}
+.planSummary {
+  color: #8f9398;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.plan ul {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 18px 0 0;
+  border-top: 1px solid #ffffff0f;
+  list-style: none;
+}
+.plan li {
+  position: relative;
+  padding-left: 22px;
+  color: #d4d4d4;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.plan li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.55em;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #efe7dc;
+  opacity: 0.6;
+}
+.planNote {
+  max-width: 640px;
+  margin-inline: auto !important;
+  color: #6b6f75;
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: center;
+}
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  white-space: nowrap;
+}
+.centerLink {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 6px;
+  margin-top: -16px;
+  color: #8f9398;
+  font-size: 15px;
+  transition: color 0.2s ease;
+}
+.centerLink:hover {
+  color: #fff;
+}
+.textLink:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.spend {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 880px;
+  margin-inline: auto;
+}
+.spend h3 {
+  color: #6b6f75;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Limits: quiet, two columns */
+.limits {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 48px;
+  max-width: 880px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+  counter-reset: limit;
+}
+.limits li {
+  display: flex;
+  gap: 16px;
+  padding: 22px 0;
+  border-top: 1px solid #1f1f1f;
+  color: #8f9398;
+  font-size: 15px;
+  line-height: 1.6;
+  text-wrap: pretty;
+  counter-increment: limit;
+}
+.limits li::before {
+  content: counter(limit, decimal-leading-zero);
+  flex: none;
+  color: #4a4d52;
+  font-size: 13px;
+  line-height: 1.85;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Closing call to action, as on the landing */
+.final {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding-top: 120px;
+  text-align: center;
+  overflow: hidden;
+}
+.final p {
+  margin-bottom: 10px !important;
+  color: #8f9398;
+  font-size: 18px;
+}
+.giantMark {
+  display: block;
+  width: 100%;
+  max-width: 560px;
+  height: auto;
+  margin: 72px auto -60px;
+  filter: drop-shadow(0 28px 48px #00000099);
+}
+
+@media (max-width: 1023px) {
+  .split {
+    grid-template-columns: 1fr;
+    gap: 48px;
+  }
+  .section {
+    padding-block: 96px;
+    gap: 44px;
+  }
+}
+@media (max-width: 639px) {
+  .hero,
+  .section,
+  .final {
+    padding-inline: 16px;
+  }
+  .lead {
+    font-size: 17px;
+  }
+  .heroArt {
+    aspect-ratio: 4 / 3;
+    margin-top: 40px;
+    border-radius: 20px;
+  }
+  .section {
+    padding-block: 72px;
+    gap: 36px;
+  }
+  .plans,
+  .limits {
+    grid-template-columns: 1fr;
+  }
+  .plan {
+    padding: 28px;
+    border-radius: 20px;
+  }
+  .final {
+    padding-top: 80px;
+  }
+  .giantMark {
+    margin-top: 56px;
+    margin-bottom: -36px;
+  }
+}

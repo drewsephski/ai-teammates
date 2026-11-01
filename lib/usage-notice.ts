@@ -35,10 +35,6 @@ export function usageNotice(
   return notices.find((notice) => notice.level === "out") ?? notices[0]
 }
 
-const dollars = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-})
 const hours = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 })
 
 function timeLeft(seconds: number) {
@@ -47,33 +43,52 @@ function timeLeft(seconds: number) {
   return `${minutes} computer minute${minutes === 1 ? "" : "s"}`
 }
 
+const utcDay = new Intl.DateTimeFormat("en-US", {
+  month: "long",
+  day: "numeric",
+  timeZone: "UTC",
+})
+
+// When the period ends, as "December 1". The free period ends at midnight
+// UTC on the 1st, which is still the 30th or 31st in the Americas, so it's
+// named in UTC to match "renews on the 1st".
+export function periodEndLabel(usage: {
+  tier: PlanTier
+  period: { end: Date | null }
+}) {
+  const { end } = usage.period
+  if (!end) return null
+  return usage.tier === "free" ? utcDay.format(end) : format(end, "MMMM d")
+}
+
 export function usageNoticeCopy(notice: UsageNotice, usage: UsageSnapshot) {
   const paid = usage.tier === "paid"
-  const until = usage.period.end
-    ? ` until ${format(usage.period.end, "MMMM d")}`
-    : ""
+  const endLabel = periodEndLabel(usage)
+  const until = endLabel ? ` until ${endLabel}` : ""
   const left = usage.remaining[notice.kind]
+  // AI usage is shown as a share, never in dollars
+  const share = Math.max(1, Math.round((left / usage.limits.ai) * 100))
   const message =
     notice.kind === "ai"
       ? notice.level === "out"
         ? paid
-          ? `Your AI allowance is used up${until}.`
-          : "Your free AI allowance is used up."
+          ? `Your AI usage is used up${until}.`
+          : `This month's free AI usage is used up${until}.`
         : paid
-          ? `${dollars.format(left / 1_000_000)} of AI usage left this period.`
-          : `${dollars.format(left / 1_000_000)} of your free AI allowance left.`
+          ? `${share}% of your AI usage left this period.`
+          : `${share}% of this month's free AI usage left.`
       : notice.level === "out"
         ? paid
           ? `Computer hours are used up${until}.`
-          : "Your free computer time is used up."
+          : `This month's free computer time is used up${until}.`
         : paid
           ? `${timeLeft(left)} left this period.`
-          : `${timeLeft(left)} left of your free computer time.`
+          : `${timeLeft(left)} of free computer time left this month.`
 
   return {
     message,
     action: paid
       ? { label: "View usage", href: "/usage" }
-      : { label: "Upgrade", href: "/pricing" },
+      : { label: "Try Pro free", href: "/pricing" },
   }
 }

@@ -238,7 +238,7 @@ export default async function PulsePage() {
                 Approve a nudge and it goes out from your own Gmail address, so
                 replies come back to you.
               </p>
-              <small>Second connected app, on Pro</small>
+              <small>Free plan</small>
             </article>
             <article className={pulse.tool}>
               <CalendarIcon aria-hidden />
@@ -247,7 +247,7 @@ export default async function PulsePage() {
                 Connect more apps when the weekly report works, such as Google
                 Calendar for milestones or Slack for a status post.
               </p>
-              <small>Pro, unlimited connected apps</small>
+              <small>Free plan, up to {planLimits.free.apps} apps</small>
             </article>
           </div>
         </section>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { ArrowRightIcon } from "lucide-react"
 import localFont from "next/font/local"
 import { notFound } from "next/navigation"
 import { auth } from "@clerk/nextjs/server"
@@ -23,6 +24,7 @@ import {
 } from "@/lib/marketing/help"
 import { faqPageJsonLd } from "@/lib/marketing/json-ld"
 import { marketingUpdated, siteUrl } from "@/lib/marketing/site"
+import { BotFaq } from "@/components/landing/bot/faq"
 import { HelpContact } from "../help-contact"
 import help from "../help.module.css"
 
@@ -164,30 +166,26 @@ export default async function HelpTopicPage({ params }: Props) {
 
         <section id="faqs" className={page.section} aria-labelledby="faq-title">
           <h2 id="faq-title">Questions</h2>
-          <div className={page.grid}>
-            {topic.faqs.map(([question, answer]) => (
-              <article key={question}>
-                <h3>{question}</h3>
-                <p>{answer}</p>
-              </article>
-            ))}
+          <div className={help.faqs}>
+            <BotFaq questions={topic.faqs} />
           </div>
         </section>
 
         <section className={page.section} aria-labelledby="related-title">
           <h2 id="related-title">Related help</h2>
-          <div className={page.grid}>
+          <ul className={help.topics}>
             {related.map((entry) => (
-              <article key={entry.slug}>
-                <h3>
-                  <Link href={helpTopicPath(entry.slug)} className={page.link}>
-                    {entry.h1}
-                  </Link>
-                </h3>
-                <p>{entry.summary}</p>
-              </article>
+              <li key={entry.slug}>
+                <Link href={helpTopicPath(entry.slug)} className={help.topic}>
+                  <span>
+                    <h3>{entry.h1}</h3>
+                    <p>{entry.summary}</p>
+                  </span>
+                  <ArrowRightIcon size={18} aria-hidden />
+                </Link>
+              </li>
             ))}
-          </div>
+          </ul>
           <p>
             <Link href={helpIndex.path} className={page.link}>
               All help topics

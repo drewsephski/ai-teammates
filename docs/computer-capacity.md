@@ -17,7 +17,7 @@ Any change to the E2B plan, a payment method, a spending limit or concurrency ad
 - **Pause on turn end.** `onTurnComplete` in `trigger/chat.ts` releases the lease and calls `pauseComputerIfLowAllowance`. Free accounts pause at once. Paid accounts pause only when 60 seconds or less are left (`LOW_ALLOWANCE_SECONDS`); otherwise their computer runs until the 5-minute idle pause.
 - **A watched screen keeps running.** The desktop gateway (`lib/desktop-gateway.ts`) renews the computer every 10 to 30 seconds (`desktopHeartbeatMs`) while a viewer is connected, up to the 55-minute session cap.
 - **Metering and cleanup.** The `meter-sandboxes` cron (`trigger/usage.ts`) runs every minute. It frees the lease of a turn that died mid-turn and pauses its computer (the fix for #34), meters every session into `usage_entries` (seconds), pauses computers whose owner has no time left, deletes orphans, and every tenth minute deletes free computers idle for 30 days.
-- **Plan allowances** (`planLimits` in `lib/billing-policy.ts`): free accounts get 20 minutes of computer time once (1,200 seconds, never renewed). Paid accounts ($20 a month) get 50 hours per billing period. Free turns may make 20 computer calls (`FREE_COMPUTER_CALLS_PER_TURN`).
+- **Plan allowances** (`planLimits` in `lib/billing-policy.ts`): free accounts get 20 minutes of computer time a month (1,200 seconds, renewed on the 1st, UTC). Paid accounts ($20 a month) get 50 hours per billing period. Free turns may make 20 computer calls (`FREE_COMPUTER_CALLS_PER_TURN`).
 
 ## E2B Hobby limits
 

@@ -124,12 +124,19 @@ test("pausing clears the next run and resuming restarts the clock", async () => 
   assert.ok(resumed.nextRunAt && resumed.nextRunAt > new Date())
 })
 
-test("the free plan gets one routine", async () => {
-  await routines.createRoutine(FREE, routineInput("bot_free", "free_1"))
+test("the free plan gets three routines", async () => {
+  for (const id of ["free_1", "free_2", "free_3"])
+    await routines.createRoutine(FREE, routineInput("bot_free", id))
   await assert.rejects(
-    routines.createRoutine(FREE, routineInput("bot_free", "free_2")),
-    /free plan includes one routine/
+    routines.createRoutine(FREE, routineInput("bot_free", "free_4")),
+    /free plan includes three routines/
   )
+  // The next test works with the first one alone
+  const [first, ...rest] = await routines.listRoutines(FREE)
+  assert.equal(rest.length, 2)
+  for (const routine of rest)
+    await db.delete(schema.routines).where(eq(schema.routines.id, routine.id))
+  assert.equal((await routines.listRoutines(FREE))[0].id, first.id)
 })
 
 test("a due routine is claimed once and skipped, not run, when the allowance is spent", async () => {

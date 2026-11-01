@@ -1,4 +1,5 @@
-import { planLimits } from "@/lib/billing-policy"
+import { planCount, planLimits, PRO_TRIAL_DAYS } from "@/lib/billing-policy"
+import { ROUTINE_LIMITS } from "@/lib/routine-policy"
 
 export const siteUrl = "https://kraftybot.app"
 export const brandName = "Krafty"
@@ -62,16 +63,26 @@ export function createBotHref(templateId: string, isAuthenticated: boolean) {
     : `/sign-up?redirect_url=${encodeURIComponent(destination)}`
 }
 
-const usd = (millionths: number) => millionths / 1_000_000
+const free = planLimits.free
+const paid = planLimits.paid
 
-/** The free plan's one-time computer time, in minutes. */
-export const freeComputerMinutes = planLimits.free.sandbox / 60
+/** The free plan's computer time each month, in minutes. */
+export const freeComputerMinutes = free.sandbox / 60
+
+/** Pro's free trial, as a phrase: "7-day free trial". */
+export const proTrial = `${PRO_TRIAL_DAYS}-day free trial`
 
 /**
  * What the free plan includes, as one phrase for sentences. Derived from
  * billing-policy so the pages can't drift from the limits.
  */
-export const freePlanIncludes = `one bot, one connected app, a one-time $${usd(planLimits.free.ai)} AI allowance, and ${freeComputerMinutes} minutes of computer time, once`
+export const freePlanIncludes = `${planCount(free.bots, "bot")}, ${planCount(free.apps, "connected app")} and ${planCount(ROUTINE_LIMITS.free, "routine")}, with AI usage and ${freeComputerMinutes} minutes of computer time that renew every month`
+
+/** What Pro includes, as one phrase for sentences. */
+export const proPlanIncludes = `up to ${paid.bots} bots, unlimited connected apps, up to ${ROUTINE_LIMITS.paid} routines, and ${paid.sandbox / 3600} hours of cloud computer time each billing period`
+
+/** Both plans in two sentences, for pages that answer "what does it cost?". */
+export const plansSentence = `The free plan includes ${freePlanIncludes}. Pro is $20 a month for ${proPlanIncludes}, and it starts with a ${proTrial}.`
 
 /** Public plan summary. Limits come from billing-policy so copy can't drift. */
 export const publicPlans = [
@@ -79,12 +90,13 @@ export const publicPlans = [
     name: "Free",
     price: 0,
     period: null,
-    summary: "Try Krafty with one Bot.",
+    summary: "Put Bots to work for free, every month.",
     features: [
-      `${planLimits.free.bots} bot`,
-      `${planLimits.free.apps} connected app`,
-      `One-time $${usd(planLimits.free.ai)} AI allowance`,
-      `${freeComputerMinutes} minutes of computer time, once`,
+      `${free.bots} bots`,
+      `${free.apps} connected apps`,
+      `${ROUTINE_LIMITS.free} routines`,
+      "AI usage that renews every month",
+      `${freeComputerMinutes} minutes of computer time each month`,
       "Built-in web research",
     ],
   },
@@ -92,12 +104,13 @@ export const publicPlans = [
     name: "Pro",
     price: 20,
     period: "month",
-    summary: "More Bots, more apps, and hours of computer time.",
+    summary: `Start with a ${proTrial}. More Bots, more apps, and hours of computer time.`,
     features: [
-      `Up to ${planLimits.paid.bots} bots`,
+      `Up to ${paid.bots} bots`,
       "Unlimited connected apps",
-      `$${usd(planLimits.paid.ai)} AI allowance each billing period`,
-      `${planLimits.paid.sandbox / 3600} hours of cloud computer time each billing period`,
+      `Up to ${ROUTINE_LIMITS.paid} routines`,
+      "More AI usage, renewed each billing period",
+      `${paid.sandbox / 3600} hours of cloud computer time each billing period`,
       "Persistent computers, memory, and group chats",
     ],
   },

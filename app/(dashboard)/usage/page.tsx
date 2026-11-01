@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { auth } from "@clerk/nextjs/server"
-import { format, formatDistanceToNowStrict } from "date-fns"
+import { formatDistanceToNowStrict } from "date-fns"
 
 import { buttonVariants } from "@/components/ui/button"
 import {
@@ -13,15 +13,15 @@ import {
 import { Progress } from "@/components/ui/progress"
 import { AppPageHeader } from "@/components/app-page-header"
 import { formatClock } from "@/components/computer-status"
-import { freeComputerMinutes, freePlanIncludes } from "@/lib/marketing/site"
+import {
+  freeComputerMinutes,
+  freePlanIncludes,
+  proTrial,
+} from "@/lib/marketing/site"
 import { getUsage } from "@/lib/usage"
+import { periodEndLabel } from "@/lib/usage-notice"
 import { ChatGPTPlanCard } from "@/components/chatgpt-plan-card"
 import { chatGPTAuthMessages } from "@/components/chatgpt-auth-option"
-
-const dollars = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-})
 
 const hours = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 })
 
@@ -36,7 +36,7 @@ function UsageMeter({
   description: string
   used: number
   limit: number
-  detail: string
+  detail?: string
 }) {
   const percent = Math.min(100, Math.round((used / limit) * 100))
 
@@ -49,7 +49,9 @@ function UsageMeter({
       <CardContent className="flex flex-col gap-4 pt-2">
         <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
           <span className="font-medium">{percent}% used</span>
-          <span className="text-muted-foreground tabular-nums">{detail}</span>
+          {detail && (
+            <span className="text-muted-foreground tabular-nums">{detail}</span>
+          )}
         </div>
         <Progress value={percent} aria-label={title} />
       </CardContent>
@@ -81,16 +83,16 @@ export default async function Page({
             Usage
           </h1>
           <p className="text-sm text-muted-foreground sm:text-base">
-            {period.end ? (
+            {usage.tier === "free" &&
+              `Your free plan includes ${freePlanIncludes}. `}
+            {period.end && (
               <>
                 Resets in {formatDistanceToNowStrict(period.end)}, on{" "}
                 <time dateTime={period.end.toISOString()}>
-                  {format(period.end, "MMMM d")}
+                  {periodEndLabel(usage)}
                 </time>
                 .
               </>
-            ) : (
-              `Your free plan includes ${freePlanIncludes}. Upgrade for allowances that renew each billing period.`
             )}
           </p>
         </div>
@@ -113,16 +115,15 @@ export default async function Page({
             description="Krafty-funded model replies and web searches. ChatGPT subscription-backed model usage is excluded."
             used={used.ai}
             limit={limits.ai}
-            detail={`${dollars.format(used.ai / 1_000_000)} of ${dollars.format(limits.ai / 1_000_000)}`}
           />
           {limits.sandbox > 0 &&
             (usage.tier === "free" ? (
               <UsageMeter
                 title="Computer time"
-                description="Time your computer was running. The free allowance is one-time and doesn't renew."
+                description="Time your computer was running this month."
                 used={used.sandbox}
                 limit={limits.sandbox}
-                detail={`${formatClock(used.sandbox)} of ${freeComputerMinutes} minutes, once`}
+                detail={`${formatClock(used.sandbox)} of ${freeComputerMinutes} minutes`}
               />
             ) : (
               <UsageMeter
@@ -139,7 +140,7 @@ export default async function Page({
             href="/pricing"
             className={buttonVariants({ className: "self-start" })}
           >
-            See paid plans
+            Start your {proTrial}
           </Link>
         )}
         <ChatGPTPlanCard />

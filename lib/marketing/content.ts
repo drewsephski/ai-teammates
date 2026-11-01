@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 
-import { planLimits } from "@/lib/billing-policy"
 import { ROUTINE_LIMITS } from "@/lib/routine-policy"
 import { formatBudget, LOOP_STEP_LIMIT, TASK_BUDGETS } from "@/lib/turn-spend"
 import { EVENT_RUNS_PER_DAY } from "@/lib/routine-events"
@@ -8,6 +7,8 @@ import {
   brandName,
   freePlanIncludes,
   productName,
+  proPlanIncludes,
+  proTrial,
   siteUrl,
   socialImage,
 } from "./site"
@@ -103,7 +104,7 @@ export const limitations = [
   "Bots don't remember everything automatically. They keep the notes you ask them to save.",
   "A task can stop early when you reach your usage allowance or step limit, or when a provider is down.",
   "The approval check on the computer is a model reading the screen. It reduces risk; it can't remove it.",
-  `The free plan is for trying ${brandName}: ${freePlanIncludes}.`,
+  `The free plan includes ${freePlanIncludes}. Group chats, handoffs between Bots and hours of computer time need Pro.`,
 ] as const
 
 /** How Krafty differs from the tools people compare it with. No competitor claims. */
@@ -123,7 +124,8 @@ export const usd = (millionths: number) => millionths / 1_000_000
 /** Pricing as plain sentences, for llms.txt and answers. */
 export const pricingFacts = [
   `Free: ${freePlanIncludes}.`,
-  `Pro: $20 per month for up to ${planLimits.paid.bots} bots, unlimited connected apps, a $${usd(planLimits.paid.ai)} AI allowance, and ${planLimits.paid.sandbox / 3600} hours of cloud computer time each billing period.`,
+  `Pro: $20 per month for ${proPlanIncludes}.`,
+  `Pro starts with a ${proTrial}. A card is needed to start it, and you aren't charged if you cancel before the trial ends.`,
   "People who sign in with their ChatGPT plan can run their Bots' model calls on that plan instead of the AI allowance.",
 ] as const
 

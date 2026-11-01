@@ -50,6 +50,7 @@ import {
   type ForYouContext,
 } from "@/lib/generate-for-you"
 import { postChatMessage } from "@/lib/chat-dispatch"
+import { planLimits } from "@/lib/billing-policy"
 import { getUserSettings } from "@/lib/memory"
 import { anthropicAllowed } from "@/lib/ai-consent-store"
 import { chatModelCost, followUpModel } from "@/lib/model"
@@ -337,9 +338,9 @@ async function runScan({ userId, has }: Caller, now: Date) {
   const usage = await getUsage(userId)
   if (!has({ feature: "bots" }) || usage.remaining.ai < FOR_YOU_MODEL_BUDGET)
     return { reason: "usage" as const }
-  const eligible = (usage.tier === "free" ? owned.slice(0, 1) : owned).filter(
-    (bot) => bot.setupComplete
-  )
+  const eligible = (
+    usage.tier === "free" ? owned.slice(0, planLimits.free.bots) : owned
+  ).filter((bot) => bot.setupComplete)
   if (!eligible.length) return { reason: "no-bots" as const }
 
   const scanId = randomUUID()

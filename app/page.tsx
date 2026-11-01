@@ -33,6 +33,7 @@ import { loadFeatureVotes } from "@/queries/feature-votes"
 import {
   brandName,
   freePlanIncludes,
+  proTrial,
   siteDescription,
   socialImage,
 } from "@/lib/marketing/site"
@@ -181,10 +182,10 @@ export default async function LandingPage() {
             <LandingPricing />
           </div>
           <p className={styles.pricingNote}>
-            Start free with {freePlanIncludes}. Hours of computer time need Pro.
-            Founding offer: the first 50 new Pro subscribers can use code{" "}
-            <strong>FOUNDING50</strong> to pay $8/month instead of $20 for as
-            long as they stay on Pro.{" "}
+            Start free with {freePlanIncludes}. Try Pro with a {proTrial}
+            for hours of computer time. Founding offer: the first 50 new Pro
+            subscribers can use code <strong>FOUNDING50</strong> to pay $8/month
+            instead of $20 for as long as they stay on Pro.{" "}
             <Link href={appHref("/usage")} prefetch={false}>
               View your usage <ArrowUpRightIcon size={13} className="inline" />
             </Link>

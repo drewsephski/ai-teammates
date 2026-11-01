@@ -12,7 +12,11 @@ import {
   type GroupChatInsert,
 } from "@/db/schema"
 import { withSandboxLock } from "@/lib/sandbox-lock"
-import { assertBotCapacity, FREE_BOT_LIMIT_ERROR } from "@/lib/billing-policy"
+import {
+  assertBotCapacity,
+  FREE_BOT_LIMIT_ERROR,
+  planLimits,
+} from "@/lib/billing-policy"
 import { getAccountPlan, getUsage } from "@/lib/usage"
 import { isChatGPTSelected } from "@/lib/chatgpt-connection"
 import { canUseAI } from "@/lib/chatgpt-policy"
@@ -33,14 +37,19 @@ export async function assertTeamAccess(userId: string, computer = false) {
   }
 }
 
+// On the free plan only the account's oldest bots work, up to the plan's
+// count, so bots kept from a lapsed Pro plan wait until it's renewed.
 export async function assertBotAccess(userId: string, botId: string) {
   const plan = await getAccountPlan(userId)
   if (plan.tier === "paid") return
-  const bot = await db.query.bots.findFirst({
-    where: eq(bots.userId, userId),
-    orderBy: [asc(bots.createdAt), asc(bots.id)],
-  })
-  if (!bot || bot.id !== botId) throw new Error(FREE_BOT_LIMIT_ERROR)
+  const usable = await db
+    .select({ id: bots.id })
+    .from(bots)
+    .where(eq(bots.userId, userId))
+    .orderBy(asc(bots.createdAt), asc(bots.id))
+    .limit(planLimits.free.bots)
+  if (!usable.some((bot) => bot.id === botId))
+    throw new Error(FREE_BOT_LIMIT_ERROR)
 }
 
 // Used by authenticated actions and durable agent tools; never imports Next.js.

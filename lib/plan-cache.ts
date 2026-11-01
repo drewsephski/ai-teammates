@@ -1,4 +1,4 @@
-import { planLimits, type PlanTier } from "@/lib/billing-policy"
+import { freePeriod, planLimits, type PlanTier } from "@/lib/billing-policy"
 
 // A plan read from Clerk is trusted for a minute. When Clerk fails, the last
 // good read keeps working for six hours so a provider outage neither stops
@@ -19,10 +19,15 @@ export type CachedPlan = {
   checkedAt: Date
 }
 
-export function planFromCache(row: CachedPlan): AccountPlan {
+// The free period is the calendar month, so it comes from the clock: a row
+// cached on the 31st still counts usage from the 1st of the new month.
+export function planFromCache(row: CachedPlan, now = Date.now()): AccountPlan {
   return {
     tier: row.tier,
-    period: { start: row.periodStart, end: row.periodEnd },
+    period:
+      row.tier === "free"
+        ? freePeriod(now)
+        : { start: row.periodStart, end: row.periodEnd },
     limits: planLimits[row.tier],
   } as AccountPlan
 }
@@ -57,14 +62,14 @@ export async function resolvePlan(options: {
   onStale?: (error: unknown) => void
 }): Promise<AccountPlan> {
   const age = cachedPlanAge(options.cached, options.now)
-  if (age === "fresh") return planFromCache(options.cached!)
+  if (age === "fresh") return planFromCache(options.cached!, options.now)
   let plan: AccountPlan
   try {
     plan = await options.fetch()
   } catch (error) {
     if (age === "stale") {
       options.onStale?.(error)
-      return planFromCache(options.cached!)
+      return planFromCache(options.cached!, options.now)
     }
     throw error
   }

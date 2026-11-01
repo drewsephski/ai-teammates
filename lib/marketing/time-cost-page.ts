@@ -1,4 +1,4 @@
-import { planLimits } from "@/lib/billing-policy"
+import { planCount, planLimits, PRO_TRIAL_DAYS } from "@/lib/billing-policy"
 import { WORK_WEEKS_PER_YEAR } from "@/lib/time-cost"
 
 import type { MarketingPage } from "./seo-pages"
@@ -75,7 +75,7 @@ export const timeCostCalculatorPage: MarketingPage = {
     ],
     [
       "Can an AI agent take these tasks off my plate?",
-      `Some of them. An agent such as Krafty Bot can do repetitive work in your apps and on a schedule, while you still describe the job and approve anything it sends or changes. Krafty's free plan includes one Bot; Pro is $20 a month for up to ${planLimits.paid.bots} Bots.`,
+      `Some of them. An agent such as Krafty Bot can do repetitive work in your apps and on a schedule, while you still describe the job and approve anything it sends or changes. Krafty's free plan includes ${planCount(planLimits.free.bots, "Bot")}; Pro is $20 a month for up to ${planLimits.paid.bots} Bots, with a ${PRO_TRIAL_DAYS}-day free trial.`,
     ],
   ],
   related: [
