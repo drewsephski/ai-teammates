@@ -9,10 +9,7 @@ import {
   reviewTracker,
   spreadsheetIdFrom,
 } from "../lib/tracker-review"
-import {
-  pulseExpectations,
-  pulseTrackerValues,
-} from "./helpers/pulse-tracker"
+import { pulseExpectations, pulseTrackerValues } from "./helpers/pulse-tracker"
 
 const today = "2026-11-01"
 
@@ -94,7 +91,11 @@ test("serial, written and text dates parse to the same day", () => {
     "Wednesday, March 4th 2026",
     "4 March 2026",
   ])
-    assert.equal(parseTrackerDate(value, today)?.iso, "2026-03-04", String(value))
+    assert.equal(
+      parseTrackerDate(value, today)?.iso,
+      "2026-03-04",
+      String(value)
+    )
   assert.equal(parseTrackerDate("3/4/2026", today, "dmy")?.iso, "2026-04-03")
   assert.equal(parseTrackerDate("3/4/2026", today)?.ambiguous, true)
   assert.equal(parseTrackerDate("Nov 3", today)?.iso, "2026-11-03")
@@ -190,7 +191,14 @@ test("blocked comes from the status or a blocker column, not its negation", () =
 test("a person's column overrides win over header guesses", () => {
   const values = [
     ["Item", "Who", "State", "Target", "Promised", "Touched"],
-    ["A", "Bo", "Open", serial("2026-12-01"), serial("2026-10-01"), serial(today)],
+    [
+      "A",
+      "Bo",
+      "Open",
+      serial("2026-12-01"),
+      serial("2026-10-01"),
+      serial(today),
+    ],
   ]
   const guessed = reviewTracker(values, { today })
   assert.equal(guessed.columns.due?.column, "D")
@@ -201,9 +209,32 @@ test("a person's column overrides win over header guesses", () => {
   })
   assert.equal(told.columns.due?.header, "Promised")
   assert.equal(told.columns.updated?.column, "F")
-  assert.deepEqual(told.flagged.map((row) => row.flags), [["overdue"]])
+  assert.deepEqual(
+    told.flagged.map((row) => row.flags),
+    [["overdue"]]
+  )
   const missing = reviewTracker(values, { today, columns: { owner: "Lead" } })
   assert.ok(missing.unsure.some((line) => line.includes('"Lead"')))
+})
+
+test("a column letter that no longer fits its header is questioned", () => {
+  // A routine saved status = D; then someone inserted "Priority" before it
+  const values = [
+    ["#", "Task", "Owner", "Priority", "Status", "Due date"],
+    ["1", "A", "Bo", "High", "Blocked", serial("2026-12-01")],
+  ]
+  const review = reviewTracker(values, { today, columns: { status: "D" } })
+  assert.equal(review.columns.status?.column, "D")
+  assert.ok(
+    review.unsure.some((line) => line.includes('column E is headed "Status"')),
+    review.unsure.join("\n")
+  )
+  // A letter that matches its header raises no such question
+  assert.ok(
+    !reviewTracker(values, { today, columns: { status: "E" } }).unsure.some(
+      (line) => line.includes("may have moved")
+    )
+  )
 })
 
 test("headers like 'Updated by' and 'Status date' land in the right roles", () => {
@@ -288,12 +319,16 @@ test("A1 helpers", () => {
   assert.equal(quoteSheet("Bob's tasks"), "'Bob''s tasks'")
   const id = "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
   assert.equal(
-    spreadsheetIdFrom(`https://docs.google.com/spreadsheets/d/${id}/edit#gid=0`),
+    spreadsheetIdFrom(
+      `https://docs.google.com/spreadsheets/d/${id}/edit#gid=0`
+    ),
     id
   )
   assert.equal(spreadsheetIdFrom(id), id)
   assert.equal(
-    spreadsheetIdFrom("https://docs.google.com/spreadsheets/d/e/2PACX-1vT/pubhtml"),
+    spreadsheetIdFrom(
+      "https://docs.google.com/spreadsheets/d/e/2PACX-1vT/pubhtml"
+    ),
     undefined
   )
   assert.equal(spreadsheetIdFrom("My project tracker"), undefined)

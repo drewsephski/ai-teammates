@@ -319,6 +319,37 @@ test("a late run goes ahead inside its grace window and is missed outside it", (
   assert.match(MISSED_RUN_ERROR, /^Missed while Krafty was unavailable$/)
 })
 
+test("a weekly report still runs hours late; a daily one doesn't", () => {
+  const dueAt = new Date("2026-11-02T15:00:00Z")
+  const after = (hours: number) => new Date(dueAt.getTime() + hours * 3_600_000)
+  // Krafty Pulse's "every Monday at 9" in Chicago
+  const weekly = {
+    schedule: { kind: "daily" as const, time: "09:00", days: [1] },
+    timezone: "America/Chicago",
+  }
+  assert.equal(planDueRun(weekly, dueAt, after(5)).action, "run")
+  assert.equal(planDueRun(weekly, dueAt, after(12)).action, "run")
+  assert.equal(planDueRun(weekly, dueAt, after(13)).action, "missed")
+  const hours = (ms: number) => ms / 3_600_000
+  assert.equal(
+    hours(missedRunGraceMs({ kind: "daily", time: "09:00", days: [1, 4] })),
+    12
+  )
+  // Saturday and Sunday are a day apart, so it's still a daily cadence
+  assert.equal(
+    hours(missedRunGraceMs({ kind: "daily", time: "09:00", days: [0, 6] })),
+    1
+  )
+  assert.equal(
+    hours(
+      missedRunGraceMs({ kind: "daily", time: "09:00", days: [1, 2, 3, 4, 5] })
+    ),
+    1
+  )
+  assert.equal(hours(missedRunGraceMs({ kind: "interval", hours: 168 })), 12)
+  assert.equal(hours(missedRunGraceMs({ kind: "interval", hours: 24 })), 1)
+})
+
 test("after downtime the next run is the first one in the future, counted from when it was due", () => {
   const dueAt = new Date("2026-10-16T12:00:00Z")
   const now = new Date("2026-10-16T15:20:00Z")

@@ -4,19 +4,30 @@
 // simulated approval card. Costs a few cents of model calls per run.
 //
 // Run: pnpm exec tsx --env-file=.env.local scripts/verify-pulse-agent.ts \
-//   [--anthropic] [--runs 2] [--scenario report|write|unknown|approved]
+//   [--anthropic] [--runs 2]
+//   [--scenario report|write|unknown|approved|schedule|expired|connect]
 import assert from "node:assert/strict"
 import { parseArgs } from "node:util"
 import { Composio } from "@composio/core"
-import { isStepCount, streamText, tool, type ModelMessage } from "ai"
-import { z } from "zod"
+import { isStepCount, streamText, type ModelMessage } from "ai"
 
 import { appToolRisk, approvalExecutedPrompt } from "../lib/approval-policy"
+import { createAppCatalogTools } from "../lib/app-catalog-tools"
+import { appIntent, appIntentInstructions } from "../lib/app-intent"
+import { createBotSetupTools } from "../lib/bot-setup-tools"
 import { botTemplateInstructions, findBotTemplate } from "../lib/bot-templates"
 import { buildChatInstructions } from "../lib/chat-instructions"
 import { createAppTools, type AppTool } from "../lib/connector-tools"
 import { chatModel, chatModelCost } from "../lib/model"
-import { routineClock, zonedParts } from "../lib/routine-policy"
+import {
+  describeSchedule,
+  nextRunAt,
+  routineClock,
+  routineRunPrompt,
+  zonedParts,
+} from "../lib/routine-policy"
+import { createRoutineTools } from "../lib/routine-tools"
+import type { PublicRoutine } from "../lib/routines"
 import { rangeOrigin } from "../lib/tracker-review"
 import {
   pulseExpectations,
@@ -31,7 +42,14 @@ const { values: flags } = parseArgs({
   },
 })
 const runs = Number(flags.runs)
-const scenario = flags.scenario as "report" | "write" | "unknown" | "approved"
+const scenario = flags.scenario as
+  | "report"
+  | "write"
+  | "unknown"
+  | "approved"
+  | "schedule"
+  | "expired"
+  | "connect"
 
 const timezone = "America/Chicago"
 const now = new Date()
@@ -68,7 +86,10 @@ const catalog: AppTool[] = definitions.map((d) => ({
   outputSchema: d.outputParameters,
 }))
 for (const slug of slugs)
-  assert.ok(catalog.some((t) => t.slug === slug), `Missing schema: ${slug}`)
+  assert.ok(
+    catalog.some((t) => t.slug === slug),
+    `Missing schema: ${slug}`
+  )
 
 const template = findBotTemplate("project-coordinator")
 assert.ok(template)
@@ -95,6 +116,42 @@ function mentionedRows(text: string) {
 function messagesFor(): ModelMessage[] {
   const brief = `${template!.prompt} The tracker is ${sheetUrl}`
   if (scenario === "report") return [{ role: "user", content: brief }]
+  // A new Pulse bot's first reply after its opening, before any app is
+  // connected: the person answers with just the link
+  if (scenario === "connect")
+    return [
+      {
+        role: "assistant",
+        content:
+          "On the first run I'll read your project tracker in Google Sheets, confirm which columns hold the task, owner, status, due date and last update, then list what's overdue, blocked or quiet for five days with draft follow-ups and a short summary. You'll need to connect Google Sheets. Anything to change before I start?",
+      },
+      { role: "user", content: `Sounds good, here's the tracker: ${sheetUrl}` },
+    ]
+  // A weekly run, posted the way run-routines posts it, after the person's
+  // Google connection lapsed
+  if (scenario === "expired")
+    return [
+      {
+        role: "user",
+        content: routineRunPrompt({
+          title: "Weekly tracker check",
+          prompt: `Review the project tracker ${sheetUrl} (tab Projects) with reviewTracker. List overdue, blocked and stale (5+ days) tasks with row numbers and owners, draft a follow-up for each owner, and write a five-line status summary. Don't change the sheet or send anything.`,
+        }),
+      },
+    ]
+  if (scenario === "schedule")
+    return [
+      { role: "user", content: brief },
+      {
+        role: "assistant",
+        content:
+          "Here's this week's report for the Projects tab: 9 tasks flagged (rows 5, 6, 7, 8, 9, 12, 16, 33 and 41), follow-ups drafted for Marcus, Lena, Tom, Priya and Sam, and a five-line summary. Want me to run this every week?",
+      },
+      {
+        role: "user",
+        content: "Yes, this looks right. Do it every Monday at 9am.",
+      },
+    ]
   const report: ModelMessage[] = [
     { role: "user", content: brief },
     {
@@ -173,9 +230,10 @@ for (let run = 1; run <= runs; run++) {
   const tools = createAppTools(
     "evaluation-user",
     {
-      accounts: async () => [
-        { id: "evaluation-account", toolkit: "googlesheets" },
-      ],
+      accounts: async () =>
+        scenario === "connect"
+          ? []
+          : [{ id: "evaluation-account", toolkit: "googlesheets" }],
       search: async () => ({
         tools: catalog,
         guidance: {
@@ -187,6 +245,12 @@ for (let run = 1; run <= runs; run++) {
       schema: async (slug) => catalog.find((entry) => entry.slug === slug),
       execute: async (_user, slug, input) => {
         calls.push({ slug, input })
+        if (scenario === "expired")
+          return {
+            resultType: "failed",
+            error: "invalid_grant: Token has been expired or revoked.",
+            data: { status_code: 401 },
+          }
         if (/UPDATE|APPEND|REPLACE/.test(slug)) {
           write(slug, input)
           if (scenario === "unknown")
@@ -227,7 +291,10 @@ for (let run = 1; run <= runs; run++) {
                             properties: {
                               sheetId: 0,
                               title: "Projects",
-                              gridProperties: { rowCount: 1000, columnCount: 26 },
+                              gridProperties: {
+                                rowCount: 1000,
+                                columnCount: 26,
+                              },
                             },
                           },
                         ],
@@ -249,26 +316,87 @@ for (let run = 1; run <= runs; run++) {
     },
     { timeZone: async () => timezone, now: () => now }
   )
-  const askUser = tool({
-    description:
-      "Ask the person a question and wait for the answer. Ends your reply.",
-    inputSchema: z.object({
-      question: z.string(),
-      options: z.array(z.string()).optional(),
-    }),
-    execute: async () => ({ status: "asked" }),
-  })
+  // Krafty's own askUser, with a catalog that says Google Sheets needs a
+  // reconnect (lib/bot-setup-tools.ts)
+  const { askUser } = createBotSetupTools(
+    async () => assert.fail("a Pulse run never saves a profile"),
+    {
+      computerAvailable: false,
+      prepareAppConnection: async (app) => ({
+        name: app.name,
+        logo: null,
+        state: "connect",
+        ...(scenario === "expired" && { reconnect: true }),
+      }),
+    }
+  )
+  const scheduled: { prompt: string; schedule: unknown }[] = []
+  const routineTools = createRoutineTools(
+    {
+      timezone: async () => timezone,
+      list: async () => [],
+      create: async (input) => {
+        scheduled.push({ prompt: input.prompt, schedule: input.schedule })
+        return {
+          id: "routine_eval",
+          botId: bot.id,
+          chatId: "chat_eval",
+          title: input.title,
+          prompt: input.prompt,
+          schedule: input.schedule,
+          timezone: input.timezone,
+          enabled: true,
+          nextRunAt: nextRunAt(input.schedule, input.timezone, now),
+          lastRunAt: null,
+          lastStatus: null,
+          lastError: null,
+          createdAt: now,
+          updatedAt: now,
+          description: describeSchedule(input.schedule, input.timezone),
+        } as unknown as PublicRoutine
+      },
+      update: async () => assert.fail("no routine to update"),
+      remove: async () => {},
+    },
+    { now: () => now }
+  )
+  const { findApps } = createAppCatalogTools(async () => ({
+    configured: true,
+    apps: [
+      {
+        toolkit: "googlesheets",
+        name: "Google Sheets",
+        connected: scenario !== "connect",
+        connectable: true,
+      } as never,
+    ],
+  }))
+  const catalogTools = { findApps }
   const messages = messagesFor()
+  // What trigger/chat.ts adds for the latest message (lib/app-intent.ts)
+  const lastText = messages.at(-1)?.content
+  const connection =
+    typeof lastText === "string"
+      ? appIntentInstructions(
+          appIntent(lastText),
+          new Set(scenario === "connect" ? [] : ["googlesheets"])
+        )
+      : undefined
   const model = chatModel(messages, { anthropic: flags.anthropic })
   let cost = 0
   const result = streamText({
     model,
-    system: buildChatInstructions(bot, undefined, true, false, false, undefined, {
-      paid: false,
-      clock: routineClock(timezone, now),
-    }),
+    system: [
+      buildChatInstructions(bot, undefined, true, false, false, undefined, {
+        paid: false,
+        clock: routineClock(timezone, now),
+      }),
+      connection,
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
     messages,
-    tools: { ...tools, askUser },
+    tools: { ...tools, askUser, ...routineTools, ...catalogTools },
     stopWhen: [
       isStepCount(16),
       ({ steps }) =>
@@ -299,7 +427,27 @@ for (let run = 1; run <= runs; run++) {
     ),
     asked,
   }
-  if (scenario === "report") {
+  if (scenario === "connect") {
+    const first = steps.flatMap((step) => step.toolCalls).find(Boolean)
+    record.firstTool = first?.toolName
+    record.firstInput = first?.input
+    record.connectCard = JSON.stringify(first?.input ?? {}).includes(
+      "googlesheets"
+    )
+  } else if (scenario === "schedule") {
+    record.scheduled = scheduled
+    record.linkInPrompt = scheduled.some((r) => r.prompt.includes(sheetId))
+  } else if (scenario === "expired") {
+    record.askedReconnect = steps.some((step) =>
+      step.toolCalls.some(
+        (call) =>
+          call?.toolName === "askUser" &&
+          JSON.stringify(call.input).includes("googlesheets")
+      )
+    )
+    // A report from a sheet it couldn't read would cite rows
+    record.citedRows = [...mentionedRows(text)]
+  } else if (scenario === "report") {
     const rows = mentionedRows(text)
     const expected = pulseExpectations.map((e) => e.row)
     record.found = expected.filter((row) => rows.has(row))
@@ -309,7 +457,10 @@ for (let run = 1; run <= runs; run++) {
     const context = [4, 10, 18]
     record.extra = [...rows].filter(
       (row) =>
-        row >= 4 && row <= 42 && !expected.includes(row) && !context.includes(row)
+        row >= 4 &&
+        row <= 42 &&
+        !expected.includes(row) &&
+        !context.includes(row)
     )
   } else {
     const writes = [...held, ...calls].filter((c) =>
@@ -334,4 +485,6 @@ function usToday() {
 }
 
 const total = results.reduce((sum, r) => sum + (r.costUsd as number), 0)
-console.log(`\n${scenario}: ${runs} run(s), $${total.toFixed(4)} in model calls`)
+console.log(
+  `\n${scenario}: ${runs} run(s), $${total.toFixed(4)} in model calls`
+)

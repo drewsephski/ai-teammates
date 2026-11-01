@@ -31,6 +31,19 @@ test("a named service offers only that app", () => {
   ])
 })
 
+test("a pasted Google Sheets or Docs link offers that app once", () => {
+  const sheet =
+    "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit#gid=0"
+  assert.deepEqual(toolkits(`Sounds good, here's the tracker: ${sheet}`), [
+    "googlesheets",
+  ])
+  assert.deepEqual(toolkits(`Use my Google Sheet ${sheet}`), ["googlesheets"])
+  assert.deepEqual(
+    toolkits("notes are in https://docs.google.com/document/d/abc123/edit"),
+    ["googledocs"]
+  )
+})
+
 test("calendar and spreadsheet requests offer their common apps", () => {
   for (const text of [
     "what's on my calendar tomorrow",

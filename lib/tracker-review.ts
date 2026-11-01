@@ -139,17 +139,20 @@ export function columnLetter(index: number) {
 }
 
 function columnIndex(letters: string) {
-  return [...letters.toUpperCase()].reduce(
-    (sum, char) => sum * 26 + char.charCodeAt(0) - 64,
-    0
-  ) - 1
+  return (
+    [...letters.toUpperCase()].reduce(
+      (sum, char) => sum * 26 + char.charCodeAt(0) - 64,
+      0
+    ) - 1
+  )
 }
 
 /** Sheet name and top-left cell of an A1 range such as `'My Sheet'!B3:F40`. */
 export function rangeOrigin(range: string | undefined) {
-  const match = /^(?:(?:'((?:[^']|'')+)'|([^!]+))!)?\$?([A-Za-z]{1,3})?\$?(\d+)?/.exec(
-    range ?? ""
-  )
+  const match =
+    /^(?:(?:'((?:[^']|'')+)'|([^!]+))!)?\$?([A-Za-z]{1,3})?\$?(\d+)?/.exec(
+      range ?? ""
+    )
   return {
     sheet: match?.[1]?.replace(/''/g, "'") ?? match?.[2] ?? undefined,
     column: match?.[3] ? columnIndex(match[3]) : 0,
@@ -222,8 +225,7 @@ function nearestYear(month: number, day: number, today: string) {
     .map((y) => isoOf(y, month, day))
     .filter((iso): iso is string => !!iso)
   return candidates.sort(
-    (a, b) =>
-      Math.abs(daysBetween(today, a)) - Math.abs(daysBetween(today, b))
+    (a, b) => Math.abs(daysBetween(today, a)) - Math.abs(daysBetween(today, b))
   )[0]
 }
 
@@ -242,7 +244,9 @@ export function parseTrackerDate(
   if (typeof value === "number") {
     if (!Number.isFinite(value) || value < 20_000 || value > 80_000)
       return undefined
-    const date = new Date(Date.UTC(1899, 11, 30) + Math.floor(value) * 86_400_000)
+    const date = new Date(
+      Date.UTC(1899, 11, 30) + Math.floor(value) * 86_400_000
+    )
     return { iso: date.toISOString().slice(0, 10) }
   }
   if (typeof value !== "string") return undefined
@@ -257,7 +261,8 @@ export function parseTrackerDate(
   if (match) {
     const a = Number(match[1])
     const b = Number(match[2])
-    const year = match[3].length === 2 ? 2000 + Number(match[3]) : Number(match[3])
+    const year =
+      match[3].length === 2 ? 2000 + Number(match[3]) : Number(match[3])
     const dayFirst = a > 12 || (b <= 12 && order === "dmy")
     const iso = dayFirst ? isoOf(year, b, a) : isoOf(year, a, b)
     return iso ? { iso, ambiguous: a <= 12 && b <= 12 && a !== b } : undefined
@@ -308,7 +313,8 @@ const DONE =
 const BLOCKED =
   /\b(?:blocked|blocker|on hold|hold|stuck|waiting|awaiting|paused|escalated|halted|stalled|needs (?:help|input|decision|approval|review))\b/i
 const NOT_BLOCKED = /\b(?:not|no longer|un)[ -]?blocked\b|\bno blockers?\b/i
-const EMPTY_BLOCKER = /^(?:no|none|nope|n\/a|na|-+|—|false|0|nothing|no blockers?)$/i
+const EMPTY_BLOCKER =
+  /^(?:no|none|nope|n\/a|na|-+|—|false|0|nothing|no blockers?)$/i
 
 const text = (value: unknown) =>
   value === undefined || value === null ? "" : String(value).trim()
@@ -384,10 +390,16 @@ export type TrackerReview = {
 
 function findHeader(values: unknown[][]) {
   let best: { index: number; roles: number } | undefined
-  for (let index = 0; index < Math.min(values.length, HEADER_SCAN_ROWS); index++) {
+  for (
+    let index = 0;
+    index < Math.min(values.length, HEADER_SCAN_ROWS);
+    index++
+  ) {
     const cells = values[index] ?? []
     const roles = trackerRoles.filter((role) =>
-      cells.some((cell) => typeof cell === "string" && headerScore(role, cell) > 0)
+      cells.some(
+        (cell) => typeof cell === "string" && headerScore(role, cell) > 0
+      )
     ).length
     if (roles >= 2 && (!best || roles > best.roles)) best = { index, roles }
   }
@@ -447,6 +459,18 @@ function applyOverrides(
     if (/^[A-Za-z]{1,3}$/.test(wanted)) {
       const index = columnIndex(wanted) - startColumn
       if (index >= 0) {
+        // A letter saved in a routine goes stale when someone inserts a
+        // column: say so when another column's header fits the role and this
+        // one's doesn't
+        const guessed = assignment[role]
+        if (
+          guessed !== undefined &&
+          guessed !== index &&
+          headerScore(role, text(header[index])) === 0
+        )
+          unsure.push(
+            `Column ${wanted.toUpperCase()} ("${text(header[index])}") was given for ${role}, but column ${columnLetter(startColumn + guessed)} is headed "${text(header[guessed])}". Columns may have moved; ask which is right.`
+          )
         assignment[role] = index
         continue
       }
@@ -512,7 +536,13 @@ export function reviewTracker(
   }
   const header = grid[headerIndex] ?? []
   const assignment = assignColumns(header, unsure)
-  applyOverrides(options.columns ?? {}, header, origin.column, assignment, unsure)
+  applyOverrides(
+    options.columns ?? {},
+    header,
+    origin.column,
+    assignment,
+    unsure
+  )
 
   const rowNumber = (index: number) => origin.row + index
   const letter = (index: number) => columnLetter(origin.column + index)
@@ -553,7 +583,10 @@ export function reviewTracker(
     unsure.push(
       "No status column was found, so blocked and finished tasks can't be told apart. Ask which column holds the status."
     )
-  if (assignment.due === undefined && !unsure.some((u) => u.includes("overdue")))
+  if (
+    assignment.due === undefined &&
+    !unsure.some((u) => u.includes("overdue"))
+  )
     unsure.push(
       "No due date column was found, so overdue tasks can't be judged. Ask which column holds due dates."
     )
@@ -607,7 +640,8 @@ export function reviewTracker(
           reasons.push(
             `overdue by ${late} day${late === 1 ? "" : "s"} (due ${due.iso})`
           )
-        } else if (late === 0) review.dueToday.push({ row: rowNumber(index), task: short(task) })
+        } else if (late === 0)
+          review.dueToday.push({ row: rowNumber(index), task: short(task) })
       } else if (text(dueValue)) {
         review.unreadableDates.push({
           cell: cell("due", index)!,
@@ -646,7 +680,9 @@ export function reviewTracker(
     flagged.push({
       row: rowNumber(index),
       task: short(task),
-      ...(text(at(row, "owner")) && { owner: short(text(at(row, "owner")), 60) }),
+      ...(text(at(row, "owner")) && {
+        owner: short(text(at(row, "owner")), 60),
+      }),
       ...(status && { status: short(status, 60) }),
       ...(due && { due: due.iso }),
       ...(updated && { lastUpdate: updated.iso }),
@@ -674,7 +710,9 @@ export function reviewTracker(
         .map((row, offset) => ({ row, index: headerIndex + 1 + offset }))
         .filter(({ row }) => {
           const name = words(text(at(row, "task")))
-          return !!needle && !!name && (name === needle || name.includes(needle))
+          return (
+            !!needle && !!name && (name === needle || name.includes(needle))
+          )
         })
         .slice(0, 5)
         .map(({ row, index }) => ({

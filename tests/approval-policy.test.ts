@@ -42,7 +42,10 @@ test("unknown actions wait, and provider tags win over the name", () => {
 
 test("Composio's update and create hints are writes whatever the slug says", () => {
   // Live tags from the Composio catalog, 2026-11-01
-  assert.equal(appToolRisk("GOOGLESHEETS_FIND_REPLACE", ["updateHint"]), "write")
+  assert.equal(
+    appToolRisk("GOOGLESHEETS_FIND_REPLACE", ["updateHint"]),
+    "write"
+  )
   assert.equal(
     appToolRisk("GOOGLECALENDAR_CALENDAR_LIST_PATCH", [
       "updateHint",
@@ -81,7 +84,10 @@ test("Google Sheets edits can be always allowed; clearing and replacing can't", 
   for (const [slug, tags] of [
     ["GOOGLESHEETS_VALUES_UPDATE", ["updateHint", "idempotentHint"]],
     ["GOOGLESHEETS_UPDATE_VALUES_BATCH", ["openWorldHint", "updateHint"]],
-    ["GOOGLESHEETS_BATCH_UPDATE", ["openWorldHint", "updateHint", "createHint"]],
+    [
+      "GOOGLESHEETS_BATCH_UPDATE",
+      ["openWorldHint", "updateHint", "createHint"],
+    ],
     ["GOOGLESHEETS_SPREADSHEETS_VALUES_APPEND", ["updateHint", "createHint"]],
   ] as const) {
     assert.equal(appToolRisk(slug, tags), "write", slug)
@@ -103,7 +109,11 @@ test("Google Sheets edits can be always allowed; clearing and replacing can't", 
   assert.equal(
     approvalRuleApplies(
       { toolSlug: "GOOGLESHEETS_FIND_REPLACE", accountId: "ca_1" },
-      { slug: "GOOGLESHEETS_FIND_REPLACE", accountId: "ca_1", tags: ["updateHint"] }
+      {
+        slug: "GOOGLESHEETS_FIND_REPLACE",
+        accountId: "ca_1",
+        tags: ["updateHint"],
+      }
     ),
     false
   )

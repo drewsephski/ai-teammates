@@ -7,10 +7,7 @@ import {
   type ApprovalGate,
   type ConnectorRuntime,
 } from "../lib/connector-tools"
-import {
-  pulseExpectations,
-  pulseTrackerValues,
-} from "./helpers/pulse-tracker"
+import { pulseExpectations, pulseTrackerValues } from "./helpers/pulse-tracker"
 
 const options = { toolCallId: "call", messages: [], context: {} }
 const sheetId = "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
@@ -184,8 +181,33 @@ test("a failed read is a plain failure, never an unknown outcome", async () => {
   )
   const missing = await review(rejected, { spreadsheet: sheetId })
   assert.equal(missing.status, "failed")
+  assert.equal(missing.code, "READ_FAILED")
+  assert.equal(missing.error, "Requested entity was not found.")
   assert.match(String(missing.message), /share it/)
   assert.equal(missing.flagged, undefined)
+})
+
+test("an expired Google connection asks for a reconnect card, not a retry", async () => {
+  // Its own user: an expired account is remembered for the worker's life
+  const tools = createAppTools(
+    "expired-user",
+    sheetsRuntime({
+      execute: async () => ({
+        resultType: "failed",
+        error: "invalid_grant: Token has been expired or revoked.",
+        data: { status_code: 401 },
+      }),
+    })
+  )
+  const expired = await review(tools, { spreadsheet: sheetId })
+  assert.equal(expired.status, "failed")
+  assert.equal(expired.code, "CONNECTION_EXPIRED")
+  assert.deepEqual(expired.reconnect, { toolkit: "googlesheets" })
+  assert.match(String(expired.message), /askUser with appConnection/)
+  assert.doesNotMatch(String(expired.message), /Retry/)
+  // Later reviews in the same turn stop before calling Google again
+  const again = await review(tools, { spreadsheet: sheetId })
+  assert.equal(again.code, "CONNECTION_EXPIRED")
 })
 
 test("find returns a task's row and cells for an exact write", async () => {

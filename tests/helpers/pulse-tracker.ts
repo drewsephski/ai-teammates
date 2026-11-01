@@ -21,22 +21,106 @@ type Row = {
 
 // Day offsets from today: negative is in the past
 const tasks: Row[] = [
-  { task: "Finalize sitemap", owner: "Priya", status: "Done", due: -10, updated: -9 },
-  { task: "Homepage copy", owner: "Marcus", status: "In progress", due: -3, updated: -2 },
-  { task: "Brand photography", owner: "Lena", status: "Blocked", due: 5, updated: -1 },
-  { task: "CMS migration", owner: "Tom", status: "In progress", due: 10, updated: -8 },
-  { task: "Legal review of terms", owner: "Priya", status: "Waiting on legal", due: 2, updated: -3 },
-  { task: "Analytics setup", owner: "Marcus", status: "Not started", due: 14, updated: -6 },
-  { task: "Accessibility audit", owner: "Lena", status: "In progress", due: 0, updated: -1 },
+  {
+    task: "Finalize sitemap",
+    owner: "Priya",
+    status: "Done",
+    due: -10,
+    updated: -9,
+  },
+  {
+    task: "Homepage copy",
+    owner: "Marcus",
+    status: "In progress",
+    due: -3,
+    updated: -2,
+  },
+  {
+    task: "Brand photography",
+    owner: "Lena",
+    status: "Blocked",
+    due: 5,
+    updated: -1,
+  },
+  {
+    task: "CMS migration",
+    owner: "Tom",
+    status: "In progress",
+    due: 10,
+    updated: -8,
+  },
+  {
+    task: "Legal review of terms",
+    owner: "Priya",
+    status: "Waiting on legal",
+    due: 2,
+    updated: -3,
+  },
+  {
+    task: "Analytics setup",
+    owner: "Marcus",
+    status: "Not started",
+    due: 14,
+    updated: -6,
+  },
+  {
+    task: "Accessibility audit",
+    owner: "Lena",
+    status: "In progress",
+    due: 0,
+    updated: -1,
+  },
 ]
 const afterGap: Row[] = [
-  { task: "Redirect map", owner: "Tom", status: "In progress", due: -1, updated: -1 },
-  { task: "QA pass", owner: "Sam", status: "Not started", due: 20, updated: -2 },
-  { task: "Launch email", owner: "Priya", status: "Draft", due: 7, updated: -4 },
-  { task: "Press kit", owner: "Lena", status: "Complete", due: -20, updated: -15 },
-  { task: "Pricing page", owner: "Marcus", status: "On hold", due: -2, updated: -12 },
-  { task: "Image compression", owner: "Sam", status: "In progress", due: 3, updated: -4 },
-  { task: "Domain DNS cutover", owner: "Tom", status: "Scheduled", due: "TBD", updated: -1 },
+  {
+    task: "Redirect map",
+    owner: "Tom",
+    status: "In progress",
+    due: -1,
+    updated: -1,
+  },
+  {
+    task: "QA pass",
+    owner: "Sam",
+    status: "Not started",
+    due: 20,
+    updated: -2,
+  },
+  {
+    task: "Launch email",
+    owner: "Priya",
+    status: "Draft",
+    due: 7,
+    updated: -4,
+  },
+  {
+    task: "Press kit",
+    owner: "Lena",
+    status: "Complete",
+    due: -20,
+    updated: -15,
+  },
+  {
+    task: "Pricing page",
+    owner: "Marcus",
+    status: "On hold",
+    due: -2,
+    updated: -12,
+  },
+  {
+    task: "Image compression",
+    owner: "Sam",
+    status: "In progress",
+    due: 3,
+    updated: -4,
+  },
+  {
+    task: "Domain DNS cutover",
+    owner: "Tom",
+    status: "Scheduled",
+    due: "TBD",
+    updated: -1,
+  },
 ]
 const fillerNames = [
   "Footer links",
@@ -79,8 +163,20 @@ filler.splice(33 - 19, 0, {
   updated: -2,
 })
 const tail: Row[] = [
-  { task: "Old browser support", owner: "Tom", status: "In progress", due: 9, updated: -11 },
-  { task: "Print stylesheet", owner: "Lena", status: "Cancelled", due: -4, updated: -30 },
+  {
+    task: "Old browser support",
+    owner: "Tom",
+    status: "In progress",
+    due: 9,
+    updated: -11,
+  },
+  {
+    task: "Print stylesheet",
+    owner: "Lena",
+    status: "Cancelled",
+    due: -4,
+    updated: -30,
+  },
 ]
 
 export const pulseTrackerHeader = [

@@ -317,8 +317,7 @@ function sheetValues(data: unknown) {
   const record =
     data && typeof data === "object" ? (data as Record<string, unknown>) : {}
   const ranges = (record.valueRanges ?? record.value_ranges) as
-    | { range?: unknown; values?: unknown }[]
-    | undefined
+    { range?: unknown; values?: unknown }[] | undefined
   const first = Array.isArray(ranges) ? ranges[0] : record
   const values = first?.values
   return {
@@ -665,7 +664,7 @@ export function createAppTools(
           )
           .optional()
           .describe(
-            "Columns the person named, by header text or letter, when the guess was wrong or unsure"
+            "Only columns the person named because the guess was wrong or unsure. Prefer the header text: letters shift when someone inserts a column."
           ),
         staleDays: z
           .number()
@@ -705,6 +704,26 @@ export function createAppTools(
         const account = chosen.account
         const zone = (await options.timeZone?.()) || undefined
         const today = localDate(zone ?? "UTC", options.now?.() ?? new Date())
+        // A reconnect or permission problem keeps its own instructions (a
+        // card for the person); anything else is a read that changed nothing
+        const readFailed = (fields: Record<string, unknown>) =>
+          boundedResult(
+            fields.reconnect
+              ? { ...fields, status: "failed" }
+              : {
+                  status: "failed",
+                  code: "READ_FAILED",
+                  toolkit: TRACKER_TOOLKIT,
+                  ...(typeof fields.error === "string" && {
+                    error: fields.error.slice(0, 300),
+                  }),
+                  ...(typeof fields.logId === "string" && {
+                    logId: fields.logId,
+                  }),
+                  message:
+                    "Reading the sheet failed; nothing was changed. Check the link and the tab name. If the sheet isn't shared with the connected Google account, ask the person to share it or to reconnect with the account that can open it. Retry at most once.",
+                }
+          )
         let result: unknown
         try {
           result = await runtime.execute(
@@ -722,15 +741,9 @@ export function createAppTools(
           )
         } catch (error) {
           abortSignal?.throwIfAborted()
-          const outcome = thrownOutcome(userId, TRACKER_TOOLKIT, account.id, error)
-          // A read changes nothing, so an unknown outcome is just a failure
-          return boundedResult({
-            ...outcome,
-            status: "failed",
-            message:
-              "Reading the sheet failed; nothing was changed. Retry once, then tell the person what went wrong. " +
-              (typeof outcome.message === "string" ? outcome.message : ""),
-          })
+          return readFailed(
+            thrownOutcome(userId, TRACKER_TOOLKIT, account.id, error)
+          )
         }
         const described = describeResult(
           userId,
@@ -738,13 +751,7 @@ export function createAppTools(
           account.id,
           result
         )
-        if (!described.ok)
-          return boundedResult({
-            ...described.value,
-            status: "failed",
-            message:
-              "Reading the sheet failed; nothing was changed. Check the link and tab name; if the sheet isn't shared with the connected Google account, ask the person to share it or reconnect with the account that owns it.",
-          })
+        if (!described.ok) return readFailed(described.value)
         const { range, values } = sheetValues(
           (result as Record<string, unknown>).data
         )
