@@ -32,6 +32,7 @@ export const appSegments: ReadonlySet<string> = new Set([
   "download",
   "forgot-password",
   "grokbot-alternatives",
+  "help",
   "how-it-works",
   "llms-full.txt",
   "llms.txt",

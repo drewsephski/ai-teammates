@@ -1,6 +1,7 @@
 import Link from "next/link"
 
 import { useCases } from "@/app/use-cases/use-cases-data"
+import { helpIndex, helpTopicPath, helpTopics } from "@/lib/marketing/help"
 import { guidePages } from "@/lib/marketing/seo-pages"
 import { brandName } from "@/lib/marketing/site"
 import styles from "./page-chrome.module.css"
@@ -31,6 +32,15 @@ export function PageFooter({ className }: { className?: string }) {
         {useCases.map((useCase) => (
           <Link key={useCase.id} href={`/use-cases/${useCase.id}`}>
             {useCase.name}
+          </Link>
+        ))}
+      </nav>
+      <nav aria-label="Help" className={styles.footerColumn}>
+        <p className={styles.footerHeading}>Help</p>
+        <Link href={helpIndex.path}>{helpIndex.h1}</Link>
+        {helpTopics.map((topic) => (
+          <Link key={topic.slug} href={helpTopicPath(topic.slug)}>
+            {topic.h1}
           </Link>
         ))}
       </nav>

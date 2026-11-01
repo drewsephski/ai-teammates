@@ -7,6 +7,14 @@ import { useCases } from "@/app/use-cases/use-cases-data"
 import { faqs } from "@/components/landing/bot/faq-data"
 import { planLimits } from "@/lib/billing-policy"
 import { definition, pageMetadata } from "@/lib/marketing/content"
+import {
+  findHelpTopic,
+  helpIndex,
+  helpTopicPath,
+  helpTopics,
+} from "@/lib/marketing/help"
+import { MISSED_RUN_ERROR } from "@/lib/routine-policy"
+import { supportEmail } from "@/lib/marketing/site"
 import { marketingSeoPages } from "@/lib/marketing/seo-pages"
 import { homeJsonLd } from "@/lib/marketing/json-ld"
 import { llmsFullTxt, llmsTxt } from "@/lib/marketing/llms"
@@ -176,6 +184,55 @@ describe("public pages for search and AI answers", () => {
       markdownForPath("/how-it-works/"),
       markdownForPath("/how-it-works")
     )
+  })
+
+  it("lists every help page in the sitemap, llms.txt and Markdown", () => {
+    const urls = sitemap().map((entry) => entry.url)
+    const index = llmsTxt()
+    const full = llmsFullTxt()
+    for (const path of [
+      helpIndex.path,
+      ...helpTopics.map((topic) => helpTopicPath(topic.slug)),
+    ]) {
+      const url = `https://kraftybot.app${path}`
+      assert.ok(urls.includes(url), url)
+      assert.ok(index.includes(url), url)
+      assert.ok(markdownForPath(path)?.includes(supportEmail), path)
+    }
+    for (const topic of helpTopics) {
+      assert.ok(full.includes(`### ${topic.h1}`), topic.slug)
+    }
+  })
+
+  it("keeps every help page complete and within snippet limits", () => {
+    const slugs = new Set<string>()
+    for (const topic of helpTopics) {
+      assert.ok(!slugs.has(topic.slug), topic.slug)
+      slugs.add(topic.slug)
+      assert.ok(topic.title.length <= 51, `${topic.slug} title`)
+      assert.ok(
+        topic.description.length >= 110 && topic.description.length <= 158,
+        `${topic.slug} description ${topic.description.length}`
+      )
+      assert.ok(topic.summary.length <= 130, `${topic.slug} summary`)
+      assert.ok(topic.sections.length >= 3, `${topic.slug} sections`)
+      assert.ok(topic.faqs.length >= 2, `${topic.slug} faqs`)
+      for (const slug of topic.related) {
+        assert.ok(findHelpTopic(slug), `${topic.slug} links to ${slug}`)
+        assert.notEqual(slug, topic.slug, `${topic.slug} links to itself`)
+      }
+      const ids = topic.sections.map((section) => section.id)
+      assert.equal(new Set(ids).size, ids.length, topic.slug)
+    }
+    assert.ok(
+      helpIndex.description.length >= 110 && helpIndex.description.length <= 158
+    )
+  })
+
+  it("says missed routine runs are skipped and never replayed", () => {
+    const routines = markdownForPath("/help/routines") ?? ""
+    assert.match(routines, /never replayed/)
+    assert.ok(routines.includes(MISSED_RUN_ERROR))
   })
 
   it("lists both plans and their limits in pricing.md", () => {

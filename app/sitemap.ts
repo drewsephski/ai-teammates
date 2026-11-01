@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next"
 
 import { useCases } from "@/app/use-cases/use-cases-data"
+import { helpIndex, helpTopicPath, helpTopics } from "@/lib/marketing/help"
 import { marketingSeoPages } from "@/lib/marketing/seo-pages"
 import { marketingUpdated, siteUrl } from "@/lib/marketing/site"
 
@@ -27,6 +28,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       path: `/use-cases/${useCase.id}`,
       lastModified: marketingUpdated,
       priority: 0.7,
+    })),
+    { path: helpIndex.path, lastModified: marketingUpdated, priority: 0.6 },
+    ...helpTopics.map((topic) => ({
+      path: helpTopicPath(topic.slug),
+      lastModified: marketingUpdated,
+      priority: 0.5,
     })),
     { path: "/download", lastModified: marketingUpdated, priority: 0.5 },
     { path: "/privacy", lastModified: legalUpdated.privacy, priority: 0.3 },

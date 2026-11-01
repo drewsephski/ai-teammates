@@ -9,10 +9,13 @@ import {
   MIN_INTERVAL_HOURS,
   MISSED_RUN_ERROR,
   ROUTINE_LIMITS,
-  STOPPED_RUN_ERROR,
   missedRunGraceMs,
 } from "@/lib/routine-policy"
-import { IDLE_TIMEOUT_MS, SESSION_LIMIT_MS } from "@/lib/sandbox-policy"
+import {
+  COMPUTERS_BUSY_ERROR,
+  IDLE_TIMEOUT_MS,
+  SESSION_LIMIT_MS,
+} from "@/lib/sandbox-policy"
 import { formatBudget, LOOP_STEP_LIMIT, TASK_BUDGETS } from "@/lib/turn-spend"
 import { LOW_USAGE_RATIO } from "@/lib/usage-notice"
 
@@ -82,7 +85,9 @@ const onceGrace = hours(
 const dailyGrace = hours(
   missedRunGraceMs({ kind: "daily", time: "09:00", days: [1] })
 )
-const longIntervalGrace = hours(missedRunGraceMs({ kind: "interval", hours: 24 }))
+const longIntervalGrace = hours(
+  missedRunGraceMs({ kind: "interval", hours: 24 })
+)
 const hourlyGraceMinutes = minutes(
   missedRunGraceMs({ kind: "interval", hours: MIN_INTERVAL_HOURS })
 )
@@ -152,7 +157,7 @@ export const helpTopics: readonly HelpTopic[] = [
           "The sidebar also lists your conversations, with pinned Bots above them.",
           "Memory shows what your Bots remember about you, and lets you edit or delete it.",
           "Usage shows how much of your AI allowance and computer time is left. Plans & billing is where you upgrade.",
-          "The account menu at the bottom of the sidebar has Manage account, the theme switch, Usage, Sign out and Delete account.",
+          "The account menu at the bottom of the sidebar has Manage account, the theme switch, Usage, Help, Send feedback, Sign out and Delete account.",
         ],
       },
       {
@@ -162,13 +167,15 @@ export const helpTopics: readonly HelpTopic[] = [
           "Right-click a Bot in the sidebar to Pin it, Edit it or Delete it. Pinned Bots stay above your conversation list. You can also open a Bot's settings from the button with its name in the chat header.",
           `Settings cover its appearance (shape and color), its name, its job, its working instructions, and a spend limit per task.`,
         ],
-        links: [{ label: "Bots and group chats", href: helpTopicPath("teammates") }],
+        links: [
+          { label: "Bots and group chats", href: helpTopicPath("teammates") },
+        ],
       },
       {
         id: "phone",
         title: "On your phone",
         body: [
-          `The ${brandName} phone app shows the same Bots and chats. It's also where notifications arrive: approvals, questions from your Bots, finished routines, and an optional morning summary. Get the app page has what's available for your device.`,
+          `The ${brandName} phone app shows the same Bots and chats. It's also where notifications arrive: approvals, questions from your Bots, finished routines, and an optional morning summary. The Get the app page lists what's available for your device.`,
         ],
         links: [{ label: "Get the app", href: "/download" }],
       },
@@ -297,8 +304,8 @@ export const helpTopics: readonly HelpTopic[] = [
         id: "about-you",
         title: "About you",
         body: [
-          "At the top of the Memory page, About you holds your role, working hours, how you like answers, your timezone and anything else you want every Bot to know from the start, without asking.",
-          "Set your timezone here. Bots use it to read times like \"tomorrow afternoon\", and the morning summary needs it.",
+          "On the Memory page, About you holds your role, working hours, how you like answers, your timezone and anything else you want every Bot to know from the start, without asking.",
+          'Set your timezone here. Bots use it to read times like "tomorrow afternoon", and the morning summary needs it.',
         ],
       },
       {
@@ -316,7 +323,12 @@ export const helpTopics: readonly HelpTopic[] = [
         body: [
           "Memory refuses notes that look like passwords, API keys, tokens or card numbers. To give a Bot an API key, use the private key card instead.",
         ],
-        links: [{ label: "API keys", href: `${helpTopicPath("connected-apps")}#api-keys` }],
+        links: [
+          {
+            label: "API keys",
+            href: `${helpTopicPath("connected-apps")}#api-keys`,
+          },
+        ],
       },
       {
         id: "limits",
@@ -346,7 +358,7 @@ export const helpTopics: readonly HelpTopic[] = [
     summary:
       "Connect and disconnect apps, what Bots can do in them, and how to give a Bot an API key.",
     h1: "Connected apps",
-    lead: "Bots work in your apps, such as Gmail, Google Sheets, Slack and Notion, through accounts you connect yourself. Reading needs no approval. Anything that would change something in an app waits for you.",
+    lead: "Bots work in your apps, such as Gmail, Google Sheets, Slack and Notion, through accounts you connect yourself. Reading needs no approval. Writing to an app waits for your approval, unless you've chosen to always allow that action.",
     sections: [
       {
         id: "connect",
@@ -355,7 +367,9 @@ export const helpTopics: readonly HelpTopic[] = [
           "The first time a task needs an app, the Bot shows a card in the chat. Select it and sign in on the app's own page; you never give the Bot your password. You can also connect apps ahead of time from Workspace, under Connected apps: choose Connect apps and search the catalog.",
           "Websites without a connection can still be used in the computer's browser, where you sign in yourself when the Bot asks.",
         ],
-        links: [{ label: "The cloud computer", href: helpTopicPath("computer") }],
+        links: [
+          { label: "The cloud computer", href: helpTopicPath("computer") },
+        ],
       },
       {
         id: "what-bots-do",
@@ -436,10 +450,15 @@ export const helpTopics: readonly HelpTopic[] = [
         id: "pause",
         title: "Pausing and computer time",
         body: [
-          `The computer pauses after ${minutes(IDLE_TIMEOUT_MS)} minutes without use and resumes when a Bot needs it, with its files and sign-ins intact. A single session runs for at most ${minutes(SESSION_LIMIT_MS)} minutes; then it pauses and picks up again on the next use.`,
+          `The computer pauses ${minutes(IDLE_TIMEOUT_MS)} minutes after its last use, and on the free plan as soon as a Bot's task ends. It resumes when a Bot needs it, with its files and sign-ins intact. While Desktop is open, it keeps running. A single session runs for at most ${minutes(SESSION_LIMIT_MS)} minutes; then it pauses and picks up again on the next use.`,
           `Computer time counts only while the computer is running. The free plan includes ${freeComputerMinutes} minutes, once. Pro includes ${paidHours} hours each billing period. When your time runs out, the computer pauses until it renews or you upgrade.`,
         ],
-        links: [{ label: "Billing and usage", href: helpTopicPath("billing-and-usage") }],
+        links: [
+          {
+            label: "Billing and usage",
+            href: helpTopicPath("billing-and-usage"),
+          },
+        ],
       },
       {
         id: "reset",
@@ -473,7 +492,11 @@ export const helpTopics: readonly HelpTopic[] = [
       ],
       [
         "Can I use the computer myself?",
-        "Yes, through Desktop. That's how you sign in to sites for your Bots. Time it spends running counts toward your computer time, whoever is using it.",
+        "Yes, through Desktop. That's how you sign in to sites for your Bots. Time it spends running counts toward your computer time, whoever is using it, so close Desktop when you're done.",
+      ],
+      [
+        'What does "Computers are busy right now" mean?',
+        `${brandName} can start and run only so many computers at once across all accounts. When that limit is reached you see "${COMPUTERS_BUSY_ERROR}" Your computer and its files are unaffected.`,
       ],
     ],
     related: ["approvals", "connected-apps", "billing-and-usage"],
@@ -505,7 +528,7 @@ export const helpTopics: readonly HelpTopic[] = [
         id: "create",
         title: "Create a routine",
         body: [
-          "The easiest way is to ask the Bot in its chat, for example: \"Every weekday at 8:00, check my inbox for invoices and list them here.\" It saves the routine and tells you when the first run is. One-off routines and routines started by an app are made this way.",
+          'The easiest way is to ask the Bot in its chat, for example: "Every weekday at 8:00, check my inbox for invoices and list them here." It saves the routine and tells you when the first run is. One-off routines and routines started by an app are made this way.',
           "You can also open Activity and select New routine under Routines. Pick the Bot, name the routine, write what it should do each time, choose At a set time or Every few hours, and set the timezone.",
           `The free plan includes ${ROUTINE_LIMITS.free} routine. Pro allows up to ${ROUTINE_LIMITS.paid}.`,
         ],
@@ -526,7 +549,7 @@ export const helpTopics: readonly HelpTopic[] = [
           "The run appears in the routine's chat with the routine's name. The Bot works on its own and finishes with a short report.",
           "If it needs you, it asks a question and you're notified. If it wants to change something in a connected app, that waits for your approval like any other request.",
           "Each run shows a status: Running, Done, Waiting for you, Didn't finish or Skipped.",
-          `A run that stops partway, for example when the service fails, is marked Didn't finish with "${STOPPED_RUN_ERROR}" and you're notified.`,
+          "A run that stops partway, for example when the service fails, is marked Didn't finish, and you're notified.",
           "Runs use your AI allowance and computer time like any other task, and the Bot's spend limit per task applies. A run that reaches the limit shows as waiting for you.",
         ],
       },
@@ -545,7 +568,12 @@ export const helpTopics: readonly HelpTopic[] = [
         body: [
           "A run is also skipped, and you get a notification with the reason, when the Bot isn't available on your current plan or your AI allowance is used up.",
         ],
-        links: [{ label: "Billing and usage", href: helpTopicPath("billing-and-usage") }],
+        links: [
+          {
+            label: "Billing and usage",
+            href: helpTopicPath("billing-and-usage"),
+          },
+        ],
       },
       {
         id: "morning-summary",
@@ -575,11 +603,11 @@ export const helpTopics: readonly HelpTopic[] = [
     slug: "approvals",
     title: "Approvals and always-allow rules",
     description:
-      "What waits for your approval in Krafty, where to approve or decline, how always-allow rules work, how computer steps are checked, and what approvals can't catch.",
+      "What waits for your approval in Krafty, where to approve or decline, how always-allow rules and computer checks work, and what approvals can't catch.",
     summary:
       "What waits for you, how to approve or decline, always-allow rules, and computer approvals.",
     h1: "Approvals",
-    lead: "Bots read your apps freely, but anything that would change something outside Krafty waits for you. Only your own decision approves an action; nothing in a web page, email or document can.",
+    lead: "Bots read your apps freely. Writes to your connected apps, and steps on the computer that would commit something, wait for you. Only your own decision approves an action; nothing in a web page, email or document can.",
     sections: [
       {
         id: "what-waits",
@@ -672,7 +700,9 @@ export const helpTopics: readonly HelpTopic[] = [
         bullets: publicPlans.map(
           (plan) =>
             `${plan.name} (${plan.price === 0 ? "$0" : `$${plan.price} a ${plan.period}`}): ${plan.features
-              .map((feature) => feature.charAt(0).toLowerCase() + feature.slice(1))
+              .map(
+                (feature) => feature.charAt(0).toLowerCase() + feature.slice(1)
+              )
               .join("; ")}.`
         ),
         body: [
@@ -693,7 +723,9 @@ export const helpTopics: readonly HelpTopic[] = [
         body: [
           `Computer time counts while your cloud computer is running, whichever Bot is using it. The free plan includes ${freeComputerMinutes} minutes, once; Pro includes ${paidHours} hours each billing period. When it runs out, the computer pauses. Computer time isn't part of a reply's cost or the spend limit per task.`,
         ],
-        links: [{ label: "The cloud computer", href: helpTopicPath("computer") }],
+        links: [
+          { label: "The cloud computer", href: helpTopicPath("computer") },
+        ],
       },
       {
         id: "spend-limit",
@@ -765,7 +797,7 @@ export const helpTopics: readonly HelpTopic[] = [
         steps: [
           "On the web, open the account menu at the bottom of the sidebar and choose Delete account. In the phone app, open Account and choose Delete account.",
           "Check that you're signed in to the account you mean to delete.",
-          "Confirm. If cancelling your subscription fails, nothing is deleted and you can try again. If a later step fails, ask again and deletion picks up where it stopped.",
+          "Confirm. If canceling your subscription fails, nothing is deleted and you can try again. If a later step fails, ask again and deletion picks up where it stopped.",
         ],
         body: [
           "The delete account page works without the app: sign in there and confirm.",
@@ -776,7 +808,7 @@ export const helpTopics: readonly HelpTopic[] = [
         id: "removed",
         title: "What deletion removes",
         bullets: [
-          "Your subscription, cancelled before anything else is removed.",
+          "Your subscription, canceled before anything else is removed.",
           "Your Bots, chats and group chats, with their conversation history.",
           "Your memories and About you, routines, approvals and always-allow rules, activity, API keys and settings.",
           "Your cloud computer, with its files and browser sign-ins.",
