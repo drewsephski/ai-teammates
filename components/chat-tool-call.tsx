@@ -52,6 +52,7 @@ import {
   ShieldAlertIcon,
   ShieldCheckIcon,
   KeyRoundIcon,
+  SheetIcon,
 } from "lucide-react"
 
 type ToolPart = Extract<
@@ -138,6 +139,11 @@ const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
     "Using connected app",
     "App tool finished",
   ],
+  "tool-reviewTracker": [
+    "Review tracker",
+    "Reviewing tracker",
+    "Reviewed tracker",
+  ],
   "tool-runApprovedAction": [
     "Run approved action",
     "Running approved action",
@@ -208,6 +214,7 @@ const toolIcons: Record<ToolPart["type"], LucideIcon> = {
   "tool-searchAppTools": FolderSearchIcon,
   "tool-getAppToolSchema": FileTextIcon,
   "tool-executeAppTool": ArrowDownUpIcon,
+  "tool-reviewTracker": SheetIcon,
   "tool-runApprovedAction": ShieldCheckIcon,
   "tool-requestComputerApproval": ShieldAlertIcon,
   "tool-scheduleRoutine": CalendarClockIcon,
@@ -414,6 +421,8 @@ function toolSummary(part: ToolPart): string | undefined {
       return preview(part.input?.summary ?? part.input?.slug)
     case "tool-getAppToolSchema":
       return preview(part.input?.slug)
+    case "tool-reviewTracker":
+      return preview(part.input?.sheet)
     case "tool-runApprovedAction":
       return undefined
     case "tool-requestComputerApproval":

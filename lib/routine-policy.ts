@@ -405,17 +405,35 @@ export function reportedRoutineStatus(
   }
 }
 
+// The fewest days between two runs of a daily schedule: 7 for one weekday
+function shortestGapDays(days: readonly number[]) {
+  const sorted = [...new Set(days)].sort((a, b) => a - b)
+  if (sorted.length < 2) return 7
+  return Math.min(
+    ...sorted.map((day, index) =>
+      index === 0 ? day + 7 - sorted.at(-1)! : day - sorted[index - 1]
+    )
+  )
+}
+
+// A run this many hours or more apart is still worth doing later the same day
+const SPARSE_GRACE_MS = 12 * 3_600_000
+
 // How late a run may start and still be worth doing. A morning brief at nine
 // is no use at noon, an hourly check an hour late is the next one anyway, and
-// a one-off reminder is better late than never.
+// a one-off reminder is better late than never. A weekly status report is
+// still wanted that afternoon, and skipping it costs the person a whole week,
+// so schedules that run two or more days apart wait longer.
 export function missedRunGraceMs(schedule: RoutineSchedule) {
   switch (schedule.kind) {
     case "once":
       return 6 * 3_600_000
     case "daily":
-      return 3_600_000
+      return shortestGapDays(schedule.days) >= 2 ? SPARSE_GRACE_MS : 3_600_000
     case "interval":
-      return Math.min(3_600_000, schedule.hours * 1_800_000)
+      return schedule.hours >= 48
+        ? SPARSE_GRACE_MS
+        : Math.min(3_600_000, schedule.hours * 1_800_000)
     // Never due on a clock, so never missed
     case "event":
       return 0

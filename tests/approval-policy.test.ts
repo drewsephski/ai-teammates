@@ -40,6 +40,85 @@ test("unknown actions wait, and provider tags win over the name", () => {
   )
 })
 
+test("Composio's update and create hints are writes whatever the slug says", () => {
+  // Live tags from the Composio catalog, 2026-11-01
+  assert.equal(
+    appToolRisk("GOOGLESHEETS_FIND_REPLACE", ["updateHint"]),
+    "write"
+  )
+  assert.equal(
+    appToolRisk("GOOGLECALENDAR_CALENDAR_LIST_PATCH", [
+      "updateHint",
+      "idempotentHint",
+      "openWorldHint",
+    ]),
+    "write"
+  )
+  assert.equal(
+    appToolRisk("GOOGLECALENDAR_CALENDAR_LIST_INSERT", [
+      "openWorldHint",
+      "idempotentHint",
+      "createHint",
+    ]),
+    "write"
+  )
+  assert.equal(
+    appToolRisk("GOOGLESHEETS_BATCH_GET", ["openWorldHint", "readOnlyHint"]),
+    "read"
+  )
+  assert.equal(
+    appToolRisk("GOOGLESHEETS_AGGREGATE_COLUMN_DATA", [
+      "openWorldHint",
+      "readOnlyHint",
+    ]),
+    "read"
+  )
+  // Without tags (a failed lookup, or a standing-rule check), find and
+  // replace is still a write
+  assert.equal(appToolRisk("GOOGLESHEETS_FIND_REPLACE"), "write")
+  assert.equal(appToolRisk("GOOGLEDOCS_FIND_AND_REPLACE_TEXT"), "write")
+  assert.equal(appToolRisk("GOOGLESHEETS_LOOKUP_SPREADSHEET_ROW"), "read")
+})
+
+test("Google Sheets edits can be always allowed; clearing and replacing can't", () => {
+  for (const [slug, tags] of [
+    ["GOOGLESHEETS_VALUES_UPDATE", ["updateHint", "idempotentHint"]],
+    ["GOOGLESHEETS_UPDATE_VALUES_BATCH", ["openWorldHint", "updateHint"]],
+    [
+      "GOOGLESHEETS_BATCH_UPDATE",
+      ["openWorldHint", "updateHint", "createHint"],
+    ],
+    ["GOOGLESHEETS_SPREADSHEETS_VALUES_APPEND", ["updateHint", "createHint"]],
+  ] as const) {
+    assert.equal(appToolRisk(slug, tags), "write", slug)
+    assert.equal(appToolHighRisk(slug, tags), false, slug)
+  }
+  for (const [slug, tags] of [
+    ["GOOGLESHEETS_FIND_REPLACE", ["updateHint"]],
+    ["GOOGLESHEETS_CLEAR_VALUES", ["destructiveHint", "updateHint"]],
+    ["GOOGLESHEETS_SPREADSHEETS_VALUES_BATCH_CLEAR", ["destructiveHint"]],
+    ["GOOGLESHEETS_DELETE_DIMENSION", ["destructiveHint"]],
+    ["GOOGLESHEETS_EXECUTE_SQL", ["destructiveHint", "updateHint"]],
+    ["GOOGLESHEETS_UPSERT_ROWS", ["createHint", "updateHint"]],
+  ] as const)
+    assert.equal(appToolHighRisk(slug, tags), true, slug)
+  assert.equal(
+    standingRuleAllowed({ kind: "app", toolSlug: "GOOGLESHEETS_FIND_REPLACE" }),
+    false
+  )
+  assert.equal(
+    approvalRuleApplies(
+      { toolSlug: "GOOGLESHEETS_FIND_REPLACE", accountId: "ca_1" },
+      {
+        slug: "GOOGLESHEETS_FIND_REPLACE",
+        accountId: "ca_1",
+        tags: ["updateHint"],
+      }
+    ),
+    false
+  )
+})
+
 test("approval prompts name the request and never carry its arguments", () => {
   const approve = approvalDecisionPrompt(
     { id: "apr_1", summary: "Email Sam" },

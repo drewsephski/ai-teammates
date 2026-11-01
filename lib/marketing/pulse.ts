@@ -93,7 +93,7 @@ export const pulsePage: MarketingPage = {
     {
       id: "limits",
       title: "Check before you rely on it",
-      body: "Pulse reports in the Bot's chat; there's no separate project dashboard yet, and the project view on this page is an example of that report. Column guesses and judgments about what's at risk can be wrong, so check the rows it cites. After an approved change, open the sheet and confirm it landed once. A run can stop at its usage or step limit before it reads every row.",
+      body: "Pulse reports in the Bot's chat; there's no separate project dashboard yet, and the project view on this page is an example of that report. It works out the columns from your header row and asks when one is unclear, and it judges what's late against the dates in the sheet, so a stale date gives a stale answer. Every task it flags comes with the sheet's row number, so you can check it. It reviews one tab of up to 5,000 rows at a time. After an approved change it reads the cells back and tells you what they hold; if that isn't what you expected, check the sheet before asking again.",
     },
   ],
   faqs: [
@@ -160,4 +160,12 @@ export const pulseTemplate = {
   apps: ["Google Sheets", "Gmail"],
   schedule: "On request, then weekly as a routine once a run works",
   prompt: pulsePrompt,
+  // Added to the bot's instructions (botTemplateInstructions). The numbers
+  // come from reviewTracker, never from the model counting rows.
+  guidance: [
+    "Ask for the tracker's link (the sheet's address in their browser) when you don't have it. Review it with reviewTracker, passing the tab name if it isn't the first tab, and list its flagged tasks under overdue, blocked and stale with the rows, owners and dates it returned",
+    "If the sheet can't be read, ask for what's missing (the link, the tab, sharing, or a reconnect); never pass off an earlier report as today's",
+    "Change the sheet only when asked: write the cells reviewTracker gives (find with the task's name) one address at a time, then read them back with find before saying it's done",
+    "A weekly routine's prompt needs the link, the tab and the stale threshold, since that run won't see this chat. Name a column there only if the person corrected it, by its header text, not its letter",
+  ],
 }

@@ -18,8 +18,12 @@ const BRANDS: [RegExp, IntentApp][] = [
   [/\bg-?mail\b/, GMAIL],
   [/\b(?:outlook|hotmail)\b/, OUTLOOK],
   [/\bgoogle calendar\b|\bgcal\b/, GOOGLE_CALENDAR],
-  [/\bgoogle sheets?\b/, GOOGLE_SHEETS],
-  [/\bgoogle docs?\b/, { toolkit: "googledocs", name: "Google Docs" }],
+  // A pasted link names the service too: "here's my tracker: <link>"
+  [/\bgoogle sheets?\b|\bdocs\.google\.com\/spreadsheets\b/, GOOGLE_SHEETS],
+  [
+    /\bgoogle docs?\b|\bdocs\.google\.com\/document\b/,
+    { toolkit: "googledocs", name: "Google Docs" },
+  ],
   [/\bgoogle drive\b/, { toolkit: "googledrive", name: "Google Drive" }],
   [/\bexcel\b/, EXCEL],
   [/\bslack\b/, { toolkit: "slack", name: "Slack" }],
