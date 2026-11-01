@@ -408,35 +408,18 @@ function findHeader(values: unknown[][]) {
 
 type Assignment = Partial<Record<TrackerRole, number>>
 
-// Each column serves one role; the strongest header match claims it first
-function assignColumns(header: unknown[], unsure: string[]) {
-  const candidates: { role: TrackerRole; index: number; score: number }[] = []
-  for (const role of trackerRoles)
-    header.forEach((cell, index) => {
-      const score = typeof cell === "string" ? headerScore(role, cell) : 0
-      if (score > 0) candidates.push({ role, index, score })
-    })
-  candidates.sort((a, b) => b.score - a.score)
+// Never choose between plausible columns on the person's behalf.
+function assignColumns(header: unknown[]) {
   const assignment: Assignment = {}
-  const used = new Set<number>()
-  for (const candidate of candidates) {
-    if (assignment[candidate.role] !== undefined || used.has(candidate.index))
-      continue
-    const rival = candidates.find(
-      (other) =>
-        other.role === candidate.role &&
-        other.index !== candidate.index &&
-        other.score === candidate.score &&
-        !used.has(other.index)
+  const ambiguous = new Set<TrackerRole>()
+  for (const role of trackerRoles) {
+    const candidates = header.flatMap((cell, index) =>
+      typeof cell === "string" && headerScore(role, cell) > 0 ? [index] : []
     )
-    if (rival)
-      unsure.push(
-        `Two columns could be the ${candidate.role} column: "${text(header[candidate.index])}" and "${text(header[rival.index])}". The first one was used; ask which is right.`
-      )
-    assignment[candidate.role] = candidate.index
-    used.add(candidate.index)
+    if (candidates.length === 1) assignment[role] = candidates[0]
+    else if (candidates.length > 1) ambiguous.add(role)
   }
-  return assignment
+  return { assignment, ambiguous }
 }
 
 function applyOverrides(
@@ -444,40 +427,53 @@ function applyOverrides(
   header: unknown[],
   startColumn: number,
   assignment: Assignment,
+  ambiguous: Set<TrackerRole>,
   unsure: string[]
 ) {
   for (const role of trackerRoles) {
     const wanted = overrides[role]?.trim()
     if (!wanted) continue
-    const byHeader = header.findIndex(
-      (cell) => typeof cell === "string" && words(cell) === words(wanted)
+    // An invalid saved override must not fall back to a fresh guess.
+    delete assignment[role]
+    const matches = header.flatMap((cell, index) =>
+      typeof cell === "string" && words(cell) === words(wanted) ? [index] : []
     )
-    if (byHeader >= 0) {
-      assignment[role] = byHeader
+    if (matches.length === 1) {
+      assignment[role] = matches[0]
+      ambiguous.delete(role)
       continue
     }
-    if (/^[A-Za-z]{1,3}$/.test(wanted)) {
+    if (!matches.length && /^[A-Za-z]{1,3}$/.test(wanted)) {
       const index = columnIndex(wanted) - startColumn
-      if (index >= 0) {
-        // A letter saved in a routine goes stale when someone inserts a
-        // column: say so when another column's header fits the role and this
-        // one's doesn't
-        const guessed = assignment[role]
-        if (
-          guessed !== undefined &&
-          guessed !== index &&
-          headerScore(role, text(header[index])) === 0
-        )
-          unsure.push(
-            `Column ${wanted.toUpperCase()} ("${text(header[index])}") was given for ${role}, but column ${columnLetter(startColumn + guessed)} is headed "${text(header[guessed])}". Columns may have moved; ask which is right.`
-          )
+      if (
+        index >= 0 &&
+        index < header.length &&
+        headerScore(role, text(header[index])) > 0
+      ) {
         assignment[role] = index
+        ambiguous.delete(role)
         continue
       }
     }
     unsure.push(
-      `There's no column "${wanted}" for ${role}. Ask which column holds it.`
+      `Column "${wanted}" for ${role} is missing, ambiguous, or no longer fits its header. Columns may have moved; ask the person to confirm the current header or letter.`
     )
+  }
+  for (const role of ambiguous)
+    unsure.push(
+      `Several columns could hold ${role}. Ask which current header or letter to use.`
+    )
+  for (const role of trackerRoles) {
+    const index = assignment[role]
+    if (
+      index !== undefined &&
+      trackerRoles.some(
+        (other) => other !== role && assignment[other] === index
+      )
+    )
+      unsure.push(
+        `Column ${columnLetter(startColumn + index)} was assigned to several roles. Ask for separate columns.`
+      )
   }
 }
 
@@ -535,14 +531,17 @@ export function reviewTracker(
     return empty
   }
   const header = grid[headerIndex] ?? []
-  const assignment = assignColumns(header, unsure)
+  const { assignment, ambiguous } = assignColumns(header)
   applyOverrides(
     options.columns ?? {},
     header,
     origin.column,
     assignment,
+    ambiguous,
     unsure
   )
+  // No row identities, writable addresses or conclusions until confirmed.
+  if (unsure.length) return { ...empty, headerRow: origin.row + headerIndex }
 
   const rowNumber = (index: number) => origin.row + index
   const letter = (index: number) => columnLetter(origin.column + index)

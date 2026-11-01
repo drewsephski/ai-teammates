@@ -43,7 +43,10 @@ export function createSessionRuntime(
   userId: string,
   accounts: ConnectorRuntime["accounts"],
   createSession: SessionFactory,
-  options: { readOnly?: boolean } = {}
+  options: {
+    readOnly?: boolean
+    withTrackerWriteLock?: ConnectorRuntime["withTrackerWriteLock"]
+  } = {}
 ): ConnectorRuntime {
   const sessions = new Map<string, Promise<Session>>()
   function sessionFor(owned: AppAccount[], chosen?: AppAccount) {
@@ -63,6 +66,7 @@ export function createSessionRuntime(
     return session
   }
   return {
+    withTrackerWriteLock: options.withTrackerWriteLock,
     accounts,
     search: async (query, owned, signal) => {
       signal?.throwIfAborted()

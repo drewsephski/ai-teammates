@@ -1,3 +1,5 @@
+import { rangeOrigin } from "../../lib/tracker-review"
+
 // A realistic, slightly messy project tracker for Krafty Pulse checks: a title
 // row and a blank row above the header, a blank row inside the data, finished
 // and cancelled work that is past due, a "TBD" date, and flagged rows deep in
@@ -230,4 +232,124 @@ export function pulseTrackerValues(today: string) {
     ...filler.map(row),
     ...tail.map(row),
   ]
+}
+
+/** Deterministic sample-only provider. It honors requested ranges, including
+ * trailing blanks, instead of returning the whole sheet for every cell read. */
+export function samplePulseSheet(today: string) {
+  const values: unknown[][] = pulseTrackerValues(today).map((row) => [...row])
+  const spreadsheetId = "1PulseEvalTracker000000000000000000000000000"
+  let sheetId = 7
+  let title = "Projects"
+  const calls: { slug: string; input: Record<string, unknown> }[] = []
+  let writes = 0
+  const execute = async (slug: string, input: Record<string, unknown>) => {
+    calls.push({ slug, input })
+    if (input.spreadsheet_id !== spreadsheetId)
+      throw new Error("Sample spreadsheet only")
+    const envelope = (data: unknown) => ({
+      resultType: "completed",
+      error: null,
+      logId: "sample-only",
+      data,
+    })
+    if (slug === "GOOGLESHEETS_GET_SPREADSHEET_INFO")
+      return envelope({
+        spreadsheetId,
+        sheets: [
+          {
+            properties: {
+              sheetId,
+              title,
+              index: 0,
+              gridProperties: { rowCount: 1000, columnCount: 26 },
+            },
+          },
+        ],
+      })
+    if (
+      slug === "GOOGLESHEETS_BATCH_GET" ||
+      slug === "GOOGLESHEETS_VALUES_GET"
+    ) {
+      const ranges = (input.ranges as string[] | undefined) ?? [
+        String(input.range ?? `${title}!A1:Z1000`),
+      ]
+      const valueRanges = ranges.map((range) => {
+        const start = rangeOrigin(range)
+        if (start.sheet !== title) throw new Error("Wrong sample tab")
+        const end = rangeOrigin(range.split(":").at(-1)?.split("!").at(-1))
+        const rows = Array.from({ length: end.row - start.row + 1 }, (_, r) =>
+          Array.from(
+            { length: end.column - start.column + 1 },
+            (_, c) => values[start.row - 1 + r]?.[start.column + c] ?? ""
+          )
+        )
+        while (rows.length && rows.at(-1)!.every((v) => v === "")) rows.pop()
+        rows.forEach((row) => {
+          while (row.at(-1) === "") row.pop()
+        })
+        return { range, majorDimension: "ROWS", values: rows }
+      })
+      return envelope(
+        slug === "GOOGLESHEETS_VALUES_GET"
+          ? valueRanges[0]
+          : { spreadsheetId, valueRanges }
+      )
+    }
+    if (
+      slug === "GOOGLESHEETS_VALUES_UPDATE" ||
+      slug === "GOOGLESHEETS_UPDATE_VALUES_BATCH"
+    ) {
+      writes++
+      const ranges =
+        slug === "GOOGLESHEETS_UPDATE_VALUES_BATCH"
+          ? (input.data as { range: string; values: unknown[][] }[])
+          : [
+              {
+                range: String(input.range),
+                values: input.values as unknown[][],
+              },
+            ]
+      const responses = ranges.map((entry) => {
+        const start = rangeOrigin(entry.range)
+        if (start.sheet !== title) throw new Error("Wrong sample tab")
+        entry.values.forEach((row, r) =>
+          row.forEach((value, c) => {
+            values[start.row - 1 + r] ??= []
+            values[start.row - 1 + r][start.column + c] = value
+          })
+        )
+        return {
+          updatedRange: entry.range,
+          updatedCells: entry.values.reduce((sum, row) => sum + row.length, 0),
+        }
+      })
+      return envelope({
+        spreadsheetId,
+        ...(slug === "GOOGLESHEETS_UPDATE_VALUES_BATCH"
+          ? {
+              responses,
+              totalUpdatedCells: responses.reduce(
+                (sum, r) => sum + r.updatedCells,
+                0
+              ),
+            }
+          : responses[0]),
+      })
+    }
+    throw new Error(`Unsupported sample operation: ${slug}`)
+  }
+  return {
+    spreadsheetId,
+    values,
+    calls,
+    execute,
+    get writes() {
+      return writes
+    },
+    setTab: (id: number, name = title) => {
+      sheetId = id
+      title = name
+    },
+  }
 }

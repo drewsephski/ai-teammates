@@ -21,11 +21,21 @@ import {
 import { zonedParts } from "@/lib/routine-policy"
 import {
   DEFAULT_STALE_DAYS,
-  quoteSheet,
   reviewTracker as reviewTrackerValues,
   spreadsheetIdFrom,
   trackerRoles,
 } from "@/lib/tracker-review"
+
+import {
+  executeTrackerWrite,
+  prepareTrackerWrite,
+  readTrackerSheet,
+  TRACKER_PROOF_KEY,
+  TrackerReadError,
+  trackerWriteSlugs,
+  type TrackerSnapshot,
+} from "./tracker-sheets"
+export { TRACKER_READ_SLUG } from "./tracker-sheets"
 
 // `label` and `connectedAt` only help the person tell two accounts apart
 export type AppAccount = {
@@ -46,6 +56,10 @@ export type AppToolSearch = {
   guidance: unknown
 }
 export type ConnectorRuntime = {
+  withTrackerWriteLock?: <T>(
+    spreadsheetId: string,
+    operation: (assertHeld: () => void) => Promise<T>
+  ) => Promise<T>
   accounts: (userId: string) => Promise<AppAccount[]>
   search: (
     query: string,
@@ -106,7 +120,10 @@ type ClaimedCall = NonNullable<Awaited<ReturnType<ApprovalGate["claim"]>>>
 // the owner approves (lib/approvals.ts).
 export async function runClaimedCall(
   userId: string,
-  runtime: Pick<ConnectorRuntime, "accounts" | "execute">,
+  runtime: Pick<
+    ConnectorRuntime,
+    "accounts" | "execute" | "withTrackerWriteLock"
+  >,
   complete: ApprovalGate["complete"],
   approvalId: string,
   call: ClaimedCall,
@@ -127,13 +144,22 @@ export async function runClaimedCall(
       await complete(approvalId, { ok: false, result })
       return { ok: false, result }
     }
-    const result = await runtime.execute(
-      userId,
-      call.slug,
-      call.input,
-      account,
-      abortSignal
-    )
+    const result = trackerWriteSlugs.has(call.slug)
+      ? await executeTrackerWrite(
+          userId,
+          runtime,
+          call.slug,
+          call.input,
+          account,
+          abortSignal
+        )
+      : await runtime.execute(
+          userId,
+          call.slug,
+          call.input,
+          account,
+          abortSignal
+        )
     const described = describeResult(userId, call.toolkit, account.id, result)
     await complete(approvalId, {
       ok: described.ok,
@@ -257,7 +283,8 @@ function describeResult(
   accountId: string,
   result: unknown
 ) {
-  const { envelope, status } = executionStatus(result)
+  const { envelope, status: execution } = executionStatus(result)
+  const status = envelope.code === "OUTCOME_UNKNOWN" ? "unknown" : execution
   const fields =
     status === "succeeded"
       ? undefined
@@ -307,26 +334,7 @@ function thrownOutcome(
   }
 }
 
-// The read reviewTracker runs: the whole tab, unformatted, so real date cells
-// arrive as serial numbers whatever the sheet's locale
-export const TRACKER_READ_SLUG = "GOOGLESHEETS_BATCH_GET"
 const TRACKER_TOOLKIT = "googlesheets"
-
-// The values and A1 range of a Sheets read, in either of Composio's shapes
-function sheetValues(data: unknown) {
-  const record =
-    data && typeof data === "object" ? (data as Record<string, unknown>) : {}
-  const ranges = (record.valueRanges ?? record.value_ranges) as
-    { range?: unknown; values?: unknown }[] | undefined
-  const first = Array.isArray(ranges) ? ranges[0] : record
-  const values = first?.values
-  return {
-    range: typeof first?.range === "string" ? first.range : undefined,
-    values: Array.isArray(values)
-      ? values.map((row) => (Array.isArray(row) ? (row as unknown[]) : []))
-      : [],
-  }
-}
 
 function localDate(timeZone: string, now: Date) {
   const p = zonedParts(now, timeZone)
@@ -345,6 +353,10 @@ export function createAppTools(
   } = {}
 ) {
   // The accounts each schema was loaded under, so a replaced account is caught
+  const snapshots = new Map<string, TrackerSnapshot>()
+  const reviewedSheets = new Set<string>()
+  const attemptedSheets = new Set<string>()
+  const heldEdits = new Set<string>()
   const discovered = new Map<string, { tool: AppTool; accountIds: string[] }>()
   function remember(entry: AppTool, accounts: AppAccount[]) {
     const ids = accounts
@@ -547,6 +559,11 @@ export function createAppTools(
             "ACCOUNT_CHANGED",
             "The connected account changed. Reload the schema and verify the intended account before executing. This attempt did not run."
           )
+        if (TRACKER_PROOF_KEY in input)
+          return failure(
+            "INVALID_ARGUMENTS",
+            "Tracker preconditions are server-owned. Review the sheet again."
+          )
         let validation: z.ZodSafeParseResult<unknown>
         try {
           validation = z.fromJSONSchema(entry.inputSchema).safeParse(input)
@@ -568,6 +585,58 @@ export function createAppTools(
             }
           )
         abortSignal?.throwIfAborted()
+        let executionInput = input
+        const sheetWrite =
+          entry.toolkit === TRACKER_TOOLKIT && trackerWriteSlugs.has(slug)
+        const sheetKey = `${account.id}:${String(input.spreadsheet_id)}`
+        if (sheetWrite) {
+          if (slug !== "GOOGLESHEETS_UPDATE_VALUES_BATCH")
+            return failure(
+              "TRACKER_BATCH_REQUIRED",
+              "Prepare all requested tracker cell changes together with GOOGLESHEETS_UPDATE_VALUES_BATCH, RAW values and exact cell addresses. Nothing ran."
+            )
+          if (!gate)
+            return failure(
+              "APPROVALS_UNAVAILABLE",
+              "Spreadsheet edit review is unavailable. Nothing ran."
+            )
+          if (attemptedSheets.has(sheetKey))
+            return failure(
+              "WRITE_ALREADY_ATTEMPTED",
+              "A write was already attempted on this sheet this turn. Verify its state and ask the owner before trying again."
+            )
+          try {
+            const candidates = [...snapshots.values()].filter(
+              (snapshot) =>
+                snapshot.spreadsheetId === input.spreadsheet_id &&
+                snapshots.get(`${sheetKey}:${snapshot.sheet}`) === snapshot
+            )
+            const proofs = candidates.flatMap((snapshot) => {
+              try {
+                return [prepareTrackerWrite(slug, input, snapshot)]
+              } catch {
+                return []
+              }
+            })
+            if (proofs.length !== 1)
+              throw new Error(
+                "Review this tab with reviewTracker, confirm its mappings, and use exact mapped cells with RAW values (ISO dates). Nothing ran."
+              )
+            executionInput = { ...input, [TRACKER_PROOF_KEY]: proofs[0] }
+          } catch (error) {
+            return failure("TRACKER_REVIEW_REQUIRED", (error as Error).message)
+          }
+        } else if (
+          entry.toolkit === TRACKER_TOOLKIT &&
+          /APPEND|REPLACE|UPDATE|DELETE|CLEAR|BATCH/.test(slug) &&
+          !/GET|SEARCH|LIST/.test(slug) &&
+          reviewedSheets.has(sheetKey)
+        ) {
+          return failure(
+            "TRACKER_EDIT_UNSUPPORTED",
+            "For an existing tracker task use UPDATE_VALUES_BATCH with exact reviewed cells. Nothing ran."
+          )
+        }
         let email: Record<string, unknown> | undefined
         try {
           email = stageEmailDraft(entry, input, emailContext)
@@ -598,13 +667,22 @@ export function createAppTools(
           !toOwner &&
           (email || (await gate.required(entry, account.id)))
         ) {
+          const editKey = sheetWrite
+            ? JSON.stringify(executionInput)
+            : undefined
+          if (editKey && heldEdits.has(editKey))
+            return failure(
+              "APPROVAL_ALREADY_REQUESTED",
+              "This exact edit already has an approval card. Wait for the owner; nothing ran."
+            )
           const held = await gate.request({
             slug,
             toolkit: entry.toolkit,
             accountId: account.id,
-            input: email ?? input,
+            input: email ?? executionInput,
             summary,
           })
+          if (editKey) heldEdits.add(editKey)
           return boundedResult({
             status: "approval_required",
             approvalId: held.approvalId,
@@ -615,13 +693,17 @@ export function createAppTools(
           })
         }
         try {
-          const result = await runtime.execute(
-            userId,
-            slug,
-            input,
-            account,
-            abortSignal
-          )
+          if (sheetWrite) attemptedSheets.add(sheetKey)
+          const result = sheetWrite
+            ? await executeTrackerWrite(
+                userId,
+                runtime,
+                slug,
+                executionInput,
+                account,
+                abortSignal
+              )
+            : await runtime.execute(userId, slug, input, account, abortSignal)
           return boundedResult(
             describeResult(userId, entry.toolkit, account.id, result).value
           )
@@ -724,44 +806,54 @@ export function createAppTools(
                     "Reading the sheet failed; nothing was changed. Check the link and the tab name. If the sheet isn't shared with the connected Google account, ask the person to share it or to reconnect with the account that can open it. Retry at most once.",
                 }
           )
-        let result: unknown
+        // An unsuccessful re-review must invalidate any previous writable mapping.
+        reviewedSheets.add(`${account.id}:${spreadsheetId}`)
+        const key = `${account.id}:${spreadsheetId}:`
+        for (const stored of snapshots.keys())
+          if (stored.startsWith(key)) snapshots.delete(stored)
+        let snapshot: Awaited<ReturnType<typeof readTrackerSheet>>
         try {
-          result = await runtime.execute(
-            userId,
-            TRACKER_READ_SLUG,
-            {
-              spreadsheet_id: spreadsheetId,
-              ...(sheet && { ranges: [quoteSheet(sheet)] }),
-              majorDimension: "ROWS",
-              valueRenderOption: "UNFORMATTED_VALUE",
-              dateTimeRenderOption: "SERIAL_NUMBER",
-            },
-            account,
-            abortSignal
+          snapshot = await readTrackerSheet(
+            (slug, input) =>
+              runtime.execute(userId, slug, input, account, abortSignal),
+            spreadsheetId,
+            sheet
           )
         } catch (error) {
           abortSignal?.throwIfAborted()
-          return readFailed(
-            thrownOutcome(userId, TRACKER_TOOLKIT, account.id, error)
-          )
+          const fields =
+            error instanceof TrackerReadError
+              ? describeResult(
+                  userId,
+                  TRACKER_TOOLKIT,
+                  account.id,
+                  error.result
+                ).value
+              : thrownOutcome(userId, TRACKER_TOOLKIT, account.id, error)
+          return readFailed(fields)
         }
-        const described = describeResult(
-          userId,
-          TRACKER_TOOLKIT,
-          account.id,
-          result
-        )
-        if (!described.ok) return readFailed(described.value)
-        const { range, values } = sheetValues(
-          (result as Record<string, unknown>).data
-        )
-        const review = reviewTrackerValues(values, {
+        const review = reviewTrackerValues(snapshot.values, {
           today,
-          range: range ?? (sheet ? `${quoteSheet(sheet)}!A1` : undefined),
+          range: snapshot.range,
           staleDays,
           columns,
           find,
         })
+        if (
+          review.headerRow &&
+          review.columns.task &&
+          !review.unsure.length &&
+          !review.rowLimitReached
+        ) {
+          snapshots.set(`${key}${snapshot.sheet}`, {
+            ...snapshot,
+            headerRow: review.headerRow,
+            taskColumn: review.columns.task.column,
+            writableColumns: Object.entries(review.columns)
+              .filter(([role]) => role !== "task")
+              .map(([, col]) => col!.column),
+          })
+        }
         return boundedResult({
           status: "succeeded",
           spreadsheetId,

@@ -7,6 +7,7 @@ import {
   type ApprovalGate,
   type ConnectorRuntime,
 } from "../lib/connector-tools"
+import { TRACKER_INFO_SLUG } from "../lib/tracker-sheets"
 import { pulseExpectations, pulseTrackerValues } from "./helpers/pulse-tracker"
 
 const options = { toolCallId: "call", messages: [], context: {} }
@@ -30,16 +31,31 @@ function sheetsRuntime(
       return {
         resultType: "completed",
         error: null,
-        data: {
-          spreadsheetId: sheetId,
-          valueRanges: [
-            {
-              range: "Projects!A1:Z1000",
-              majorDimension: "ROWS",
-              values: pulseTrackerValues("2026-11-01"),
-            },
-          ],
-        },
+        data:
+          slug === TRACKER_INFO_SLUG
+            ? {
+                spreadsheetId: sheetId,
+                sheets: [
+                  {
+                    properties: {
+                      sheetId: 0,
+                      index: 0,
+                      title: "Projects",
+                      gridProperties: { rowCount: 1000, columnCount: 26 },
+                    },
+                  },
+                ],
+              }
+            : {
+                spreadsheetId: sheetId,
+                valueRanges: [
+                  {
+                    range: "Projects!A1:Z1000",
+                    majorDimension: "ROWS",
+                    values: pulseTrackerValues("2026-11-01"),
+                  },
+                ],
+              },
       }
     },
     ...overrides,
@@ -72,13 +88,14 @@ test("reviewTracker reads the tab unformatted and flags rows on the owner's date
     now,
   })
   const result = await review(tools, { spreadsheet: link, sheet: "Projects" })
-  assert.deepEqual(calls, [
+  assert.equal(calls[0].slug, TRACKER_INFO_SLUG)
+  assert.deepEqual(calls.slice(1), [
     {
       slug: TRACKER_READ_SLUG,
       account: "alice-sheets",
       input: {
         spreadsheet_id: sheetId,
-        ranges: ["Projects"],
+        ranges: ["Projects!A1:Z1000"],
         majorDimension: "ROWS",
         valueRenderOption: "UNFORMATTED_VALUE",
         dateTimeRenderOption: "SERIAL_NUMBER",
@@ -102,13 +119,12 @@ test("without a saved timezone the review says it used the UTC date", async () =
   assert.match(String(result.timezoneNote), /UTC/)
 })
 
-test("tab names with spaces are quoted, and the first tab is the default", async () => {
+test("the first tab is resolved by metadata index, never an omitted ranges request", async () => {
   const calls: Call[] = []
   const tools = createAppTools("alice", sheetsRuntime({}, calls))
-  await review(tools, { spreadsheet: sheetId, sheet: "Q4 Plan" })
   await review(tools, { spreadsheet: sheetId })
-  assert.deepEqual(calls[0].input.ranges, ["'Q4 Plan'"])
-  assert.equal("ranges" in calls[1].input, false)
+  assert.equal(calls[0].slug, TRACKER_INFO_SLUG)
+  assert.deepEqual(calls[1].input.ranges, ["Projects!A1:Z1000"])
 })
 
 test("a name or a published link is refused before anything is read", async () => {
