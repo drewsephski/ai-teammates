@@ -2,8 +2,12 @@ import type { CSSProperties, ReactNode } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { ArrowUpRightIcon } from "lucide-react"
+import { Avatar, Style } from "@dicebear/core"
+import definition from "@dicebear/styles/gaze.json" with { type: "json" }
 
 import page from "./use-cases.module.css"
+
+const avatarStyle = new Style(definition)
 
 type Role = { id: string; name: string; color: string; description: string }
 
@@ -41,6 +45,19 @@ export function RoleCard({
       </Link>
       <div className={page.cardBody}>
         <Heading>
+          {/* Isolate DiceBear's SVG styles and render a stable, color-matched identity. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={new Avatar(avatarStyle, {
+              seed: role.id,
+              bodyColor: [role.color],
+              animationVariant: ["none"],
+            }).toDataUri()}
+            alt=""
+            width={36}
+            height={36}
+            className={page.avatar}
+          />
           <Link href={href}>{title}</Link>
         </Heading>
         <p>{role.description}</p>

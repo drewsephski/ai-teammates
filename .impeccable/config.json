@@ -224,6 +224,42 @@
         ],
         "createdAt": "2026-10-14T18:52:59.321Z",
         "reason": "Agent: intentional aria-hidden miniature landing demonstration retains its own teammate colors and scaled desktop geometry; DESIGN.md documents the full-size application workspace."
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#000",
+        "files": [
+          "app/use-cases/use-cases.module.css"
+        ],
+        "createdAt": "2026-11-01T17:30:27.781Z",
+        "reason": "Agent review: existing black illustration background in HEAD; preserve the incumbent marketing design for this layout fix."
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#8f9398",
+        "files": [
+          "app/use-cases/use-cases.module.css"
+        ],
+        "createdAt": "2026-11-01T17:30:28.517Z",
+        "reason": "Agent review: existing marketing description color in HEAD; application DESIGN.md palette does not cover this marketing surface."
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "16px",
+        "files": [
+          "app/use-cases/use-cases.module.css"
+        ],
+        "createdAt": "2026-11-01T17:30:29.321Z",
+        "reason": "Agent review: existing prompt radius in HEAD; preserve the incumbent marketing design for this layout fix."
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "44px",
+        "files": [
+          "app/use-cases/use-cases.module.css"
+        ],
+        "createdAt": "2026-11-01T17:30:30.011Z",
+        "reason": "Agent review: existing responsive marketing headline minimum in HEAD; application DESIGN.md type scale does not cover this marketing heading."
       }
     ]
   }

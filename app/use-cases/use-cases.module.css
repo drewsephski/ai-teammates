@@ -19,6 +19,7 @@
 .grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
   gap: 20px;
   margin: 0;
   padding: 0 0 112px;
@@ -97,20 +98,16 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  min-height: 2.6em;
   font-size: 20px;
   font-weight: 500;
   line-height: 1.3;
   letter-spacing: -0.015em;
 }
-.card h2::before,
-.card h3::before {
-  content: "";
+.avatar {
   flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--role-color);
-  box-shadow: 0 0 12px var(--role-color);
+  width: 36px;
+  height: 36px;
 }
 .card h2 a:hover,
 .card h3 a:hover {
@@ -170,6 +167,8 @@
   align-items: center;
   gap: 5px;
   height: 24px;
+  width: 76px;
+  justify-content: center;
   padding: 0 8px;
   border: 1px solid #2e2e2e;
   border-radius: 6px;
@@ -203,10 +202,11 @@
   color: var(--role-color);
 }
 .links {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 20px;
+  display: grid;
+  grid-template-rows: 32px minmax(2lh, auto);
+  justify-items: start;
+  align-items: start;
+  gap: 8px;
 }
 .create {
   display: inline-flex;
@@ -227,19 +227,15 @@
   outline-offset: 2px;
 }
 
-/* On the index the prompt previews in three lines and opens on hover or
-   focus; the full text stays in the page. */
+/* Reserve three lines even for short prompts. Hover, focus and copying must
+   never resize a card; the full prompt is still copied and on the role page. */
 .card .prompt blockquote {
   display: -webkit-box;
+  height: 3lh;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
   line-clamp: 3;
-}
-.card:hover .prompt blockquote,
-.card:focus-within .prompt blockquote {
-  -webkit-line-clamp: unset;
-  line-clamp: unset;
 }
 .intro h1 {
   font-size: clamp(44px, 7vw, 76px);
