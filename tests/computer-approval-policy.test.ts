@@ -163,6 +163,11 @@ test("shell commands: GUI drivers, browser profiles and persistence are refused;
     "crontab -l",
     "nohup python3 post.py &",
     "echo 'curl x' >> ~/.bashrc",
+    // The accessibility bus presses controls without a gesture check
+    "python3 -c 'import pyatspi'",
+    "python3 -c 'from gi.repository import Atspi'",
+    "busctl --address=$(xprop -root AT_SPI_BUS) call",
+    "dbus-send --dest=org.a11y.Bus /org/a11y/bus",
   ])
     assert.equal(shellCommandRisk(command)?.kind, "refuse", command)
   for (const [command, action] of [

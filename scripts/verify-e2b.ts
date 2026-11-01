@@ -42,14 +42,20 @@ const directory = process.argv[2] ?? ".artifacts/e2b"
 // before the fixture row exists. All provider operations still execute for real.
 const originalCreate: (
   this: typeof Sandbox,
+  template: string,
   options: SandboxOpts
 ) => Promise<Sandbox> = Sandbox.create
-const createSandbox = originalCreate.bind(Sandbox)
-mock.method(Sandbox, "create", (options: SandboxOpts) =>
-  createSandbox({
-    ...options,
-    metadata: { ...options.metadata, app: "ai-teammates-verification" },
-  })
+// Called on the class that called it, so createAccountSandbox's subclass
+// still starts the display its own way
+mock.method(
+  Sandbox,
+  "create",
+  function (this: typeof Sandbox, template: string, options: SandboxOpts) {
+    return originalCreate.call(this, template, {
+      ...options,
+      metadata: { ...options.metadata, app: "ai-teammates-verification" },
+    })
+  }
 )
 await mkdir(directory, { recursive: true })
 const userId = `verify-${randomUUID()}`

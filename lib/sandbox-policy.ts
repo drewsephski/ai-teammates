@@ -38,12 +38,6 @@ export function runningSeconds(startedAt: Date, endAt: Date, now = Date.now()) {
   )
 }
 
-export function sandboxPath(path: string) {
-  if (path === "~") return "/home/user"
-  if (path.startsWith("~/")) return `/home/user/${path.slice(2)}`
-  return path.startsWith("/") ? path : `/home/user/${path}`
-}
-
 // Idle time before the provider pauses a computer: five minutes, but a quarter
 // of what is left (never under 30 seconds) once the allowance is small, so one
 // call can't leave a free account idling through its whole allowance.

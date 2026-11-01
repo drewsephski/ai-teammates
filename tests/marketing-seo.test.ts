@@ -114,6 +114,44 @@ describe("public pages for search and AI answers", () => {
     }
   })
 
+  it("compares every roundup product on the same criteria, without scores", () => {
+    const page = marketingSeoPages.find(
+      (entry) => entry.path === "/best-ai-agents-small-business"
+    )!
+    const table = page.sections.find((entry) => entry.id === "table")?.table
+    const cards = page.sections.find((entry) => entry.id === "agents")
+    assert.ok(table && cards?.cards)
+    assert.deepEqual(
+      table.rows.map((row) => row.label),
+      cards.cards.map((card) => card.title)
+    )
+    for (const row of table.rows) {
+      assert.equal(row.cells.length, table.columns.length, row.label)
+    }
+    assert.ok(cards.note?.includes("don't score"))
+    assert.ok(
+      !/\d\s*\/\s*10\b|out of (5|10)|\brating\b|\$\d/i.test(
+        JSON.stringify(cards.cards.slice(1))
+      ),
+      "other vendors carry no scores or prices"
+    )
+  })
+
+  it("keeps the time cost calculator's worked example consistent with the formula", async () => {
+    const { timeCost } = await import("@/lib/time-cost")
+    const page = marketingSeoPages.find(
+      (entry) => entry.path === "/time-cost-calculator"
+    )!
+    const result = timeCost([{ name: "Email", minutes: 30, perWeek: 5 }], 50)
+    const example = page.sections.find((entry) => entry.id === "formula")!
+    const text = example.bullets!.join(" ")
+    assert.ok(text.includes(`${result.yearlyHours} hours a year`), text)
+    assert.ok(
+      text.includes(`$${result.yearlyCost.toLocaleString("en-US")} a year`),
+      text
+    )
+  })
+
   it("has a Markdown copy of every public marketing page", () => {
     const legal = [
       "/privacy",

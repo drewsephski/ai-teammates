@@ -24,6 +24,11 @@ import {
   timeZoneSchema,
   type RoutineSchedule,
 } from "@/lib/routine-policy"
+import {
+  secretLabelSchema,
+  secretNameSchema,
+  secretValueSchema,
+} from "@/lib/secret-policy"
 import { isTaskBudget } from "@/lib/turn-spend"
 
 export const bots = pgTable(
@@ -304,6 +309,47 @@ export const connectorAuthAttempts = pgTable(
   },
   (table) => [index("connector_auth_expiry_idx").on(table.expiresAt)]
 )
+
+// API keys the person saved for their bots, set as environment variables in
+// the computer's bash commands (docs/secrets.md). `ciphertext` is AES-256-GCM
+// bound to the owner and name (lib/user-secrets.ts); values never leave the
+// server, and nothing but lib/user-secrets.ts reads the column.
+export const userSecrets = pgTable(
+  "user_secrets",
+  {
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    // Clerk user ID
+    userId: text().notNull(),
+    // Environment variable name, like OPENAI_API_KEY
+    name: text().notNull(),
+    label: text().notNull(),
+    ciphertext: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("user_secrets_name_idx").on(table.userId, table.name)]
+)
+
+export const userSecretInputSchema = createInsertSchema(userSecrets)
+  .pick({ name: true, label: true })
+  .required()
+  .extend({
+    name: secretNameSchema,
+    label: secretLabelSchema,
+    value: secretValueSchema,
+  })
+export type UserSecretInput = z.infer<typeof userSecretInputSchema>
+
+// Saving from the key card in a chat also wakes the bot that asked
+export const secretSaveSchema = userSecretInputSchema.extend({
+  chatId: z.string().min(1).optional(),
+  botId: z.string().min(1).optional(),
+  // The requestSecret tool call the card answers
+  questionId: z.string().min(1).max(200).optional(),
+})
+export type SecretSaveInput = z.infer<typeof secretSaveSchema>
 
 export const chatgptPreferenceSchema = createInsertSchema(chatgptConnections, {
   enabled: z.boolean(),

@@ -1,8 +1,11 @@
 import { planLimits } from "@/lib/billing-policy"
 import { ROUTINE_LIMITS } from "@/lib/routine-policy"
 
+import { aboutPage } from "./about"
 import { absoluteUrl } from "./content"
 import { emailAssistantPage } from "./email-assistant"
+import { aiPersonalAssistantPage } from "./personal-assistant"
+import { timeCostCalculatorPage } from "./time-cost-page"
 
 /**
  * Shared SEO landing pages. Copy must match real product behavior: check
@@ -63,6 +66,8 @@ export type MarketingPage = {
   useCases?: readonly MarketingUseCase[]
   faqs: readonly MarketingFaq[]
   related: readonly { label: string; href: string; description: string }[]
+  /** An interactive tool rendered under the header. */
+  widget?: "time-cost-calculator"
 }
 
 const paidBots = planLimits.paid.bots
@@ -133,6 +138,37 @@ const alternativeRows = {
       "Irreversible actions",
       "Triggers on a schedule or an event",
       "Free credits to start, then pricing per user",
+    ],
+  },
+  // Read on `checkedRoundupVendors`, for the small-business roundup.
+  zapierAgents: {
+    label: "Zapier Agents",
+    cells: [
+      "Your connected apps, with web browsing and a Chrome extension",
+      "More than 9,000 apps",
+      "Only steps you tell it to confirm, or tools set to require approval",
+      "On demand, on a schedule, from a Zap, or when something happens in an app",
+      "Free plan, then paid plans",
+    ],
+  },
+  duet: {
+    label: "Duet",
+    cells: [
+      "A private cloud server per workspace, with its own memory and task list",
+      "More than 10,000 integrations",
+      "Drafts come back for approval under your review rules",
+      "A schedule, a Slack or email trigger, or a rule",
+      "Seven-day free trial, then monthly plans",
+    ],
+  },
+  zo: {
+    label: "Zo Computer",
+    cells: [
+      "A cloud computer that stays on, with a remote browser and a terminal",
+      "More than 1,000 integrations, plus text, email, and chat apps",
+      notDescribed,
+      "A schedule, or an event such as an email arriving",
+      "14-day free trial, then paid plans",
     ],
   },
 } as const
@@ -1271,7 +1307,196 @@ export const aiAgentVsChatbotPage: MarketingPage = {
   ],
 }
 
+/** When Zapier Agents, Duet, and Zo Computer were read for the roundup. */
+export const checkedRoundupVendors = "October 30, 2026"
+
+export const bestAiAgentsSmallBusinessPage: MarketingPage = {
+  path: "/best-ai-agents-small-business",
+  title: "Best AI agents for small business: 8 compared",
+  description:
+    "Eight AI agents for small business compared on the same five questions: where they work, your apps, approvals, scheduled work, and how to try them.",
+  summary:
+    "Krafty Bot, Grok Bot, ChatGPT agent, Manus, Lindy, Zapier Agents, Duet, and Zo Computer, on the same criteria.",
+  h1: "Best AI agents for small business",
+  lead: "The best AI agent for a small business is the one that can reach the apps your work lives in, runs without you watching, and stops before anything you'd regret. This page puts eight agents side by side on those questions, using each product's own website. We make Krafty Bot, one of the eight, so we don't score or rank the others; the table and fit notes are there so you can decide.",
+  sections: [
+    {
+      id: "criteria",
+      title: "How we compared them",
+      body: "Every product is described on the same five questions, using only its own site or documentation. Where a source doesn't answer a question, the table says so instead of guessing.",
+      bullets: [
+        "Where it works: its own cloud computer and browser, or only through app integrations.",
+        "Your apps: how it reaches the tools you already use.",
+        "What waits for you: what it says needs a person's approval before it acts.",
+        "Scheduled work: whether it runs on a schedule or when something happens.",
+        "How you get it: free plan, free trial, or paid plans only.",
+      ],
+    },
+    {
+      id: "table",
+      title: "Eight AI agents at a glance",
+      body: "Read the cells as each vendor's own description, not as a test result.",
+      table: {
+        caption: `From each product's own site. Krafty Bot from its code; Zapier Agents, Duet, and Zo Computer read on ${checkedRoundupVendors}; the others on ${checkedVendors}.`,
+        rowHeader: "Product",
+        columns: alternativesColumns,
+        rows: (
+          [
+            "krafty",
+            "grokBot",
+            "chatgptAgent",
+            "manus",
+            "lindy",
+            "zapierAgents",
+            "duet",
+            "zo",
+          ] as const
+        ).map((row) => alternativeRows[row]),
+      },
+    },
+    {
+      id: "agents",
+      title: "The eight agents, and who each one fits",
+      cards: [
+        {
+          title: "Krafty Bot",
+          body: `Named Bots with their own memory, one persistent cloud computer per account shared by all of them, connected apps through your own sign-ins, routines on a schedule or when something happens in an app, and approval before any write to a connected app. Runs in a browser on any device. Fits a founder or small team that wants jobs done in Gmail, Sheets, Slack, or a CRM with a free plan to try one first. Free to start; Pro is $20 a month.`,
+          href: "/how-it-works",
+        },
+        {
+          title: "Grok Bot (xAI)",
+          body: "AI teammates with names and jobs on a shared cloud computer with a browser, file system, and terminal. Workflows can be taught once and rerun on a schedule, and Bots come back when something needs approval. Fits people who already pay for Cursor, SuperGrok, or Grok Business and want desktop apps. We are not affiliated with xAI.",
+          href: "https://docs.x.ai/grok-bot/overview",
+        },
+        {
+          title: "ChatGPT agent (OpenAI)",
+          body: "An agent mode inside ChatGPT that works on its own virtual computer with a browser, uses connectors to your apps, and asks permission before actions with real-world consequences. Fits teams already on a paid ChatGPT plan who want one-off tasks done while they wait.",
+          href: "https://openai.com/index/introducing-chatgpt-agent/",
+        },
+        {
+          title: "Manus",
+          body: "A general agent that carries out a goal in an isolated cloud computer with a browser, file system, and command line, with starting points for slides, websites, and video. Fits people who mainly want finished deliverables rather than ongoing work in their apps.",
+          href: "https://manus.im/",
+        },
+        {
+          title: "Lindy",
+          body: "Describes itself as an AI employee with more than 1,500 integrations, triggers on a schedule or an event, browser use on higher plans, and approval before irreversible actions. Fits teams that want a wide integration catalog and per-seat pricing.",
+          href: "https://www.lindy.ai/",
+        },
+        {
+          title: "Zapier Agents",
+          body: "Agents that work across more than 9,000 apps on command or on a schedule, with web browsing and a Chrome extension. Tools run without pausing unless you tell the agent to confirm or set a tool to require approval. Zapier's help center says Agents is moving to AI by Zapier, with no shutdown date set. Fits teams already running their business on Zaps.",
+          href: "https://zapier.com/agents",
+        },
+        {
+          title: "Duet",
+          body: "A cloud workspace where an AI coworker has its own private server, memory, and task list, with more than 10,000 integrations, cron and Slack or email triggers, and drafts sent back for approval. Fits small businesses that want industry examples, such as agencies and local services. Its homepage was a placeholder when we read it; facts come from its pricing and use-case pages.",
+          href: "https://duet.so/use-cases",
+        },
+        {
+          title: "Zo Computer",
+          body: "A personal cloud computer that stays on, with a remote browser, a terminal, more than 1,000 integrations, and automations triggered by a schedule or an event. You can message it by text, email, or chat apps. Fits people who want a general-purpose computer in the cloud more than a task-by-task assistant.",
+          href: "https://www.zo.computer/",
+        },
+      ],
+      note: `Descriptions of other products come from their own websites and documentation. Zapier Agents, Duet, and Zo Computer were read on ${checkedRoundupVendors}; Grok Bot, ChatGPT agent, Manus, and Lindy on ${checkedVendors}. We don't score vendors, quote their prices, or run benchmarks, and their features may have changed since.`,
+    },
+    {
+      id: "choose",
+      title: "Which AI agent should a small business choose?",
+      body: "Match the agent to where your work happens and how much you want checked.",
+      bullets: [
+        "Your work lives in Gmail, Sheets, Slack, or a CRM, and you want changes to wait for your approval: Krafty Bot holds every app write by default, and Duet describes sending drafts back under your review rules.",
+        "You already automate with Zaps and want agents inside that setup: Zapier Agents.",
+        "You need the widest integration catalog with team seats: Lindy.",
+        "You want one-off research, slides, or websites: Manus or ChatGPT agent.",
+        "You already pay for Cursor, SuperGrok, or Grok Business: Grok Bot is included.",
+        "You want a general computer in the cloud you can script yourself: Zo Computer.",
+      ],
+    },
+    {
+      id: "test",
+      title: "How to test an AI agent before you commit",
+      body: "Give every candidate the same small, real job and judge the result, not the demo.",
+      bullets: [
+        "Pick one job you do weekly that takes under an hour and has a clear finish, such as triaging ten emails or logging the week's receipts.",
+        "Write it as one paragraph with the apps, the scope, and what it must not do.",
+        "Run it on each agent's free plan or trial, and note what it asked you before acting.",
+        "Check the output against the source: wrong numbers and invented facts are the common failures.",
+        "Ask it to run again next week on a schedule, and see whether it still works without you.",
+      ],
+      links: [
+        { label: "Jobs to hand off first", href: "/ai-agents-for-business" },
+        {
+          label: "How much your repetitive tasks cost",
+          href: "/time-cost-calculator",
+        },
+      ],
+    },
+  ],
+  useCasesTitle: "Starter prompts to test any agent with",
+  useCases: [
+    {
+      title: "Email triage and drafts",
+      body: "Review ten unread threads and draft the three most urgent replies, without sending.",
+      href: "/use-cases/email-assistant",
+    },
+    {
+      title: "Receipts and expenses",
+      body: "Pull the week's receipts from Gmail, file them in Drive, and log each in a sheet.",
+      href: "/use-cases/expense-manager",
+    },
+    {
+      title: "Morning brief",
+      body: "Read unread mail, DMs, and today's calendar, then send one message with what needs you.",
+      href: "/use-cases/chief-of-staff",
+    },
+  ],
+  faqs: [
+    [
+      "What is the best AI agent for a small business?",
+      "The one that reaches the apps your work lives in, runs on a schedule without you watching, and holds risky actions for your approval. Run the same small job on two or three agents' free plans or trials and compare the results.",
+    ],
+    [
+      "Are there free AI agents for small business?",
+      `Several have a free way in. Krafty Bot and Zapier Agents have free plans, Duet and Zo Computer list free trials, and Lindy lists free starting credits. ${startFree}`,
+    ],
+    [
+      "Do AI agents need approval before they act?",
+      "It depends on the product. Krafty Bot holds every write to a connected app for approval unless you always-allow that action for that Bot, and sending or posting always asks. Zapier says its tools run without pausing unless you set them to require approval. Check each product's settings before you connect a real account.",
+    ],
+    [
+      "Why isn't Krafty Bot ranked first?",
+      "We make Krafty Bot, so a ranking from us wouldn't be worth much. Every product, ours included, is described on the same five questions from its own site, and each card says who it fits.",
+    ],
+    [
+      "How often is this comparison updated?",
+      `The vendor descriptions show the date they were read. If something about another product has changed, tell us through the support page and we'll correct it after checking that product's site.`,
+    ],
+  ],
+  related: [
+    {
+      label: "Grok Bot alternatives",
+      href: "/grokbot-alternatives",
+      description: "Krafty Bot and Grok Bot compared in plain words.",
+    },
+    {
+      label: "Manus alternatives",
+      href: "/manus-alternatives",
+      description: "Agents that work on a cloud computer.",
+    },
+    {
+      label: "Human approval for AI agents",
+      href: "/ai-agent-human-approval",
+      description: "What should wait for a person before an agent acts.",
+    },
+  ],
+}
+
 export const marketingSeoPages = [
+  aiPersonalAssistantPage,
+  bestAiAgentsSmallBusinessPage,
+  timeCostCalculatorPage,
   emailAssistantPage,
   aiAgentsForBusinessPage,
   aiEmployeesPage,
@@ -1281,7 +1506,13 @@ export const marketingSeoPages = [
   aiAgentVsChatbotPage,
   grokBotAlternativesPage,
   manusAlternativesPage,
+  aboutPage,
 ] as const
+
+/** The guides footers list; the About page sits under Company instead. */
+export const guidePages = marketingSeoPages.filter(
+  (page) => page.path !== aboutPage.path
+)
 
 export function marketingPageUrl(path: string) {
   return absoluteUrl(path)

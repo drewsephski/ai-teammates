@@ -152,6 +152,11 @@ NOTRA_GEO_TOKEN=
 # 30 reads per turn). Trigger.dev only: the worker reads it, Railway doesn't.
 FIRECRAWL_API_KEY=
 
+# Optional: context.dev review and social data (readReviews, readSocialMedia)
+# and a readWebPage reader between Firecrawl and Tavily, billed to the person's
+# AI allowance. Trigger.dev only: the worker reads it, Railway doesn't.
+CONTEXT_DEV_API_KEY=
+
 # Optional: server-side Voxtral dictation (Railway only, not Trigger.dev)
 OPENROUTER_API_KEY=
 
@@ -279,6 +284,8 @@ Use `@e2b/desktop` with E2B's **Hobby** plan. Hobby has a one-hour session limit
 Put `E2B_API_KEY` privately in ignored `.env.local`. Never use a `NEXT_PUBLIC_` variable for it. Set the same key on Railway's `ai-teammates` service, `production`, and the Trigger.dev project's `prod` environment. Keep Railway's production `TRIGGER_SECRET_KEY`; the local development key intentionally differs.
 
 Each account has one desktop sandbox, shared by all of its bots (`lib/account-computer.ts`). New computers are paused immediately after creation (`lib/e2b.ts`). Tools resume the same ID and renew a five-minute idle timeout. Commands can lease longer to finish (at most 630 seconds), then return to the five-minute idle policy. E2B automatically **pauses**, rather than kills, on expiry, with automatic traffic-based resume disabled. Before 55 continuous minutes, tools pause/resume into a new session; a connected viewer pauses and asks for Resume. Files and applications survive; saved memory lives in Postgres, not on the computer (`lib/memory.ts`). Deleting a bot keeps the account computer (`services/bots.ts`); deleting the account removes it (`services/account.ts`).
+
+Computers are created from the `krafty-desktop` template, which adds a separate shell user and the screen reader to E2B's desktop. Build it once per E2B team, and again after changing `scripts/build-e2b-template.ts`, before creating computers: `pnpm exec tsx --env-file=.env.local scripts/build-e2b-template.ts`. `pnpm exec tsx --env-file=.env.local scripts/verify-screen-reader.ts` checks a throwaway computer from it and spends a few minutes of Hobby time.
 
 `pnpm dev` runs `server.ts`; `pnpm build` compiles it to `.server/server.mjs`, and `pnpm start` runs the compiled Next.js server with a same-origin WebSocket gateway and a bounded 384 MiB V8 heap. Keep these start commands on Railway: `next start` alone cannot serve the gateway. Public sandbox traffic is disabled. The gateway verifies Clerk authentication, same origin, direct-chat ownership, feature access and remaining usage, then forwards noVNC with the E2B private ingress token **only on the server**. Closing the screen disconnects the stream and stops renewing its lease. Viewing an open screen counts as active use.
 

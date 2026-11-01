@@ -314,6 +314,8 @@ User messages align right with secondary fill and the asymmetric radius. Assista
 
 Browser authentication uses a compact muted card in the existing conversation column, showing the service, its domain, one short instruction, Open sign-in, and I’m signed in. Cancel is an accessible icon action. Open sign-in opens the existing live computer in an interactive full-screen view on desktop and phones; credentials never go through chat. Opening or closing the viewer does not resume the agent. The person confirms completion in chat, and the agent checks the screen before continuing. Login cards use the existing question lifecycle and suppress follow-up suggestions while unanswered. Older app builds retain the question and choices fallback. The computer remains subject to its plan and usage limits.
 
+API key requests use the same compact muted card: a key icon, the bot's label and where to find the key, an Open link naming the host when the bot gave the page, a masked field with a Show/Hide icon action, Save and Not now, and one line of small print naming the `$NAME` it becomes. The key goes straight to the server; it never appears in chat, toasts or follow-up text, and the card closes once saved. Workspace lists saved keys by label, variable name and last update under API keys, next to Connected apps, with Replace and Delete per key and an Add key dialog. Values are never shown again.
+
 ### Bot settings and appearance
 
 Appearance comes first, followed by Identity and Role. The native preview is (64px) beside Shuffle. Shape choices show all eighteen source shapes in a six-column grid, using (28px) native avatar previews inside (40px) controls. The selected shape has muted fill and a thin ring; every choice has an accessible shape name and pressed state.

@@ -11,6 +11,8 @@ import { WorkspaceRefresh } from "@/components/workspace-refresh"
 import { getWorkspaceBots } from "@/queries/workspace"
 import { getWorkspaceApps } from "@/queries/workspace-apps"
 import { WorkspaceApps } from "@/components/workspace-apps"
+import { WorkspaceSecrets } from "@/components/workspace-secrets"
+import { getWorkspaceSecrets } from "@/queries/secrets"
 import { WorkspaceForYou } from "@/components/workspace-for-you"
 import { getWorkspaceForYou } from "@/queries/for-you"
 import { WorkspaceNotices } from "@/components/workspace-notices"
@@ -46,11 +48,12 @@ export default async function WorkspacePage({
   // A public page's "Create this Bot" link (createBotHref) lands here
   const template =
     typeof create === "string" ? findBotTemplate(create) : undefined
-  const [bots, connections, forYou, notices] = await Promise.all([
+  const [bots, connections, forYou, notices, secrets] = await Promise.all([
     getWorkspaceBots(),
     getWorkspaceApps(),
     getWorkspaceForYou(),
     getSignedInNotices(),
+    getWorkspaceSecrets(),
   ])
 
   return (
@@ -78,6 +81,7 @@ export default async function WorkspacePage({
           {...connections}
           connectionCallback={connectionCallback}
         />
+        <WorkspaceSecrets secrets={secrets} />
         <WorkspacePresets presetId={preset?.id} />
       </div>
     </section>

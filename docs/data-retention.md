@@ -10,8 +10,8 @@ and for how long. Last checked October 18, 2026, against `@trigger.dev/sdk`
   (by cascade), direct and group chats with their members, **conversation
   history** (`chat_transcripts`, which cascades with each chat), memories and
   memory events, user settings, For you scans, sidebar preferences, connector
-  auth attempts, the ChatGPT connection, activity events, push devices, the
-  cached plan and the computer row.
+  auth attempts, the ChatGPT connection, saved API keys (`user_secrets`),
+  activity events, push devices, the cached plan and the computer row.
 - **Providers:** non-default Clerk Billing subscription items are canceled
   immediately. The E2B computer is deleted. Composio connected accounts are
   deleted. The ChatGPT connection is disconnected. Every Trigger.dev session is

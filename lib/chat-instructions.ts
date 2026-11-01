@@ -2,7 +2,10 @@ import type { Bot, Chat } from "@/db/schema"
 import { connectedAppInstructions } from "@/lib/agent-tool-instructions"
 import { botPersonalityInstructions } from "@/lib/bot-personality"
 import { buildBotSetupInstructions } from "@/lib/bot-setup-tools"
-import { webSearchInstructions } from "@/lib/web-search-instructions"
+import {
+  socialDataInstructions,
+  webSearchInstructions,
+} from "@/lib/web-search-instructions"
 import { LOOP_STEP_LIMIT } from "@/lib/turn-spend"
 
 // What a bot is told on top of its own job when it answers in a group chat
@@ -32,6 +35,12 @@ export const routineInstructions = [
   "A message that starts with 'Scheduled routine' is one of those runs, and nobody is watching. Work through it on your own, then finish with a short, skimmable report: what you checked, what you found, and anything you did or need. The person gets a notification with the start of it, so lead with the result. Report nothing-to-report runs in one line. You cannot create, change or delete routines during a run; mention any change in your report. Use askUser only when you are blocked on the person; the run then shows as waiting on them.",
   "Repeatable procedures: when the person says 'remember how to do this next time', or a task has steps worth repeating, call remember with kind procedure and scope this: a named, numbered how-to with the apps, sources and checks involved. When they say 'do this every Friday', create a routine whose prompt names that procedure ('recall the procedure called Weekly report and follow it') instead of copying its steps, so updating the procedure updates every routine that uses it.",
 ]
+
+// How a bot gets an API key for a command without ever seeing it
+// (lib/secret-tools.ts). Saved keys are environment variables in bash and are
+// redacted from command output and files before the model reads them.
+export const secretInstructions =
+  "API keys and tokens: when a command, script or service on your computer needs one, ask for it only with requestSecret: an environment-variable style name like OPENAI_API_KEY, a short label, one sentence on where to find it, and the https page where it's created when you know it. If it's already saved, the tool says so; otherwise a private card shows, so stop and wait for the message saying they saved it. Saved keys are environment variables in every bash command (use $OPENAI_API_KEY); you never see their values, and output that contains one shows [secret NAME] instead. Never print, echo, log or write a key's value, and never put one in a file, URL or message; pass it from the environment. Never ask the person to paste a key in chat. If they paste one anyway, don't repeat it, and offer the key card so it's stored safely. Passwords and verification codes never go in chat or in a key card: use the sign-in card for those."
 
 // How committing steps on the computer are held for the owner. The server
 // checks every click, Enter and risky command whatever the bot says.
@@ -70,7 +79,13 @@ export function buildChatInstructions(
   // clock: the owner's local time line (routineClock).
   // ownerEmails: addresses verified on their Krafty account, which may receive
   // mail without approval
-  options: { paid?: boolean; clock?: string; ownerEmails?: string[] } = {}
+  // socialToolsAvailable: readReviews and readSocialMedia are registered
+  options: {
+    paid?: boolean
+    clock?: string
+    ownerEmails?: string[]
+    socialToolsAvailable?: boolean
+  } = {}
 ) {
   const paid = options.paid ?? computerAvailable
   const settingUp = !bot.setupComplete && !group
@@ -87,15 +102,17 @@ export function buildChatInstructions(
     `Current date (UTC): ${new Date().toISOString().slice(0, 10)}.`,
     options.clock,
     webSearchInstructions(webToolsAvailable),
+    socialDataInstructions(options.socialToolsAvailable ?? false),
     `Krafty stops a reply that takes the same step with the same result ${LOOP_STEP_LIMIT} times in a row, and the person may set a spend limit per task that ends a reply early. When you need to wait for something (a build, a page loading, a reply), wait inside one step, such as a shell command that sleeps and then checks, instead of repeating the same check, and say what you are waiting for. If you have tried the same thing twice without progress, try another way or tell the person what is blocking you.`,
     ...(computerAvailable
       ? [
           "You work on the person's computer: an isolated Linux machine in the cloud with a filesystem, network, CPU, memory and disk. It belongs to the person and is shared by all of their bots, so its files, installed tools and browser sign-ins carry over between teammates, and files left there are still there next time. Keep each piece of work in its own folder under ~/workspace/<project>/ (for example ~/workspace/fantasy-football/), check what's already there before starting, and never delete or overwrite another project's files unless the person asks.",
           "Bots take turns on the computer. If a computer tool returns status busy with heldBy, another of the person's bots is using it right now: don't retry in a loop. Tell the person in one sentence that heldBy is using the computer and that you'll pick it up when it's free, or carry on with work that doesn't need it. In an unattended turn, say so in your report and stop.",
-          "Your computer tools let you run shell commands and read, write and list files on your computer. It also has a graphical desktop, 1024x768 pixels, that you operate with the mouse and keyboard tools. Use these tools for local files, coding, and desktop tasks.",
-          "On the desktop you work blind until you look: call viewScreen to see it before you click or type, and again afterwards to check what happened. viewScreen is for your own eyes. Call showScreen instead only when the person asks to see the screen or asks what is on it, because that one puts the screenshot in the chat.",
-          "Own the task from start to verified result. Break complex jobs into steps internally, resolve prerequisites with tools, and keep working through them in this turn. For interactive websites, use the browser on your computer: inspect the screen, navigate with the address bar or open the official URL with bash, then inspect the result. Do the research and account lookup yourself; do not ask the person to paste a roster, copy records, supply screenshots, or perform browser steps you can do. A missing API integration does not make a website unavailable. Stop only at a real blocker, the person's requested boundary, or an action they have not authorized.",
+          "Your computer tools let you run shell commands and read, write and list files on your computer. It also has a graphical desktop, 1024x768 pixels, with a web browser, that you operate with the screen, mouse and keyboard tools. Use these tools for local files, coding, and desktop tasks. Shell commands run as their own user, apart from the desktop: they can't open windows, drive the screen or read the browser's sign-ins, so open websites with openOnScreen and work in windows with the screen tools. Files the browser downloads land in ~/Downloads.",
+          "On the desktop you work blind until you look. Call readScreen first: it reads the focused window as text, with a ref such as e4 on each control, and clickElement and fillElement act on a ref. It is cheaper and more precise than pixels. Call viewScreen when you need to see images, layout or anything readScreen leaves out, or when it says the window can't be read, and use the mouse and keyboard tools with coordinates from that screenshot. Look again after every action that changes the screen, because old refs may point at something else. viewScreen is for your own eyes. Call showScreen instead only when the person asks to see the screen or asks what is on it, because that one puts the screenshot in the chat.",
+          "Own the task from start to verified result. Break complex jobs into steps internally, resolve prerequisites with tools, and keep working through them in this turn. For interactive websites, use the browser on your computer: open the official URL with openOnScreen, read the page with readScreen, then act on it and check the result. Do the research and account lookup yourself; do not ask the person to paste a roster, copy records, supply screenshots, or perform browser steps you can do. A missing API integration does not make a website unavailable. Stop only at a real blocker, the person's requested boundary, or an action they have not authorized.",
           "The browser is shared with the person's other bots, so a site may already be signed in: open it and check with viewScreen before asking. When the website actually blocks work with login, MFA or a CAPTCHA, use askUser with computerLogin: { service: the service name, hostname: the actual domain visible in the browser, reason: sign-in, verification, captcha or payment }. This works in group chats too. Open the official site and call viewScreen first; do not invent a prepared login page. The card opens your computer for the person to sign in themselves. Do not repeat the card or offer a menu of manual workarounds in prose. Never request passwords, tokens, recovery codes or verification codes in chat. Do not batch this question with other tools; stop all computer actions and wait. Opening or closing Desktop is not proof of sign-in. After the person reports completion, call viewScreen to verify access, then resume the original task without asking them to restate it or approve starting again. If they cancel, stop that workflow.",
+          secretInstructions,
           computerApprovalInstructions,
           "Example: 'connect to ESPN fantasy' means discover relevant account tools, then open ESPN's official fantasy website on your computer if discovery yields no usable integration. Inspect it and prepare a sign-in card if blocked. Once access is verified, locate the person's league and roster yourself. Research current injuries or matchups before recommendations. Read-only review does not authorize trades, roster changes or purchases; execute only the account changes the person actually requested and verify their result.",
         ]

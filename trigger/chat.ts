@@ -129,6 +129,10 @@ import { assertBotAccess } from "@/lib/teammates"
 import { createFirecrawlClient } from "@/lib/firecrawl"
 import { createTavilyClient, tavilyCost } from "@/lib/tavily"
 import { createWebTools } from "@/lib/web-tools"
+import { createContextDevClient, contextDevCost } from "@/lib/context-dev"
+import { createSocialTools } from "@/lib/social-tools"
+import { createSecretTools } from "@/lib/secret-tools"
+import { hasUserSecret, loadUserSecretEnv } from "@/lib/user-secrets"
 import { isChatGPTSelected } from "@/lib/chatgpt-connection"
 import { chatGPTModelForUser } from "@/lib/chatgpt-model"
 import { canSuggestFollowUps } from "@/lib/chat-follow-ups"
@@ -565,6 +569,13 @@ export const chatAgent = chat
         },
         // The lease lapses two minutes after the last call ends, never sooner
         afterCall: () => renewComputerLease(userId, turnModelUsage.usageKey),
+        // Saved API keys are environment variables in bash, and redacted
+        // from everything the model reads back
+        secretEnv: () => loadUserSecretEnv(userId),
+      })
+      // Keys for the computer's commands, asked for with a private card
+      const secretTools = createSecretTools({
+        hasSecret: (name) => hasUserSecret(userId, name),
       })
 
       const teamTools = createDelegationTools({
@@ -664,38 +675,50 @@ export const chatAgent = chat
           return deleteRoutine(userId, routineId, { botId: current.id })
         },
       })
+      // Web, review and social data billed to the allowance: checked before
+      // each request, recorded per tool call under the provider's own key
+      // prefix, and added to the turn's spend so the stop condition sees it
+      const meteredWeb = (
+        price: (credits: number) => number,
+        kind: string
+      ) => ({
+        beforeRequest: async (maxCredits: number) => {
+          const usage = await getUsage(userId)
+          if (
+            usage.remaining.ai - (turnModelUsage.cost - turnModelUsage.held) <
+            price(maxCredits)
+          )
+            throw new Error(USAGE_LIMIT_ERROR)
+        },
+        onUsage: async (credits: number, toolCallId: string) => {
+          const cost = price(credits)
+          if (cost === 0) return
+          await recordUsage([
+            {
+              userId,
+              kind: "ai",
+              amount: cost,
+              idempotencyKey: `${turnModelUsage.usageKey}:${kind}:${toolCallId}`,
+            },
+          ])
+          turnModelUsage.webCost += cost
+        },
+      })
+      const contextDev = process.env.CONTEXT_DEV_API_KEY?.trim()
+        ? createContextDevClient(meteredWeb(contextDevCost, "context"))
+        : undefined
       const webTools = process.env.TAVILY_API_KEY?.trim()
         ? createWebTools(
-            createTavilyClient({
-              beforeRequest: async (maxCredits) => {
-                const usage = await getUsage(userId)
-                if (
-                  usage.remaining.ai -
-                    (turnModelUsage.cost - turnModelUsage.held) <
-                  tavilyCost(maxCredits)
-                )
-                  throw new Error(USAGE_LIMIT_ERROR)
-              },
-              onUsage: async (credits, toolCallId) => {
-                const cost = tavilyCost(credits)
-                if (cost === 0) return
-                await recordUsage([
-                  {
-                    userId,
-                    kind: "ai",
-                    amount: cost,
-                    idempotencyKey: `${turnModelUsage.usageKey}:web:${toolCallId}`,
-                  },
-                ])
-                turnModelUsage.webCost += cost
-              },
-            }),
+            createTavilyClient(meteredWeb(tavilyCost, "web")),
             // App-funded and free to the person, on every plan
             process.env.FIRECRAWL_API_KEY?.trim()
               ? createFirecrawlClient()
-              : undefined
+              : undefined,
+            contextDev
           )
         : {}
+      // Every plan, like web research
+      const socialTools = contextDev ? createSocialTools(contextDev) : {}
       const setupTools = createBotSetupTools(
         (profile) => configureBotProfile(userId, current.id, profile),
         {
@@ -726,7 +749,11 @@ export const chatAgent = chat
             free: plan.tier === "free",
           })
         : {}
-      const computerTools = { ...sandboxTools, ...computerApprovalTools }
+      const computerTools = {
+        ...sandboxTools,
+        ...computerApprovalTools,
+        ...secretTools,
+      }
       const sharedTools = {
         ...computerTools,
         ...memoryTools,
@@ -735,6 +762,7 @@ export const chatAgent = chat
         ...connectorTools,
         ...catalogTools,
         ...webTools,
+        ...socialTools,
         ...setupTools,
         ...routineTools,
       }
@@ -746,6 +774,7 @@ export const chatAgent = chat
           ...connectorTools,
           ...catalogTools,
           ...webTools,
+          ...socialTools,
           ...setupTools,
           ...memoryTools,
           ...routineTools,
@@ -937,7 +966,11 @@ export const chatAgent = chat
               : part.type === "tool-askUser" &&
                   part.state === "output-available"
                 ? [part.output.question]
-                : []
+                : part.type === "tool-requestSecret" &&
+                    part.state === "output-available" &&
+                    part.output.state === "requested"
+                  ? [`Needs ${part.output.label}`]
+                  : []
           )
           .join(" ") ?? ""
       ).slice(0, 160)
@@ -1259,6 +1292,8 @@ export const chatAgent = chat
         const appToolsAvailable =
           "searchAppTools" in tools && "executeAppTool" in tools
         const webToolsAvailable = "searchWeb" in tools && "readWebPage" in tools
+        const socialToolsAvailable =
+          "readReviews" in tools && "readSocialMedia" in tools
         const computerAvailable = "bash" in tools && usage.remaining.sandbox > 0
 
         // Stamped on the reply and kept in the transcript with it
@@ -1292,7 +1327,12 @@ export const chatAgent = chat
               computerAvailable,
               webToolsAvailable,
               memory,
-              { paid: usage.tier === "paid", clock, ownerEmails }
+              {
+                paid: usage.tier === "paid",
+                clock,
+                ownerEmails,
+                socialToolsAvailable,
+              }
             ),
             composerContext,
             connectionContext,
@@ -1333,7 +1373,12 @@ export const chatAgent = chat
                     computerAvailable,
                     webToolsAvailable,
                     await memoryFor(updated.id),
-                    { paid: usage.tier === "paid", clock, ownerEmails }
+                    {
+                      paid: usage.tier === "paid",
+                      clock,
+                      ownerEmails,
+                      socialToolsAvailable,
+                    }
                   ),
                   composerContext,
                   connectionContext,
@@ -1369,7 +1414,12 @@ export const chatAgent = chat
             ({ steps }) =>
               steps.some((step) =>
                 step.toolResults.some(
-                  (result) => result?.toolName === "askUser"
+                  (result) =>
+                    result?.toolName === "askUser" ||
+                    // A key card waits for the person, like a question
+                    (result?.toolName === "requestSecret" &&
+                      (result.output as { state?: string } | undefined)
+                        ?.state === "requested")
                 )
               ),
             // A computer step waits for the owner now; app actions from one
@@ -1437,6 +1487,19 @@ export const chatAgent = chat
     },
   })
 
+// A key card the reply ended on, still waiting for the person (lib/secret-tools.ts)
+function pendingSecretRequest(message?: ChatUIMessage) {
+  const part = message?.parts.findLast(
+    (part) =>
+      part.type === "tool-requestSecret" && part.state === "output-available"
+  )
+  return part?.type === "tool-requestSecret" &&
+    part.state === "output-available" &&
+    part.output.state === "requested"
+    ? part.output
+    : undefined
+}
+
 // How a routine's run ended: stopped for the owner, failed, or done
 function routineTurnOutcome({
   failed,
@@ -1452,6 +1515,12 @@ function routineTurnOutcome({
   )
   if (turnModelUsage.approvalRequested)
     return { status: "blocked" as const, detail: "Waiting for your approval" }
+  const secret = pendingSecretRequest(responseMessage)
+  if (secret)
+    return {
+      status: "blocked" as const,
+      detail: `Waiting for you to save ${secret.label}`.slice(0, 300),
+    }
   if (
     question?.type === "tool-askUser" &&
     question.state === "output-available"
@@ -1543,6 +1612,25 @@ async function reportUnattendedTurn(turn: {
         dedupeKey,
       },
       { title: `${name} has a question`, body: question.output.question, path }
+    )
+    return
+  }
+  // A key card waits for the person the same way a question does
+  const secret = pendingSecretRequest(turn.responseMessage)
+  if (secret) {
+    const title = `${name} needs ${secret.label}`
+    const body = `Open the chat to save it. ${secret.description}`
+    await recordActivity(
+      {
+        userId: turn.userId,
+        kind: "question_asked",
+        title,
+        detail: body,
+        botId: bot?.id,
+        chatId: turn.chatId,
+        dedupeKey,
+      },
+      { title, body, path }
     )
     return
   }

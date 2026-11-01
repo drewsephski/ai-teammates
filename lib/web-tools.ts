@@ -1,4 +1,5 @@
 import { tool } from "ai"
+import type { ContextDevClient } from "@/lib/context-dev"
 import type { FirecrawlClient } from "@/lib/firecrawl"
 import {
   createTavilyClient,
@@ -8,11 +9,13 @@ import {
 } from "@/lib/tavily"
 
 // With Firecrawl, pages are read there first: it renders JavaScript, gets
-// past more bot walls and costs the person nothing. Tavily, which is billed
-// to their allowance, reads only what Firecrawl couldn't.
+// past more bot walls and costs the person nothing. Context.dev reads what
+// Firecrawl couldn't, for less than Tavily, and Tavily reads what's left.
+// Both are billed to the person's allowance.
 export function createWebTools(
   client: TavilyClient = createTavilyClient(),
-  firecrawl?: FirecrawlClient
+  firecrawl?: FirecrawlClient,
+  contextDev?: ContextDevClient
 ) {
   return {
     searchWeb: tool({
@@ -29,6 +32,10 @@ export function createWebTools(
       execute: async (input, { toolCallId, abortSignal }) => {
         if (firecrawl) {
           const page = await firecrawl.read(input, { abortSignal })
+          if (page.status === "completed") return page
+        }
+        if (contextDev) {
+          const page = await contextDev.read(input, { toolCallId, abortSignal })
           if (page.status === "completed") return page
         }
         return client.read(input, { toolCallId, abortSignal })

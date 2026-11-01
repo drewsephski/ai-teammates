@@ -54,6 +54,7 @@ import {
 } from "@/components/ai-elements/prompt-input"
 import { ToolCall } from "@/components/chat-tool-call"
 import { ChatQuestion } from "@/components/chat-question"
+import { ChatSecretRequest } from "@/components/chat-secret-request"
 import { useOptionalDesktopPanel } from "@/components/desktop-panel"
 import { ChatFollowUps } from "@/components/chat-follow-ups"
 import { ChatMessageActions } from "@/components/chat-message-actions"
@@ -350,9 +351,19 @@ function ChatMessages({
         part.state === "output-available" &&
         !answeredQuestions.has(part.toolCallId)
     )
+  // An API key card waits the same way; its key goes to the server, never here
+  const pendingSecret = visibleMessages
+    .flatMap((message) => message.parts)
+    .findLast(
+      (part) =>
+        part.type === "tool-requestSecret" &&
+        part.state === "output-available" &&
+        part.output.state === "requested" &&
+        !answeredQuestions.has(part.toolCallId)
+    )
   const busy = status === "submitted" || status === "streaming"
   const followUps =
-    status === "ready" && !pendingQuestion && !setupStopped
+    status === "ready" && !pendingQuestion && !pendingSecret && !setupStopped
       ? latestFollowUps(visibleMessages)
       : undefined
   const thinking = isChatThinking(
@@ -447,6 +458,10 @@ function ChatMessages({
     setSetupStopped(false)
     if (pendingQuestion?.type === "tool-askUser") {
       return answerQuestion(pendingQuestion.toolCallId, message.text, mentions)
+    }
+    // A message instead of the key closes its card; the bot reads it and moves on
+    if (pendingSecret?.type === "tool-requestSecret") {
+      return answerQuestion(pendingSecret.toolCallId, message.text, mentions)
     }
     // The agent reads this turn's metadata to decide which bot answers
     // and the message keeps it too, to show who it was for
@@ -580,6 +595,52 @@ function ChatMessages({
                             part.toolCallId,
                             "I'd prefer to explain in the chat instead of choosing an option."
                           )
+                        }
+                      />
+                    )
+                  }
+                  if (part.type === "tool-requestSecret") {
+                    if (
+                      pendingSecret?.type !== "tool-requestSecret" ||
+                      pendingSecret.toolCallId !== part.toolCallId
+                    )
+                      return null
+                    return (
+                      <ChatSecretRequest
+                        key={part.toolCallId}
+                        part={part}
+                        active
+                        busy={busy}
+                        chatId={chatId}
+                        botId={
+                          message.metadata?.botId ??
+                          directBotId ??
+                          selectedBot?.id
+                        }
+                        onResume={(inputSeq) => {
+                          setSettledQuestions((ids) => [
+                            ...ids,
+                            part.toolCallId,
+                          ])
+                          resumeAfterWake({
+                            inputSeq,
+                            chatId,
+                            transport,
+                            resume: () => void resumeStream(),
+                            fallback: () =>
+                              toast.add({
+                                type: "info",
+                                title: "Your bot is continuing",
+                                description:
+                                  "Refresh the page to see its reply.",
+                              }),
+                          })
+                        }}
+                        onAnswer={(answer) =>
+                          answerQuestion(part.toolCallId, answer)
+                        }
+                        onDismiss={() =>
+                          answerQuestion(part.toolCallId, "Not now")
                         }
                       />
                     )
