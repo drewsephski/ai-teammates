@@ -5,6 +5,7 @@ import { aboutPage } from "./about"
 import { absoluteUrl } from "./content"
 import { emailAssistantPage } from "./email-assistant"
 import { aiPersonalAssistantPage } from "./personal-assistant"
+import { pulsePage } from "./pulse"
 import { timeCostCalculatorPage } from "./time-cost-page"
 
 /**
@@ -1494,6 +1495,7 @@ export const bestAiAgentsSmallBusinessPage: MarketingPage = {
 }
 
 export const marketingSeoPages = [
+  pulsePage,
   aiPersonalAssistantPage,
   bestAiAgentsSmallBusinessPage,
   timeCostCalculatorPage,
@@ -1509,9 +1511,12 @@ export const marketingSeoPages = [
   aboutPage,
 ] as const
 
-/** The guides footers list; the About page sits under Company instead. */
+/**
+ * The guides footers list. The About page sits under Company and Krafty Pulse
+ * under Product instead.
+ */
 export const guidePages = marketingSeoPages.filter(
-  (page) => page.path !== aboutPage.path
+  (page) => page.path !== aboutPage.path && page.path !== pulsePage.path
 )
 
 export function marketingPageUrl(path: string) {

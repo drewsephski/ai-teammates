@@ -2,6 +2,7 @@ import Link from "next/link"
 
 import { useCases } from "@/app/use-cases/use-cases-data"
 import { helpIndex, helpTopicPath, helpTopics } from "@/lib/marketing/help"
+import { pulseName, pulsePath } from "@/lib/marketing/pulse"
 import { guidePages } from "@/lib/marketing/seo-pages"
 import { brandName } from "@/lib/marketing/site"
 import styles from "./page-chrome.module.css"
@@ -14,6 +15,7 @@ export function PageFooter({ className }: { className?: string }) {
         <p className={styles.footerHeading}>Product</p>
         <Link href="/">Overview</Link>
         <Link href="/how-it-works">How it works</Link>
+        <Link href={pulsePath}>{pulseName}</Link>
         <Link href="/use-cases">Use cases</Link>
         <Link href="/download">Get the app</Link>
         <Link href="/#pricing">Pricing</Link>

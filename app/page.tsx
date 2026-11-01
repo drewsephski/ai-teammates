@@ -22,9 +22,11 @@ import { GetStartedButton } from "@/components/landing/bot/get-started-button"
 import { LandingPricing } from "@/components/landing/pricing"
 import { HalftoneWordmark } from "@/components/landing/halftone-wordmark-footer"
 import styles from "@/components/landing/bot/bot-landing.module.css"
+import pulse from "@/components/landing/bot/pulse.module.css"
 import { JsonLd } from "@/components/json-ld"
 import { homeJsonLd } from "@/lib/marketing/json-ld"
 import { definitionShort } from "@/lib/marketing/content"
+import { pulseName, pulsePath } from "@/lib/marketing/pulse"
 import { guidePages } from "@/lib/marketing/seo-pages"
 import { useCases } from "@/app/use-cases/use-cases-data"
 import { loadFeatureVotes } from "@/queries/feature-votes"
@@ -85,9 +87,23 @@ export default async function LandingPage() {
         Skip to content
       </a>
       <BotNavigation workspaceHref={workspaceHref} />
+      <aside className={pulse.banner} aria-label={`New: ${pulseName}`}>
+        <Link href={pulsePath} className={pulse.bannerLink}>
+          <span className={pulse.bannerTag}>New</span>
+          <span>
+            Project managers: meet {pulseName}
+            <span className={pulse.bannerExtra}>
+              , your coordinator for Google Sheets and Gmail
+            </span>
+          </span>
+          <span className={pulse.bannerCta}>
+            See the PM experience <ArrowRightIcon aria-hidden />
+          </span>
+        </Link>
+      </aside>
       <main id="main">
         <section
-          className={`${styles.container} ${styles.hero}`}
+          className={`${styles.container} ${styles.hero} ${styles.heroAfterBanner}`}
           aria-labelledby="hero-title"
         >
           <Link
@@ -290,6 +306,7 @@ export default async function LandingPage() {
             </Link>
             <a href="#features">Features</a>
             <Link href="/how-it-works">How it works</Link>
+            <Link href={pulsePath}>{pulseName}</Link>
             <Link href="/use-cases">Use cases</Link>
             <Link href="/download">Get the app</Link>
             <a href="#pricing">Pricing</a>

@@ -16,6 +16,7 @@ import { createBotHref } from "../lib/marketing/site"
 test("every use case page has a template, and none shadows a preset", () => {
   for (const useCase of useCases) assert.ok(findBotTemplate(useCase.id))
   assert.ok(findBotTemplate("email-assistant"))
+  assert.ok(findBotTemplate("project-coordinator"))
   const ids = botTemplates.map((template) => template.id)
   assert.equal(new Set(ids).size, ids.length)
   for (const preset of botPresets) assert.ok(!ids.includes(preset.id))

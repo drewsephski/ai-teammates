@@ -6,10 +6,15 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { faqs as questions } from "./faq-data"
+import { faqs } from "./faq-data"
 import styles from "./faq.module.css"
 
-export function BotFaq() {
+/** The homepage FAQs, or a page's own questions. */
+export function BotFaq({
+  questions = faqs,
+}: {
+  questions?: readonly (readonly [question: string, answer: string])[]
+}) {
   return (
     // hiddenUntilFound keeps closed answers in the HTML, so search engines,
     // AI crawlers and find-in-page read every answer the FAQPage data lists.

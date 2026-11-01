@@ -1,6 +1,7 @@
 import { useCases } from "@/app/use-cases/use-cases-data"
 import { botPresets, workflowExecutionInstructions } from "@/lib/bot-presets"
 import { emailAssistantPage } from "@/lib/marketing/email-assistant"
+import { pulseTemplate, pulseTemplateId } from "@/lib/marketing/pulse"
 
 // Bots people pick on a public page. "Create this Bot" links open
 // /workspace?create=<id>, which previews the template and creates it with
@@ -32,6 +33,7 @@ const avatars: Record<string, string> = {
   "chief-of-staff": "blob:arch:3",
   "support-triage": "blob:cloud:4",
   "email-assistant": "blob:bean:8",
+  [pulseTemplateId]: "blob:teardrop:8",
 }
 
 const emailPrompt = emailAssistantPage.sections.find(
@@ -69,6 +71,12 @@ export const botTemplates: BotTemplate[] = [
     apps: ["Gmail"],
     schedule: "On request, then as a routine once a run works",
     prompt: emailPrompt ?? "",
+  },
+  // Krafty Pulse, the project-manager page at /pulse
+  {
+    id: pulseTemplateId,
+    avatar: avatars[pulseTemplateId],
+    ...pulseTemplate,
   },
 ]
 
