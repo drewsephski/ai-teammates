@@ -205,7 +205,7 @@ test("a person's column overrides win over header guesses", () => {
   assert.deepEqual(guessed.flagged, [])
   const told = reviewTracker(values, {
     today,
-    columns: { due: "promised", updated: "F" },
+    columns: { due: "promised", updated: "Touched" },
   })
   assert.equal(told.columns.due?.header, "Promised")
   assert.equal(told.columns.updated?.column, "F")
@@ -224,9 +224,11 @@ test("a column letter that no longer fits its header is questioned", () => {
     ["1", "A", "Bo", "High", "Blocked", serial("2026-12-01")],
   ]
   const review = reviewTracker(values, { today, columns: { status: "D" } })
-  assert.equal(review.columns.status?.column, "D")
+  assert.equal(review.columns.status, undefined)
+  assert.equal(review.rowsChecked, 0)
+  assert.deepEqual(review.flagged, [])
   assert.ok(
-    review.unsure.some((line) => line.includes('column E is headed "Status"')),
+    review.unsure.some((line) => line.includes("Columns may have moved")),
     review.unsure.join("\n")
   )
   // A letter that matches its header raises no such question
@@ -332,4 +334,45 @@ test("A1 helpers", () => {
     undefined
   )
   assert.equal(spreadsheetIdFrom("My project tracker"), undefined)
+})
+
+test("ambiguous, missing, out-of-bounds and conflicting mappings expose no conclusions or cells", () => {
+  const values = [
+    ["Task", "Status", "Due date", "Deadline", "Owner"],
+    ["A", "Blocked", "2026-10-01", "2026-12-01", "Bo"],
+  ]
+  for (const columns of [
+    undefined,
+    { due: "Missing" },
+    { due: "ZZ" },
+    { due: "Deadline", owner: "Task" },
+  ]) {
+    const review = reviewTracker(values, { today, columns, find: ["A"] })
+    assert.ok(review.unsure.length)
+    assert.equal(review.rowsChecked, 0)
+    assert.deepEqual(review.flagged, [])
+    assert.equal(review.matches, undefined)
+    assert.deepEqual(review.columns, {})
+  }
+  const confirmed = reviewTracker(values, {
+    today,
+    columns: { due: "Deadline" },
+  })
+  assert.equal(confirmed.columns.due?.column, "D")
+  assert.equal(confirmed.rowsChecked, 1)
+  assert.deepEqual(confirmed.flagged[0].flags, ["blocked"])
+})
+
+test("duplicate headers require a current column letter", () => {
+  const values = [
+    ["Task", "Status", "Status"],
+    ["A", "Blocked", "Done"],
+  ]
+  for (const columns of [undefined, { status: "Status" }]) {
+    assert.equal(reviewTracker(values, { today, columns }).rowsChecked, 0)
+  }
+  assert.equal(
+    reviewTracker(values, { today, columns: { status: "C" } }).counts.done,
+    1
+  )
 })

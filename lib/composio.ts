@@ -356,7 +356,11 @@ export async function runApprovedCall(approval: {
     approval.userId,
     async (owner) => activeAccounts(owner),
     (owner, toolkits, accounts) =>
-      createConnectorSession(owner, toolkits, accounts)
+      createConnectorSession(owner, toolkits, accounts),
+    {
+      withTrackerWriteLock: (id, operation) =>
+        withSandboxLock(`tracker:${id}`, operation),
+    }
   )
   return runClaimedCall(
     approval.userId,
@@ -389,7 +393,11 @@ export function createConnectorTools(
         ),
       (owner, toolkits, accounts) =>
         createConnectorSession(owner, toolkits, accounts, options),
-      { readOnly: options.readOnly }
+      {
+        readOnly: options.readOnly,
+        withTrackerWriteLock: (id, operation) =>
+          withSandboxLock(`tracker:${id}`, operation),
+      }
     ),
     options.approvals,
     { timeZone: options.timeZone }
