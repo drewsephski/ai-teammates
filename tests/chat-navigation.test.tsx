@@ -9,10 +9,12 @@ import {
   cleanup,
   fireEvent,
   render,
+  renderHook,
   waitFor,
 } from "@testing-library/react"
 import { useChatSession } from "../hooks/use-chat-session"
 import { useResumeChatStream } from "../hooks/use-resume-chat-stream"
+import { useApprovalConfirmation } from "../hooks/use-approval-confirmation"
 import { navigationChatTransport } from "../lib/chat-transport"
 import { chatActivity } from "../lib/chat-activity"
 import { seenMessageIds } from "../lib/chat-receipts"
@@ -87,6 +89,13 @@ function Messages({
     setup,
     transport,
   })
+  const confirm = useApprovalConfirmation({
+    chatId,
+    transport,
+    resumeStream,
+    busy: status === "streaming" || status === "submitted",
+    onMissingCursor: () => {},
+  })
   const activity = chatActivity(messages, status, {
     botIds: ["scout"],
     fallbackBotId: "scout",
@@ -103,6 +112,8 @@ function Messages({
       <button onClick={() => void sendMessage({ text: "Research this" })}>
         Send
       </button>
+      <button onClick={() => confirm(7)}>Confirm action</button>
+      <button onClick={() => confirm(8)}>Confirm second action</button>
       <button
         onClick={() => {
           void stop()
@@ -114,6 +125,135 @@ function Messages({
     </>
   )
 }
+
+test("an approval wakes a settled open chat and displays the confirmation without reload or resend", async () => {
+  const server = new ChatServer()
+  const transport = transportFor(server)
+  try {
+    const view = render(
+      <StrictMode>
+        <Conversation server={server} transport={transport} />
+      </StrictMode>
+    )
+    await view.findByRole("button", { name: "Confirm action" })
+    await waitFor(() => assert.equal(server.connections.length, 1))
+    await act(async () => {
+      server.begin("Email sent to Sam", "email-confirmed")
+      fireEvent.click(view.getByRole("button", { name: "Confirm action" }))
+    })
+    await waitFor(() =>
+      assert.match(
+        view.getByLabelText("Reply").textContent ?? "",
+        /Email sent to Sam/
+      )
+    )
+    await act(async () => server.finish("Email sent to Sam. Finished."))
+    await waitFor(() =>
+      assert.equal(view.getByLabelText("Progress").textContent, "idle")
+    )
+    assert.equal(
+      server.inputs.length,
+      0,
+      "viewing a confirmation must not resend a message or action"
+    )
+    assert.equal(server.connections.length, 2)
+  } finally {
+    transport.dispose()
+  }
+})
+
+test("decisions made while a confirmation streams are queued without losing either reply", async () => {
+  const server = new ChatServer()
+  const transport = transportFor(server)
+  try {
+    const view = render(<Conversation server={server} transport={transport} />)
+    await view.findByRole("button", { name: "Confirm action" })
+    await waitFor(() => assert.equal(server.connections.length, 1))
+    await act(async () => {
+      server.begin("First action confirmed", "first-confirmation")
+      fireEvent.click(view.getByRole("button", { name: "Confirm action" }))
+    })
+    await waitFor(() =>
+      assert.match(
+        view.getByLabelText("Reply").textContent ?? "",
+        /First action confirmed/
+      )
+    )
+    await act(async () => {
+      fireEvent.click(
+        view.getByRole("button", { name: "Confirm second action" })
+      )
+      // A repeated receipt must not subscribe twice.
+      fireEvent.click(
+        view.getByRole("button", { name: "Confirm second action" })
+      )
+      server.finish("First action confirmed. Finished.")
+      server.begin("Second action declined", "second-confirmation")
+    })
+    await waitFor(() =>
+      assert.match(
+        view.getByLabelText("Reply").textContent ?? "",
+        /Second action declined/
+      )
+    )
+    await act(async () => server.finish("Second action declined. Finished."))
+    await waitFor(() =>
+      assert.equal(view.getByLabelText("Progress").textContent, "idle")
+    )
+    assert.match(
+      view.getByLabelText("Reply").textContent ?? "",
+      /First action confirmed/
+    )
+    assert.equal(server.inputs.length, 0)
+    assert.equal(server.connections.length, 3)
+  } finally {
+    transport.dispose()
+  }
+})
+
+test("a combined confirmation settles all consumed decisions, including late HTTP receipts", async () => {
+  let finish!: () => void
+  let subscriptions = 0
+  const transport = {
+    getSession: () => ({ publicAccessToken: "test-token" }),
+    setSession: () => {},
+  } as unknown as TriggerChatTransport
+  const resumeStream = () => {
+    subscriptions++
+    return new Promise<void>((resolve) => {
+      finish = resolve
+    })
+  }
+  const view = renderHook(
+    ({ completedInputSeq }: { completedInputSeq?: number }) =>
+      useApprovalConfirmation({
+        chatId: "chat",
+        transport,
+        resumeStream,
+        busy: false,
+        completedInputSeq,
+        onMissingCursor: () => {},
+      }),
+    { initialProps: {} }
+  )
+  await act(async () => {
+    view.result.current(7)
+    view.result.current(8)
+  })
+  await waitFor(() => assert.equal(subscriptions, 1))
+  await act(async () => {
+    view.rerender({ completedInputSeq: 8 })
+  })
+  await act(async () => {
+    finish()
+    view.result.current(8)
+  })
+  assert.equal(
+    subscriptions,
+    1,
+    "no empty stream after the agent consumed both decisions"
+  )
+})
 
 function transportFor(server: ChatServer) {
   return new TriggerChatTransport({

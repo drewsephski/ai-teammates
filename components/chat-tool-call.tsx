@@ -460,9 +460,15 @@ export function toolCallText(part: ToolPart) {
   return `${title}${failed ? " (failed)" : ""}${summary ? `: ${summary}` : ""}`
 }
 
-export function ToolCall({ part }: { part: ToolPart }) {
+export function ToolCall({
+  part,
+  onResume,
+}: {
+  part: ToolPart
+  onResume?: (inputSeq?: number) => void
+}) {
   const approval = pendingApproval(part)
-  if (approval) return <ApprovalCard {...approval} />
+  if (approval) return <ApprovalCard {...approval} onResume={onResume} />
   if (
     part.type === "tool-consultTeammate" &&
     part.state === "output-available"

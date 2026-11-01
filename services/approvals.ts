@@ -84,7 +84,7 @@ export async function decideApproval(
   run: approvals.ApprovalRunner = runApprovedCall
 ) {
   const { decision } = approvalDecisionSchema.parse(input)
-  const { approval, woke, ran } = await approvals.decideApproval(
+  const { approval, woke, ran, inputSeq } = await approvals.decideApproval(
     userId,
     approvalId,
     decision,
@@ -94,11 +94,16 @@ export async function decideApproval(
   )
   // An approved app action has already run by now: say how it went
   const state = ran ? (ran.ok ? "executed" : "failed") : approval.state
-  return { state, chatId: approval.chatId, woke }
+  return {
+    state,
+    chatId: approval.chatId,
+    woke,
+    ...(inputSeq !== undefined && { inputSeq }),
+  }
 }
 
 // Approve or decline every request still waiting from one reply. The bot
-// wakes once, after the last.
+// gets one combined confirmation.
 export async function decideApprovalBatch(
   userId: string,
   batchId: string,
@@ -147,7 +152,7 @@ export async function actOnEmailDraft(
           ),
         }
       : undefined
-  const { woke } = await approvals.decideApproval(
+  const { woke, inputSeq } = await approvals.decideApproval(
     userId,
     approvalId,
     input.action === "send" ? "approve" : "deny",
@@ -155,5 +160,9 @@ export async function actOnEmailDraft(
     steps?.dispatch,
     steps ? steps.run : runApprovedCall
   )
-  return { approval: await getApproval(userId, approvalId), woke }
+  return {
+    approval: await getApproval(userId, approvalId),
+    woke,
+    ...(inputSeq !== undefined && { inputSeq }),
+  }
 }

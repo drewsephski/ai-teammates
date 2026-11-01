@@ -330,7 +330,7 @@ export async function declinedFor(
     .from(approvals)
     .where(and(eq(approvals.id, approvalId), eq(approvals.userId, userId)))
   if (!named) return []
-  // A batch's one wake carries every decline in it
+  // Every decline wake remains bound to all declines in the same batch.
   const rows = await db
     .select({
       kind: approvals.kind,
@@ -442,10 +442,10 @@ export async function approvalOrigin(userId: string, approvalId: string) {
 }
 
 // The owner's answer. Approving an app action runs the stored call right
-// away when a runner is given, then wakes the bot with the result; without
+// away when a runner is given; the caller wakes the bot with the result. Without
 // one (or for a computer step, which needs the screen) the bot runs it
 // through runApprovedAction.
-export async function decideApproval(
+async function recordApprovalDecision(
   userId: string,
   approvalId: string,
   decision: ApprovalDecision,
@@ -453,7 +453,6 @@ export async function decideApproval(
     expectedArguments: Record<string, unknown>
     arguments: Record<string, unknown>
   },
-  dispatch: ApprovalDispatch = postChatMessage,
   run?: ApprovalRunner
 ) {
   const row = await getApproval(userId, approvalId)
@@ -518,55 +517,66 @@ export async function decideApproval(
     })
   }
 
-  // A reply's requests wake the bot once, after the last one is decided,
-  // with how every one of them went
-  let batch: Awaited<ReturnType<typeof batchItems>> | undefined
-  if (row.batchId) {
-    const items = await batchItems(userId, row.batchId)
-    const now = Date.now()
-    const waiting = items.filter(
-      (item) => item.state === "pending" && item.expiresAt.getTime() > now
-    )
-    if (waiting.length)
-      return { approval: decided, woke: true, ran, waiting: waiting.length }
-    if (items.length > 1) batch = items
-  }
+  return { approval: decided, effective, ran }
+}
 
+// A successful decision always wakes the bot, even when other cards still
+// wait. Return the input cursor so an open chat watches the confirmation turn.
+async function wakeAfterDecision(
+  approval: { id: string; chatId: string; botId: string },
+  message: Parameters<ApprovalDispatch>[1],
+  dispatch: ApprovalDispatch
+): Promise<{ woke: boolean; inputSeq?: number }> {
   try {
-    await dispatch(
-      row.chatId,
-      {
-        // A batch's wake is named for the batch, so two last decisions made
-        // at once on two devices post it once. "deny" when anything was
-        // declined, so the wake turn reads the declines (declinedFor).
-        id: batch
-          ? approvalMessageId(
-              batch[0].id,
-              batch.some((item) => item.state === "denied") ? "deny" : "approve"
-            )
-          : approvalMessageId(row.id, decision),
-        text: batch
-          ? batchDecisionPrompt(batch)
-          : row.kind === "computer"
-            ? computerDecisionPrompt(
-                row,
-                effective === "deny" ? "deny" : "approve"
-              )
-            : ran && effective !== "deny"
-              ? approvalExecutedPrompt(row, effective, ran)
-              : approvalDecisionPrompt(row, effective),
-        displayPrompt: batch
-          ? `${batch.length} requests decided`
-          : approvalDisplayPrompt(effective),
-      },
-      { botId: row.botId }
-    )
+    const receipt = await dispatch(approval.chatId, message, {
+      botId: approval.botId,
+    })
+    return { woke: true, ...(receipt && { inputSeq: receipt.inputSeq }) }
   } catch (error) {
     // The decision stands; the bot picks it up when the person next writes
-    Sentry.captureException(error, { extra: { approvalId } })
-    return { approval: decided, woke: false, ran }
+    Sentry.captureException(error, { extra: { approvalId: approval.id } })
+    return { woke: false }
   }
-  return { approval: decided, woke: true, ran }
+}
+
+export async function decideApproval(
+  userId: string,
+  approvalId: string,
+  decision: ApprovalDecision,
+  email?: {
+    expectedArguments: Record<string, unknown>
+    arguments: Record<string, unknown>
+  },
+  dispatch: ApprovalDispatch = postChatMessage,
+  run?: ApprovalRunner
+) {
+  const { approval, effective, ran } = await recordApprovalDecision(
+    userId,
+    approvalId,
+    decision,
+    email,
+    run
+  )
+  const waiting = await pendingInBatch(userId, approval.batchId)
+  const prompt =
+    approval.kind === "computer"
+      ? computerDecisionPrompt(
+          approval,
+          effective === "deny" ? "deny" : "approve"
+        )
+      : ran && effective !== "deny"
+        ? approvalExecutedPrompt(approval, effective, ran)
+        : approvalDecisionPrompt(approval, effective)
+  const wake = await wakeAfterDecision(
+    approval,
+    {
+      id: approvalMessageId(approval.id, decision),
+      text: `${prompt} Confirm this decision and its actual outcome in a short reply now.${waiting ? ` ${waiting} other requests are still waiting for the owner. Leave those pending; do not run, recreate or decide them.` : ""}`,
+      displayPrompt: approvalDisplayPrompt(effective),
+    },
+    dispatch
+  )
+  return { approval, ran, waiting, ...wake }
 }
 
 async function batchItems(userId: string, batchId: string) {
@@ -577,6 +587,7 @@ async function batchItems(userId: string, batchId: string) {
       kind: approvals.kind,
       state: approvals.state,
       result: approvals.result,
+      arguments: approvals.arguments,
       expiresAt: approvals.expiresAt,
     })
     .from(approvals)
@@ -594,8 +605,8 @@ export async function pendingInBatch(userId: string, batchId: string | null) {
 }
 
 // Approve or decline everything still waiting from one reply. Each goes
-// through decideApproval, so each app call runs once and the bot wakes once,
-// after the last.
+// through the same atomic decision/runner, then confirms this bulk decision
+// once. Individual card decisions always get their own confirmation.
 export async function decideApprovalBatch(
   userId: string,
   batchId: string,
@@ -609,31 +620,56 @@ export async function decideApprovalBatch(
   )
   if (!waiting.length) throw new Error("Approval not found")
   let decided = 0
-  let woke = false
-  for (const item of waiting) {
-    try {
-      const result = await decideApproval(
-        userId,
-        item.id,
-        decision,
-        undefined,
-        dispatch,
-        run
-      )
-      decided++
-      woke = result.woke
-    } catch (error) {
-      // Decided on another device meanwhile: the rest still go through
-      if (
-        !(error instanceof Error) ||
-        ![APPROVAL_DECIDED_ERROR, APPROVAL_EXPIRED_ERROR].includes(
-          error.message
+  const changed: Awaited<ReturnType<typeof recordApprovalDecision>>[] = []
+  let wake: { woke: boolean; inputSeq?: number } = { woke: false }
+  try {
+    for (const item of waiting) {
+      try {
+        const result = await recordApprovalDecision(
+          userId,
+          item.id,
+          decision,
+          undefined,
+          run
         )
+        decided++
+        changed.push(result)
+      } catch (error) {
+        // Decided on another device meanwhile: the rest still go through
+        if (
+          !(error instanceof Error) ||
+          ![APPROVAL_DECIDED_ERROR, APPROVAL_EXPIRED_ERROR].includes(
+            error.message
+          )
+        )
+          throw error
+      }
+    }
+  } finally {
+    // Even a partially completed bulk operation confirms the decisions saved
+    // before a later failure. Already-decided cards are never executed again.
+    if (changed.length) {
+      const ids = new Set(changed.map(({ approval }) => approval.id))
+      const items = (await batchItems(userId, batchId)).filter((item) =>
+        ids.has(item.id)
       )
-        throw error
+      const first = changed[0].approval
+      wake = await wakeAfterDecision(
+        first,
+        {
+          id: approvalMessageId(first.id, decision),
+          text: batchDecisionPrompt(items),
+          displayPrompt: `${items.length} requests decided`,
+        },
+        dispatch
+      )
     }
   }
-  return { decided, woke }
+  return {
+    decided,
+    ...wake,
+    ...(changed[0] && { chatId: changed[0].approval.chatId }),
+  }
 }
 
 // Compare the complete stored call as well as its revision: a concurrent

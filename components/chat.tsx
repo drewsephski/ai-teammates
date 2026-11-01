@@ -82,6 +82,7 @@ import { useChatSession } from "@/hooks/use-chat-session"
 import { useSignedInAction } from "@/hooks/use-signed-in-action"
 import { resumeAfterWake } from "@/hooks/app-connection-channel"
 import { useResumeChatStream } from "@/hooks/use-resume-chat-stream"
+import { useApprovalConfirmation } from "@/hooks/use-approval-confirmation"
 import { navigationChatTransport } from "@/lib/chat-transport"
 import type { ChatUIMessage } from "@/lib/sandbox-tools"
 import type { chatAgent } from "@/trigger/chat"
@@ -132,8 +133,28 @@ function Chat({
   notice?: React.ReactNode
 }) {
   const signedIn = useSignedInAction()
+  const [completedTurn, setCompletedTurn] = useState<{
+    chatId: string
+    inputSeq: number
+  }>()
   const transport = useTriggerChatTransport<typeof chatAgent>({
     task: "chat",
+    onEvent: (event) => {
+      if (
+        event.type !== "turn-completed" ||
+        event.sessionInEventId === undefined
+      )
+        return
+      const inputSeq = Number(event.sessionInEventId)
+      if (!Number.isSafeInteger(inputSeq) || inputSeq < 0) return
+      setCompletedTurn((previous) => ({
+        chatId: event.chatId,
+        inputSeq:
+          previous?.chatId === event.chatId
+            ? Math.max(previous.inputSeq, inputSeq)
+            : inputSeq,
+      }))
+    },
     // Sends go through our server, which seals them with the chat's key
     // (lib/chat-input-proxy.ts); replies stream from Trigger.dev directly
     baseURL: ({ endpoint }) =>
@@ -188,6 +209,9 @@ function Chat({
       notice={notice}
       initialMessages={messages}
       transport={transport}
+      completedInputSeq={
+        completedTurn?.chatId === chatId ? completedTurn.inputSeq : undefined
+      }
     />
   )
 }
@@ -203,6 +227,7 @@ function ChatMessages({
   directBot,
   mentionBots = [],
   notice,
+  completedInputSeq,
 }: {
   chatId: string
   name: string
@@ -214,6 +239,7 @@ function ChatMessages({
   directBot?: ChatBot
   mentionBots?: MentionBot[]
   notice?: React.ReactNode
+  completedInputSeq?: number
 }) {
   const router = useRouter()
   const { checkPlan, showUsageLimit } = usePaywall()
@@ -369,6 +395,19 @@ function ChatMessages({
         !answeredQuestions.has(part.toolCallId)
     )
   const busy = status === "submitted" || status === "streaming"
+  const confirmApproval = useApprovalConfirmation({
+    chatId,
+    transport,
+    resumeStream,
+    busy,
+    completedInputSeq,
+    onMissingCursor: () =>
+      toast.add({
+        type: "info",
+        title: "Your bot is confirming the result",
+        description: "Refresh the page to see its reply.",
+      }),
+  })
   const followUps =
     status === "ready" && !pendingQuestion && !pendingSecret && !setupStopped
       ? latestFollowUps(visibleMessages)
@@ -653,7 +692,13 @@ function ChatMessages({
                     )
                   }
                   if (part.type !== "dynamic-tool" && isToolUIPart(part)) {
-                    return <ToolCall key={part.toolCallId} part={part} />
+                    return (
+                      <ToolCall
+                        key={part.toolCallId}
+                        part={part}
+                        onResume={confirmApproval}
+                      />
+                    )
                   }
                   return null
                 })

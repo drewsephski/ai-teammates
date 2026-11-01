@@ -6,6 +6,7 @@ import {
   count,
   desc,
   eq,
+  gt,
   gte,
   inArray,
   isNotNull,
@@ -21,6 +22,7 @@ import {
 import { db } from "@/db"
 import {
   activityEvents,
+  approvals,
   bots,
   chatMembers,
   chats,
@@ -646,6 +648,27 @@ export async function recordRoutineRunOutcome(
 ) {
   const run = parseRoutineRunMessageId(messageId)
   if (!run) return { updated: false as const }
+  // A partial approval decision now gets its own confirmation turn. It must
+  // not mark the original scheduled task done while other requests still wait.
+  if (outcome.status === "completed") {
+    const [waiting] = await db
+      .select({ id: approvals.id })
+      .from(approvals)
+      .where(
+        and(
+          eq(approvals.userId, userId),
+          eq(
+            approvals.originMessageId,
+            routineRunMessageId(run.routineId, run.scheduledAt)
+          ),
+          eq(approvals.state, "pending"),
+          gt(approvals.expiresAt, new Date())
+        )
+      )
+      .limit(1)
+    if (waiting)
+      outcome = { status: "blocked", detail: "Waiting for your approval" }
+  }
   // The run's own row, even when a newer run has started since
   await db
     .update(routineRuns)

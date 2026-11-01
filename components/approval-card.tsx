@@ -104,12 +104,14 @@ export function ApprovalCard({
   summary,
   toolkit,
   api,
+  onResume,
 }: {
   approvalId: string
   summary: string
   toolkit?: string
   /** Injected in tests; defaults to the approvals server actions. */
   api?: Actions
+  onResume?: (inputSeq?: number) => void
 }) {
   const load = useCallback(
     () => (api ? Promise.resolve(api) : actions()),
@@ -171,6 +173,7 @@ export function ApprovalCard({
       const api = await load()
       if (!api.decideApprovalBatch) return
       const result = await api.decideApprovalBatch(batch.id, decision)
+      if (result.woke) onResume?.(result.inputSeq)
       toast.add({
         type: "success",
         title:
@@ -262,6 +265,7 @@ export function ApprovalCard({
         return
       }
       setState(result.state)
+      if (result.woke) onResume?.(result.inputSeq)
       // The others from this reply now have one fewer waiting
       if (batch.id)
         window.dispatchEvent(
@@ -296,6 +300,8 @@ export function ApprovalCard({
             ).actOnEmailDraft(approvalId, input)
             if (!result.ok) throw new Error(result.message)
             setState(result.approval.state)
+            if (input.action !== "save" && result.woke)
+              onResume?.(result.inputSeq)
             return { draft: result.approval.emailDraft, woke: result.woke }
           }}
         />

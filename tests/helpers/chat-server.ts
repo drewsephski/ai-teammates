@@ -17,6 +17,7 @@ export class ChatServer {
   savedCursor?: string
   settled = true
   starts = 0
+  private answerId = "answer"
 
   loadTranscript = async () => ({
     messages: structuredClone(this.messages),
@@ -40,9 +41,10 @@ export class ChatServer {
     for (const reader of this.readers) reader.enqueue(this.encode(record))
   }
 
-  begin(text = "Still researching") {
+  begin(text = "Still researching", messageId = "answer") {
     this.settled = false
-    this.write({ type: "start", messageId: "answer" })
+    this.answerId = messageId
+    this.write({ type: "start", messageId })
     this.write({ type: "text-start", id: "text" })
     this.write({ type: "text-delta", id: "text", delta: text })
   }
@@ -53,7 +55,7 @@ export class ChatServer {
     this.write({ type: "finish" })
     this.write({ type: "trigger:turn-complete" })
     this.messages.push({
-      id: "answer",
+      id: this.answerId,
       role: "assistant",
       parts: [{ type: "text", text, state: "done" }],
     })

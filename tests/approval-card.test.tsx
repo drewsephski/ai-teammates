@@ -3,6 +3,8 @@ import assert from "node:assert/strict"
 import { afterEach, test } from "node:test"
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react"
 import { ApprovalCard } from "../components/approval-card"
+import { publicEmailDraft, stageEmailDraft } from "../lib/email-draft"
+import { emailInput, emailTool } from "./helpers/email-draft"
 
 afterEach(cleanup)
 
@@ -13,7 +15,11 @@ const png = "data:image/png;base64,iVBORw0KGgo="
 function setup(
   detail: Record<string, unknown>,
   decisions: string[] = [],
-  props: { toolkit?: string } = {}
+  props: {
+    toolkit?: string
+    onResume?: (inputSeq?: number) => void
+    api?: Api
+  } = {}
 ) {
   const api = {
     getApproval: async () => ({
@@ -31,8 +37,9 @@ function setup(
     }),
     decideApproval: async (_id: string, decision: string) => {
       decisions.push(decision)
-      return { ok: true, state: "approved", woke: true }
+      return { ok: true, state: "approved", woke: true, inputSeq: 7 }
     },
+    decideApprovalBatch: async () => ({ decided: 2, woke: true, inputSeq: 8 }),
     actOnEmailDraft: async () => {
       throw new Error("unused")
     },
@@ -112,4 +119,70 @@ test("deciding sends the choice and settles the card", async () => {
   fireEvent.click(await view.findByRole("button", { name: "Approve" }))
   await waitFor(() => view.getByText("Approved"))
   assert.deepEqual(decisions, ["approve"])
+})
+
+test("Approve, Always allow and Decline each attach the chat to the AI confirmation", async () => {
+  for (const name of ["Approve", "Always allow", "Decline"]) {
+    const cursors: (number | undefined)[] = []
+    const view = setup({}, [], { onResume: (seq) => cursors.push(seq) })
+    fireEvent.click(await view.findByRole("button", { name }))
+    await waitFor(() => assert.deepEqual(cursors, [7]))
+    view.unmount()
+  }
+})
+
+test("a bulk decision attaches once to its combined confirmation", async () => {
+  const cursors: (number | undefined)[] = []
+  const view = setup({ batchId: "batch", batchPending: 2 }, [], {
+    onResume: (seq) => cursors.push(seq),
+  })
+  fireEvent.click(await view.findByRole("button", { name: "Approve all 2" }))
+  await waitFor(() => assert.deepEqual(cursors, [8]))
+})
+
+test("email Send and Discard attach to confirmations, while Save stays an unsent draft", async () => {
+  const draft = publicEmailDraft(stageEmailDraft(emailTool, emailInput)!)!
+  for (const action of ["send", "discard", "save"] as const) {
+    const cursors: (number | undefined)[] = []
+    const api = {
+      getApproval: async () => ({ state: "pending", emailDraft: draft }),
+      actOnEmailDraft: async () => ({
+        ok: true,
+        approval: {
+          state:
+            action === "send"
+              ? "executed"
+              : action === "discard"
+                ? "denied"
+                : "pending",
+          emailDraft: draft,
+        },
+        woke: true,
+        inputSeq: 9,
+      }),
+    } as unknown as Api
+    const view = setup({}, [], { api, onResume: (seq) => cursors.push(seq) })
+    await view.findByRole("form", { name: "Email draft" })
+    if (action === "save")
+      fireEvent.change(view.getByLabelText("Email body"), {
+        target: { value: "Reviewed draft" },
+      })
+    fireEvent.click(
+      await view.findByRole("button", {
+        name:
+          action === "send"
+            ? "Send"
+            : action === "discard"
+              ? "Discard"
+              : "Save",
+      })
+    )
+    await waitFor(() =>
+      action === "save"
+        ? view.getByText("Changes saved")
+        : assert.deepEqual(cursors, [9])
+    )
+    if (action === "save") assert.deepEqual(cursors, [])
+    view.unmount()
+  }
 })

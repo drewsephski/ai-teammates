@@ -11,6 +11,30 @@ const bot = {
   setupComplete: false,
 }
 
+test("every bot confirms decisions and consequential tool outcomes in chat", () => {
+  for (const setupComplete of [true, false]) {
+    const instructions = buildChatInstructions(
+      { ...bot, setupComplete },
+      undefined,
+      true,
+      true,
+      true
+    )
+    assert.match(
+      instructions,
+      /after every approval or decline, always write a short confirmation/
+    )
+    assert.match(instructions, /a tool card alone is not a confirmation/)
+    assert.match(instructions, /Name the actual recipients and subject/)
+    assert.match(
+      instructions,
+      /Distinguish sent from drafted, approved from executed, declined from failed, and verified from unknown/
+    )
+    assert.match(instructions, /Each individual decision wakes you immediately/)
+    assert.match(instructions, /Leave undecided cards pending/)
+  }
+})
+
 test("unfinished setup includes public research and connected-app instructions on both plans", () => {
   for (const paid of [false, true]) {
     const instructions = buildChatInstructions(bot, undefined, true, paid, true)

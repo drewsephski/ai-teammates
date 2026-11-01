@@ -689,7 +689,7 @@ export function createAppTools(
             summary: held.summary,
             toolkit: entry.toolkit,
             message:
-              "Nothing was executed. The owner has an approval card and a notification. If the task needs more actions like this one (for example one email per client), prepare each of them now the same way: the owner decides them together and you get one message when they have. Then tell them in one or two sentences what will happen once they approve, and stop. Don't retry, rephrase, or work around this one.",
+              "Nothing was executed. The owner has an approval card and a notification. If the task needs more actions like this one (for example one email per client), prepare each of them now the same way. Each individual decision wakes you immediately to confirm its actual outcome; a bulk decision gets one combined confirmation. Leave undecided cards pending. Tell the owner in one or two sentences what will happen once they approve, and stop. Don't retry, rephrase, or work around this one.",
           })
         }
         try {
