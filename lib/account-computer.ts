@@ -459,7 +459,7 @@ export async function pauseComputerIfLowAllowance(
 // Frees the computers whose holding turn died mid-turn (#34). A cancelled or
 // crashed chat run never reaches onTurnComplete, so its lease would stand
 // until it lapsed and the computer would run, and bill, until the provider's
-// idle pause: five minutes of a free plan's 300 lifetime seconds. Run by the
+// idle pause, consuming the account's remaining allowance. Run by the
 // metering cron each minute. The release is keyed on the dead turn's run key,
 // so a turn that has taken the computer since is untouched, and then the
 // computer is paused as that turn's end would have (pauseComputerIfLowAllowance,

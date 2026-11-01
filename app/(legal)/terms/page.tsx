@@ -5,6 +5,7 @@ import { pageMetadata } from "@/lib/marketing/content"
 
 export const metadata: Metadata = pageMetadata({
   path: "/terms",
+  markdown: false,
   title: "Terms of service",
   description: "Terms for using Krafty’s AI teammates and cloud computers.",
 })

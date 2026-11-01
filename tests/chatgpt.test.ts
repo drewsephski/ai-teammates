@@ -317,3 +317,35 @@ test("OAuth telemetry removes codes, cookies, credentials and captured locals", 
   assert.ok(!result.includes("private-"))
   assert.ok(result.includes("/api/chatgpt/callback"))
 })
+
+test("saved API keys in request bodies and key-handling frames never reach error reports", () => {
+  const value = "sk-live-private-key-123456"
+  const api = JSON.stringify(
+    redactChatGPTEvent({
+      request: {
+        url: "https://kraftybot.app/api/v1/secrets",
+        data: JSON.stringify({ name: "OPENAI_API_KEY", value }),
+      },
+    })
+  )
+  assert.ok(!api.includes(value))
+  const action = JSON.stringify(
+    redactChatGPTEvent({
+      request: {
+        url: "https://kraftybot.app/chats/chat_1",
+        headers: { "Next-Action": "abc123" },
+        data: JSON.stringify([{ value }]),
+      },
+      exception: {
+        values: [
+          {
+            stacktrace: {
+              frames: [{ filename: "lib/user-secrets.ts", vars: { value } }],
+            },
+          },
+        ],
+      },
+    })
+  )
+  assert.ok(!action.includes(value))
+})

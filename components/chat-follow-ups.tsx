@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip"
 import { CornerDownRightIcon } from "lucide-react"
 import type { RefObject } from "react"
 import { usePromptInputController } from "@/components/ai-elements/prompt-input"
@@ -25,24 +30,30 @@ export function ChatFollowUps({
       className="mb-1 flex flex-wrap items-center justify-center gap-x-2 px-1"
     >
       {suggestions.map(({ label, prompt }) => (
-        <Button
-          key={prompt}
-          type="button"
-          variant="ghost"
-          size="sm"
-          title={prompt}
-          className="h-auto min-h-11 max-w-full min-w-0 justify-start gap-1.5 px-2 py-1.5 text-left text-xs font-normal whitespace-normal text-muted-foreground sm:min-h-9"
-          onClick={() => {
-            // Recheck on click so a suggestion never overwrites a fresh draft.
-            if (textInput.value.trim()) return
-            onSelect?.()
-            textInput.setInput(prompt)
-            inputRef.current?.focus()
-          }}
-        >
-          <CornerDownRightIcon aria-hidden="true" className="size-3" />
-          <span className="min-w-0 break-words">{label}</span>
-        </Button>
+        <Tooltip key={prompt}>
+          <TooltipTrigger
+            render={
+              <Button
+                key={prompt}
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-auto min-h-11 max-w-full min-w-0 justify-start gap-1.5 px-2 py-1.5 text-left text-xs font-normal whitespace-normal text-muted-foreground sm:min-h-9"
+                onClick={() => {
+                  // Recheck on click so a suggestion never overwrites a fresh draft.
+                  if (textInput.value.trim()) return
+                  onSelect?.()
+                  textInput.setInput(prompt)
+                  inputRef.current?.focus()
+                }}
+              >
+                <CornerDownRightIcon aria-hidden="true" className="size-3" />
+                <span className="min-w-0 break-words">{label}</span>
+              </Button>
+            }
+          />
+          <TooltipContent>{prompt}</TooltipContent>
+        </Tooltip>
       ))}
     </div>
   )

@@ -1,0 +1,438 @@
+{
+  "summary": {
+    "health_score": 69,
+    "business_type": "SaaS",
+    "domain": "kraftybot.app",
+    "audit_date": "2026-10-27",
+    "top_findings": [
+      "No off-site footprint: not in Common Crawl, no listings, mentions or sameAs profiles",
+      "Thin, templated pages: nine use-case pages at 388-435 words from one skeleton; three topic pages at 370-565 words",
+      "Page-type mismatch: /manus-alternatives targets a list query but names no alternatives; topic pages are product pages where guides rank",
+      "Homepage weight: 1.07 MB raw HTML (95 inline SVGs), ~822 KB gzip JS, Clerk on every marketing page",
+      "No proof of experience: no about page, screenshots, video, case studies or named author"
+    ],
+    "quick_wins": [
+      "301 www.kraftybot.app to the apex (serves a 200 duplicate today)",
+      "Add /download to the sitemap, trim four long meta descriptions, extend the homepage footer to the 11 unlinked pages",
+      "Add sameAs, seller and ContactPage to the schema; replace the personal Gmail contact with a role address",
+      "Add the four topic pages to llms-full.txt and give llms.txt links their own descriptions",
+      "Verify Bing Webmaster Tools, enable IndexNow, set a PageSpeed Insights API key for the next audit"
+    ],
+    "not_measured": [
+      "Field and lab Core Web Vitals (no Google API key; PageSpeed Insights rate-limited; Lighthouse not installed)",
+      "Referring domains and link quality (no Moz or Bing key)",
+      "Google indexation and impressions (no Search Console)",
+      "Lighthouse Agentic Browsing fraction"
+    ]
+  },
+  "categories": [
+    {
+      "name": "Technical SEO",
+      "score": 86,
+      "weight": 0.22,
+      "what_works": [
+        "All 20 sitemap URLs return 200, self-canonical, no robots meta or X-Robots-Tag",
+        "Server-rendered, raw and rendered text match, 0 console errors",
+        "http to https single 301; trailing slash 308; true 404 with noindex",
+        "HSTS, nosniff, X-Frame-Options DENY, frame-ancestors none, Referrer-Policy, nonce CSP",
+        "Unique titles and descriptions on every page"
+      ],
+      "findings": [
+        {
+          "title": "Homepage HTML is 1.07 MB raw",
+          "severity": "High",
+          "description": "https://kraftybot.app/ is 1,068,730 bytes raw (95 KB gzip); 95 inline SVGs account for 862 KB; inner pages are 38-68 KB.",
+          "recommendation": "Move SVGs to static files or a sprite; lazy-render below-fold sections."
+        },
+        {
+          "title": "No www redirect",
+          "severity": "Medium",
+          "description": "https://www.kraftybot.app/ returns 200 with a canonical to the apex.",
+          "recommendation": "301 www to apex."
+        },
+        {
+          "title": "Marketing pages are uncacheable",
+          "severity": "Medium",
+          "description": "cache-control: private, no-cache, no-store on public pages because of the per-request CSP nonce.",
+          "recommendation": "Use script hashes on marketing routes or inject the nonce at the edge so the CDN can cache."
+        },
+        {
+          "title": "Loose CSP",
+          "severity": "Medium",
+          "description": "connect-src, frame-src, img-src and media-src include bare https:; script-src carries unsafe-inline.",
+          "recommendation": "List explicit origins only."
+        },
+        {
+          "title": "/download missing from sitemap",
+          "severity": "Medium",
+          "description": "/download is linked, returns 200, self-canonical and indexable but is not in /sitemap.xml.",
+          "recommendation": "Add it in app/sitemap.ts or noindex it on purpose."
+        },
+        {
+          "title": "HSTS without includeSubDomains or preload",
+          "severity": "Low",
+          "description": "max-age=31536000 only.",
+          "recommendation": "Add includeSubDomains; preload once all subdomains are HTTPS."
+        },
+        {
+          "title": "No Permissions-Policy header",
+          "severity": "Low",
+          "description": "Header absent.",
+          "recommendation": "Add a restrictive policy."
+        },
+        {
+          "title": "Long meta descriptions on four topic pages",
+          "severity": "Low",
+          "description": "/manus-alternatives 195, /autonomous-ai-agent 186, /ai-agents-for-business 173, /ai-employees 163 characters.",
+          "recommendation": "Trim to about 155."
+        },
+        {
+          "title": "404 page reuses homepage description",
+          "severity": "Low",
+          "description": "Also has two duplicate robots noindex tags.",
+          "recommendation": "Own description, single robots tag."
+        },
+        {
+          "title": "OG image served with max-age=0",
+          "severity": "Low",
+          "description": "/brand/krafty-social-v1.jpg is versioned by filename.",
+          "recommendation": "Long max-age, immutable."
+        },
+        {
+          "title": "Sitemap lastmod equals deploy date",
+          "severity": "Low",
+          "description": "16 of 20 lastmod values are 2026-10-26; priority is set and ignored by Google.",
+          "recommendation": "Per-page content dates; drop priority."
+        }
+      ]
+    },
+    {
+      "name": "Content Quality",
+      "score": 60,
+      "weight": 0.23,
+      "what_works": [
+        "Accurate, plain copy with no false claims; Flesch 60-81",
+        "Prices and limits stated openly and consistent everywhere",
+        "Clear definition sentence and llms.txt (AI citation readiness 74)",
+        "/how-it-works is a strong 772-word page"
+      ],
+      "findings": [
+        {
+          "title": "Nine use-case pages are thin and templated",
+          "severity": "High",
+          "description": "388-435 words each from one heading skeleton with five identical sentences; 45-51% unique against siblings, 40-45% once the hub (which repeats every starter prompt) is counted.",
+          "recommendation": "Add a sample output, first-run walk-through and role-specific questions per page; 700+ unique words; cut hub prompts to teasers."
+        },
+        {
+          "title": "Little proof of experience or authority",
+          "severity": "High",
+          "description": "E-E-A-T: Experience 38, Expertise 60, Authoritativeness 30, Trust 70. No about page, author, case study, screenshot or video.",
+          "recommendation": "Add /about, 2-3 case studies with real outputs, real screenshots, a demo video."
+        },
+        {
+          "title": "Topic pages restate the same features",
+          "severity": "Medium",
+          "description": "/ai-agents-for-business (565 words), /ai-employees (416), /autonomous-ai-agent (370) all repeat memory, apps, cloud computer, approvals with keyword-forced H2s.",
+          "recommendation": "One distinct angle per page; link the feature list to /how-it-works."
+        },
+        {
+          "title": "/manus-alternatives lists no alternatives",
+          "severity": "Medium",
+          "description": "419 words; says it does not publish comparisons; every result for the query is a list or directory.",
+          "recommendation": "Owner decision: retarget to a vs page, build a cited alternatives guide without scores, or redirect."
+        },
+        {
+          "title": "Trust gaps",
+          "severity": "Medium",
+          "description": "Support is a personal gmail.com address; no legal entity, address or security page.",
+          "recommendation": "Role address on the domain; data and security page; entity in terms."
+        },
+        {
+          "title": "No blog or guides section",
+          "severity": "Info",
+          "description": "No informational content beyond the topic pages.",
+          "recommendation": "Start with the five cluster-plan pages."
+        }
+      ]
+    },
+    {
+      "name": "On-Page SEO",
+      "score": 72,
+      "weight": 0.2,
+      "what_works": [
+        "Unique titles; one H1 per page matching its query",
+        "Correct canonicals; no templated metadata detected",
+        "Inner pages link each other well; breadcrumbs present"
+      ],
+      "findings": [
+        {
+          "title": "Homepage footer omits 11 public pages",
+          "severity": "Medium",
+          "description": "The homepage uses a shorter footer that omits /autonomous-ai-agent, /manus-alternatives and all nine use-case pages.",
+          "recommendation": "Reuse the inner-page footer or link each homepage use-case tab to its page."
+        },
+        {
+          "title": "Several pages compete for 'AI agent'",
+          "severity": "Medium",
+          "description": "Pillar H1 targets the enterprise-leaning 'AI agents for business'; three pages chase the head term.",
+          "recommendation": "Pillar takes 'AI agents for small business'; /ai-employees the role framing; /autonomous-ai-agent the definition."
+        },
+        {
+          "title": "Page-type mismatch on topic and use-case queries",
+          "severity": "High",
+          "description": "Guides, definitions and lists rank for every target query; kraftybot.app serves 244-565 word product pages. SXO gap scores 37-45/100.",
+          "recommendation": "Add a guide layer: question H2s, direct answers, named competitors, sample output, FAQs; retarget support triage to 'AI support ticket triage'."
+        },
+        {
+          "title": "Short titles and long descriptions on topic pages",
+          "severity": "Low",
+          "description": "Titles 27-36 characters; descriptions 163-195.",
+          "recommendation": "About 55 and 155 characters."
+        },
+        {
+          "title": "Homepage H1 extracts without a separator",
+          "severity": "Low",
+          "description": "Reads 'AI that does the workKrafty Bot' in extracted text.",
+          "recommendation": "Add a space or aria-label."
+        },
+        {
+          "title": "Card and page claims differ",
+          "severity": "Low",
+          "description": "Sales Outbound card claims LinkedIn drafts and intent scoring the page does not mention.",
+          "recommendation": "Align card and page."
+        }
+      ]
+    },
+    {
+      "name": "Schema / Structured Data",
+      "score": 80,
+      "weight": 0.1,
+      "what_works": [
+        "Valid server-rendered JSON-LD graph with @id links",
+        "SoftwareApplication with category, OS, offers (0 and 20 USD/month matching copy), featureList",
+        "Organization with logo, contactPoint, founder",
+        "BreadcrumbList correct on inner pages",
+        "Nothing deprecated"
+      ],
+      "findings": [
+        {
+          "title": "No sameAs on Organization",
+          "severity": "Medium",
+          "description": "No profile URLs anywhere in the code.",
+          "recommendation": "Add real profiles once they exist."
+        },
+        {
+          "title": "No aggregateRating or review",
+          "severity": "Medium",
+          "description": "SoftwareApplication cannot qualify for the software rich result.",
+          "recommendation": "Add only when real, verifiable ratings exist."
+        },
+        {
+          "title": "contactPoint uses a personal Gmail address",
+          "severity": "Low",
+          "description": "Public schema exposes a personal email.",
+          "recommendation": "Role address on the domain; add availableLanguage."
+        },
+        {
+          "title": "/support and /privacy have no JSON-LD",
+          "severity": "Low",
+          "description": "No breadcrumb either.",
+          "recommendation": "ContactPage and WebPage blocks with BreadcrumbList (snippets in findings/schema.md)."
+        },
+        {
+          "title": "Offers lack seller",
+          "severity": "Low",
+          "description": "FOUNDING50 promo not modelled (optional).",
+          "recommendation": "seller: {@id: #organization}."
+        },
+        {
+          "title": "FAQPage present on three pages",
+          "severity": "Info",
+          "description": "Google retired FAQ rich results for all sites on 2026-05-07; markup is valid.",
+          "recommendation": "No action; do not add more for SERP benefit."
+        }
+      ]
+    },
+    {
+      "name": "Performance (CWV)",
+      "score": 55,
+      "weight": 0.1,
+      "what_works": [
+        "Warm TTFB 0.15-0.23 s on all sampled pages",
+        "Two woff2 fonts preloaded and cached immutable",
+        "Only one third party (Clerk); no images so CLS risk is low",
+        "Inner pages are 12-13 KB gzip"
+      ],
+      "findings": [
+        {
+          "title": "Core Web Vitals not measured",
+          "severity": "Info",
+          "description": "No CrUX key; PageSpeed Insights rate-limited keyless calls; Lighthouse not installed. Score is provisional from lab weight signals.",
+          "recommendation": "Add a Google API key to the claude-seo config and rerun."
+        },
+        {
+          "title": "Homepage JS about 822 KB gzip across 33 chunks",
+          "severity": "Medium",
+          "description": "Two chunks are 437 KB and 299 KB raw; subpages reference about 493 KB gzip.",
+          "recommendation": "Dynamic-import the chat demo and below-fold sections; expected saving 300-500 KB gzip."
+        },
+        {
+          "title": "Clerk loads on every marketing page",
+          "severity": "Medium",
+          "description": "clerk-js 84 KB plus @clerk/ui 46 KB gzip for signed-out visitors.",
+          "recommendation": "Load only on app and auth routes."
+        },
+        {
+          "title": "Homepage DOM is 2,470 elements with 95 inline SVGs",
+          "severity": "Medium",
+          "description": "Mobile parse cost and INP risk.",
+          "recommendation": "SVG sprite and lazy render; expected 50-70% raw HTML reduction."
+        },
+        {
+          "title": "Four render-blocking stylesheets",
+          "severity": "Low",
+          "description": "Main sheet 40 KB gzip / 260 KB raw.",
+          "recommendation": "Purge unused CSS; split marketing CSS."
+        },
+        {
+          "title": "HTML served gzip, not brotli",
+          "severity": "Low",
+          "description": "Content-Encoding: gzip.",
+          "recommendation": "Enable brotli at the edge."
+        }
+      ]
+    },
+    {
+      "name": "AI Search Readiness",
+      "score": 66,
+      "weight": 0.1,
+      "what_works": [
+        "robots.txt allows every search, fetch and training bot explicitly",
+        "llms.txt follows llmstxt.org; all 21 links return 200",
+        "Clear definition sentence on /, /how-it-works and llms-full",
+        "Accessibility tree: 1,045 nodes, 84 interactive, 0 unnamed; landmarks present (agent readiness 78)"
+      ],
+      "findings": [
+        {
+          "title": "No third-party footprint",
+          "severity": "High",
+          "description": "Zero results on Wikipedia, Hacker News, GitHub, YouTube; Product Hunt 404; not in Common Crawl.",
+          "recommendation": "Launch on Product Hunt and Show HN; directory and comparison listings; LinkedIn page; YouTube demo; then sameAs."
+        },
+        {
+          "title": "/manus-alternatives names no alternatives",
+          "severity": "High",
+          "description": "Will not be picked for list-style queries by any AI engine.",
+          "recommendation": "Dated list of real alternatives with a criteria table, or retarget the page."
+        },
+        {
+          "title": "llms-full.txt omits the topic pages",
+          "severity": "Medium",
+          "description": "'Manus', 'autonomous' and 'AI employee' never appear; llms.txt descriptions reuse meta text.",
+          "recommendation": "Fix in lib/marketing/llms.ts and content.ts."
+        },
+        {
+          "title": "Topic-page H2s are labels, not questions",
+          "severity": "Medium",
+          "description": "/ai-employees and /ai-agents-for-business never define their own term.",
+          "recommendation": "Question H2s with a 40-60 word direct answer under each."
+        },
+        {
+          "title": "Homepage demo and mock form expose fictional data",
+          "severity": "Medium",
+          "description": "Fictional names, emails and timestamps in indexable HTML with an 11 px 'Example' label; the email-draft mock has about 12 unlabeled inputs.",
+          "recommendation": "Prominent example label in the demo text; neutral persona; aria-hidden or inert on the mock; aria-label on the demo form; consider data-nosnippet."
+        },
+        {
+          "title": "Bing indexing unverified",
+          "severity": "Low",
+          "description": "ChatGPT search and Copilot draw on Bing.",
+          "recommendation": "Bing Webmaster Tools and IndexNow."
+        },
+        {
+          "title": "Draft agent standards absent",
+          "severity": "Low",
+          "description": "No Content-Signal, Markdown delivery, WebMCP or /.well-known discovery files. Lighthouse agentic fraction not measured (PSI 429).",
+          "recommendation": "Optional; Content-Signal is a one-line robots.txt addition."
+        }
+      ]
+    },
+    {
+      "name": "Images",
+      "score": 40,
+      "weight": 0.05,
+      "what_works": [
+        "No missing alt text because there are no img tags",
+        "No unsized images, so no CLS from images",
+        "OG image is 1200x630 JPEG with alt text"
+      ],
+      "findings": [
+        {
+          "title": "No images or video on any marketing page",
+          "severity": "Medium",
+          "description": "0 img and 0 video tags across all pages; multi-modal score 35.",
+          "recommendation": "Alt-texted real screenshots of approvals and Bot output; a demo video with VideoObject schema."
+        },
+        {
+          "title": "Dim secondary text likely under 4.5:1",
+          "severity": "Low",
+          "description": "Hero subhead, breadcrumbs, timestamps and 'Example' label are dim gray on near-black.",
+          "recommendation": "Raise lightness; 12 px minimum."
+        }
+      ]
+    }
+  ],
+  "action_plan": {
+    "phases": [
+      {
+        "name": "Phase 1: Quick wins",
+        "timeframe": "Week 1",
+        "items": [
+          "301 www to apex",
+          "Add /download to sitemap; trim four long descriptions; extend homepage footer to the 11 unlinked pages",
+          "Schema: seller, ContactPage on /support, WebPage on /privacy, role email in contactPoint, real dateModified",
+          "Add topic pages to llms-full.txt; own descriptions in llms.txt",
+          "Bing Webmaster Tools + IndexNow; PageSpeed Insights API key; Search Console",
+          "Decide the /manus-alternatives direction; start the homepage weight work"
+        ]
+      },
+      {
+        "name": "Phase 2: High-impact improvements",
+        "timeframe": "Weeks 2-3",
+        "items": [
+          "Deepen the nine use-case pages (700+ unique words, sample output, walk-through, role questions); cut hub prompts to teasers",
+          "Give each topic page one angle with question H2s and direct answers; retarget support triage",
+          "Cut homepage weight: SVG sprite, dynamic imports, Clerk off marketing routes, CSS purge",
+          "Label the demo chat as an example in its own text; aria-hidden the mock form",
+          "Add /about, real screenshots, demo video, 2-3 case studies; show the $20 price and a security page on every page"
+        ]
+      },
+      {
+        "name": "Phase 3: Content & authority",
+        "timeframe": "Month 2",
+        "items": [
+          "Launch week: Product Hunt, Show HN, AlternativeTo, G2, Capterra, AI directories, LinkedIn, YouTube; then sameAs",
+          "New pages: /ai-agent-human-approval, /integrations/gmail, /ai-agent-cloud-computer, /integrations/google-sheets, /ai-agent-vs-chatbot",
+          "Cacheable marketing pages (hash-based CSP or edge nonce); explicit CSP origins"
+        ]
+      },
+      {
+        "name": "Phase 4: Monitoring & iteration",
+        "timeframe": "Ongoing",
+        "items": [
+          "Capture a drift baseline now; re-audit after launch week, then quarterly",
+          "Watch Search Console and Bing impressions for the 'ai agent for small business', 'human approval' and 'gmail' families",
+          "Monthly count of third-party pages mentioning Krafty Bot (target 10 within 60 days of launch)",
+          "PageSpeed Insights monthly once keyed; CrUX once traffic qualifies",
+          "Low backlog: HSTS preload, Permissions-Policy, OG image cache, brotli, sitemap lastmod, contrast, H1 separator"
+        ]
+      }
+    ]
+  },
+  "artifacts": {
+    "findings_dir": "findings/",
+    "screenshots_dir": "screenshots/",
+    "report": "FULL-AUDIT-REPORT.md",
+    "action_plan": "ACTION-PLAN.md"
+  }
+}

@@ -10,7 +10,7 @@ export const FREE_APP_LIMIT_ERROR =
 
 // Free allowances are one-time: the free period has no start, so usage is
 // summed over the account's whole life (lib/usage.ts). `sandbox` is seconds.
-export const FREE_SANDBOX_SECONDS = 300
+export const FREE_SANDBOX_SECONDS = 20 * 60
 
 export const planLimits = {
   free: { ai: 1_000_000, sandbox: FREE_SANDBOX_SECONDS, bots: 1, apps: 1 },

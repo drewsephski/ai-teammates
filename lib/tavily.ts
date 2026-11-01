@@ -106,8 +106,9 @@ const extractResponseSchema = z.object({
   usage: usageSchema.optional(),
 })
 
-type FailureCode =
+export type FailureCode =
   | "NOT_CONFIGURED"
+  | "UNSUPPORTED_SOURCE"
   | "AUTH_ERROR"
   | "RATE_LIMIT"
   | "PROVIDER_LIMIT"

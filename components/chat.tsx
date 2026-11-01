@@ -54,9 +54,11 @@ import {
 } from "@/components/ai-elements/prompt-input"
 import { ToolCall } from "@/components/chat-tool-call"
 import { ChatQuestion } from "@/components/chat-question"
+import { ChatSecretRequest } from "@/components/chat-secret-request"
 import { useOptionalDesktopPanel } from "@/components/desktop-panel"
 import { ChatFollowUps } from "@/components/chat-follow-ups"
 import { ChatMessageActions } from "@/components/chat-message-actions"
+import { turnUsageNote } from "@/lib/turn-spend"
 import { sectionText } from "@/lib/chat-export"
 import { latestFollowUps } from "@/lib/chat-follow-ups"
 import { Button } from "@/components/ui/button"
@@ -349,9 +351,19 @@ function ChatMessages({
         part.state === "output-available" &&
         !answeredQuestions.has(part.toolCallId)
     )
+  // An API key card waits the same way; its key goes to the server, never here
+  const pendingSecret = visibleMessages
+    .flatMap((message) => message.parts)
+    .findLast(
+      (part) =>
+        part.type === "tool-requestSecret" &&
+        part.state === "output-available" &&
+        part.output.state === "requested" &&
+        !answeredQuestions.has(part.toolCallId)
+    )
   const busy = status === "submitted" || status === "streaming"
   const followUps =
-    status === "ready" && !pendingQuestion && !setupStopped
+    status === "ready" && !pendingQuestion && !pendingSecret && !setupStopped
       ? latestFollowUps(visibleMessages)
       : undefined
   const thinking = isChatThinking(
@@ -446,6 +458,10 @@ function ChatMessages({
     setSetupStopped(false)
     if (pendingQuestion?.type === "tool-askUser") {
       return answerQuestion(pendingQuestion.toolCallId, message.text, mentions)
+    }
+    // A message instead of the key closes its card; the bot reads it and moves on
+    if (pendingSecret?.type === "tool-requestSecret") {
+      return answerQuestion(pendingSecret.toolCallId, message.text, mentions)
     }
     // The agent reads this turn's metadata to decide which bot answers
     // and the message keeps it too, to show who it was for
@@ -583,13 +599,67 @@ function ChatMessages({
                       />
                     )
                   }
+                  if (part.type === "tool-requestSecret") {
+                    if (
+                      pendingSecret?.type !== "tool-requestSecret" ||
+                      pendingSecret.toolCallId !== part.toolCallId
+                    )
+                      return null
+                    return (
+                      <ChatSecretRequest
+                        key={part.toolCallId}
+                        part={part}
+                        active
+                        busy={busy}
+                        chatId={chatId}
+                        botId={
+                          message.metadata?.botId ??
+                          directBotId ??
+                          selectedBot?.id
+                        }
+                        onResume={(inputSeq) => {
+                          setSettledQuestions((ids) => [
+                            ...ids,
+                            part.toolCallId,
+                          ])
+                          resumeAfterWake({
+                            inputSeq,
+                            chatId,
+                            transport,
+                            resume: () => void resumeStream(),
+                            fallback: () =>
+                              toast.add({
+                                type: "info",
+                                title: "Your bot is continuing",
+                                description:
+                                  "Refresh the page to see its reply.",
+                              }),
+                          })
+                        }}
+                        onAnswer={(answer) =>
+                          answerQuestion(part.toolCallId, answer)
+                        }
+                        onDismiss={() =>
+                          answerQuestion(part.toolCallId, "Not now")
+                        }
+                      />
+                    )
+                  }
                   if (part.type !== "dynamic-tool" && isToolUIPart(part)) {
                     return <ToolCall key={part.toolCallId} part={part} />
                   }
                   return null
                 })
 
-                if (!renderedParts.some(Boolean)) return null
+                const usagePart = parts.findLast(
+                  (part) => part.type === "data-turnUsage"
+                )
+                const usage =
+                  usagePart?.type === "data-turnUsage"
+                    ? usagePart.data
+                    : undefined
+                const usageNote = usage && turnUsageNote(usage)
+                if (!renderedParts.some(Boolean) && !usageNote) return null
                 // A reply still streaming in isn't ready to copy
                 const copyText =
                   message.role === "assistant" &&
@@ -676,7 +746,15 @@ function ChatMessages({
                       ) : (
                         renderedParts
                       )}
-                      {copyText && <ChatMessageActions text={copyText} />}
+                      {usageNote && (
+                        <p
+                          data-slot="chat-turn-note"
+                          className="text-xs text-muted-foreground"
+                        >
+                          {usageNote}
+                        </p>
+                      )}
+                      <ChatMessageActions text={copyText} usage={usage} />
                     </MessageContent>
                     {message.role === "user" && seen.has(message.id) && (
                       <span

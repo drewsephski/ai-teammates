@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import type { Metadata } from "next"
 import Link from "next/link"
 import localFont from "next/font/local"
@@ -15,6 +16,7 @@ import { BotChatDemo } from "@/components/landing/bot/chat-demo"
 import { BotFeatures } from "@/components/landing/bot/features"
 import { RoleShowcase } from "@/components/landing/bot/role-showcase"
 import { BotFaq } from "@/components/landing/bot/faq"
+import { FeatureVote } from "@/components/landing/bot/feature-vote"
 import { HowItWorksSteps } from "@/components/landing/bot/how-it-works-steps"
 import { GetStartedButton } from "@/components/landing/bot/get-started-button"
 import { LandingPricing } from "@/components/landing/pricing"
@@ -23,6 +25,9 @@ import styles from "@/components/landing/bot/bot-landing.module.css"
 import { JsonLd } from "@/components/json-ld"
 import { homeJsonLd } from "@/lib/marketing/json-ld"
 import { definitionShort } from "@/lib/marketing/content"
+import { guidePages } from "@/lib/marketing/seo-pages"
+import { useCases } from "@/app/use-cases/use-cases-data"
+import { loadFeatureVotes } from "@/queries/feature-votes"
 import {
   brandName,
   freePlanIncludes,
@@ -37,13 +42,13 @@ const botFont = localFont({
   display: "swap",
 })
 
-const homeTitle = "Krafty — AI agents that do the work, not just talk about it"
+const homeTitle = "Krafty — AI agents that do the work and ask before sending"
 const homeDescription = siteDescription
 
 export const metadata: Metadata = {
   title: { absolute: homeTitle },
   description: homeDescription,
-  alternates: { canonical: "/" },
+  alternates: { canonical: "/", types: { "text/markdown": "/md" } },
   openGraph: {
     url: "/",
     title: homeTitle,
@@ -53,6 +58,12 @@ export const metadata: Metadata = {
     locale: "en_US",
     images: [{ ...socialImage, type: "image/jpeg" }],
   },
+}
+
+// Streams in after the rest of the page, so the poll's database read never
+// holds up the first paint.
+async function FeatureVoteResults() {
+  return <FeatureVote initialVotes={await loadFeatureVotes()} />
 }
 
 export default async function LandingPage() {
@@ -93,7 +104,7 @@ export default async function LandingPage() {
           <h1 id="hero-title" className={styles.heroTitle}>
             <span className={styles.heroTitlePrimary}>
               AI that does the work
-            </span>
+            </span>{" "}
             <span className={styles.heroTitleBrand}>
               <BotMark
                 className={styles.heroMark}
@@ -119,7 +130,7 @@ export default async function LandingPage() {
               See pricing
             </a>
           </div>
-          <div className={styles.heroPreview}>
+          <div className={styles.heroPreview} data-nosnippet>
             <BotChatDemo workspaceHref={workspaceHref} />
           </div>
         </section>
@@ -133,6 +144,9 @@ export default async function LandingPage() {
             <p className={styles.explainLede}>{definitionShort}</p>
             <Link href="/how-it-works" className={styles.textLink}>
               See how it works <ArrowRightIcon size={16} />
+            </Link>
+            <Link href="/ai-teammates" className={styles.textLink}>
+              What makes a Bot a teammate <ArrowRightIcon size={16} />
             </Link>
           </div>
           <HowItWorksSteps />
@@ -216,6 +230,22 @@ export default async function LandingPage() {
           </Link>
         </section>
         <section
+          id="next"
+          className={`${styles.container} ${styles.section} ${styles.split}`}
+          aria-labelledby="next-title"
+        >
+          <div className={styles.splitCopy}>
+            <h2 id="next-title">What should we build next?</h2>
+            <p>
+              Pick the one you’d use most. Voting is anonymous, and you can
+              change your vote any time.
+            </p>
+          </div>
+          <Suspense fallback={<FeatureVote initialVotes={null} />}>
+            <FeatureVoteResults />
+          </Suspense>
+        </section>
+        <section
           id="faqs"
           className={`${styles.container} ${styles.section} ${styles.split}`}
           aria-labelledby="faq-title"
@@ -261,17 +291,25 @@ export default async function LandingPage() {
             <a href="#features">Features</a>
             <Link href="/how-it-works">How it works</Link>
             <Link href="/use-cases">Use cases</Link>
-            <Link href="/ai-agents-for-business">For business</Link>
-            <Link href="/ai-employees">AI employees</Link>
+            <Link href="/download">Get the app</Link>
             <a href="#pricing">Pricing</a>
+            <a href="#faqs">FAQs</a>
           </div>
           <div className={styles.footerColumn}>
-            <p className={styles.footerHeading}>Krafty Bot</p>
-            <a href="#top">Overview</a>
-            <Link href={workspaceHref} prefetch={false}>
-              Your Bots
-            </Link>
-            <a href="#faqs">FAQs</a>
+            <p className={styles.footerHeading}>Guides</p>
+            {guidePages.map((page) => (
+              <Link key={page.path} href={page.path}>
+                {page.h1}
+              </Link>
+            ))}
+          </div>
+          <div className={styles.footerColumn}>
+            <p className={styles.footerHeading}>Use cases</p>
+            {useCases.map((useCase) => (
+              <Link key={useCase.id} href={`/use-cases/${useCase.id}`}>
+                {useCase.name}
+              </Link>
+            ))}
           </div>
           <div className={styles.footerColumn}>
             <p className={styles.footerHeading}>Your account</p>
@@ -296,6 +334,7 @@ export default async function LandingPage() {
             AI that does the work. Built independently by Drew Sepeczi.
           </span>
           <div className="flex flex-wrap gap-4">
+            <Link href="/about">About</Link>
             <Link href="/support">Support</Link>
             <Link href="/privacy">Privacy policy</Link>
             <Link href="/terms">Terms of service</Link>

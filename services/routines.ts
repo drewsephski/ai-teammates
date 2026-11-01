@@ -4,8 +4,24 @@ import * as routines from "@/lib/routines"
 // Routines are written once in lib/routines.ts, where the chat agent's
 // scheduleRoutine tool uses them too. These are the person's entry points.
 
-export function listRoutines(userId: string, botId?: string) {
-  return routines.listRoutines(userId, botId)
+// Each with its latest runs (recentRuns), newest first
+export async function listRoutines(userId: string, botId?: string) {
+  const [list, runs] = await Promise.all([
+    routines.listRoutines(userId, botId),
+    routines.recentRoutineRuns(userId),
+  ])
+  return list.map((routine) => ({
+    ...routine,
+    recentRuns: runs.get(routine.id) ?? [],
+  }))
+}
+
+export function listRoutineRuns(
+  userId: string,
+  routineId: string,
+  limit?: number
+) {
+  return routines.listRoutineRuns(userId, routineId, limit)
 }
 
 export function createRoutine(userId: string, input: RoutineInsert) {

@@ -712,3 +712,86 @@ test("#34: a run left started long ago is closed quietly, without a push", async
     fetchMock.mock.restore()
   }
 })
+
+const runRow = async (id: string) => {
+  const [found] = await db
+    .select()
+    .from(schema.routineRuns)
+    .where(eq(schema.routineRuns.id, id))
+  return found
+}
+
+test("each run keeps its own history row: start, outcome and what its turns spent", async () => {
+  const created = await lib.createRoutine(
+    OWNER,
+    input("bot_owner2", "history_1", { kind: "interval", hours: 6 })
+  )
+  await park(created.id)
+  const routine = await row(created.id)
+  const first = new Date("2026-10-26T13:00:00Z")
+  const second = new Date("2026-10-26T19:00:00Z")
+  const { deps } = fakeDeps()
+
+  assert.equal(await lib.runRoutine(routine, first, deps), "started")
+  const firstId = policy.routineRunMessageId(created.id, first)
+  assert.equal((await runRow(firstId))?.status, "started")
+
+  // The run asks for approval, and the turns resuming it finish it
+  await lib.recordRoutineRunOutcome(OWNER, firstId, {
+    status: "blocked",
+    detail: "Waiting for your approval",
+  })
+  assert.equal((await runRow(firstId))?.status, "blocked")
+  await lib.addRoutineRunSpend(OWNER, firstId, "ai:run_a:0", 12_000)
+  await lib.addRoutineRunSpend(OWNER, firstId, "ai:run_b:0", 8_000)
+  // The same turn reported twice counts once; another account adds nothing
+  await lib.addRoutineRunSpend(OWNER, firstId, "ai:run_b:0", 8_000)
+  await lib.addRoutineRunSpend(OTHER, firstId, "ai:run_c:0", 99_000)
+  assert.equal((await runRow(firstId))?.spent, 20_000)
+
+  // A newer run starts before the old one's last turn reports: each keeps
+  // its own outcome, the routine shows the newest
+  assert.equal(await lib.runRoutine(routine, second, deps), "started")
+  await lib.recordRoutineRunOutcome(OWNER, firstId, { status: "completed" })
+  assert.equal((await runRow(firstId))?.status, "completed")
+  const secondId = policy.routineRunMessageId(created.id, second)
+  assert.equal((await runRow(secondId))?.status, "started")
+  assert.equal((await row(created.id)).lastStatus, "started")
+
+  // A retried dispatch of a finished run never reopens it
+  assert.equal(await lib.runRoutine(routine, first, deps), "started")
+  assert.equal((await runRow(firstId))?.status, "completed")
+
+  const runs = await lib.listRoutineRuns(OWNER, created.id)
+  assert.deepEqual(
+    runs.map((run) => [run.id, run.status, run.spent]),
+    [
+      [secondId, "started", 0],
+      [firstId, "completed", 20_000],
+    ]
+  )
+  await assert.rejects(lib.listRoutineRuns(OTHER, created.id), {
+    message: "Routine not found",
+  })
+})
+
+test("skipped and unstartable runs are in the history with why", async () => {
+  const created = await lib.createRoutine(
+    OWNER,
+    input("bot_owner2", "history_2", { kind: "interval", hours: 6 })
+  )
+  await park(created.id)
+  const routine = await row(created.id)
+  const at = new Date("2026-10-27T01:00:00Z")
+  const later = new Date("2026-10-27T07:00:00Z")
+  await lib.runRoutine(routine, at, fakeDeps({ skip: "Out of allowance" }).deps)
+  await lib.runRoutine(routine, later, fakeDeps({ fail: true }).deps)
+  const runs = await lib.listRoutineRuns(OWNER, created.id)
+  assert.deepEqual(
+    runs.map((run) => [run.status, run.detail]),
+    [
+      ["failed", "Couldn't start the run."],
+      ["skipped", "Out of allowance"],
+    ]
+  )
+})

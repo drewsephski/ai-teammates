@@ -55,9 +55,7 @@ Evidence: [raw run snapshot](evidence/2026-10-18/20261017-routine-daily-e7ca7b.j
 
 ### Still scheduled
 
-One test routine remains enabled for scheduled-run evidence for #18. After its next firing, check it and stop it with `scripts/reliability-run.ts stop <tag>`:
-
-- `20261017-routine-from-chat-9f8801`: weekdays at 09:00 New York, next 2026-10-19 13:00Z. The production cron will post it into a new production session for that chat.
+Nothing. `20261017-routine-from-chat-9f8801` (weekdays at 09:00 New York) kept firing until 2026-10-27, last run 13:00Z completed; it was disabled that day directly in the database, because the harness's local state file was gone.
 
 ## Observations (not failures)
 

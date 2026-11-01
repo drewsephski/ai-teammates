@@ -15,8 +15,12 @@ import {
   breadcrumbJsonLd,
   pageMetadata,
 } from "@/lib/marketing/content"
-import { marketingUpdated, siteUrl } from "@/lib/marketing/site"
+import { createBotHref, marketingUpdated, siteUrl } from "@/lib/marketing/site"
+import { faqPageJsonLd } from "@/lib/marketing/json-ld"
+import { roleWalkthroughFor } from "@/lib/marketing/role-walkthroughs"
+import { RoleWalkthroughPlayer } from "@/components/role-walkthrough-player"
 import { CopyPrompt } from "../copy-prompt"
+import { useCaseGuides } from "../use-case-guides"
 import { findUseCase, useCases, type UseCase } from "../use-cases-data"
 import cards from "../use-cases.module.css"
 import page from "./use-case.module.css"
@@ -64,9 +68,9 @@ export default async function UseCasePage({ params }: Props) {
   const workspaceHref = isAuthenticated
     ? "/workspace"
     : `/sign-in?redirect_url=${encodeURIComponent("/workspace")}`
-  const startHref = isAuthenticated
-    ? "/workspace"
-    : "/sign-up?redirect_url=%2Fworkspace"
+  const createHref = createBotHref(useCase.id, isAuthenticated)
+  const guide = useCaseGuides[useCase.id]
+  const walkthrough = roleWalkthroughFor(useCase.id)
   const path = `/use-cases/${useCase.id}`
   const trail = [
     { name: "Home", path: "/" },
@@ -95,6 +99,7 @@ export default async function UseCasePage({ params }: Props) {
               about: { "@id": `${siteUrl}/#app` },
               breadcrumb: breadcrumbJsonLd(trail),
             },
+            faqPageJsonLd(guide.faqs, `${absoluteUrl(path)}#faq`),
           ],
         }}
       />
@@ -109,7 +114,7 @@ export default async function UseCasePage({ params }: Props) {
           <h1>{useCase.headline}</h1>
           <p className={page.lead}>{useCase.summary}</p>
           <div className={styles.actions}>
-            <Link href={startHref} prefetch={false} className={styles.button}>
+            <Link href={createHref} prefetch={false} className={styles.button}>
               Create this Bot free
             </Link>
             <Link href="/how-it-works" className={styles.secondaryButton}>
@@ -117,6 +122,26 @@ export default async function UseCasePage({ params }: Props) {
             </Link>
           </div>
         </header>
+
+        {walkthrough && (
+          <section className={page.section} aria-labelledby="walkthrough-title">
+            <h2 id="walkthrough-title">{walkthrough.title}</h2>
+            <RoleWalkthroughPlayer
+              slug={walkthrough.slug}
+              title={walkthrough.title}
+            />
+            <p className={page.note}>
+              Animated example with sample data. No external actions are
+              performed. Playback starts muted; use the video controls for
+              sound.
+            </p>
+            <ol className={page.steps} aria-label="Walkthrough transcript">
+              {walkthrough.transcript.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+          </section>
+        )}
 
         <section className={page.section} aria-labelledby="steps-title">
           <h2 id="steps-title">What the Bot does</h2>
@@ -141,8 +166,41 @@ export default async function UseCasePage({ params }: Props) {
           </p>
         </section>
 
+        <section className={page.section} aria-labelledby="first-run-title">
+          <h2 id="first-run-title">Your first run</h2>
+          <ol className={page.steps}>
+            {guide.firstRun.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        </section>
+
+        <section className={page.section} aria-labelledby="output-title">
+          <h2 id="output-title">What comes back</h2>
+          <figure className={page.sample} data-nosnippet>
+            <figcaption>
+              <span className={page.sampleTitle}>
+                {guide.sampleOutput.title}
+              </span>
+              <span className={page.sampleLabel}>
+                {guide.sampleOutput.label}
+              </span>
+            </figcaption>
+            <ul>
+              {guide.sampleOutput.lines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </figure>
+        </section>
+
         <section className={page.section} aria-labelledby="setup-title">
           <h2 id="setup-title">Apps and schedule</h2>
+          <p>
+            This starter prompt uses {useCase.apps.length} connected apps and
+            needs Pro. To try the free plan, narrow it to one connected app.{" "}
+            <Link href="/#pricing">Compare plan limits</Link>.
+          </p>
           <dl className={page.facts}>
             <div>
               <dt>Apps in the starter prompt</dt>
@@ -169,6 +227,23 @@ export default async function UseCasePage({ params }: Props) {
           <div className={page.prompt}>
             <CopyPrompt prompt={useCase.prompt} />
           </div>
+        </section>
+
+        <section className={page.section} aria-labelledby="pitfalls-title">
+          <h2 id="pitfalls-title">Where this job goes wrong</h2>
+          <p>{guide.pitfalls}</p>
+        </section>
+
+        <section className={page.section} aria-labelledby="questions-title">
+          <h2 id="questions-title">Questions about this role</h2>
+          <dl className={page.questions}>
+            {guide.faqs.map(([question, answer]) => (
+              <div key={question}>
+                <dt>{question}</dt>
+                <dd>{answer}</dd>
+              </div>
+            ))}
+          </dl>
         </section>
 
         <section className={page.section} aria-labelledby="related-title">

@@ -65,7 +65,7 @@ test("other provider errors pass through unchanged", () => {
 
 test("the allowance of a computer is its owner's remaining seconds and tier", async () => {
   assert.deepEqual(await e2b.computerAllowance("sbx_free"), {
-    seconds: 50,
+    seconds: 950,
     tier: "free",
   })
   const paid = await e2b.computerAllowance("sbx_paid")

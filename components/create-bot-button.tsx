@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
 import { usePaywall } from "@/hooks/use-paywall"
-import type { BotPresetId } from "@/lib/bot-presets"
 
-export function useCreateBot(presetId?: BotPresetId) {
+// presetId names a workspace preset or a page template (lib/bot-templates.ts)
+export function useCreateBot(presetId?: string) {
   const router = useRouter()
   const { checkPlan, showUsageLimit } = usePaywall()
   const [pending, setPending] = useState(false)
@@ -19,7 +19,7 @@ export function useCreateBot(presetId?: BotPresetId) {
   const inFlight = useRef(false)
   const requests = useRef(new Map<string, string>())
 
-  async function createWithPreset(selectedPresetId?: BotPresetId) {
+  async function createWithPreset(selectedPresetId?: string) {
     if (inFlight.current || navigating) return
     inFlight.current = true
     setPending(true)
@@ -74,7 +74,7 @@ export function CreateBotButton({
   presetId,
   children,
   ...props
-}: React.ComponentProps<typeof Button> & { presetId?: BotPresetId }) {
+}: React.ComponentProps<typeof Button> & { presetId?: string }) {
   const { create, pending } = useCreateBot(presetId)
   return (
     <Button

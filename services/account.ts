@@ -22,6 +22,7 @@ import {
   notices,
   pushDevices,
   sidebarPreferences,
+  userSecrets,
   userSettings,
 } from "@/db/schema"
 import { cancelAccountSubscriptions } from "@/lib/account-billing"
@@ -223,6 +224,8 @@ async function deleteAccountLocked(
     await tx
       .delete(chatgptConnections)
       .where(eq(chatgptConnections.userId, userId))
+    // Saved API keys (docs/secrets.md)
+    await tx.delete(userSecrets).where(eq(userSecrets.userId, userId))
     // Routines, approvals and approval rules went with the bots and chats.
     // Usage holds stay: the settle job books them into the billing record.
     await tx.delete(activityEvents).where(eq(activityEvents.userId, userId))

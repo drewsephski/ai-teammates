@@ -2,7 +2,10 @@ import { faqs } from "@/components/landing/bot/faq-data"
 import { capabilities, definition } from "./content"
 import type { MarketingFaq } from "./seo-pages"
 import {
+  brandLocation,
   brandName,
+  brandProfiles,
+  founderProfiles,
   marketingUpdated,
   productName,
   publicPlans,
@@ -44,11 +47,14 @@ export function homeJsonLd() {
         },
         description: definition,
         founder: { "@id": founderId },
+        ...(brandProfiles.length > 0 && { sameAs: brandProfiles }),
+        address: { "@type": "PostalAddress", ...brandLocation },
         contactPoint: {
           "@type": "ContactPoint",
           contactType: "customer support",
           email: "drewsepeczi@gmail.com",
           url: `${siteUrl}/support`,
+          availableLanguage: "en",
         },
       },
       {
@@ -56,6 +62,7 @@ export function homeJsonLd() {
         "@id": founderId,
         name: "Drew Sepeczi",
         url: "https://drewsepeczi.xyz",
+        ...(founderProfiles.length > 0 && { sameAs: founderProfiles }),
       },
       {
         "@type": "WebSite",
@@ -88,6 +95,7 @@ export function homeJsonLd() {
           priceCurrency: "USD",
           availability: "https://schema.org/InStock",
           url: `${siteUrl}/#pricing`,
+          seller: { "@id": organizationId },
           ...(plan.period && {
             priceSpecification: {
               "@type": "UnitPriceSpecification",

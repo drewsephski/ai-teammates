@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip"
 import { useState } from "react"
 import { DownloadIcon, MonitorIcon } from "lucide-react"
 
@@ -119,17 +124,23 @@ function ExportChatButton({
   }
 
   return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      className="rounded-full text-muted-foreground"
-      aria-label="Export chat as Markdown"
-      title="Export chat"
-      disabled={pending}
-      onClick={exportChat}
-    >
-      {pending ? <Spinner /> : <DownloadIcon />}
-    </Button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="rounded-full text-muted-foreground"
+            aria-label="Export chat as Markdown"
+            disabled={pending}
+            onClick={exportChat}
+          >
+            {pending ? <Spinner /> : <DownloadIcon />}
+          </Button>
+        }
+      />
+      <TooltipContent>{"Export chat"}</TooltipContent>
+    </Tooltip>
   )
 }
 

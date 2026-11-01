@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip"
 import Link from "next/link"
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 import { pendingDemoDecisions, useDemoInbox } from "./chat-demo-inbox"
@@ -305,12 +310,17 @@ export function BotChatDemo({ workspaceHref }: { workspaceHref: string }) {
             />
             <span key={selectedName}>{selectedName}</span>
           </button>
-          <span
-            className={styles.exampleLabel}
-            title="Interactive example. Decisions stay in this browser; no real messages are sent."
-          >
-            Example
-          </span>
+          <Tooltip>
+            <TooltipTrigger
+              tabIndex={0}
+              render={<span className={styles.exampleLabel}>Example</span>}
+            />
+            <TooltipContent>
+              {
+                "Interactive example. Decisions stay in this browser; no real messages are sent."
+              }
+            </TooltipContent>
+          </Tooltip>
           {!selected.group && (
             <button
               type="button"

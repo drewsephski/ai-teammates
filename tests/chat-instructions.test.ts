@@ -101,6 +101,17 @@ test("authentication guidance uses connected apps and only offers browser sign-i
   assert.doesNotMatch(free, /use askUser with computerLogin/)
 })
 
+test("the desktop is read as text first, and pages open outside the shell", () => {
+  const instructions = buildChatInstructions(bot, undefined, true, true, true)
+  assert.match(instructions, /Call readScreen first/)
+  assert.match(instructions, /clickElement and fillElement act on a ref/)
+  assert.match(instructions, /Call viewScreen when you need to see images/)
+  assert.match(instructions, /open the official URL with openOnScreen/)
+  // The shell can't reach the desktop, so it never opens pages
+  assert.match(instructions, /Shell commands run as their own user/)
+  assert.doesNotMatch(instructions, /open the official URL with bash/)
+})
+
 test("complex website work is owned through discovery, computer fallback and verification", () => {
   for (const connected of [true, false]) {
     const instructions = buildChatInstructions(
@@ -322,7 +333,7 @@ test("free accounts get the computer for their one-time allowance", () => {
     undefined,
     { paid: false, clock: "Owner's timezone: America/Chicago." }
   )
-  assert.match(free, /5 minutes of computer time, once/)
+  assert.match(free, /20 minutes of computer time, once/)
   assert.match(free, /prefer bash and reading text over screenshots/)
   assert.match(free, /Own the task from start to verified result/)
   assert.match(free, /Owner's timezone: America\/Chicago/)
@@ -395,4 +406,92 @@ test("chat never prompts a purchase, on any plan, because phone apps show it", (
       assert.match(instructions, /can still compare third-party subscriptions/)
     }
   }
+})
+
+test("every bot knows Krafty stops loops and how to wait without one", () => {
+  for (const setupComplete of [false, true]) {
+    const instructions = buildChatInstructions(
+      { ...bot, setupComplete },
+      undefined,
+      true,
+      true,
+      true
+    )
+    assert.match(instructions, /same step with the same result 6 times/)
+    assert.match(instructions, /spend limit per task/)
+    assert.match(instructions, /wait inside one step/)
+  }
+})
+
+test("bots learn they may email the owner's verified addresses without a card, and only those", () => {
+  const configured = { ...bot, setupComplete: true }
+  const withEmails = buildChatInstructions(
+    configured,
+    undefined,
+    true,
+    true,
+    true,
+    undefined,
+    { paid: true, ownerEmails: ["drew@example.com"] }
+  )
+  assert.match(withEmails, /Email to the owner/)
+  assert.match(withEmails, /drew@example\.com/)
+  assert.match(withEmails, /Never add anyone else/)
+  const without = buildChatInstructions(configured, undefined, true, true, true)
+  assert.doesNotMatch(without, /Email to the owner/)
+})
+
+test("API keys are asked for with the key card and never seen, printed or pasted in chat", () => {
+  const configured = { ...bot, setupComplete: true, job: "Developer" }
+  for (const paid of [false, true]) {
+    const text = buildChatInstructions(
+      configured,
+      undefined,
+      true,
+      true,
+      true,
+      undefined,
+      { paid }
+    )
+    assert.match(text, /ask for it only with requestSecret/)
+    assert.match(text, /like OPENAI_API_KEY/)
+    assert.match(text, /https page where it's created/)
+    assert.match(text, /environment variables in every bash command/)
+    assert.match(text, /\[secret NAME\]/)
+    assert.match(text, /Never print, echo, log or write a key's value/)
+    assert.match(text, /Never ask the person to paste a key in chat/)
+    assert.match(text, /If they paste one anyway, don't repeat it/)
+    assert.match(text, /Passwords and verification codes never go in chat/)
+  }
+  // No computer, no key card
+  const offline = buildChatInstructions(
+    configured,
+    undefined,
+    true,
+    false,
+    true,
+    undefined,
+    { paid: true }
+  )
+  assert.doesNotMatch(offline, /requestSecret/)
+})
+
+test("preset workflows ask for API keys only with the key card", async () => {
+  const { workflowExecutionInstructions } = await import("../lib/bot-presets")
+  assert.match(
+    workflowExecutionInstructions,
+    /ask for it only with requestSecret/
+  )
+  assert.match(
+    workflowExecutionInstructions,
+    /never print, echo or write their values/
+  )
+  assert.match(
+    workflowExecutionInstructions,
+    /don't repeat it and offer the key card/
+  )
+  assert.match(
+    workflowExecutionInstructions,
+    /Never ask for passwords, tokens, or verification codes in chat/
+  )
 })

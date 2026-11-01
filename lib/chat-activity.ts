@@ -70,7 +70,9 @@ export function chatActivity(
     if (
       last.parts.some(
         (part) =>
-          part.type !== "data-messageSeen" && part.type !== "data-followUps"
+          part.type !== "data-messageSeen" &&
+          part.type !== "data-followUps" &&
+          part.type !== "data-turnUsage"
       ) ||
       sections.length > 1
     ) {
@@ -92,11 +94,14 @@ export function chatActivity(
       .filter((message) => message.role === "user")
       .map((message) => message.metadata?.questionId)
   )
+  // A question or a key card the person hasn't answered yet
   if (
     parts.some(
       (part) =>
-        part.type === "tool-askUser" &&
-        part.state === "output-available" &&
+        ((part.type === "tool-askUser" && part.state === "output-available") ||
+          (part.type === "tool-requestSecret" &&
+            part.state === "output-available" &&
+            part.output.state === "requested")) &&
         !answered.has(part.toolCallId)
     )
   )
@@ -108,7 +113,10 @@ export function chatActivity(
     (setup && latestUser === -1 && messages.length === 0)
   if (!busy) return { ...identity, state: "idle" }
   const evidence = parts.some(
-    (part) => part.type !== "data-messageSeen" && part.type !== "data-followUps"
+    (part) =>
+      part.type !== "data-messageSeen" &&
+      part.type !== "data-followUps" &&
+      part.type !== "data-turnUsage"
   )
   if (latestUser !== -1 && !seen.has(messages[latestUser].id) && !evidence)
     return { ...identity, state: "queued" }

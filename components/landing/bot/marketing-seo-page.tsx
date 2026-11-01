@@ -6,10 +6,44 @@ import { PageFooter } from "@/components/landing/bot/page-footer"
 import styles from "@/components/landing/bot/bot-landing.module.css"
 import page from "@/app/how-it-works/how-it-works.module.css"
 import type { MarketingPage } from "@/lib/marketing/seo-pages"
-import { marketingUpdated, productName, siteUrl } from "@/lib/marketing/site"
+import { planLimits } from "@/lib/billing-policy"
+import {
+  marketingUpdated,
+  productName,
+  publicPlans,
+  siteUrl,
+} from "@/lib/marketing/site"
 import { JsonLd } from "@/components/json-ld"
 import { absoluteUrl, breadcrumbJsonLd } from "@/lib/marketing/content"
 import { faqPageJsonLd } from "@/lib/marketing/json-ld"
+import { TimeCostCalculator } from "@/components/landing/bot/time-cost-calculator"
+
+/** Internal links stay in the app; links to other products open in a new tab. */
+function CardLink({
+  href,
+  children,
+}: {
+  href: string
+  children: React.ReactNode
+}) {
+  if (href.startsWith("/")) {
+    return (
+      <Link href={href} className={page.link}>
+        {children}
+      </Link>
+    )
+  }
+  return (
+    <a
+      href={href}
+      className={page.link}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {children}
+    </a>
+  )
+}
 
 type Props = {
   config: MarketingPage
@@ -50,9 +84,22 @@ export function MarketingSeoPage({
               name: `${config.title} · Krafty`,
               description: config.description,
               dateModified: marketingUpdated,
+              author: { "@id": `${siteUrl}/#founder` },
               isPartOf: { "@id": `${siteUrl}/#website` },
               about: { "@id": `${siteUrl}/#app` },
               breadcrumb: breadcrumbJsonLd(trail),
+              ...(config.widget && {
+                mainEntity: {
+                  "@type": "WebApplication",
+                  name: config.h1,
+                  url: pageUrl,
+                  applicationCategory: "BusinessApplication",
+                  operatingSystem: "Any",
+                  isAccessibleForFree: true,
+                  offers: { "@type": "Offer", price: 0, priceCurrency: "USD" },
+                  publisher: { "@id": `${siteUrl}/#organization` },
+                },
+              }),
             },
             faqPageJsonLd(config.faqs, `${pageUrl}#faqs`),
           ],
@@ -67,7 +114,12 @@ export function MarketingSeoPage({
         <header className={page.header}>
           <h1>{config.h1}</h1>
           <p className={page.lead}>{config.lead}</p>
-          <p className={page.updated}>Updated {updated}</p>
+          <p className={page.updated}>
+            Updated {updated} · By{" "}
+            <Link href="/about" className={page.link} rel="author">
+              Drew Sepeczi
+            </Link>
+          </p>
           <div className={styles.actions}>
             <Link href={startHref} prefetch={false} className={styles.button}>
               Start free
@@ -77,6 +129,8 @@ export function MarketingSeoPage({
             </Link>
           </div>
         </header>
+
+        {config.widget === "time-cost-calculator" && <TimeCostCalculator />}
 
         {config.sections.map((section) => (
           <section
@@ -94,23 +148,62 @@ export function MarketingSeoPage({
                 ))}
               </ul>
             )}
+            {section.table && (
+              <div
+                className={page.tableWrap}
+                role="region"
+                aria-labelledby={`${section.id}-caption`}
+                tabIndex={0}
+              >
+                <table className={page.table}>
+                  <caption id={`${section.id}-caption`}>
+                    {section.table.caption}
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">{section.table.rowHeader}</th>
+                      {section.table.columns.map((column) => (
+                        <th key={column} scope="col">
+                          {column}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {section.table.rows.map((row) => (
+                      <tr key={row.label}>
+                        <th scope="row">{row.label}</th>
+                        {row.cells.map((cell, index) => (
+                          <td key={index}>{cell}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             {section.cards && (
               <div className={page.grid}>
                 {section.cards.map((card) => (
                   <article key={card.title}>
-                    <h3>{card.title}</h3>
+                    <h3>
+                      {card.href ? (
+                        <CardLink href={card.href}>{card.title}</CardLink>
+                      ) : (
+                        card.title
+                      )}
+                    </h3>
                     <p>{card.body}</p>
                   </article>
                 ))}
               </div>
             )}
+            {section.note && <p className={page.note}>{section.note}</p>}
             {section.links && (
               <ul className={page.list}>
                 {section.links.map((link) => (
                   <li key={link.href}>
-                    <Link href={link.href} className={page.link}>
-                      {link.label}
-                    </Link>
+                    <CardLink href={link.href}>{link.label}</CardLink>
                   </li>
                 ))}
               </ul>
@@ -124,7 +217,9 @@ export function MarketingSeoPage({
             className={page.section}
             aria-labelledby="use-cases-title"
           >
-            <h2 id="use-cases-title">Small-business examples</h2>
+            <h2 id="use-cases-title">
+              {config.useCasesTitle ?? "Starter prompts"}
+            </h2>
             <div className={page.grid}>
               {config.useCases.map((useCase) => (
                 <article key={useCase.href}>
@@ -140,11 +235,7 @@ export function MarketingSeoPage({
           </section>
         )}
 
-        <section
-          id="faqs"
-          className={page.section}
-          aria-labelledby="faq-title"
-        >
+        <section id="faqs" className={page.section} aria-labelledby="faq-title">
           <h2 id="faq-title">FAQs</h2>
           <div className={page.grid}>
             {config.faqs.map(([question, answer]) => (
@@ -156,10 +247,7 @@ export function MarketingSeoPage({
           </div>
         </section>
 
-        <section
-          className={page.section}
-          aria-labelledby="related-title"
-        >
+        <section className={page.section} aria-labelledby="related-title">
           <h2 id="related-title">Related pages</h2>
           <div className={page.grid}>
             {config.related.map((item) => (
@@ -177,7 +265,14 @@ export function MarketingSeoPage({
 
         <section className={page.final} aria-labelledby="start-title">
           <h2 id="start-title">Try an AI teammate</h2>
-          <p>Start free with one Bot and one connected app.</p>
+          <p>
+            Start free with one Bot and one connected app. Pro is $
+            {publicPlans[1].price} a month for up to {planLimits.paid.bots} Bots
+            and {planLimits.paid.sandbox / 3600} hours of computer time.{" "}
+            <Link href="/ai-agent-human-approval" className={page.link}>
+              App writes wait for approval unless an eligible rule allows them.
+            </Link>
+          </p>
           <div className={styles.actions}>
             <Link href={startHref} prefetch={false} className={styles.button}>
               Get started

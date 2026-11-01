@@ -28,7 +28,12 @@ const actions = () => import("@/actions/approvals")
 type Actions = Pick<
   Awaited<ReturnType<typeof actions>>,
   "getApproval" | "decideApproval" | "actOnEmailDraft"
->
+> &
+  Partial<Pick<Awaited<ReturnType<typeof actions>>, "decideApprovalBatch">>
+
+// Told to every card when a reply's requests were decided together, so the
+// others from that reply show their new state
+const BATCH_DECIDED = "krafty:approval-batch-decided"
 
 type State =
   | "loading"
@@ -114,6 +119,12 @@ export function ApprovalCard({
   const [emailDraft, setEmailDraft] = useState<EmailDraft>()
   const [detail, setDetail] = useState<Detail>({})
   const [pending, setPending] = useState<ApprovalDecision>()
+  const [batch, setBatch] = useState<{ id: string | null; pending: number }>({
+    id: null,
+    pending: 0,
+  })
+  const [batchBusy, setBatchBusy] = useState<"approve" | "deny">()
+  const [reloads, setReloads] = useState(0)
 
   useEffect(() => {
     let current = true
@@ -123,6 +134,7 @@ export function ApprovalCard({
         (approval) => {
           if (!current) return
           setState(approval.state)
+          setBatch({ id: approval.batchId, pending: approval.batchPending })
           setEmailDraft(approval.emailDraft)
           setDetail({
             kind: approval.kind,
@@ -139,7 +151,79 @@ export function ApprovalCard({
     return () => {
       current = false
     }
-  }, [approvalId, load])
+  }, [approvalId, load, reloads])
+
+  // Another card from this reply decided them all: show the new state
+  useEffect(() => {
+    if (!batch.id) return
+    const onDecided = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === batch.id)
+        setReloads((count) => count + 1)
+    }
+    window.addEventListener(BATCH_DECIDED, onDecided)
+    return () => window.removeEventListener(BATCH_DECIDED, onDecided)
+  }, [batch.id])
+
+  async function decideAll(decision: "approve" | "deny") {
+    if (!batch.id || batchBusy) return
+    setBatchBusy(decision)
+    try {
+      const api = await load()
+      if (!api.decideApprovalBatch) return
+      const result = await api.decideApprovalBatch(batch.id, decision)
+      toast.add({
+        type: "success",
+        title:
+          decision === "approve"
+            ? `${result.decided} requests approved`
+            : `${result.decided} requests declined`,
+        ...(!result.woke && {
+          description: "The bot didn't respond. Send it a message to continue.",
+        }),
+      })
+      window.dispatchEvent(new CustomEvent(BATCH_DECIDED, { detail: batch.id }))
+    } catch {
+      toast.add({
+        type: "error",
+        title: "Couldn't record your decision",
+        description: "Something went wrong. Try again.",
+      })
+    } finally {
+      setBatchBusy(undefined)
+    }
+  }
+
+  const batchBar =
+    state === "pending" && batch.id && batch.pending > 1 ? (
+      <div
+        className="flex max-w-sm flex-wrap items-center gap-2 text-xs text-muted-foreground"
+        aria-label="Requests from this reply"
+      >
+        <span className="mr-auto">
+          {batch.pending} requests from this reply are waiting
+        </span>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={!!batchBusy || !!pending}
+          onClick={() => void decideAll("approve")}
+        >
+          {batchBusy === "approve" && <Spinner data-icon="inline-start" />}
+          Approve all {batch.pending}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          disabled={!!batchBusy || !!pending}
+          onClick={() => void decideAll("deny")}
+        >
+          {batchBusy === "deny" && <Spinner data-icon="inline-start" />}
+          Decline all
+        </Button>
+      </div>
+    ) : null
 
   useEffect(() => {
     if (!emailDraft || !["pending", "approved", "running"].includes(state))
@@ -176,6 +260,11 @@ export function ApprovalCard({
         return
       }
       setState(result.state)
+      // The others from this reply now have one fewer waiting
+      if (batch.id)
+        window.dispatchEvent(
+          new CustomEvent(BATCH_DECIDED, { detail: batch.id })
+        )
       if (!result.woke)
         toast.add({
           type: "info",
@@ -195,16 +284,21 @@ export function ApprovalCard({
 
   if (emailDraft)
     return (
-      <EmailDraftCard
-        draft={emailDraft}
-        state={state}
-        onAction={async (input) => {
-          const result = await (await load()).actOnEmailDraft(approvalId, input)
-          if (!result.ok) throw new Error(result.message)
-          setState(result.approval.state)
-          return { draft: result.approval.emailDraft, woke: result.woke }
-        }}
-      />
+      <div className="space-y-2">
+        <EmailDraftCard
+          draft={emailDraft}
+          state={state}
+          onAction={async (input) => {
+            const result = await (
+              await load()
+            ).actOnEmailDraft(approvalId, input)
+            if (!result.ok) throw new Error(result.message)
+            setState(result.approval.state)
+            return { draft: result.approval.emailDraft, woke: result.woke }
+          }}
+        />
+        {batchBar}
+      </div>
     )
 
   const label = settled[state]
@@ -219,76 +313,79 @@ export function ApprovalCard({
       : toolkit
   const Icon = computer ? MonitorIcon : ShieldCheckIcon
   return (
-    <div
-      className="max-w-sm space-y-3 rounded-xl bg-muted/40 p-3"
-      aria-label="Approval request"
-    >
-      <div className="flex gap-2">
-        <Icon
-          aria-hidden="true"
-          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-        />
-        <div className="min-w-0 space-y-1">
-          <p className="text-sm font-medium break-words">{summary}</p>
-          <p className="text-xs text-muted-foreground">
-            {context
-              ? `Needs your approval · ${context}`
-              : "Needs your approval"}
-          </p>
+    <div className="space-y-2">
+      <div
+        className="max-w-sm space-y-3 rounded-xl bg-muted/40 p-3"
+        aria-label="Approval request"
+      >
+        <div className="flex gap-2">
+          <Icon
+            aria-hidden="true"
+            className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+          />
+          <div className="min-w-0 space-y-1">
+            <p className="text-sm font-medium break-words">{summary}</p>
+            <p className="text-xs text-muted-foreground">
+              {context
+                ? `Needs your approval · ${context}`
+                : "Needs your approval"}
+            </p>
+          </div>
         </div>
-      </div>
-      {previewSrc && <ApprovalPreview src={previewSrc} alt={summary} />}
-      {computer && detail.command && (
-        <pre
-          aria-label="Command to run"
-          className="max-h-40 overflow-auto rounded-lg bg-background p-2 font-mono text-xs break-all whitespace-pre-wrap"
-        >
-          {detail.command}
-        </pre>
-      )}
-      {state === "loading" ? (
-        <p role="status" className="text-xs text-muted-foreground">
-          Checking this request…
-        </p>
-      ) : label ? (
-        <p role="status" className="text-xs text-muted-foreground">
-          {label}
-        </p>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            disabled={!!pending}
-            onClick={() => void decide("approve")}
+        {previewSrc && <ApprovalPreview src={previewSrc} alt={summary} />}
+        {computer && detail.command && (
+          <pre
+            aria-label="Command to run"
+            className="max-h-40 overflow-auto rounded-lg bg-background p-2 font-mono text-xs break-all whitespace-pre-wrap"
           >
-            {pending === "approve" && <Spinner data-icon="inline-start" />}
-            Approve
-          </Button>
-          {!computer && detail.alwaysAllowed !== false && (
+            {detail.command}
+          </pre>
+        )}
+        {state === "loading" ? (
+          <p role="status" className="text-xs text-muted-foreground">
+            Checking this request…
+          </p>
+        ) : label ? (
+          <p role="status" className="text-xs text-muted-foreground">
+            {label}
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               size="sm"
-              variant="outline"
               disabled={!!pending}
-              onClick={() => void decide("always")}
+              onClick={() => void decide("approve")}
             >
-              {pending === "always" && <Spinner data-icon="inline-start" />}
-              Always allow
+              {pending === "approve" && <Spinner data-icon="inline-start" />}
+              Approve
             </Button>
-          )}
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={!!pending}
-            onClick={() => void decide("deny")}
-          >
-            {pending === "deny" && <Spinner data-icon="inline-start" />}
-            Decline
-          </Button>
-        </div>
-      )}
+            {!computer && detail.alwaysAllowed !== false && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!!pending}
+                onClick={() => void decide("always")}
+              >
+                {pending === "always" && <Spinner data-icon="inline-start" />}
+                Always allow
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={!!pending}
+              onClick={() => void decide("deny")}
+            >
+              {pending === "deny" && <Spinner data-icon="inline-start" />}
+              Decline
+            </Button>
+          </div>
+        )}
+      </div>
+      {batchBar}
     </div>
   )
 }

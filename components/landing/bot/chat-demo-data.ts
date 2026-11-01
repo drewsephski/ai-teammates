@@ -29,7 +29,7 @@ export const demoAgents: DemoAgent[] = [
     id: "rundown",
     title: "Daily organization",
     description:
-      "Checks your calendar and inbox every morning and tells you what actually needs your attention.",
+      "Checks your calendar and inbox every morning and tells you what needs your attention.",
     name: "Rundown",
     color: "#50b6a3",
     shape: "blob",
@@ -95,7 +95,7 @@ export const demoAgents: DemoAgent[] = [
     id: "inbox",
     title: "Email",
     description:
-      "Finds what actually needs a reply, drafts the answers, and keeps the noise out of your way.",
+      "Finds the emails that need a reply, drafts the answers, and leaves the rest alone.",
     name: "Inbox",
     color: "#6761f2",
     shape: "wedge",

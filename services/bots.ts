@@ -15,7 +15,7 @@ import { releaseLeaseHeldBy } from "@/lib/account-computer"
 import { provisionTeammate } from "@/lib/teammates"
 import { getUsage } from "@/lib/usage"
 import { createBotAvatar } from "@/lib/bot-avatar"
-import { botPresets } from "@/lib/bot-presets"
+import { findStartingRole } from "@/lib/bot-templates"
 import { startBotSetupSession } from "@/lib/bot-setup-session"
 import { teamOperationId } from "@/lib/team-policy"
 import { FREE_BOT_LIMIT_ERROR } from "@/lib/billing-policy"
@@ -79,10 +79,9 @@ export async function createBot(
     return { ok: false, usageLimit: "ai" }
 
   const { requestId } = createBotInputSchema.parse(input)
+  // A workspace preset, or a template picked on a public page
   const preset =
-    input.presetId === undefined
-      ? undefined
-      : botPresets.find((preset) => preset.id === input.presetId)
+    input.presetId === undefined ? undefined : findStartingRole(input.presetId)
   if (input.presetId !== undefined && !preset)
     throw new Error("Unknown starting role")
   const operationId = teamOperationId(userId, "bot-setup", requestId)
@@ -92,7 +91,7 @@ export async function createBot(
       name: preset?.name ?? "New Bot",
       job: preset?.job ?? "Not configured",
       instructions: preset?.instructions ?? null,
-      avatar: createBotAvatar(),
+      avatar: preset?.avatar ?? createBotAvatar(),
     },
     { botId: `bot_${operationId}`, chatId: `chat_${operationId}` },
     { setup: !preset, computer: false }
@@ -106,7 +105,7 @@ export async function createBot(
   Sentry.logger.info("Bot created", { "user.id": userId, "bot.id": bot.id })
   // Start model work while the chat shell loads; no computer is provisioned.
   try {
-    await startBotSetupSession(chatId, bot, await firstName?.())
+    await startBotSetupSession(chatId, bot, await firstName?.(), preset?.brief)
   } catch (error) {
     // The bot exists. Its chat retries startup and shows a recoverable error.
     Sentry.captureException(error, { extra: { botId: bot.id, chatId } })

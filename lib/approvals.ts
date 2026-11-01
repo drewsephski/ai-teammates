@@ -14,6 +14,8 @@ import {
   APPROVAL_TTL_MS,
   approvalDecisionPrompt,
   approvalDisplayPrompt,
+  approvalExecutedPrompt,
+  batchDecisionPrompt,
   approvalMessageId,
   approvalRuleApplies,
   standingRuleAllowed,
@@ -118,6 +120,10 @@ export async function requestApproval(call: {
   hostname?: string
   action?: "submit" | "post" | "send" | "delete" | "buy"
   preview?: string
+  // The message that started the task, so its outcome can follow the approval
+  originMessageId?: string
+  // The reply that asked, so its requests are decided and reported together
+  batchId?: string
 }) {
   if ((call.kind ?? "app") === "app") {
     // The owner already said no to exactly this: refuse without a new card
@@ -319,7 +325,13 @@ export async function declinedFor(
   userId: string,
   approvalId: string
 ): Promise<DeclinedAction[]> {
-  const [row] = await db
+  const [named] = await db
+    .select({ batchId: approvals.batchId })
+    .from(approvals)
+    .where(and(eq(approvals.id, approvalId), eq(approvals.userId, userId)))
+  if (!named) return []
+  // A batch's one wake carries every decline in it
+  const rows = await db
     .select({
       kind: approvals.kind,
       toolkit: approvals.toolkit,
@@ -329,15 +341,18 @@ export async function declinedFor(
     .from(approvals)
     .where(
       and(
-        eq(approvals.id, approvalId),
         eq(approvals.userId, userId),
-        eq(approvals.state, "denied")
+        eq(approvals.state, "denied"),
+        named.batchId
+          ? eq(approvals.batchId, named.batchId)
+          : eq(approvals.id, approvalId)
       )
     )
-  if (!row) return []
-  return row.kind === "computer"
-    ? [{ kind: "computer", action: row.action, hostname: row.hostname }]
-    : [{ kind: "app", toolkit: row.toolkit }]
+  return rows.map((row) =>
+    row.kind === "computer"
+      ? { kind: "computer", action: row.action, hostname: row.hostname }
+      : { kind: "app", toolkit: row.toolkit }
+  )
 }
 
 export async function completeApproval(
@@ -405,8 +420,31 @@ async function expireApprovals(userId: string) {
 
 export type ApprovalDispatch = typeof postChatMessage
 
-// The owner's answer. Approving wakes the bot with a message naming the
-// request; the bot runs the stored call through runApprovedAction.
+// Runs an approved app call from the decision (runApprovedCall in
+// lib/composio.ts). Undefined when there was nothing to run.
+export type ApprovalRunner = (approval: {
+  id: string
+  userId: string
+  botId: string
+  chatId: string
+  kind: "app" | "computer"
+}) => Promise<{ ok: boolean; result: unknown } | undefined>
+
+// The task an approval belongs to: the message that started the turn that
+// asked, followed through earlier approvals. A routine run's ID when the
+// approval came from a routine (recordRoutineRunOutcome).
+export async function approvalOrigin(userId: string, approvalId: string) {
+  const [row] = await db
+    .select({ originMessageId: approvals.originMessageId })
+    .from(approvals)
+    .where(and(eq(approvals.id, approvalId), eq(approvals.userId, userId)))
+  return row?.originMessageId ?? undefined
+}
+
+// The owner's answer. Approving an app action runs the stored call right
+// away when a runner is given, then wakes the bot with the result; without
+// one (or for a computer step, which needs the screen) the bot runs it
+// through runApprovedAction.
 export async function decideApproval(
   userId: string,
   approvalId: string,
@@ -415,7 +453,8 @@ export async function decideApproval(
     expectedArguments: Record<string, unknown>
     arguments: Record<string, unknown>
   },
-  dispatch: ApprovalDispatch = postChatMessage
+  dispatch: ApprovalDispatch = postChatMessage,
+  run?: ApprovalRunner
 ) {
   const row = await getApproval(userId, approvalId)
   if (row.state === "expired") throw new Error(APPROVAL_EXPIRED_ERROR)
@@ -469,28 +508,132 @@ export async function decideApproval(
     dedupeKey: `approval:${row.id}:decided`,
   })
 
+  // Ran here, so an approval never waits on the bot to remember it. A runner
+  // that fails leaves the claim to runApprovedAction, as before.
+  let ran: Awaited<ReturnType<ApprovalRunner>>
+  if (run && effective !== "deny" && row.kind === "app") {
+    ran = await run(row).catch((error: unknown) => {
+      Sentry.captureException(error, { extra: { approvalId } })
+      return undefined
+    })
+  }
+
+  // A reply's requests wake the bot once, after the last one is decided,
+  // with how every one of them went
+  let batch: Awaited<ReturnType<typeof batchItems>> | undefined
+  if (row.batchId) {
+    const items = await batchItems(userId, row.batchId)
+    const now = Date.now()
+    const waiting = items.filter(
+      (item) => item.state === "pending" && item.expiresAt.getTime() > now
+    )
+    if (waiting.length)
+      return { approval: decided, woke: true, ran, waiting: waiting.length }
+    if (items.length > 1) batch = items
+  }
+
   try {
     await dispatch(
       row.chatId,
       {
-        id: approvalMessageId(row.id, decision),
-        text:
-          row.kind === "computer"
+        // A batch's wake is named for the batch, so two last decisions made
+        // at once on two devices post it once. "deny" when anything was
+        // declined, so the wake turn reads the declines (declinedFor).
+        id: batch
+          ? approvalMessageId(
+              batch[0].id,
+              batch.some((item) => item.state === "denied") ? "deny" : "approve"
+            )
+          : approvalMessageId(row.id, decision),
+        text: batch
+          ? batchDecisionPrompt(batch)
+          : row.kind === "computer"
             ? computerDecisionPrompt(
                 row,
                 effective === "deny" ? "deny" : "approve"
               )
-            : approvalDecisionPrompt(row, effective),
-        displayPrompt: approvalDisplayPrompt(effective),
+            : ran && effective !== "deny"
+              ? approvalExecutedPrompt(row, effective, ran)
+              : approvalDecisionPrompt(row, effective),
+        displayPrompt: batch
+          ? `${batch.length} requests decided`
+          : approvalDisplayPrompt(effective),
       },
       { botId: row.botId }
     )
   } catch (error) {
     // The decision stands; the bot picks it up when the person next writes
     Sentry.captureException(error, { extra: { approvalId } })
-    return { approval: decided, woke: false }
+    return { approval: decided, woke: false, ran }
   }
-  return { approval: decided, woke: true }
+  return { approval: decided, woke: true, ran }
+}
+
+async function batchItems(userId: string, batchId: string) {
+  return db
+    .select({
+      id: approvals.id,
+      summary: approvals.summary,
+      kind: approvals.kind,
+      state: approvals.state,
+      result: approvals.result,
+      expiresAt: approvals.expiresAt,
+    })
+    .from(approvals)
+    .where(and(eq(approvals.userId, userId), eq(approvals.batchId, batchId)))
+    .orderBy(approvals.createdAt)
+}
+
+// How many of a reply's requests are still waiting, for its cards
+export async function pendingInBatch(userId: string, batchId: string | null) {
+  if (!batchId) return 0
+  const now = Date.now()
+  return (await batchItems(userId, batchId)).filter(
+    (item) => item.state === "pending" && item.expiresAt.getTime() > now
+  ).length
+}
+
+// Approve or decline everything still waiting from one reply. Each goes
+// through decideApproval, so each app call runs once and the bot wakes once,
+// after the last.
+export async function decideApprovalBatch(
+  userId: string,
+  batchId: string,
+  decision: "approve" | "deny",
+  dispatch: ApprovalDispatch = postChatMessage,
+  run?: ApprovalRunner
+) {
+  await expireApprovals(userId)
+  const waiting = (await batchItems(userId, batchId)).filter(
+    (item) => item.state === "pending"
+  )
+  if (!waiting.length) throw new Error("Approval not found")
+  let decided = 0
+  let woke = false
+  for (const item of waiting) {
+    try {
+      const result = await decideApproval(
+        userId,
+        item.id,
+        decision,
+        undefined,
+        dispatch,
+        run
+      )
+      decided++
+      woke = result.woke
+    } catch (error) {
+      // Decided on another device meanwhile: the rest still go through
+      if (
+        !(error instanceof Error) ||
+        ![APPROVAL_DECIDED_ERROR, APPROVAL_EXPIRED_ERROR].includes(
+          error.message
+        )
+      )
+        throw error
+    }
+  }
+  return { decided, woke }
 }
 
 // Compare the complete stored call as well as its revision: a concurrent

@@ -41,6 +41,11 @@ function partBlocks(
             ].join("\n"),
           },
         ]
+      case "tool-requestSecret":
+        // Never a value: the transcript only ever had the request
+        if (part.output.state === "requested")
+          return [{ kind: "tool", value: `Asked for ${part.output.label}` }]
+        break
       case "tool-handoff":
         return [{ kind: "tool", value: `Handed off to ${part.output.name}` }]
       case "tool-createTeammate":

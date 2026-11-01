@@ -548,6 +548,101 @@ test("B can't start a connection from A's chat or with a bot outside the chat", 
   )
 })
 
+test("B can't list, overwrite, read or delete A's API keys, or wake A's chat with one", async () => {
+  const service = await import("../services/secrets")
+  const { wakeAfterSecret } = await import("../lib/secret-wake")
+  const { loadUserSecretEnv } = await import("../lib/user-secrets")
+  // A throwaway key for the ciphertext, set only for this test
+  const previous = process.env.CHATGPT_TOKEN_ENCRYPTION_KEY
+  process.env.CHATGPT_TOKEN_ENCRYPTION_KEY = "ab".repeat(32)
+  try {
+    await service.saveSecret(A, {
+      name: "OPENAI_API_KEY",
+      label: "A's OpenAI",
+      value: "sk-test-a-value",
+    })
+    assert.deepEqual(await service.listSecrets(B), [])
+    await rejects(service.deleteSecret(B, "OPENAI_API_KEY"), /^Key not found$/)
+    // B saving the same name makes B's own key; A's is untouched
+    await service.saveSecret(B, {
+      name: "OPENAI_API_KEY",
+      label: "B's OpenAI",
+      value: "sk-test-b-value",
+    })
+    assert.deepEqual(await loadUserSecretEnv(A), {
+      OPENAI_API_KEY: "sk-test-a-value",
+    })
+    assert.deepEqual(await loadUserSecretEnv(B), {
+      OPENAI_API_KEY: "sk-test-b-value",
+    })
+    assert.deepEqual(
+      (await service.listSecrets(A)).map((secret) => secret.label),
+      ["A's OpenAI"]
+    )
+
+    // The wake checks the chat and the bot before posting anything
+    const posted: string[] = []
+    const postChatMessage = async (chatId: string) => {
+      posted.push(chatId)
+      return { inputSeq: 1 }
+    }
+    const attempt = {
+      questionId: "call_1",
+      name: "OPENAI_API_KEY",
+      label: "B's OpenAI",
+    }
+    for (const target of [
+      { chatId: "chat_a1" },
+      { chatId: "chat_a1", botId: "bot_a1" },
+      { chatId: "group_a", botId: "bot_a2" },
+      // B's own chat, with a bot that isn't a member
+      { chatId: "chat_b1", botId: "bot_a1" },
+      { chatId: "chat_b1", botId: "bot_b2" },
+    ])
+      assert.deepEqual(
+        await wakeAfterSecret(
+          B,
+          { ...attempt, ...target },
+          { postChatMessage }
+        ),
+        { woke: false },
+        JSON.stringify(target)
+      )
+    assert.deepEqual(posted, [])
+    // Through the service: B's key is saved, A's chat is not woken
+    const saved = await service.saveSecret(
+      B,
+      {
+        name: "GH_TOKEN",
+        label: "GitHub",
+        value: "ghp_test_b_value",
+        chatId: "chat_a1",
+        botId: "bot_a1",
+        questionId: "call_2",
+      },
+      {
+        wake: (userId, values) =>
+          wakeAfterSecret(userId, values, { postChatMessage }),
+      }
+    )
+    assert.equal(saved.woke, false)
+    assert.deepEqual(posted, [])
+    assert.deepEqual(
+      await wakeAfterSecret(
+        B,
+        { ...attempt, chatId: "chat_b1", botId: "bot_b1" },
+        { postChatMessage }
+      ),
+      { woke: true, inputSeq: 1 }
+    )
+    assert.deepEqual(posted, ["chat_b1"])
+    await service.deleteSecret(B, "GH_TOKEN")
+  } finally {
+    process.env.CHATGPT_TOKEN_ENCRYPTION_KEY = previous
+    if (previous === undefined) delete process.env.CHATGPT_TOKEN_ENCRYPTION_KEY
+  }
+})
+
 // Every handler's identity comes from apiRoute (the Clerk session), so no
 // route can act for a userId taken from the request
 test("B can't list or remove A's Always allow rules", async () => {
@@ -770,6 +865,15 @@ test("deleting B's account removes B's data and nothing of A's", async () => {
   )
   assert.deepEqual(
     (await db.select().from(schema.computers)).map((row) => row.userId),
+    [A]
+  )
+  // Saved API keys (inserted by the API key test above)
+  assert.deepEqual(
+    (
+      await db
+        .select({ userId: schema.userSecrets.userId })
+        .from(schema.userSecrets)
+    ).map((row) => row.userId),
     [A]
   )
 

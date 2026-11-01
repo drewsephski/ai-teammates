@@ -249,3 +249,31 @@ export function editEmailDraft(
 export function emailExecutionArguments(input: Record<string, unknown>) {
   return readStored(input)?.input ?? input
 }
+
+// Everyone a new plain-text email would go to, lowercased, when the call is a
+// direct send whose recipients are all in fields a card shows. Undefined for
+// replies (the thread decides who receives them), HTML, attachments, raw MIME
+// or anything else that could reach someone unseen.
+export function directEmailRecipients(
+  tool: {
+    slug: string
+    toolkit: string
+    inputSchema?: Record<string, unknown>
+  },
+  input: Record<string, unknown>
+) {
+  if (!/_(SEND_EMAIL|SEND_MAIL)$/.test(tool.slug)) return undefined
+  let staged: Record<string, unknown> | undefined
+  try {
+    staged = stageEmailDraft(tool, input, {})
+  } catch {
+    return undefined
+  }
+  const stored = staged && readStored(staged)
+  if (!stored) return undefined
+  const { to, cc, bcc } = content(stored)
+  return [to, cc, bcc]
+    .flatMap((field) => field.split(/[,;]/))
+    .map((address) => address.trim().toLowerCase())
+    .filter(Boolean)
+}

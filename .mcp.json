@@ -1,5 +1,9 @@
 {
   "mcpServers": {
+    "submitmystartup": {
+      "type": "http",
+      "url": "https://submitmystartup.com/mcp"
+    },
     "trigger": {
       "args": [
         "trigger.dev@4.7.4",

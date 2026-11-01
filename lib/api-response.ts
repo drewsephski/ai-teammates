@@ -1,6 +1,11 @@
 import { AppleAccountBusyError } from "@/lib/apple-account-policy"
 import { EMAIL_CHANGED_ERROR } from "@/lib/email-draft"
 import {
+  EVENT_ACCOUNT_CHOICE_ERROR,
+  EVENT_CONNECT_ERROR,
+  EVENT_ROUTINE_CHANGE_ERROR,
+} from "@/lib/routine-events"
+import {
   COMPUTER_TIME_USED_UP_ERRORS,
   COMPUTERS_BUSY_ERROR,
   SANDBOX_BUSY_ERROR,
@@ -110,7 +115,10 @@ export function apiErrorResponse(error: unknown): {
     message === "Unknown starting role" ||
     message === "Unknown usage" ||
     message === "Pick between two and eight different bots." ||
-    message === "Pick a time in the future."
+    message === "Pick a time in the future." ||
+    message === EVENT_ROUTINE_CHANGE_ERROR ||
+    EVENT_CONNECT_ERROR.test(message) ||
+    EVENT_ACCOUNT_CHOICE_ERROR.test(message)
   )
     return fail(400, "invalid_request", message)
   // For you token checks explain what changed and ask for a refresh

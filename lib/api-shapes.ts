@@ -9,6 +9,9 @@ export function publicBot(bot: Bot) {
     avatar: bot.avatar,
     job: bot.job,
     instructions: bot.instructions,
+    // Millionths of a dollar one task may spend; null is no limit. Added for
+    // builds after 2026-10-27; older ones ignore it.
+    taskBudget: bot.taskBudget,
     setupComplete: bot.setupComplete,
     pinnedAt: bot.pinnedAt,
     createdAt: bot.createdAt,

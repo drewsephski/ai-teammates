@@ -10,6 +10,7 @@ import { pageMetadata } from "@/lib/marketing/content"
 
 export const metadata: Metadata = pageMetadata({
   path: "/delete-account",
+  markdown: false,
   title: "Delete your Krafty account",
   description:
     "Delete your Krafty account and workspace without installing the app.",

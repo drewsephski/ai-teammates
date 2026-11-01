@@ -8,6 +8,11 @@ import {
   routineScheduleSchema,
   timeZoneSchema,
 } from "@/lib/routine-policy"
+import {
+  EVENT_RUNS_PER_DAY,
+  ROUTINE_EVENT_TRIGGERS,
+  ROUTINE_EVENTS,
+} from "@/lib/routine-events"
 
 type RoutineFields = {
   title?: string
@@ -71,8 +76,7 @@ async function attempt<T>(run: () => Promise<T>) {
   }
 }
 
-const scheduleDescription =
-  'When it runs, in the owner\'s timezone. {"kind":"daily","time":"08:00","days":[1,2,3,4,5]} is weekdays at 8am (0 is Sunday; list all seven for every day); {"kind":"interval","hours":4} is every four hours (whole hours, at least 1); {"kind":"once","at":"2026-10-20T09:00"} runs once at that local wall-clock time (no offset needed). Work dates out from the local time in your instructions.'
+const scheduleDescription = `When it runs, in the owner's timezone. {"kind":"daily","time":"08:00","days":[1,2,3,4,5]} is weekdays at 8am (0 is Sunday; list all seven for every day); {"kind":"interval","hours":4} is every four hours (whole hours, at least 1); {"kind":"once","at":"2026-10-20T09:00"} runs once at that local wall-clock time (no offset needed). Work dates out from the local time in your instructions. For "when something happens" in a connected app, {"kind":"event","trigger":"GMAIL_NEW_GMAIL_MESSAGE","config":{"query":"from:client.com"}} runs each time it happens (at most ${EVENT_RUNS_PER_DAY} times a day); the app must be connected, and accountId picks the account when there are several. Triggers and the config keys each takes: ${ROUTINE_EVENT_TRIGGERS.map((trigger) => `${trigger} (${ROUTINE_EVENTS[trigger].label}${ROUTINE_EVENTS[trigger].config.length ? `; ${ROUTINE_EVENTS[trigger].config.join(", ")}` : ""})`).join("; ")}. Each run gets what the app sent; write the prompt for what to do with one such event.`
 
 export function createRoutineTools(
   store: RoutineStore,

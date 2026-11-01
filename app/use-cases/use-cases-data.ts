@@ -24,6 +24,8 @@ const prompts: Record<string, string> = {
 type UseCaseDetails = {
   /** Search-shaped page title, "AI agent for …". */
   headline: string
+  /** The job a Bot created from this page starts with (`bots.job`). */
+  job: string
   /** One answer-first paragraph for the role page. */
   summary: string
   /** Apps the starter prompt names. Each one is connected by the person. */
@@ -41,6 +43,7 @@ type UseCaseDetails = {
 const details: Record<string, UseCaseDetails> = {
   "sales-outbound": {
     headline: "AI agent for outbound sales",
+    job: "Outbound sales researcher",
     summary:
       "A Sales Outbound Bot researches target accounts overnight, finds the right contact, and drafts short emails in your voice. You start the day with a ranked review list instead of a blank sequence.",
     apps: ["HubSpot", "Gmail", "Google Sheets", "Slack"],
@@ -53,13 +56,14 @@ const details: Record<string, UseCaseDetails> = {
     ],
     waitsForYou: [
       "No email is sent. The drafts wait for you to review and send",
-      "Writing to the sheet and posting in Slack are app writes, so they wait for your approval unless you always allow them for this Bot",
+      "Writing to the sheet needs approval unless an eligible rule allows it; posting in Slack needs approval every time",
     ],
   },
   "talent-scout": {
     headline: "AI agent for recruiting and sourcing",
+    job: "Recruiting sourcer",
     summary:
-      "A Talent Scout Bot sources candidates who match your brief and skips anyone already in your applicant tracking system. Its outreach references each person's actual work.",
+      "A Talent Scout Bot sources candidates who match your brief and skips anyone already in your applicant tracking system. Each note it drafts mentions something the person has worked on.",
     apps: ["Greenhouse", "Google Sheets", "Gmail", "Google Calendar"],
     schedule: "On request, or as a weekly routine",
     steps: [
@@ -75,6 +79,7 @@ const details: Record<string, UseCaseDetails> = {
   },
   "paid-media": {
     headline: "AI agent for paid media reporting",
+    job: "Paid media analyst",
     summary:
       "A Paid Media Bot pulls yesterday's spend and results every morning, compares them with your monthly plan, and posts a short summary. It recommends budget moves and changes nothing until you agree.",
     apps: ["Google Ads", "Meta Ads", "Google Sheets", "Slack"],
@@ -87,13 +92,14 @@ const details: Record<string, UseCaseDetails> = {
     ],
     waitsForYou: [
       "Every bid or budget change waits for your OK",
-      "Posting the summary is an app write, so it waits for approval unless you always allow it",
+      "Posting the summary needs your approval every time; Slack posts cannot be always allowed",
     ],
   },
   "expense-manager": {
     headline: "AI agent for receipts and expenses",
+    job: "Expense bookkeeper",
     summary:
-      "An Expense Manager Bot collects the week's receipts from your inbox, files them, and logs each one in your expense sheet. The books are clean before review.",
+      "An Expense Manager Bot collects the week's receipts from your inbox, files them, and logs each one in your expense sheet. It flags anything large or without a clear category.",
     apps: ["Gmail", "Google Drive", "Google Sheets", "Slack"],
     schedule: "Every Friday afternoon, as a routine",
     steps: [
@@ -109,6 +115,7 @@ const details: Record<string, UseCaseDetails> = {
   },
   "product-performance": {
     headline: "AI agent for performance investigations",
+    job: "Performance investigator",
     summary:
       "A Product Performance Bot signs in to your observability tool on its cloud computer and compares this week's latency with last week's. When something slowed down, it writes up the likely cause with screenshots.",
     apps: ["Datadog", "GitHub", "Notion", "Slack"],
@@ -120,11 +127,12 @@ const details: Record<string, UseCaseDetails> = {
       "Matches the change to a merged pull request and drafts a one-page writeup",
     ],
     waitsForYou: [
-      "Publishing the doc and posting the link are app writes, so they wait for your approval unless you always allow them",
+      "Publishing the doc and posting the link wait for your approval; high-risk actions cannot be always allowed",
     ],
   },
   "bug-reproduction": {
     headline: "AI agent for bug reproduction",
+    job: "Bug reproduction engineer",
     summary:
       "A Bug Reproduction Bot follows a customer's steps on your staging site in its own browser and captures what fails. Engineers get a repro pack with steps, screenshots, and console errors.",
     apps: ["Intercom", "Linear"],
@@ -141,6 +149,7 @@ const details: Record<string, UseCaseDetails> = {
   },
   "account-health": {
     headline: "AI agent for customer account health",
+    job: "Account health analyst",
     summary:
       "An Account Health Bot reads usage, CRM, and support signals for every account renewing soon. It ranks the ones that need attention, with one line of reasoning each.",
     apps: ["Salesforce", "Stripe", "Zendesk", "Gmail", "Google Sheets"],
@@ -157,9 +166,10 @@ const details: Record<string, UseCaseDetails> = {
     ],
   },
   "chief-of-staff": {
-    headline: "AI chief of staff for your inbox and calendar",
+    headline: "AI executive assistant for your inbox and calendar",
+    job: "Chief of staff",
     summary:
-      "A Chief of Staff Bot reads your unread email, direct messages, and today's calendar every morning, then sends you one brief. It covers the meetings that need prep, the replies due today, and the threads you promised to follow up on.",
+      "An AI executive assistant reads your unread email, direct messages, and today's calendar to prepare a morning brief. It covers the meetings that need prep, the replies due today, and the threads you promised to follow up on.",
     apps: ["Gmail", "Slack", "Google Calendar"],
     schedule: "Every weekday morning, as a routine",
     steps: [
@@ -170,11 +180,12 @@ const details: Record<string, UseCaseDetails> = {
     ],
     waitsForYou: [
       "Replies stay as drafts in Gmail for you to send",
-      "Sending you the brief in Slack is an app write, so it waits for approval unless you always allow it",
+      "Sending you the brief in Slack needs approval every time, even when the message is only to you",
     ],
   },
   "support-triage": {
     headline: "AI agent for support ticket triage",
+    job: "Support triage agent",
     summary:
       "A Support Triage Bot reads new tickets every hour and drafts answers to how-to questions from your help center. It routes billing issues and links real bugs to an existing issue or drafts a new one.",
     apps: ["Zendesk", "Notion", "Linear", "Slack"],
@@ -186,7 +197,7 @@ const details: Record<string, UseCaseDetails> = {
       "Searches for an existing bug report and links it, or drafts a new one with repro steps",
     ],
     waitsForYou: [
-      "Replies, tags, new issues, and urgent alerts are app writes, so each waits for your approval unless you always allow that action",
+      "Replies, tags, new issues, and alerts wait for approval unless an eligible rule allows the action; replies and Slack posts always need approval",
     ],
   },
 }
@@ -199,56 +210,56 @@ const roleSummaries = [
     name: "Sales Outbound",
     color: "#54b9a6",
     description:
-      "Generate pipeline overnight. Researches accounts, scores contacts by intent, drafts email and LinkedIn in your voice, and leaves a review list for you to approve each morning.",
+      "Researches target accounts overnight, finds the right contact, and drafts a short email in your voice for each. You wake up to a ranked list and drafts. Nothing is sent.",
   },
   {
     id: "talent-scout",
     name: "Talent Scout",
     color: "#885cf5",
     description:
-      "Keep your talent pipeline moving. Sources candidates, drafts outreach in your voice, skips anyone already in the ATS, and handles interview scheduling once you approve.",
+      "Finds candidates who match your brief, skips anyone already in your ATS, and drafts a note that mentions their work. Once you approve, it sends the notes and offers interview slots.",
   },
   {
     id: "paid-media",
     name: "Paid Media",
     color: "#eb4699",
     description:
-      "Protect your ad budget. Pulls live channel and campaign data every day, recommends reallocations against your monthly plan, and holds every bid change until you approve it.",
+      "Every morning it pulls yesterday's spend and results, compares them with your monthly plan, and posts a short summary. It suggests budget moves and changes nothing until you approve.",
   },
   {
     id: "expense-manager",
     name: "Expense Manager",
     color: "#5bc67a",
     description:
-      "Close the week with clean books. Builds the weekly summary from your expense tool and sheets, files receipts from email, and nudges owners on missing categories before review.",
+      "Every Friday it pulls the week's receipts from your inbox, files them, and logs each one in your expense sheet. Large or uncategorized expenses get flagged for you.",
   },
   {
     id: "product-performance",
     name: "Product Performance",
     color: "#ea4045",
     description:
-      "Know what slowed down and why. Logs into observability tools, reads the flamegraphs, and comes back with the hot spots and a short writeup with screenshots.",
+      "Signs in to your observability tool and compares this week's latency with last week's. When something slowed down, it writes up the likely cause with flamegraph screenshots.",
   },
   {
     id: "bug-reproduction",
     name: "Bug Reproduction",
     color: "#ea4045",
     description:
-      "Hand engineers bugs they can reproduce. Picks up the support thread, clicks the same path in staging, captures the failure, and drops a repro pack with steps and screenshots.",
+      "Reads the support thread, follows the customer's steps on your staging site, and captures what fails. Engineers get numbered steps, screenshots, and console errors.",
   },
   {
     id: "account-health",
     name: "Account Health",
     color: "#3c82f6",
     description:
-      "See risk and expansion before the QBR. Reads usage, CRM, and support signals across your book and ranks the accounts that need attention, with next steps.",
+      "Every Monday it checks usage, tickets, and your last email for each account renewing soon, then ranks them by churn risk with a line of reasoning for each.",
   },
   {
     id: "chief-of-staff",
     name: "Chief of Staff",
     color: "#ed712e",
     description:
-      "Keep your week from slipping. Scans Slack, email, calendar, and meeting notes, flags what matches your priorities, and follows up on dropped threads before they go cold.",
+      "Each weekday morning it reads your unread email, Slack DMs, and calendar, then sends one brief: meetings to prep for, replies due today, and threads you said you'd follow up on.",
   },
 ]
 
@@ -264,7 +275,7 @@ export const useCases = [
     name: "Support Triage",
     color: "#e5b53a",
     description:
-      "Clear the queue before you log on. Triages new tickets, drafts replies grounded in your docs, files real bugs with repro steps, and escalates anything urgent to you.",
+      "Reads new tickets every hour, drafts answers to how-to questions from your help center, tags billing issues, and links bugs to existing issues or drafts new ones.",
   },
 ].map((useCase) => ({
   ...useCase,

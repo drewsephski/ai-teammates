@@ -15,6 +15,7 @@ import {
   avatarBodyTargets,
   avatarScale,
 } from "../components/landing/bot/character-avatar-motion"
+import { BotMark } from "../components/landing/bot/bot-mark"
 
 afterEach(() => {
   cleanup()
@@ -27,6 +28,39 @@ const gazeSvg = (container: HTMLElement) => {
     ? Buffer.from(uri.split(",")[1], "base64").toString()
     : decodeURIComponent(uri.slice(uri.indexOf(",") + 1))
 }
+
+test("character clipping follows its own animated outline without duplicating it", () => {
+  const view = render(
+    <>
+      <BotMark shape="egg" state="thinking" />
+      <BotMark shape="gem" state="thinking" />
+    </>
+  )
+  const marks = [...view.container.querySelectorAll("svg")]
+  const outlines = marks.map((svg) => svg.querySelector("path[id]")!)
+  assert.notEqual(outlines[0].id, outlines[1].id)
+  for (const [index, svg] of marks.entries()) {
+    assert.equal(
+      svg.querySelector("clipPath use")?.getAttribute("href"),
+      `#${outlines[index].id}`
+    )
+    assert.equal(svg.querySelectorAll("clipPath path").length, 0)
+  }
+  const initial = outlines.map((outline) => outline.getAttribute("d"))
+  act(() => advanceAvatarFrames(0, 900))
+  for (const [index, svg] of marks.entries()) {
+    assert.notEqual(outlines[index].getAttribute("d"), initial[index])
+    assert.ok(
+      [...svg.querySelectorAll(":scope > circle")].some(
+        (dot) => Number(dot.getAttribute("opacity")) > 0
+      )
+    )
+  }
+  act(() => setAvatarReducedMotion(true))
+  for (const [index, outline] of outlines.entries()) {
+    assert.equal(outline.getAttribute("d"), initial[index])
+  }
+})
 
 test("native activity preserves the silhouette and interpolates instead of remounting", () => {
   const view = render(<ChatAvatar seed={seed} state="thinking" />)

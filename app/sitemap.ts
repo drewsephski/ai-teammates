@@ -6,7 +6,7 @@ import { marketingUpdated, siteUrl } from "@/lib/marketing/site"
 
 // Last edits to the legal pages; keep in sync with their "Last updated" lines.
 const legalUpdated = {
-  privacy: "2026-10-17",
+  privacy: "2026-10-27",
   terms: "2026-10-15",
   support: "2026-10-15",
   deleteAccount: "2026-10-17",
@@ -28,6 +28,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: marketingUpdated,
       priority: 0.7,
     })),
+    { path: "/download", lastModified: marketingUpdated, priority: 0.5 },
     { path: "/privacy", lastModified: legalUpdated.privacy, priority: 0.3 },
     { path: "/terms", lastModified: legalUpdated.terms, priority: 0.3 },
     { path: "/support", lastModified: legalUpdated.support, priority: 0.3 },

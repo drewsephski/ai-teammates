@@ -128,15 +128,34 @@ NEON_AI_GATEWAY_TOKEN=
 # leave empty to use only the Neon AI Gateway. Railway and Trigger.dev both read it.
 ANTHROPIC_API_KEY=
 
+# Optional: app waitlist owner notifications (Railway only; not Trigger.dev)
+# Use a verified sender from your Resend domain. Notifications go to Drew.
+RESEND_API_KEY=
+RESEND_FROM_EMAIL=
+
 # Optional: Composio project API key for the Apps marketplace and agent tools
 COMPOSIO_API_KEY=
+
+# Optional: signing secret of the Composio project's webhook subscription, for
+# event routines ("when a client emails me"). Railway only: Composio delivers to
+# /api/webhooks/composio, which refuses every delivery without it. Created by
+# scripts/setup-composio-webhook.ts.
+COMPOSIO_WEBHOOK_SECRET=
 
 # Tavily: server-side public web search and page reading for every bot, including unfinished setup
 TAVILY_API_KEY=
 
+# Optional: Notra AI crawler and referral analytics (Railway only)
+NOTRA_GEO_TOKEN=
+
 # Optional: Firecrawl reads web pages first, free to the person (app-funded,
 # 30 reads per turn). Trigger.dev only: the worker reads it, Railway doesn't.
 FIRECRAWL_API_KEY=
+
+# Optional: context.dev review and social data (readReviews, readSocialMedia)
+# and a readWebPage reader between Firecrawl and Tavily, billed to the person's
+# AI allowance. Trigger.dev only: the worker reads it, Railway doesn't.
+CONTEXT_DEV_API_KEY=
 
 # Optional: server-side Voxtral dictation (Railway only, not Trigger.dev)
 OPENROUTER_API_KEY=
@@ -233,6 +252,17 @@ COMPOSIO_API_KEY=
 NEXT_PUBLIC_SENTRY_DSN=
 ```
 
+**4. Tell search engines about changed pages**
+
+After a release that changes the public pages, submit them to IndexNow (Bing and the other engines that share it). The script checks that production serves the key file in `public/` first, and needs no environment variables:
+
+```bash
+pnpm exec tsx scripts/submit-indexnow.ts --dry-run   # list the URLs
+pnpm exec tsx scripts/submit-indexnow.ts
+```
+
+AI agents that send `Accept: text/markdown` get a Markdown copy of each marketing page at the same URL (also served at `/md/<path>`), and `/pricing.md` lists the plans. Both are built in `lib/marketing/markdown.ts`.
+
 ## 🤝 Contributing
 
 Issues and pull requests are welcome. Run `pnpm typecheck` and `pnpm test` before opening one, and lint and format only the files you changed (`pnpm exec eslint <files>`, `pnpm exec prettier --write <files>`). `pnpm format` rewrites many untouched files; see `AGENTS.md`.
@@ -254,6 +284,8 @@ Use `@e2b/desktop` with E2B's **Hobby** plan. Hobby has a one-hour session limit
 Put `E2B_API_KEY` privately in ignored `.env.local`. Never use a `NEXT_PUBLIC_` variable for it. Set the same key on Railway's `ai-teammates` service, `production`, and the Trigger.dev project's `prod` environment. Keep Railway's production `TRIGGER_SECRET_KEY`; the local development key intentionally differs.
 
 Each account has one desktop sandbox, shared by all of its bots (`lib/account-computer.ts`). New computers are paused immediately after creation (`lib/e2b.ts`). Tools resume the same ID and renew a five-minute idle timeout. Commands can lease longer to finish (at most 630 seconds), then return to the five-minute idle policy. E2B automatically **pauses**, rather than kills, on expiry, with automatic traffic-based resume disabled. Before 55 continuous minutes, tools pause/resume into a new session; a connected viewer pauses and asks for Resume. Files and applications survive; saved memory lives in Postgres, not on the computer (`lib/memory.ts`). Deleting a bot keeps the account computer (`services/bots.ts`); deleting the account removes it (`services/account.ts`).
+
+Computers are created from the `krafty-desktop` template, which adds a separate shell user and the screen reader to E2B's desktop. Build it once per E2B team, and again after changing `scripts/build-e2b-template.ts`, before creating computers: `pnpm exec tsx --env-file=.env.local scripts/build-e2b-template.ts`. `pnpm exec tsx --env-file=.env.local scripts/verify-screen-reader.ts` checks a throwaway computer from it and spends a few minutes of Hobby time.
 
 `pnpm dev` runs `server.ts`; `pnpm build` compiles it to `.server/server.mjs`, and `pnpm start` runs the compiled Next.js server with a same-origin WebSocket gateway and a bounded 384 MiB V8 heap. Keep these start commands on Railway: `next start` alone cannot serve the gateway. Public sandbox traffic is disabled. The gateway verifies Clerk authentication, same origin, direct-chat ownership, feature access and remaining usage, then forwards noVNC with the E2B private ingress token **only on the server**. Closing the screen disconnects the stream and stops renewing its lease. Viewing an open screen counts as active use.
 
@@ -310,3 +342,7 @@ chat, or backgrounding the app. Add the `expo-audio` config plugin for microphon
 permissions; if the module or native permissions aren't in the installed app,
 ship a new native build. Keep the OpenRouter key exclusively on the server and
 release the server endpoint before a mobile build calls it.
+
+### App waitlist
+
+`/download` and the sidebar’s Get the app dialog accept public Mac/iPhone waitlist signups. `app_waitlist` stores normalized email/platform pairs, so retries do not create duplicates. Configure `RESEND_API_KEY` and `RESEND_FROM_EMAIL` in `.env.local` and Railway to notify `drewsepeczi@gmail.com` after a new signup. The sender must be verified in Resend. No email is sent to the subscriber. Notification errors are reported without failing the saved signup; delivery is best effort and not automatically retried. Duplicate submissions do not resend notifications.

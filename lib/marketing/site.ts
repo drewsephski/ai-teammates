@@ -11,14 +11,54 @@ export const socialImage = {
   url: "/brand/krafty-social-v1.jpg",
   width: 1200,
   height: 630,
-  alt: "Krafty — AI teammates you can give real work to. An ivory sculptural bot on a charcoal backdrop.",
+  alt: "Krafty, AI teammates you can hand a job to. An ivory bot figure on a charcoal background.",
 }
+
+/**
+ * Krafty's own profiles on other sites (X, LinkedIn, Product Hunt, directory
+ * listings). They become the Organization's `sameAs`, which tells search
+ * engines and AI answers that those profiles and this site are one entity, so
+ * Krafty Bot isn't confused with similarly named products. List only live
+ * profiles that Krafty controls.
+ */
+export const brandProfiles: readonly string[] = [
+  "https://www.linkedin.com/company/kraftybot/",
+]
+
+/**
+ * The founder's own profiles, the Person's `sameAs`. Kept apart from
+ * brandProfiles because they identify Drew, not Krafty.
+ */
+export const founderProfiles: readonly string[] = [
+  "https://github.com/drewsephski",
+  "https://www.instagram.com/drew.sepeczi/",
+  "https://www.linkedin.com/in/drewsepeczi/",
+  "https://x.com/SepecziDre72128",
+]
+
+/** Where Krafty is based, for the Organization's address. */
+export const brandLocation = {
+  addressLocality: "Chicago",
+  addressRegion: "IL",
+  addressCountry: "US",
+} as const
 
 /**
  * Bump when the public marketing pages change meaningfully so the sitemap's
  * lastmod stays honest.
  */
-export const marketingUpdated = "2026-10-26"
+export const marketingUpdated = "2026-10-30"
+
+/**
+ * Where a "Create this Bot" link on a public page goes. The workspace opens a
+ * preview of the template (lib/bot-templates.ts), after sign-up when signed out.
+ */
+export function createBotHref(templateId: string, isAuthenticated: boolean) {
+  const destination = `/workspace?create=${encodeURIComponent(templateId)}`
+  return isAuthenticated
+    ? destination
+    : `/sign-up?redirect_url=${encodeURIComponent(destination)}`
+}
 
 const usd = (millionths: number) => millionths / 1_000_000
 

@@ -62,16 +62,6 @@
   font-size: 14px;
   line-height: 1.55;
 }
-.soon {
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  padding: 4px 14px;
-  border: 1px solid #333;
-  border-radius: 999px;
-  color: #d4d4d4;
-  font-size: 14px;
-}
 .textLink {
   margin-top: auto;
   color: #a1a1a1;

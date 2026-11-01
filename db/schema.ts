@@ -17,12 +17,19 @@ import { createInsertSchema } from "drizzle-zod"
 import { nanoid } from "nanoid"
 import { z } from "zod"
 
+import { featureIds } from "@/lib/feature-votes"
 import { containsSecret } from "@/lib/memory-policy"
 import {
   routineScheduleSchema,
   timeZoneSchema,
   type RoutineSchedule,
 } from "@/lib/routine-policy"
+import {
+  secretLabelSchema,
+  secretNameSchema,
+  secretValueSchema,
+} from "@/lib/secret-policy"
+import { isTaskBudget } from "@/lib/turn-spend"
 
 export const bots = pgTable(
   "bots",
@@ -41,6 +48,9 @@ export const bots = pgTable(
     job: text().notNull(),
     // How it should go about the job
     instructions: text(),
+    // The most one task may spend of the AI allowance, in millionths of a
+    // dollar (TASK_BUDGETS in lib/turn-spend.ts). Null means no limit.
+    taskBudget: integer(),
     // Server-owned lifecycle and sidebar preferences.
     setupComplete: boolean().notNull().default(true),
     pinnedAt: timestamp({ withTimezone: true }),
@@ -300,6 +310,47 @@ export const connectorAuthAttempts = pgTable(
   (table) => [index("connector_auth_expiry_idx").on(table.expiresAt)]
 )
 
+// API keys the person saved for their bots, set as environment variables in
+// the computer's bash commands (docs/secrets.md). `ciphertext` is AES-256-GCM
+// bound to the owner and name (lib/user-secrets.ts); values never leave the
+// server, and nothing but lib/user-secrets.ts reads the column.
+export const userSecrets = pgTable(
+  "user_secrets",
+  {
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    // Clerk user ID
+    userId: text().notNull(),
+    // Environment variable name, like OPENAI_API_KEY
+    name: text().notNull(),
+    label: text().notNull(),
+    ciphertext: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("user_secrets_name_idx").on(table.userId, table.name)]
+)
+
+export const userSecretInputSchema = createInsertSchema(userSecrets)
+  .pick({ name: true, label: true })
+  .required()
+  .extend({
+    name: secretNameSchema,
+    label: secretLabelSchema,
+    value: secretValueSchema,
+  })
+export type UserSecretInput = z.infer<typeof userSecretInputSchema>
+
+// Saving from the key card in a chat also wakes the bot that asked
+export const secretSaveSchema = userSecretInputSchema.extend({
+  chatId: z.string().min(1).optional(),
+  botId: z.string().min(1).optional(),
+  // The requestSecret tool call the card answers
+  questionId: z.string().min(1).max(200).optional(),
+})
+export type SecretSaveInput = z.infer<typeof secretSaveSchema>
+
 export const chatgptPreferenceSchema = createInsertSchema(chatgptConnections, {
   enabled: z.boolean(),
   model: z.string().trim().min(1).max(200).nullable(),
@@ -419,6 +470,10 @@ export const userSettings = pgTable("user_settings", {
     .default("digest"),
   timezone: text().notNull().default("UTC"),
   digestHour: integer().notNull().default(8),
+  // A push at digestHour, in their timezone, with what their bots did since
+  // the last one (trigger/morning-summary.ts)
+  morningSummary: boolean().notNull().default(true),
+  lastSummaryAt: timestamp({ withTimezone: true }),
   quietHours: jsonb().$type<{ start: number; end: number }>(),
   // Null means every connected app
   suggestionApps: text().array(),
@@ -549,11 +604,55 @@ export const routines = pgTable(
       enum: ["started", "skipped", "failed", "completed", "blocked"],
     }),
     lastError: text(),
+    // An event routine's Composio trigger and the connected account it
+    // watches (lib/routine-events.ts). Server-owned.
+    triggerId: text(),
+    triggerAccountId: text(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index("routines_user_id_idx").on(table.userId),
     index("routines_due_idx").on(table.enabled, table.nextRunAt),
+  ]
+)
+
+// One row per run of a routine, newest first on the Activity page. Keyed by
+// the run's message ID (routineRunMessageId), so a retried dispatch or a
+// repeated report writes the same row. Cascades with its routine.
+// Webhook deliveries already turned into runs, by Composio's webhook ID, so
+// a redelivered event starts at most one run. Cascades with its routine.
+export const routineEvents = pgTable("routine_events", {
+  id: text().primaryKey(),
+  routineId: text()
+    .notNull()
+    .references(() => routines.id, { onDelete: "cascade" }),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+})
+
+export const routineRuns = pgTable(
+  "routine_runs",
+  {
+    id: text().primaryKey(),
+    routineId: text()
+      .notNull()
+      .references(() => routines.id, { onDelete: "cascade" }),
+    // Clerk user ID
+    userId: text().notNull(),
+    scheduledAt: timestamp({ withTimezone: true }).notNull(),
+    status: text({
+      enum: ["started", "skipped", "failed", "completed", "blocked"],
+    }).notNull(),
+    detail: text(),
+    // AI allowance the run's turns used, net of credits, in millionths of a
+    // dollar, and the turn keys already counted in it
+    spent: integer().notNull().default(0),
+    spentKeys: text().array().notNull().default([]),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("routine_runs_routine_idx").on(table.routineId, table.scheduledAt),
+    index("routine_runs_user_idx").on(table.userId, table.scheduledAt),
   ]
 )
 
@@ -611,10 +710,19 @@ export const approvals = pgTable(
     state: approvalState().notNull().default("pending"),
     result: jsonb(),
     expiresAt: timestamp({ withTimezone: true }).notNull(),
+    // The message that started the task that asked: a routine run's ID when a
+    // routine asked, so the run's status follows the approval
+    originMessageId: text(),
+    // The reply that asked: app approvals from one reply are decided together
+    // and wake the bot once (lib/approvals.ts)
+    batchId: text(),
     decidedAt: timestamp({ withTimezone: true }),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("approvals_user_state_idx").on(table.userId, table.state)]
+  (table) => [
+    index("approvals_user_state_idx").on(table.userId, table.state),
+    index("approvals_user_batch_idx").on(table.userId, table.batchId),
+  ]
 )
 
 // "Always allow": an app action this bot may take without asking again.
@@ -775,6 +883,11 @@ export const botInsertSchema = createInsertSchema(bots, {
       .max(100, "Keep it under 100 characters."),
   instructions: (schema) =>
     schema.trim().max(4000, "Keep it under 4000 characters."),
+  // Optional, so clients that don't know about it leave it unchanged
+  taskBudget: (schema) =>
+    schema
+      .refine((value) => isTaskBudget(value), "Pick one of the listed limits.")
+      .optional(),
 }).omit({
   id: true,
   userId: true,
@@ -863,11 +976,16 @@ export const memorySettingsSchema = createInsertSchema(userSettings)
   .pick({ memoryEnabled: true })
   .required()
 
+export const morningSummarySchema = createInsertSchema(userSettings)
+  .pick({ morningSummary: true })
+  .required()
+
 export type Memory = typeof memories.$inferSelect
 export type MemoryKind = (typeof memoryKind.enumValues)[number]
 export type MemoryUpdate = z.infer<typeof memoryUpdateSchema>
 export type AboutYou = z.infer<typeof aboutYouSchema>
 export type MemorySettings = z.infer<typeof memorySettingsSchema>
+export type MorningSummarySettings = z.infer<typeof morningSummarySchema>
 
 const routineTitle = (schema: z.ZodString) =>
   schema
@@ -916,6 +1034,11 @@ export const approvalDecisionSchema = z.object({
   decision: z.enum(["approve", "always", "deny"]),
 })
 
+// Every request still waiting from one reply at once
+export const approvalBatchDecisionSchema = z.object({
+  decision: z.enum(["approve", "deny"]),
+})
+
 // Removes one "Always allow" rule
 export const approvalRuleRevokeSchema = createInsertSchema(approvalRules, {
   botId: z.string().trim().min(1).max(100),
@@ -959,3 +1082,35 @@ export type NewChatMember = typeof chatMembers.$inferInsert
 export type ForYouItem = typeof forYouItems.$inferSelect
 export type ForYouCategory = (typeof forYouCategory.enumValues)[number]
 export type ForYouUrgency = (typeof forYouUrgency.enumValues)[number]
+
+// Public launch subscriptions, independent of Clerk accounts. No account IDs
+// are collected; one row per email and platform makes retries idempotent.
+export const appWaitlist = pgTable(
+  "app_waitlist",
+  {
+    email: text().notNull(),
+    platform: text({ enum: ["mac", "iphone"] }).notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.email, table.platform] })]
+)
+
+// Anonymous votes in the home page's "what should we build next" poll. The
+// voter is a SHA-256 of a random cookie, never an account, so each browser has
+// one vote it can move to another option.
+export const featureVotes = pgTable(
+  "feature_votes",
+  {
+    voterHash: text().primaryKey(),
+    featureId: text({ enum: featureIds }).notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("feature_votes_feature_id_idx").on(table.featureId)]
+)
+
+export const featureVoteSchema = createInsertSchema(featureVotes)
+  .pick({ featureId: true })
+  .required()
+
+export type FeatureVoteInput = z.infer<typeof featureVoteSchema>

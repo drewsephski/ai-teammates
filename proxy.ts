@@ -1,8 +1,53 @@
 import { clerkMiddleware } from "@clerk/nextjs/server"
-import { NextResponse } from "next/server"
+import { createGeoProxy } from "@usenotra/geo/next"
+import { after, NextResponse } from "next/server"
+
+import { markdownRewrite } from "@/lib/marketing/markdown-routing"
+
+const geo = createGeoProxy({
+  token: process.env.NOTRA_GEO_TOKEN ?? "",
+  endpoint: "https://ingest.usenotra.com",
+})
 
 export default clerkMiddleware(
   async (auth, request) => {
+    // Railway's request URL is internal; attribute visits to the public host.
+    const trackingUrl = new URL(request.url)
+    const host = request.headers.get("host") ?? ""
+    if (host) {
+      trackingUrl.port = ""
+      trackingUrl.host = host
+    }
+    trackingUrl.protocol =
+      request.headers.get("x-forwarded-proto") === "https" ? "https:" : "http:"
+    const trackingRequest = new Request(trackingUrl, {
+      method: request.method,
+      headers: request.headers,
+    })
+    // Register the SDK's actual send with Next so it survives the response.
+    await geo(trackingRequest, { waitUntil: (pending) => after(() => pending) })
+
+    // Serve the site on the apex only, so search engines see one copy of each
+    // page. Railway's proxy terminates TLS, so build the target from the Host
+    // header rather than request.url, which is internal there.
+    if (host.toLowerCase() === "www.kraftybot.app") {
+      const { pathname, search } = request.nextUrl
+      return NextResponse.redirect(
+        `https://kraftybot.app${pathname}${search}`,
+        308
+      )
+    }
+    // AI agents that ask for Markdown (Accept: text/markdown, ?mode=agent, or
+    // the path plus .md) get the page's Markdown copy, or a Markdown 404.
+    // Browsers ask none of these ways, so people always get HTML.
+    const markdownTarget = markdownRewrite(
+      request.nextUrl.pathname,
+      request.nextUrl.searchParams,
+      request.headers.get("accept")
+    )
+    if (markdownTarget) {
+      return NextResponse.rewrite(new URL(markdownTarget, request.url))
+    }
     if (request.nextUrl.pathname === "/pricing") {
       const { isAuthenticated } = await auth()
       if (!isAuthenticated) {

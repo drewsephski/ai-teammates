@@ -139,6 +139,11 @@ const SHELL_REFUSED: { pattern: RegExp; reason: string }[] = [
     reason: "drives the desktop's mouse or keyboard",
   },
   {
+    // The accessibility bus can press any control, around the gesture checks
+    pattern: /\bpyatspi\b|\bAtspi\b|at-spi|org\.a11y|AT_SPI_BUS/i,
+    reason: "drives the desktop's controls through its accessibility bus",
+  },
+  {
     pattern:
       /remote-debugging|connect_over_cdp|connectOverCDP|puppeteer\.connect|chrome-remote-interface|devtools:\/\//i,
     reason: "takes over the desktop's browser",

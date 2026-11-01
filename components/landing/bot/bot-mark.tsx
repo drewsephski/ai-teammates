@@ -4,7 +4,6 @@ import { useEffect, useId, useMemo, useRef } from "react"
 import { CHARACTER_GEOMETRY, type CharacterShape } from "./character-geometry"
 import {
   BLINK_CADENCE,
-  CIRCLE_PATH,
   HEAD_CENTER,
   bodyTargets,
   clamp,
@@ -64,8 +63,7 @@ export function BotMark({
   const svg = useRef<SVGSVGElement>(null)
   const body = useRef<SVGGElement>(null)
   const head = useRef<SVGPathElement>(null)
-  const clip = useRef<SVGPathElement>(null)
-  const sideDots = useRef<Array<SVGPathElement | null>>([])
+  const sideDots = useRef<Array<SVGCircleElement | null>>([])
   const particles = useRef<Array<SVGCircleElement | null>>([])
   const eyes = useRef<Array<SVGGElement | null>>([])
   const eyePaths = useRef<Array<SVGPathElement | null>>([])
@@ -165,7 +163,6 @@ export function BotMark({
       body.current?.setAttribute("transform", neutralTransform)
       body.current?.removeAttribute("opacity")
       head.current?.setAttribute("d", geometry.head)
-      clip.current?.setAttribute("d", geometry.head)
       element.setAttribute("viewBox", "-15 -15 259 259")
       for (const eye of eyes.current) {
         eye?.removeAttribute("transform")
@@ -417,7 +414,6 @@ export function BotMark({
         const path =
           amount > 0.001 ? morphPath(geometry.ring, amount) : geometry.head
         head.current?.setAttribute("d", path)
-        clip.current?.setAttribute("d", path)
         previousMorph = amount
       }
       const zoom = currentState === "thinking" ? 1.5 : 1.15
@@ -560,7 +556,7 @@ export function BotMark({
     >
       <defs>
         <clipPath id={`${id}-face`}>
-          <path ref={clip} d={geometry.head} />
+          <use href={`#${id}-head`} />
         </clipPath>
         {dimensional && (
           <>
@@ -603,13 +599,15 @@ export function BotMark({
       <g ref={confetti} />
       <g ref={trailsBack} />
       {[0, 1].map((index) => (
-        <path
+        <circle
           key={`dot-${index}`}
           ref={(element) => {
             sideDots.current[index] = element
           }}
           fill="currentColor"
-          d={CIRCLE_PATH}
+          cx={HEAD_CENTER}
+          cy={HEAD_CENTER}
+          r={HEAD_CENTER}
           opacity="0"
         />
       ))}
@@ -628,6 +626,7 @@ export function BotMark({
       ))}
       <g ref={body} transform={neutralTransform}>
         <path
+          id={`${id}-head`}
           ref={head}
           fill="currentColor"
           d={geometry.head}

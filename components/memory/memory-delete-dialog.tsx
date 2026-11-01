@@ -57,7 +57,6 @@ export function MemoryDeleteDialog({
             variant="ghost"
             size="icon-sm"
             aria-label="Delete memory"
-            title="Delete"
           />
         }
       >

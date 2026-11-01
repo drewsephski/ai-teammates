@@ -7,9 +7,7 @@
 .arrow[data-direction="disclosure"] {
   transition: transform 260ms ease;
 }
-:global(details[open])
-  > :global(summary)
-  > .arrow[data-direction="disclosure"] {
+:global(button[aria-expanded="true"]) > .arrow[data-direction="disclosure"] {
   transform: rotate(180deg);
 }
 @media (prefers-reduced-motion: reduce) {

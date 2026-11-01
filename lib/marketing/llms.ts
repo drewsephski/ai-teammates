@@ -10,15 +10,16 @@ import {
   limitations,
   pricingFacts,
   safeguards,
+  spendControls,
 } from "./content"
+import { docsMcpPath } from "./docs-mcp"
+import { list, sectionMarkdown } from "./markdown"
 import { marketingUpdated, productName, siteDescription } from "./site"
 
 // /llms.txt and /llms-full.txt (llmstxt.org): a plain Markdown map of the public
 // site for AI assistants and answer engines, built from the same data as the
-// pages so the two can't drift.
-
-const list = (items: readonly string[]) =>
-  items.map((item) => `- ${item}`).join("\n")
+// pages so the two can't drift. The marketing pages also have Markdown copies
+// for agents that send `Accept: text/markdown` (lib/marketing/markdown.ts).
 
 export function llmsTxt() {
   return `# ${productName}
@@ -32,13 +33,11 @@ ${definition}
 - [Home](${absoluteUrl("/")}): what ${productName} is, features, pricing, and FAQs
 - [How it works](${absoluteUrl("/how-it-works")}): Bots, memory, the shared cloud computer, connected apps, routines, approvals, and limits
 ${marketingSeoPages
-  .map(
-    (page) =>
-      `- [${page.title}](${absoluteUrl(page.path)}): ${page.description.split(/(?<=\.)\s/)[0]}`
-  )
+  .map((page) => `- [${page.h1}](${absoluteUrl(page.path)}): ${page.summary}`)
   .join("\n")}
 - [Use cases](${absoluteUrl("/use-cases")}): jobs people give a Bot, each with a starter prompt
 - [Pricing](${absoluteUrl("/#pricing")}): Free and Pro plans
+- [Pricing in Markdown](${absoluteUrl("/pricing.md")}): plans, limits, and what a task costs, as plain text
 - [Support](${absoluteUrl("/support")}): help and contact
 
 ## Use cases
@@ -49,6 +48,14 @@ ${useCases
       `- [${useCase.name}](${absoluteUrl(`/use-cases/${useCase.id}`)}): ${useCase.summary}`
   )
   .join("\n")}
+
+## For AI agents
+
+- [Docs MCP server](${absoluteUrl(docsMcpPath)}): read-only Streamable HTTP MCP server with search, page and pricing tools, no sign-in
+- [MCP server card](${absoluteUrl("/.well-known/mcp/server-card.json")}): how to connect to it
+- [Agent resources](${absoluteUrl("/.well-known/ard.json")}): ARD manifest of what this site offers agents
+- [auth.md](${absoluteUrl("/auth.md")}): what agents can and can't do with a ${productName} account
+- Markdown copies: add \`.md\` to a page's path, such as ${absoluteUrl("/how-it-works.md")}, or use ${absoluteUrl("/index.md")} for the home page
 
 ## Optional
 
@@ -81,6 +88,10 @@ ${capabilities.map((capability) => `- **${capability.title}.** ${capability.body
 
 ${list(safeguards)}
 
+## What a task costs
+
+${list(spendControls)}
+
 ## Limits
 
 ${list(limitations)}
@@ -92,6 +103,22 @@ ${comparisons.map((comparison) => `- **${comparison.title}.** ${comparison.body}
 ## Pricing
 
 ${list(pricingFacts)}
+
+## Guides
+
+${marketingSeoPages
+  .map(
+    (page) => `### ${page.h1}
+
+${page.lead}
+
+${page.sections.map((section) => sectionMarkdown(section, 4)).join("\n\n")}
+
+${page.faqs.map(([question, answer]) => `**${question}** ${answer}`).join("\n\n")}
+
+Page: ${absoluteUrl(page.path)}`
+  )
+  .join("\n\n")}
 
 ## Use cases
 

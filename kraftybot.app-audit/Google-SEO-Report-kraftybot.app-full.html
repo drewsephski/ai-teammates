@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    size: A4;
+    margin: 22mm 18mm 25mm 18mm;
+    @bottom-center {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 9pt;
+      color: #6b7280;
+      font-family: 'DejaVu Serif', 'Times New Roman', Georgia, serif;
+    }
+    @bottom-left {
+      content: "Confidential";
+      font-size: 7pt;
+      color: #d6d3cc;
+      font-family: 'DejaVu Serif', 'Times New Roman', Georgia, serif;
+    }
+    @bottom-right {
+      content: "kraftybot.app Google SEO Report";
+      font-size: 8pt;
+      color: #cbd5e1;
+      font-family: 'DejaVu Serif', 'Times New Roman', Georgia, serif;
+    }
+  }
+
+  @page :first {
+    margin: 0;
+    @bottom-left { content: none; }
+    @bottom-center { content: none; }
+    @bottom-right { content: none; }
+  }
+
+  @page toc {
+    @bottom-center {
+      content: counter(page);
+      font-size: 9pt;
+      color: #6b7280;
+    }
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: 'Times New Roman', 'DejaVu Serif', Georgia, serif;
+    font-size: 10pt;
+    line-height: 1.55;
+    color: #1e293b;
+    background: white;
+  }
+
+  /* ─── Title Page (Clean White) ─── */
+  .title-page {
+    page: first;
+    width: 210mm;
+    height: 297mm;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    color: #1a1a2e;
+    position: relative;
+    padding: 50mm 30mm 40mm 30mm;
+    border-top: 6mm solid #1e3a5f;
+  }
+
+  .title-page .badge {
+    background: #f7f6f3;
+    border: 1px solid #d6d3cc;
+    border-radius: 20px;
+    padding: 6px 18px;
+    font-size: 9pt;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 15mm;
+    color: #1e3a5f;
+  }
+
+  .title-page h1 {
+    font-size: 28pt;
+    font-weight: bold;
+    margin-bottom: 5mm;
+    letter-spacing: -0.5px;
+    line-height: 1.2;
+    color: #1a1a2e;
+  }
+
+  .title-page .subtitle {
+    font-size: 13pt;
+    color: #6b7280;
+    margin-bottom: 12mm;
+    font-weight: 300;
+  }
+
+  .title-page .url {
+    font-size: 12pt;
+    color: #1e3a5f;
+    margin-bottom: 15mm;
+    padding: 4mm 8mm;
+    border: 1px solid #d6d3cc;
+    border-radius: 6px;
+    background: #faf9f7;
+  }
+
+  .title-page .score-box {
+    background: #faf9f7;
+    border: 2px solid #d6d3cc;
+    border-radius: 12px;
+    padding: 6mm 12mm;
+    margin-bottom: 15mm;
+  }
+
+  .title-page .score-number {
+    font-size: 42pt;
+    font-weight: bold;
+    color: #1e3a5f;
+    line-height: 1;
+  }
+
+  .title-page .score-label {
+    font-size: 10pt;
+    color: #6b7280;
+    margin-top: 2mm;
+  }
+
+  .title-page .meta {
+    font-size: 9pt;
+    color: #6b7280;
+    margin-top: 8mm;
+    padding-top: 5mm;
+    border-top: 1px solid #d6d3cc;
+  }
+
+  .title-page .meta span {
+    margin: 0 8px;
+  }
+
+  /* ─── Table of Contents ─── */
+  .toc-page {
+    page: toc;
+    page-break-before: always;
+  }
+
+  .toc-page h2 {
+    font-size: 18pt;
+    color: #1e3a5f;
+    margin-bottom: 8mm;
+    padding-bottom: 3mm;
+    border-bottom: 2px solid #1e3a5f;
+  }
+
+  .toc-list {
+    list-style: none;
+    padding: 0;
+  }
+
+  .toc-list li {
+    padding: 2mm 0;
+    border-bottom: 1px solid #f1f5f9;
+    overflow: hidden;
+  }
+
+  .toc-list li.toc-section {
+    font-weight: bold;
+    font-size: 11pt;
+    padding-top: 4mm;
+    color: #0f172a;
+  }
+
+  .toc-list li.toc-sub {
+    padding-left: 8mm;
+    font-size: 9.5pt;
+    color: #475569;
+  }
+
+  .toc-score {
+    display: inline-block;
+    float: right;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 9pt;
+    font-weight: bold;
+    color: white;
+  }
+
+  .score-good { background: #2d6a4f; }
+  .score-warn { background: #d4740e; }
+  .score-bad { background: #c53030; }
+
+  /* ─── Section Styles ─── */
+  div.section {
+    page-break-before: always;
+  }
+
+  .section-header {
+    background: #faf9f7;
+    border-left: 4px solid #1e3a5f;
+    padding: 5mm 6mm;
+    margin-bottom: 6mm;
+    page-break-after: avoid;
+  }
+
+  .section-header h2 {
+    font-size: 16pt;
+    color: #0f172a;
+    margin-bottom: 1mm;
+  }
+
+  .section-header .section-score {
+    font-size: 12pt;
+    font-weight: bold;
+    float: right;
+    margin-top: -6mm;
+  }
+
+  h3 {
+    font-size: 12pt;
+    color: #1e3a5f;
+    margin-top: 6mm;
+    margin-bottom: 3mm;
+    padding-bottom: 1.5mm;
+    border-bottom: 1px solid #d6d3cc;
+    page-break-after: avoid;
+  }
+
+  h4 {
+    font-size: 10.5pt;
+    color: #334155;
+    margin-top: 4mm;
+    margin-bottom: 2mm;
+    page-break-after: avoid;
+  }
+
+  p {
+    margin-bottom: 3mm;
+    color: #334155;
+  }
+
+  .highlight {
+    background: #fef3c7;
+    border-left: 3px solid #d4740e;
+    padding: 3mm 4mm;
+    margin: 4mm 0;
+    font-size: 9.5pt;
+    /* allow page breaks to prevent white gaps */
+  }
+
+  .critical-box {
+    background: #fef2f2;
+    border-left: 3px solid #c53030;
+    padding: 3mm 4mm;
+    margin: 4mm 0;
+    font-size: 9.5pt;
+    /* allow page breaks to prevent white gaps */
+  }
+
+  .success-box {
+    background: #f0fdf4;
+    border-left: 3px solid #2d6a4f;
+    padding: 3mm 4mm;
+    margin: 4mm 0;
+    font-size: 9.5pt;
+    /* allow page breaks to prevent white gaps */
+  }
+
+  /* ─── Tables ─── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 4mm 0 6mm 0;
+    font-size: 9pt;
+  }
+
+  thead th {
+    background: #f7f6f3;
+    color: #0f172a;
+    font-weight: bold;
+    padding: 3mm 4mm;
+    text-align: left;
+    border-bottom: 2px solid #d6d3cc;
+    font-size: 9pt;
+  }
+
+  tbody td {
+    padding: 2.5mm 3mm;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+  }
+
+  tbody tr:nth-child(even) {
+    background: #fdfcfa;
+  }
+
+  .status-pass {
+    color: #2d6a4f;
+    font-weight: bold;
+  }
+
+  .status-fail {
+    color: #c53030;
+    font-weight: bold;
+  }
+
+  .status-warn {
+    color: #d4740e;
+    font-weight: bold;
+  }
+
+  .status-partial {
+    color: #4a5568;
+    font-weight: bold;
+  }
+
+  /* ─── Charts ─── */
+  .chart-container {
+    text-align: center;
+    margin: 4mm 0;
+  }
+
+  .chart-container img {
+    max-width: 100%;
+    max-height: 120mm;
+    height: auto;
+  }
+
+  .chart-caption {
+    font-size: 8.5pt;
+    color: #6b7280;
+    font-style: italic;
+    margin-top: 2mm;
+    text-align: center;
+  }
+
+  .chart-half {
+    display: inline-block;
+    width: 48%;
+    vertical-align: top;
+    text-align: center;
+    margin: 2mm 0;
+  }
+
+  .chart-half img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* ─── Two column layout ─── */
+  .two-col {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+    margin: 3mm 0;
+  }
+
+  .two-col .col {
+    display: table-cell;
+    vertical-align: top;
+    padding: 0 2mm;
+  }
+
+  .four-col {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+    margin: 3mm 0;
+  }
+
+  .four-col .col {
+    display: table-cell;
+    vertical-align: top;
+    padding: 0 1.5mm;
+  }
+
+  /* ─── Metric Cards ─── */
+  .metric-card {
+    background: #faf9f7;
+    border: 1px solid #d6d3cc;
+    border-radius: 6px;
+    padding: 2.5mm 3mm;
+    text-align: center;
+    margin: 2mm 0;
+  }
+
+  .metric-card .value {
+    font-size: 14pt;
+    font-weight: bold;
+    line-height: 1.2;
+  }
+
+  .metric-card .label {
+    font-size: 7.5pt;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 1mm;
+  }
+
+  /* ─── Action Plan ─── */
+  .action-item {
+    background: #faf9f7;
+    border-radius: 4px;
+    padding: 3mm 4mm;
+    margin: 3mm 0;
+    border-left: 3px solid #cbd5e1;
+    /* allow page breaks to prevent white gaps */
+  }
+
+  .action-item.critical {
+    border-left-color: #c53030;
+    background: #fdf2f2;
+  }
+
+  .action-item.high {
+    border-left-color: #d4740e;
+    background: #fdf8ef;
+  }
+
+  .action-item.medium {
+    border-left-color: #1e3a5f;
+    background: #f0f4f8;
+  }
+
+  .action-item.low {
+    border-left-color: #94a3b8;
+  }
+
+  .action-item h4 {
+    margin-top: 0;
+    margin-bottom: 1.5mm;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .action-item .effort {
+    font-size: 8.5pt;
+    color: #64748b;
+    float: right;
+  }
+
+  .priority-tag {
+    display: inline-block;
+    padding: 0.5mm 3mm;
+    border-radius: 3px;
+    font-size: 8pt;
+    font-weight: bold;
+    color: white;
+    margin-right: 2mm;
+    vertical-align: middle;
+  }
+
+  .priority-critical { background: #c53030; }
+  .priority-high { background: #d4740e; }
+  .priority-medium { background: #1e3a5f; }
+  .priority-low { background: #94a3b8; }
+
+  /* ─── Code blocks ─── */
+  .code-block {
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 3mm 4mm;
+    border-radius: 4px;
+    font-family: 'DejaVu Sans Mono', monospace;
+    font-size: 8pt;
+    line-height: 1.6;
+    margin: 3mm 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    /* allow page breaks to prevent white gaps */
+  }
+
+  /* ─── Divider ─── */
+  .divider {
+    border: none;
+    border-top: 1px solid #d6d3cc;
+    margin: 5mm 0;
+  }
+
+  /* ─── Roadmap ─── */
+  .roadmap-phase {
+    background: #faf9f7;
+    border-radius: 6px;
+    padding: 4mm 5mm;
+    margin: 4mm 0;
+    border: 1px solid #d6d3cc;
+    /* allow page breaks to prevent white gaps */
+  }
+
+  .roadmap-phase h4 {
+    margin-top: 0;
+    border-bottom: none;
+    color: #1e3a5f;
+  }
+
+  .roadmap-phase ul {
+    margin: 2mm 0 0 5mm;
+    padding: 0;
+  }
+
+  .roadmap-phase li {
+    margin-bottom: 1.5mm;
+    font-size: 9.5pt;
+    color: #334155;
+  }
+
+  /* ─── Lists ─── */
+  ul {
+    margin-left: 5mm;
+    margin-bottom: 3mm;
+  }
+
+  li {
+    margin-bottom: 1.5mm;
+  }
+
+  /* ─── Data freshness ─── */
+  .data-freshness {
+    font-size: 8pt;
+    color: #6b7280;
+    font-style: italic;
+    margin-top: 4mm;
+    padding-top: 2mm;
+    border-top: 1px solid #d6d3cc;
+  }
+
+</style>
+</head>
+<body>
+
+<!-- ======================================================= TITLE PAGE === -->
+<div class="title-page">
+  <div class="badge">Full SEO Audit Report</div>
+  <h1>kraftybot.app</h1>
+  <div class="subtitle">Prepared by Claude SEO</div>
+  <div class="score-box">
+    <div class="score-number">69<span style="font-size: 20pt; color: #94a3b8;">/100</span></div>
+    <div class="score-label">SEO Health Score</div>
+  </div>
+  <div class="meta">
+    <span>October 27, 2026</span>
+    <span>Full Audit</span>
+  </div>
+</div>
+
+
+<!-- ======================================================= TABLE OF CONTENTS === -->
+<div class="toc-page">
+  <h2>Table of Contents</h2>
+  <ul class="toc-list">
+    <li class="toc-section"><span>1. Executive Summary</span></li>
+    <li class="toc-sub"><span>Key Metrics, Critical Issues &amp; Quick Wins</span></li>
+    <li class="toc-section"><span>2. Audit Categories</span></li>
+    <li class="toc-sub"><span>What Works</span></li>
+    <li class="toc-sub"><span>Findings by Severity</span></li>
+    <li class="toc-section"><span>3. Action Plan</span></li>
+    <li class="toc-sub"><span>Phased Roadmap</span></li>
+    <li class="toc-section"><span>4. Data Sources &amp; Methodology</span></li>
+  </ul>
+</div>
+
+
+<!-- ======================================================= 1. EXECUTIVE SUMMARY === -->
+<div class="section">
+  <div class="section-header">
+    <h2>1. Executive Summary</h2>
+  </div>
+
+  <p>This report presents a comprehensive SEO audit of <strong>kraftybot.app</strong> for a <strong>SaaS</strong> site, generated on October 27, 2026. Findings combine technical, content, schema, performance, visual, and search-readiness evidence as available.</p>
+
+  <div class="two-col">
+    <div class="col">
+      <div class="metric-card">
+        <div class="value" style="color: #d4740e;">69/100</div>
+        <div class="label">SEO Health Score</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="critical-box">
+    <strong>Critical Issues Found:</strong>
+    <ol>
+      <li>No off-site footprint: not in Common Crawl, no listings, mentions or sameAs profiles</li>
+      <li>Thin, templated pages: nine use-case pages at 388-435 words from one skeleton; three topic pages at 370-565 words</li>
+      <li>Page-type mismatch: /manus-alternatives targets a list query but names no alternatives; topic pages are product pages where guides rank</li>
+      <li>Homepage weight: 1.07 MB raw HTML (95 inline SVGs), ~822 KB gzip JS, Clerk on every marketing page</li>
+      <li>No proof of experience: no about page, screenshots, video, case studies or named author</li>
+    </ol>
+  </div>
+
+  <div class="success-box">
+    <strong>Quick Wins:</strong>
+    <ol>
+      <li>301 www.kraftybot.app to the apex (serves a 200 duplicate today)</li>
+      <li>Add /download to the sitemap, trim four long meta descriptions, extend the homepage footer to the 11 unlinked pages</li>
+      <li>Add sameAs, seller and ContactPage to the schema; replace the personal Gmail contact with a role address</li>
+      <li>Add the four topic pages to llms-full.txt and give llms.txt links their own descriptions</li>
+      <li>Verify Bing Webmaster Tools, enable IndexNow, set a PageSpeed Insights API key for the next audit</li>
+    </ol>
+  </div>
+
+</div>
+
+<!-- ======================================================= 2. AUDIT CATEGORIES === -->
+<div class="section">
+  <div class="section-header">
+    <h2>2. Audit Categories</h2>
+  </div>
+
+  <h3>2.1 Technical SEO</h3>
+  <p><strong>Score:</strong> <span class="status-pass">86/100</span></p>
+  <h4>What Works</h4>
+  <ul>
+    <li>All 20 sitemap URLs return 200, self-canonical, no robots meta or X-Robots-Tag</li>
+    <li>Server-rendered, raw and rendered text match, 0 console errors</li>
+    <li>http to https single 301; trailing slash 308; true 404 with noindex</li>
+    <li>HSTS, nosniff, X-Frame-Options DENY, frame-ancestors none, Referrer-Policy, nonce CSP</li>
+    <li>Unique titles and descriptions on every page</li>
+  </ul>
+  <h4>Findings</h4>
+  <div class="action-item medium">
+    <h4>Homepage HTML is 1.07 MB raw <span class="status-warn">High</span></h4>
+    <p>https://kraftybot.app/ is 1,068,730 bytes raw (95 KB gzip); 95 inline SVGs account for 862 KB; inner pages are 38-68 KB.</p>
+    <p><strong>Recommendation:</strong> Move SVGs to static files or a sprite; lazy-render below-fold sections.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>No www redirect <span class="status-warn">Medium</span></h4>
+    <p>https://www.kraftybot.app/ returns 200 with a canonical to the apex.</p>
+    <p><strong>Recommendation:</strong> 301 www to apex.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Marketing pages are uncacheable <span class="status-warn">Medium</span></h4>
+    <p>cache-control: private, no-cache, no-store on public pages because of the per-request CSP nonce.</p>
+    <p><strong>Recommendation:</strong> Use script hashes on marketing routes or inject the nonce at the edge so the CDN can cache.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Loose CSP <span class="status-warn">Medium</span></h4>
+    <p>connect-src, frame-src, img-src and media-src include bare https:; script-src carries unsafe-inline.</p>
+    <p><strong>Recommendation:</strong> List explicit origins only.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>/download missing from sitemap <span class="status-warn">Medium</span></h4>
+    <p>/download is linked, returns 200, self-canonical and indexable but is not in /sitemap.xml.</p>
+    <p><strong>Recommendation:</strong> Add it in app/sitemap.ts or noindex it on purpose.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>HSTS without includeSubDomains or preload <span class="status-warn">Low</span></h4>
+    <p>max-age=31536000 only.</p>
+    <p><strong>Recommendation:</strong> Add includeSubDomains; preload once all subdomains are HTTPS.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>No Permissions-Policy header <span class="status-warn">Low</span></h4>
+    <p>Header absent.</p>
+    <p><strong>Recommendation:</strong> Add a restrictive policy.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Long meta descriptions on four topic pages <span class="status-warn">Low</span></h4>
+    <p>/manus-alternatives 195, /autonomous-ai-agent 186, /ai-agents-for-business 173, /ai-employees 163 characters.</p>
+    <p><strong>Recommendation:</strong> Trim to about 155.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>404 page reuses homepage description <span class="status-warn">Low</span></h4>
+    <p>Also has two duplicate robots noindex tags.</p>
+    <p><strong>Recommendation:</strong> Own description, single robots tag.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>OG image served with max-age=0 <span class="status-warn">Low</span></h4>
+    <p>/brand/krafty-social-v1.jpg is versioned by filename.</p>
+    <p><strong>Recommendation:</strong> Long max-age, immutable.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Sitemap lastmod equals deploy date <span class="status-warn">Low</span></h4>
+    <p>16 of 20 lastmod values are 2026-10-26; priority is set and ignored by Google.</p>
+    <p><strong>Recommendation:</strong> Per-page content dates; drop priority.</p>
+  </div>
+  <hr class="divider">
+  <h3>2.2 Content Quality</h3>
+  <p><strong>Score:</strong> <span class="status-warn">60/100</span></p>
+  <h4>What Works</h4>
+  <ul>
+    <li>Accurate, plain copy with no false claims; Flesch 60-81</li>
+    <li>Prices and limits stated openly and consistent everywhere</li>
+    <li>Clear definition sentence and llms.txt (AI citation readiness 74)</li>
+    <li>/how-it-works is a strong 772-word page</li>
+  </ul>
+  <h4>Findings</h4>
+  <div class="action-item medium">
+    <h4>Nine use-case pages are thin and templated <span class="status-warn">High</span></h4>
+    <p>388-435 words each from one heading skeleton with five identical sentences; 45-51% unique against siblings, 40-45% once the hub (which repeats every starter prompt) is counted.</p>
+    <p><strong>Recommendation:</strong> Add a sample output, first-run walk-through and role-specific questions per page; 700+ unique words; cut hub prompts to teasers.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Little proof of experience or authority <span class="status-warn">High</span></h4>
+    <p>E-E-A-T: Experience 38, Expertise 60, Authoritativeness 30, Trust 70. No about page, author, case study, screenshot or video.</p>
+    <p><strong>Recommendation:</strong> Add /about, 2-3 case studies with real outputs, real screenshots, a demo video.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Topic pages restate the same features <span class="status-warn">Medium</span></h4>
+    <p>/ai-agents-for-business (565 words), /ai-employees (416), /autonomous-ai-agent (370) all repeat memory, apps, cloud computer, approvals with keyword-forced H2s.</p>
+    <p><strong>Recommendation:</strong> One distinct angle per page; link the feature list to /how-it-works.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>/manus-alternatives lists no alternatives <span class="status-warn">Medium</span></h4>
+    <p>419 words; says it does not publish comparisons; every result for the query is a list or directory.</p>
+    <p><strong>Recommendation:</strong> Owner decision: retarget to a vs page, build a cited alternatives guide without scores, or redirect.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Trust gaps <span class="status-warn">Medium</span></h4>
+    <p>Support is a personal gmail.com address; no legal entity, address or security page.</p>
+    <p><strong>Recommendation:</strong> Role address on the domain; data and security page; entity in terms.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>No blog or guides section <span class="status-warn">Info</span></h4>
+    <p>No informational content beyond the topic pages.</p>
+    <p><strong>Recommendation:</strong> Start with the five cluster-plan pages.</p>
+  </div>
+  <hr class="divider">
+  <h3>2.3 On-Page SEO</h3>
+  <p><strong>Score:</strong> <span class="status-warn">72/100</span></p>
+  <h4>What Works</h4>
+  <ul>
+    <li>Unique titles; one H1 per page matching its query</li>
+    <li>Correct canonicals; no templated metadata detected</li>
+    <li>Inner pages link each other well; breadcrumbs present</li>
+  </ul>
+  <h4>Findings</h4>
+  <div class="action-item medium">
+    <h4>Homepage footer omits 11 public pages <span class="status-warn">Medium</span></h4>
+    <p>The homepage uses a shorter footer that omits /autonomous-ai-agent, /manus-alternatives and all nine use-case pages.</p>
+    <p><strong>Recommendation:</strong> Reuse the inner-page footer or link each homepage use-case tab to its page.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Several pages compete for &#x27;AI agent&#x27; <span class="status-warn">Medium</span></h4>
+    <p>Pillar H1 targets the enterprise-leaning &#x27;AI agents for business&#x27;; three pages chase the head term.</p>
+    <p><strong>Recommendation:</strong> Pillar takes &#x27;AI agents for small business&#x27;; /ai-employees the role framing; /autonomous-ai-agent the definition.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Page-type mismatch on topic and use-case queries <span class="status-warn">High</span></h4>
+    <p>Guides, definitions and lists rank for every target query; kraftybot.app serves 244-565 word product pages. SXO gap scores 37-45/100.</p>
+    <p><strong>Recommendation:</strong> Add a guide layer: question H2s, direct answers, named competitors, sample output, FAQs; retarget support triage to &#x27;AI support ticket triage&#x27;.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Short titles and long descriptions on topic pages <span class="status-warn">Low</span></h4>
+    <p>Titles 27-36 characters; descriptions 163-195.</p>
+    <p><strong>Recommendation:</strong> About 55 and 155 characters.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Homepage H1 extracts without a separator <span class="status-warn">Low</span></h4>
+    <p>Reads &#x27;AI that does the workKrafty Bot&#x27; in extracted text.</p>
+    <p><strong>Recommendation:</strong> Add a space or aria-label.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Card and page claims differ <span class="status-warn">Low</span></h4>
+    <p>Sales Outbound card claims LinkedIn drafts and intent scoring the page does not mention.</p>
+    <p><strong>Recommendation:</strong> Align card and page.</p>
+  </div>
+  <hr class="divider">
+  <h3>2.4 Schema / Structured Data</h3>
+  <p><strong>Score:</strong> <span class="status-pass">80/100</span></p>
+  <h4>What Works</h4>
+  <ul>
+    <li>Valid server-rendered JSON-LD graph with @id links</li>
+    <li>SoftwareApplication with category, OS, offers (0 and 20 USD/month matching copy), featureList</li>
+    <li>Organization with logo, contactPoint, founder</li>
+    <li>BreadcrumbList correct on inner pages</li>
+    <li>Nothing deprecated</li>
+  </ul>
+  <h4>Findings</h4>
+  <div class="action-item medium">
+    <h4>No sameAs on Organization <span class="status-warn">Medium</span></h4>
+    <p>No profile URLs anywhere in the code.</p>
+    <p><strong>Recommendation:</strong> Add real profiles once they exist.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>No aggregateRating or review <span class="status-warn">Medium</span></h4>
+    <p>SoftwareApplication cannot qualify for the software rich result.</p>
+    <p><strong>Recommendation:</strong> Add only when real, verifiable ratings exist.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>contactPoint uses a personal Gmail address <span class="status-warn">Low</span></h4>
+    <p>Public schema exposes a personal email.</p>
+    <p><strong>Recommendation:</strong> Role address on the domain; add availableLanguage.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>/support and /privacy have no JSON-LD <span class="status-warn">Low</span></h4>
+    <p>No breadcrumb either.</p>
+    <p><strong>Recommendation:</strong> ContactPage and WebPage blocks with BreadcrumbList (snippets in findings/schema.md).</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Offers lack seller <span class="status-warn">Low</span></h4>
+    <p>FOUNDING50 promo not modelled (optional).</p>
+    <p><strong>Recommendation:</strong> seller: {@id: #organization}.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>FAQPage present on three pages <span class="status-warn">Info</span></h4>
+    <p>Google retired FAQ rich results for all sites on 2026-05-07; markup is valid.</p>
+    <p><strong>Recommendation:</strong> No action; do not add more for SERP benefit.</p>
+  </div>
+  <hr class="divider">
+  <h3>2.5 Performance (CWV)</h3>
+  <p><strong>Score:</strong> <span class="status-warn">55/100</span></p>
+  <h4>What Works</h4>
+  <ul>
+    <li>Warm TTFB 0.15-0.23 s on all sampled pages</li>
+    <li>Two woff2 fonts preloaded and cached immutable</li>
+    <li>Only one third party (Clerk); no images so CLS risk is low</li>
+    <li>Inner pages are 12-13 KB gzip</li>
+  </ul>
+  <h4>Findings</h4>
+  <div class="action-item medium">
+    <h4>Core Web Vitals not measured <span class="status-warn">Info</span></h4>
+    <p>No CrUX key; PageSpeed Insights rate-limited keyless calls; Lighthouse not installed. Score is provisional from lab weight signals.</p>
+    <p><strong>Recommendation:</strong> Add a Google API key to the claude-seo config and rerun.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Homepage JS about 822 KB gzip across 33 chunks <span class="status-warn">Medium</span></h4>
+    <p>Two chunks are 437 KB and 299 KB raw; subpages reference about 493 KB gzip.</p>
+    <p><strong>Recommendation:</strong> Dynamic-import the chat demo and below-fold sections; expected saving 300-500 KB gzip.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Clerk loads on every marketing page <span class="status-warn">Medium</span></h4>
+    <p>clerk-js 84 KB plus @clerk/ui 46 KB gzip for signed-out visitors.</p>
+    <p><strong>Recommendation:</strong> Load only on app and auth routes.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Homepage DOM is 2,470 elements with 95 inline SVGs <span class="status-warn">Medium</span></h4>
+    <p>Mobile parse cost and INP risk.</p>
+    <p><strong>Recommendation:</strong> SVG sprite and lazy render; expected 50-70% raw HTML reduction.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Four render-blocking stylesheets <span class="status-warn">Low</span></h4>
+    <p>Main sheet 40 KB gzip / 260 KB raw.</p>
+    <p><strong>Recommendation:</strong> Purge unused CSS; split marketing CSS.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>HTML served gzip, not brotli <span class="status-warn">Low</span></h4>
+    <p>Content-Encoding: gzip.</p>
+    <p><strong>Recommendation:</strong> Enable brotli at the edge.</p>
+  </div>
+  <hr class="divider">
+  <h3>2.6 AI Search Readiness</h3>
+  <p><strong>Score:</strong> <span class="status-warn">66/100</span></p>
+  <h4>What Works</h4>
+  <ul>
+    <li>robots.txt allows every search, fetch and training bot explicitly</li>
+    <li>llms.txt follows llmstxt.org; all 21 links return 200</li>
+    <li>Clear definition sentence on /, /how-it-works and llms-full</li>
+    <li>Accessibility tree: 1,045 nodes, 84 interactive, 0 unnamed; landmarks present (agent readiness 78)</li>
+  </ul>
+  <h4>Findings</h4>
+  <div class="action-item medium">
+    <h4>No third-party footprint <span class="status-warn">High</span></h4>
+    <p>Zero results on Wikipedia, Hacker News, GitHub, YouTube; Product Hunt 404; not in Common Crawl.</p>
+    <p><strong>Recommendation:</strong> Launch on Product Hunt and Show HN; directory and comparison listings; LinkedIn page; YouTube demo; then sameAs.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>/manus-alternatives names no alternatives <span class="status-warn">High</span></h4>
+    <p>Will not be picked for list-style queries by any AI engine.</p>
+    <p><strong>Recommendation:</strong> Dated list of real alternatives with a criteria table, or retarget the page.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>llms-full.txt omits the topic pages <span class="status-warn">Medium</span></h4>
+    <p>&#x27;Manus&#x27;, &#x27;autonomous&#x27; and &#x27;AI employee&#x27; never appear; llms.txt descriptions reuse meta text.</p>
+    <p><strong>Recommendation:</strong> Fix in lib/marketing/llms.ts and content.ts.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Topic-page H2s are labels, not questions <span class="status-warn">Medium</span></h4>
+    <p>/ai-employees and /ai-agents-for-business never define their own term.</p>
+    <p><strong>Recommendation:</strong> Question H2s with a 40-60 word direct answer under each.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Homepage demo and mock form expose fictional data <span class="status-warn">Medium</span></h4>
+    <p>Fictional names, emails and timestamps in indexable HTML with an 11 px &#x27;Example&#x27; label; the email-draft mock has about 12 unlabeled inputs.</p>
+    <p><strong>Recommendation:</strong> Prominent example label in the demo text; neutral persona; aria-hidden or inert on the mock; aria-label on the demo form; consider data-nosnippet.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Bing indexing unverified <span class="status-warn">Low</span></h4>
+    <p>ChatGPT search and Copilot draw on Bing.</p>
+    <p><strong>Recommendation:</strong> Bing Webmaster Tools and IndexNow.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Draft agent standards absent <span class="status-warn">Low</span></h4>
+    <p>No Content-Signal, Markdown delivery, WebMCP or /.well-known discovery files. Lighthouse agentic fraction not measured (PSI 429).</p>
+    <p><strong>Recommendation:</strong> Optional; Content-Signal is a one-line robots.txt addition.</p>
+  </div>
+  <hr class="divider">
+  <h3>2.7 Images</h3>
+  <p><strong>Score:</strong> <span class="status-fail">40/100</span></p>
+  <h4>What Works</h4>
+  <ul>
+    <li>No missing alt text because there are no img tags</li>
+    <li>No unsized images, so no CLS from images</li>
+    <li>OG image is 1200x630 JPEG with alt text</li>
+  </ul>
+  <h4>Findings</h4>
+  <div class="action-item medium">
+    <h4>No images or video on any marketing page <span class="status-warn">Medium</span></h4>
+    <p>0 img and 0 video tags across all pages; multi-modal score 35.</p>
+    <p><strong>Recommendation:</strong> Alt-texted real screenshots of approvals and Bot output; a demo video with VideoObject schema.</p>
+  </div>
+  <div class="action-item medium">
+    <h4>Dim secondary text likely under 4.5:1 <span class="status-warn">Low</span></h4>
+    <p>Hero subhead, breadcrumbs, timestamps and &#x27;Example&#x27; label are dim gray on near-black.</p>
+    <p><strong>Recommendation:</strong> Raise lightness; 12 px minimum.</p>
+  </div>
+  <hr class="divider">
+</div>
+
+<!-- ======================================================= 3. ACTION PLAN === -->
+<div class="section">
+  <div class="section-header">
+    <h2>3. Action Plan</h2>
+  </div>
+
+  <div class="roadmap-phase">
+    <h4>Phase 1: Quick wins <span class="effort">Week 1</span></h4>
+    <ul>
+      <li>301 www to apex</li>
+      <li>Add /download to sitemap; trim four long descriptions; extend homepage footer to the 11 unlinked pages</li>
+      <li>Schema: seller, ContactPage on /support, WebPage on /privacy, role email in contactPoint, real dateModified</li>
+      <li>Add topic pages to llms-full.txt; own descriptions in llms.txt</li>
+      <li>Bing Webmaster Tools + IndexNow; PageSpeed Insights API key; Search Console</li>
+      <li>Decide the /manus-alternatives direction; start the homepage weight work</li>
+    </ul>
+  </div>
+  <div class="roadmap-phase">
+    <h4>Phase 2: High-impact improvements <span class="effort">Weeks 2-3</span></h4>
+    <ul>
+      <li>Deepen the nine use-case pages (700+ unique words, sample output, walk-through, role questions); cut hub prompts to teasers</li>
+      <li>Give each topic page one angle with question H2s and direct answers; retarget support triage</li>
+      <li>Cut homepage weight: SVG sprite, dynamic imports, Clerk off marketing routes, CSS purge</li>
+      <li>Label the demo chat as an example in its own text; aria-hidden the mock form</li>
+      <li>Add /about, real screenshots, demo video, 2-3 case studies; show the $20 price and a security page on every page</li>
+    </ul>
+  </div>
+  <div class="roadmap-phase">
+    <h4>Phase 3: Content &amp; authority <span class="effort">Month 2</span></h4>
+    <ul>
+      <li>Launch week: Product Hunt, Show HN, AlternativeTo, G2, Capterra, AI directories, LinkedIn, YouTube; then sameAs</li>
+      <li>New pages: /ai-agent-human-approval, /integrations/gmail, /ai-agent-cloud-computer, /integrations/google-sheets, /ai-agent-vs-chatbot</li>
+      <li>Cacheable marketing pages (hash-based CSP or edge nonce); explicit CSP origins</li>
+    </ul>
+  </div>
+  <div class="roadmap-phase">
+    <h4>Phase 4: Monitoring &amp; iteration <span class="effort">Ongoing</span></h4>
+    <ul>
+      <li>Capture a drift baseline now; re-audit after launch week, then quarterly</li>
+      <li>Watch Search Console and Bing impressions for the &#x27;ai agent for small business&#x27;, &#x27;human approval&#x27; and &#x27;gmail&#x27; families</li>
+      <li>Monthly count of third-party pages mentioning Krafty Bot (target 10 within 60 days of launch)</li>
+      <li>PageSpeed Insights monthly once keyed; CrUX once traffic qualifies</li>
+      <li>Low backlog: HSTS preload, Permissions-Policy, OG image cache, brotli, sitemap lastmod, contrast, H1 separator</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ======================================================= DATA SOURCES & METHODOLOGY === -->
+<div class="section" style="text-align: center; padding-top: 15mm;">
+  <hr class="divider">
+  <h3 style="text-align: left;">Data Sources &amp; Methodology</h3>
+  <table>
+    <thead>
+      <tr><th>Source</th><th>Description</th><th>Update Frequency</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>PageSpeed Insights API</td>
+          <td>Lighthouse lab audit (mobile emulation, Moto G Power, slow 4G)</td>
+          <td>Real-time</td></tr>
+      <tr><td>Chrome UX Report (CrUX)</td>
+          <td>28-day rolling field data from real Chrome users</td>
+          <td>Daily ~04:00 UTC</td></tr>
+      <tr><td>CrUX History API</td>
+          <td>25-week p75 trend data per metric</td>
+          <td>Weekly</td></tr>
+      <tr><td>Google Search Console</td>
+          <td>Search Analytics (clicks, impressions, CTR, position)</td>
+          <td>2-3 day lag</td></tr>
+      <tr><td>URL Inspection API</td>
+          <td>Per-URL index status, coverage state, crawl info</td>
+          <td>Real-time (2,000/day)</td></tr>
+    </tbody>
+  </table>
+  <p style="color: #94a3b8; font-size: 9pt; margin-top: 5mm;">
+    Report generated by Claude SEO (Google SEO Intelligence Skill), October 27, 2026<br>
+    Methodology based on Google Web Vitals thresholds, Search Console documentation, and Lighthouse scoring algorithms.
+  </p>
+</div>
+
+</body>
+</html>

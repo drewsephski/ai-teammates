@@ -234,6 +234,45 @@ test("unanswered questions stay attentive, but answering or failing ends the wai
   )
 })
 
+test("a key card waits for the person until they save the key", () => {
+  const input = {
+    name: "OPENAI_API_KEY",
+    label: "OpenAI API key",
+    description: "Create one in your OpenAI dashboard.",
+  }
+  const card = reply([
+    {
+      type: "tool-requestSecret",
+      toolCallId: "key",
+      state: "output-available",
+      input,
+      output: { state: "requested", ...input },
+    },
+  ])
+  assert.equal(chatActivity([user, card], "ready", options).state, "waiting")
+  // Already saved: nothing to wait for
+  const saved = reply([
+    {
+      type: "tool-requestSecret",
+      toolCallId: "key",
+      state: "output-available",
+      input,
+      output: { state: "saved", name: input.name, label: input.label },
+    },
+  ])
+  assert.equal(chatActivity([user, saved], "ready", options).state, "idle")
+  // The wake message after saving carries the card's toolCallId
+  const woke: ChatUIMessage = {
+    ...user,
+    id: "secret_key",
+    metadata: { questionId: "key", botId: "quill" },
+  }
+  assert.equal(
+    chatActivity([user, card, woke], "submitted", options).state,
+    "queued"
+  )
+})
+
 test("data-only receipts and follow-ups do not replace the current response identity", () => {
   const text = reply([{ type: "text", text: "Hello", state: "streaming" }])
   const receipt = reply([

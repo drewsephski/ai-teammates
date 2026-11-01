@@ -47,23 +47,23 @@ after(async () => {
   await database?.stop()
 })
 
-test("the free computer allowance is 300 seconds for the account's whole life", async () => {
+test("the free computer allowance is 1200 seconds for the account's whole life", async () => {
   await plan("free_user", "free")
-  assert.equal((await usage.getUsage("free_user")).remaining.sandbox, 300)
+  assert.equal((await usage.getUsage("free_user")).remaining.sandbox, 1200)
   // Time used long ago still counts: nothing resets the free allowance
   await spend("free_user", 120, monthAgo())
   await spend("free_user", 100)
   assert.deepEqual((await usage.getUsage("free_user")).used.sandbox, 220)
-  assert.equal((await usage.getUsage("free_user")).remaining.sandbox, 80)
+  assert.equal((await usage.getUsage("free_user")).remaining.sandbox, 980)
 })
 
 test("the free allowance bottoms out at zero and stays there", async () => {
   await plan("free_spent", "free")
-  await spend("free_spent", 290, monthAgo())
+  await spend("free_spent", 1190, monthAgo())
   await spend("free_spent", 90)
   const spent = await usage.getUsage("free_spent")
   assert.equal(spent.remaining.sandbox, 0)
-  assert.equal(spent.used.sandbox, 380)
+  assert.equal(spent.used.sandbox, 1280)
 })
 
 test("the paid allowance is unchanged and counts only the current period", async () => {
@@ -110,4 +110,46 @@ test("a failed fresh lookup throws instead of serving the stale cached plan", as
   } finally {
     fetchMock.mock.restore()
   }
+})
+
+// trigger/chat.ts gives back a failed or looping reply's spend as a negative
+// entry under the turn's key, next to what it spent
+test("a credit gives back the AI allowance a turn spent, once", async () => {
+  await plan("credited", "free")
+  await usage.holdUsage("credited", "ai:run_1:0", 40_000)
+  assert.equal((await usage.getUsage("credited")).remaining.ai, 960_000)
+  await usage.recordUsage([
+    {
+      userId: "credited",
+      kind: "ai",
+      amount: -55_000,
+      idempotencyKey: "ai:run_1:0:credit",
+    },
+  ])
+  await usage.recordUsage([
+    {
+      userId: "credited",
+      kind: "ai",
+      amount: 15_000,
+      idempotencyKey: "ai:run_1:0:web:call_1",
+    },
+    {
+      userId: "credited",
+      kind: "ai",
+      amount: 40_000,
+      idempotencyKey: "ai:run_1:0",
+    },
+  ])
+  // Retried with the same key: counted once
+  await usage.recordUsage([
+    {
+      userId: "credited",
+      kind: "ai",
+      amount: -55_000,
+      idempotencyKey: "ai:run_1:0:credit",
+    },
+  ])
+  const after = await usage.getUsage("credited")
+  assert.equal(after.used.ai, 0)
+  assert.equal(after.remaining.ai, 1_000_000)
 })

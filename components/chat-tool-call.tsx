@@ -16,6 +16,8 @@ import {
 import { computerHold, type ComputerHold } from "@/components/computer-hold"
 import { isComputerBusy } from "@/lib/computer-lease-policy"
 import type { ChatUIMessage } from "@/lib/sandbox-tools"
+import type { SocialParser } from "@/lib/context-dev"
+import { reviewRating } from "@/lib/review-records"
 import {
   ArrowDownUpIcon,
   BookmarkPlusIcon,
@@ -31,7 +33,9 @@ import {
   MousePointerClickIcon,
   MousePointerIcon,
   MoveIcon,
+  AppWindowIcon,
   ScanEyeIcon,
+  ScanTextIcon,
   SquareTerminalIcon,
   TextCursorInputIcon,
   UsersRoundIcon,
@@ -40,11 +44,14 @@ import {
   CircleHelpIcon,
   SearchIcon,
   GlobeIcon,
+  MessageSquareWarningIcon,
+  AtSignIcon,
   CalendarClockIcon,
   CalendarXIcon,
   ListChecksIcon,
   ShieldAlertIcon,
   ShieldCheckIcon,
+  KeyRoundIcon,
 } from "lucide-react"
 
 type ToolPart = Extract<
@@ -57,6 +64,12 @@ type ToolPart = Extract<
 const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
   "tool-searchWeb": ["Search web", "Searching web", "Searched web"],
   "tool-readWebPage": ["Read webpage", "Reading webpage", "Read webpage"],
+  "tool-readReviews": ["Read reviews", "Reading reviews", "Read reviews"],
+  "tool-readSocialMedia": [
+    "Read social posts",
+    "Reading social posts",
+    "Read social posts",
+  ],
   "tool-askUser": ["Question", "Question", "Answered question"],
   "tool-configureBot": [
     "Configure bot",
@@ -79,6 +92,10 @@ const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
   "tool-keyboardPress": ["Press key", "Pressing key", "Pressed key"],
   "tool-viewScreen": ["Check screen", "Checking screen", "Checked screen"],
   "tool-showScreen": ["Share screen", "Sharing screen", "Shared screen"],
+  "tool-readScreen": ["Read screen", "Reading screen", "Read screen"],
+  "tool-clickElement": ["Click", "Clicking", "Clicked"],
+  "tool-fillElement": ["Fill in field", "Filling in field", "Filled in field"],
+  "tool-openOnScreen": ["Open page", "Opening page", "Opened page"],
   "tool-handoff": ["Ask teammate", "Asking teammate", "Asked teammate"],
   "tool-listTeammates": [
     "Find teammate",
@@ -147,11 +164,18 @@ const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
     "Deleting routine",
     "Deleted routine",
   ],
+  "tool-requestSecret": [
+    "Ask for API key",
+    "Asking for API key",
+    "Asked for API key",
+  ],
 }
 
 const toolIcons: Record<ToolPart["type"], LucideIcon> = {
   "tool-searchWeb": SearchIcon,
   "tool-readWebPage": GlobeIcon,
+  "tool-readReviews": MessageSquareWarningIcon,
+  "tool-readSocialMedia": AtSignIcon,
   "tool-askUser": CircleHelpIcon,
   "tool-configureBot": SettingsIcon,
   "tool-bash": SquareTerminalIcon,
@@ -170,6 +194,10 @@ const toolIcons: Record<ToolPart["type"], LucideIcon> = {
   "tool-keyboardPress": KeyboardIcon,
   "tool-viewScreen": ScanEyeIcon,
   "tool-showScreen": MonitorUpIcon,
+  "tool-readScreen": ScanTextIcon,
+  "tool-clickElement": MousePointerClickIcon,
+  "tool-fillElement": TextCursorInputIcon,
+  "tool-openOnScreen": AppWindowIcon,
   "tool-handoff": UsersRoundIcon,
   "tool-listTeammates": UsersRoundIcon,
   "tool-createTeammate": UsersRoundIcon,
@@ -186,6 +214,7 @@ const toolIcons: Record<ToolPart["type"], LucideIcon> = {
   "tool-listRoutines": ListChecksIcon,
   "tool-updateRoutine": CalendarClockIcon,
   "tool-deleteRoutine": CalendarXIcon,
+  "tool-requestSecret": KeyRoundIcon,
 }
 
 // Keep previews short even for pasted text. The complete value stays in details.
@@ -198,7 +227,10 @@ function appToolError(part: ToolPart): string | undefined {
   if (part.state === "output-available" && isComputerBusy(part.output))
     return `${part.output.heldBy} was using the computer.`
   if (
-    (part.type === "tool-searchWeb" || part.type === "tool-readWebPage") &&
+    (part.type === "tool-searchWeb" ||
+      part.type === "tool-readWebPage" ||
+      part.type === "tool-readReviews" ||
+      part.type === "tool-readSocialMedia") &&
     part.state === "output-available"
   )
     return part.output.status === "failed" ? part.output.message : undefined
@@ -300,6 +332,8 @@ function toolSummary(part: ToolPart): string | undefined {
     case "tool-searchWeb":
       return preview(part.input?.query)
     case "tool-readWebPage":
+    case "tool-readReviews":
+    case "tool-readSocialMedia":
       return preview(part.input?.url)
     case "tool-bash":
       return preview(part.input?.command)
@@ -350,6 +384,19 @@ function toolSummary(part: ToolPart): string | undefined {
       return part.state === "output-available" && !isComputerBusy(part.output)
         ? `${part.output.width} × ${part.output.height}`
         : undefined
+    case "tool-readScreen":
+      if (part.state !== "output-available" || isComputerBusy(part.output))
+        return undefined
+      return part.output.status === "read"
+        ? preview(part.output.window || part.output.app)
+        : "Couldn't read the window"
+    case "tool-clickElement":
+    case "tool-fillElement":
+      return part.state === "output-available" && !isComputerBusy(part.output)
+        ? preview(`${part.output.role} “${part.output.name}”`)
+        : part.input?.ref
+    case "tool-openOnScreen":
+      return preview(part.input?.url)
     case "tool-handoff":
       return preview(part.input?.note)
     case "tool-createTeammate":
@@ -600,6 +647,8 @@ function ToolCallDetails({ part }: { part: ToolPart }) {
 const resultLabels: Partial<Record<ToolPart["type"], string>> = {
   "tool-searchWeb": "Sources found",
   "tool-readWebPage": "Page content",
+  "tool-readReviews": "Reviews found",
+  "tool-readSocialMedia": "Social data",
   "tool-remember": "Saved memory",
   "tool-updateMemory": "Updated memory",
   "tool-forget": "Forgotten",
@@ -625,6 +674,43 @@ function routineLastRun(routine: {
     (routine.lastStatus && routineStatusLabels[routine.lastStatus]) ??
     "Last ran"
   return `${label} ${routine.lastRunLocal}`
+}
+
+function reviewCountLine(output: {
+  fetched: number
+  matching: number
+  returned: number
+  truncated: boolean
+}) {
+  const filtered =
+    output.matching === output.fetched
+      ? `${output.fetched} reviews`
+      : `${output.matching} of ${output.fetched} reviews matched`
+  return output.returned < output.matching
+    ? `${filtered}, showing ${output.returned}.`
+    : `${filtered}.`
+}
+
+// Review records keep the provider's field names; show the likeliest text
+function reviewText(review: unknown) {
+  if (!review || typeof review !== "object") return String(review)
+  const fields = review as Record<string, unknown>
+  const text = ["title", "snippet", "text", "content", "body", "review"]
+    .map((key) => fields[key])
+    .filter((value): value is string => typeof value === "string")
+    .join(" · ")
+  return text || JSON.stringify(review)
+}
+
+const socialLabels: Record<SocialParser, string> = {
+  "instagram-profile": "an Instagram profile",
+  "instagram-post": "an Instagram post",
+  "instagram-feed": "an Instagram feed",
+  "tiktok-profile": "a TikTok profile",
+  "tiktok-video": "a TikTok video",
+  "tiktok-feed": "TikTok videos",
+  "tiktok-comments": "TikTok comments",
+  "tiktok-user-search": "TikTok accounts",
 }
 
 function textResult(text: string) {
@@ -696,6 +782,38 @@ function toolResult(part: ToolPart) {
             </p>
           )}
         </div>
+      )
+    case "tool-readReviews":
+      if (part.output.status === "failed") return undefined
+      return (
+        <div className="space-y-2 p-2.5">
+          <p className="text-xs text-muted-foreground">
+            {reviewCountLine(part.output)}
+          </p>
+          {part.output.reviews.length ? (
+            <ul className="space-y-2">
+              {part.output.reviews.map((review, index) => (
+                <li key={index} className="space-y-0.5">
+                  {reviewRating(review) !== undefined && (
+                    <p className="text-xs text-muted-foreground">
+                      {reviewRating(review)} stars
+                    </p>
+                  )}
+                  <p className="break-words whitespace-pre-wrap">
+                    {reviewText(review)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>No reviews matched.</p>
+          )}
+        </div>
+      )
+    case "tool-readSocialMedia":
+      if (part.output.status === "failed") return undefined
+      return textResult(
+        `Read ${socialLabels[part.output.parser]} from ${part.output.url}${part.output.truncated ? ", shortened" : ""}.`
       )
     case "tool-readFile":
       return part.output.content
@@ -775,6 +893,23 @@ function toolResult(part: ToolPart) {
       )
     case "tool-mouseClick":
       return textResult(`Clicked at ${part.output.x}, ${part.output.y}.`)
+    // What the bot read stays its own, like viewScreen's screenshot
+    case "tool-readScreen":
+      return textResult(
+        part.output.status === "read"
+          ? `Read ${part.output.elements} controls on the screen.`
+          : part.output.message
+      )
+    case "tool-clickElement":
+      return textResult(
+        `Clicked ${part.output.role} “${part.output.name}” at ${part.output.x}, ${part.output.y}.`
+      )
+    case "tool-fillElement":
+      return textResult(
+        `Typed ${part.output.typed} characters into ${part.output.role} “${part.output.name}”.`
+      )
+    case "tool-openOnScreen":
+      return textResult(`Opened ${part.output.url}.`)
     case "tool-mouseMove":
       return textResult(
         `Moved the pointer to ${part.output.x}, ${part.output.y}.`

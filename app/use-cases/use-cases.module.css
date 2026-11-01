@@ -118,3 +118,27 @@
   border-color: var(--role-color);
   color: var(--role-color);
 }
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+}
+.create {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #fff;
+  color: #0a0a0a;
+  font-size: 14px;
+  font-weight: 500;
+}
+.create:hover {
+  background: #dedede;
+}
+.create:focus-visible {
+  outline: 2px solid var(--role-color);
+  outline-offset: 2px;
+}

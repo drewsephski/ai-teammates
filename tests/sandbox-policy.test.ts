@@ -16,7 +16,6 @@ import {
   isProviderCapacityError,
   SESSION_LIMIT_MS,
   runningSeconds,
-  sandboxPath,
   sandboxTimeout,
 } from "../lib/sandbox-policy"
 
@@ -33,13 +32,6 @@ test("meter only whole running seconds and exclude time after pause", () => {
   assert.equal(runningSeconds(new Date(1000), new Date(12_900), 10_900), 9)
   assert.equal(runningSeconds(new Date(1000), new Date(12_900), 90_000), 11)
   assert.equal(runningSeconds(new Date(1000), new Date(0), 10_000), 0)
-})
-
-test("file and command paths share the desktop user's home directory", () => {
-  assert.equal(sandboxPath("notes.md"), "/home/user/notes.md")
-  assert.equal(sandboxPath("~/project/file.txt"), "/home/user/project/file.txt")
-  assert.equal(sandboxPath("~"), "/home/user")
-  assert.equal(sandboxPath("/tmp/file.txt"), "/tmp/file.txt")
 })
 
 test("idle time shrinks with a small allowance but never below 30 seconds", () => {

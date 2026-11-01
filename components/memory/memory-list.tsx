@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip"
 import { useState } from "react"
 import Link from "next/link"
 import { format } from "date-fns"
@@ -90,17 +95,25 @@ function MemoryItem({
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-0.5">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={memory.pinned ? "Unpin" : "Pin to every chat"}
-          title={memory.pinned ? "Unpin" : "Pin to every chat"}
-          disabled={pinning}
-          onClick={togglePin}
-        >
-          {memory.pinned ? <PinOffIcon /> : <PinIcon />}
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={memory.pinned ? "Unpin" : "Pin to every chat"}
+                disabled={pinning}
+                onClick={togglePin}
+              >
+                {memory.pinned ? <PinOffIcon /> : <PinIcon />}
+              </Button>
+            }
+          />
+          <TooltipContent>
+            {memory.pinned ? "Unpin" : "Pin to every chat"}
+          </TooltipContent>
+        </Tooltip>
         <MemoryEditDialog memory={memory} teammates={teammates} />
         <MemoryDeleteDialog memory={memory} />
       </div>

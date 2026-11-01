@@ -38,12 +38,6 @@ export function runningSeconds(startedAt: Date, endAt: Date, now = Date.now()) {
   )
 }
 
-export function sandboxPath(path: string) {
-  if (path === "~") return "/home/user"
-  if (path.startsWith("~/")) return `/home/user/${path.slice(2)}`
-  return path.startsWith("/") ? path : `/home/user/${path}`
-}
-
 // Idle time before the provider pauses a computer: five minutes, but a quarter
 // of what is left (never under 30 seconds) once the allowance is small, so one
 // call can't leave a free account idling through its whole allowance.
@@ -74,7 +68,7 @@ export function desktopHeartbeatMs(
 }
 
 // What a person sees when the computer allowance is spent. The free allowance
-// is a one-time 300 seconds; the paid one renews with the billing period.
+// is a one-time allowance; the paid one renews with the billing period.
 export function computerTimeUsedUpMessage(tier?: "free" | "paid") {
   if (tier === "free")
     return "Your free computer time is used up. Upgrade to keep using the computer."

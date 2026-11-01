@@ -66,6 +66,8 @@ function LocalDecision({
         alwaysAllowed: entry.approval?.alwaysAllowed ?? true,
         preview: null,
         command: null,
+        batchId: null,
+        batchPending: 0,
       }),
       decideApproval: async (_id, choice) => {
         setBusy(true)

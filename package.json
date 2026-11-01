@@ -43,6 +43,7 @@
     "@streamdown/mermaid": "^1.0.3",
     "@trigger.dev/sdk": "4.7.4",
     "@types/novnc__novnc": "^1.6.0",
+    "@usenotra/geo": "^0.7.0",
     "@xyflow/react": "^12.12.0",
     "ai": "^7.0.127",
     "ansi-to-react": "^6.2.6",

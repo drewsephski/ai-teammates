@@ -30,8 +30,12 @@ export async function getApproval(approvalId: string) {
     alwaysAllowed,
     preview,
     command,
+    batchId,
+    batchPending,
   } = await service.getApproval(await signedIn(), approvalId)
   return {
+    batchId,
+    batchPending,
     state,
     summary,
     toolkit,
@@ -44,6 +48,19 @@ export async function getApproval(approvalId: string) {
     preview,
     command,
   }
+}
+
+// Every request still waiting from one reply
+export async function decideApprovalBatch(
+  batchId: string,
+  decision: "approve" | "deny"
+) {
+  const result = await service.decideApprovalBatch(await signedIn(), batchId, {
+    decision,
+  })
+  // The sidebar shows the pending count
+  revalidatePath("/", "layout")
+  return result
 }
 
 export async function listApprovalRules() {

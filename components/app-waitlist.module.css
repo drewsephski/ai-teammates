@@ -1,0 +1,199 @@
+.panel {
+  color: #f5f5f5;
+  background: #121212;
+  border: 1px solid #303030;
+  border-radius: 16px;
+  padding: clamp(24px, 5vw, 48px);
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto 24px;
+  text-align: left;
+}
+.eyebrow {
+  color: #a8b9cd;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.panel h2 {
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  margin: 16px 0;
+  text-wrap: balance;
+}
+.description {
+  color: #a1a1a1;
+  font-size: 16px;
+  line-height: 1.6;
+  max-width: 510px;
+}
+.devices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  border: 0;
+  padding: 0;
+  margin: 28px 0 24px;
+  min-width: 0;
+}
+.devices legend {
+  font-size: 13px;
+  color: #aaa;
+  margin-bottom: 10px;
+}
+.device {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px 16px;
+  border: 1px solid #333;
+  border-radius: 12px;
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+.device:has(:checked) {
+  border-color: #a8b9cd;
+  background: #1a2028;
+}
+.device:has(:focus-visible) {
+  outline: 2px solid #fff;
+  outline-offset: 4px;
+}
+.device input {
+  position: absolute;
+  right: 14px;
+  top: 16px;
+  width: 16px;
+  height: 16px;
+  accent-color: #a8b9cd;
+}
+.device strong {
+  font-size: 17px;
+  font-weight: 500;
+}
+.device span {
+  color: #aaa;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.emailLabel {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+.submitRow {
+  display: flex;
+  gap: 8px;
+}
+.submitRow input {
+  min-width: 0;
+  flex: 1;
+  background: #191919;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 13px 14px;
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+}
+.submitRow input::placeholder {
+  color: #888;
+}
+.submitRow button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 13px 18px;
+  background: #f5f5f5;
+  color: #121212;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.submitRow button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.submitRow :focus-visible,
+.panel a:focus-visible {
+  outline: 2px solid #a8b9cd;
+  outline-offset: 4px;
+}
+.note {
+  color: #999;
+  font-size: 12px;
+  line-height: 1.6;
+  margin-top: 14px;
+}
+.note a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.error {
+  color: #ffb4ad;
+  font-size: 14px;
+  margin-top: 12px;
+}
+.trap {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.success {
+  margin-top: 28px;
+  padding: 24px;
+  background: #1a2028;
+  border: 1px solid #536174;
+  border-radius: 12px;
+}
+.success h3 {
+  font-size: 24px;
+  margin: 12px 0 8px;
+  font-weight: 500;
+}
+.success p {
+  color: #bbb;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.success a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  margin-top: 20px;
+}
+.panel[data-compact="true"] {
+  padding: 24px;
+  margin-bottom: 0;
+}
+.panel[data-compact="true"] h2 {
+  font-size: 28px;
+}
+.panel[data-compact="true"] .submitRow {
+  flex-direction: column;
+}
+@media (max-width: 540px) {
+  .submitRow {
+    flex-direction: column;
+  }
+  .device {
+    padding: 18px 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .device {
+    transition: none;
+  }
+}

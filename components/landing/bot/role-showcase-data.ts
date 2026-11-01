@@ -11,7 +11,7 @@ export const roles = [
     pill: "#4ad8ec",
     pillBackground: "#012f35",
     description:
-      "Answer what actually needs you. Finds the emails that need a reply, drafts answers in your voice, and holds every send until you approve it.",
+      "Reply to what needs you. Finds the emails that need a reply, drafts answers in your voice, and holds every send until you approve it.",
   },
   {
     id: "client-finder",
@@ -41,7 +41,7 @@ export const roles = [
     pill: "#ffa782",
     pillBackground: "#481800",
     description:
-      "Start the day with what matters. Checks your calendar and inbox every morning and sends a short rundown of what actually needs your attention.",
+      "Know what today holds. Checks your calendar and inbox every morning and sends a short rundown of what needs you.",
   },
   {
     id: "research",

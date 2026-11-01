@@ -1,10 +1,17 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 
-import { pageMetadata } from "@/lib/marketing/content"
+import { JsonLd } from "@/components/json-ld"
+import {
+  absoluteUrl,
+  breadcrumbJsonLd,
+  pageMetadata,
+} from "@/lib/marketing/content"
+import { siteUrl } from "@/lib/marketing/site"
 
 export const metadata: Metadata = pageMetadata({
   path: "/privacy",
+  markdown: false,
   title: "Privacy policy",
   description: "How Krafty collects, uses, and handles your information.",
 })
@@ -12,8 +19,25 @@ export const metadata: Metadata = pageMetadata({
 export default function PrivacyPage() {
   return (
     <article>
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          "@id": `${siteUrl}/privacy#page`,
+          url: absoluteUrl("/privacy"),
+          name: "Privacy policy",
+          description:
+            "How Krafty collects, uses, and handles your information.",
+          dateModified: "2026-10-27",
+          isPartOf: { "@id": `${siteUrl}/#website` },
+          breadcrumb: breadcrumbJsonLd([
+            { name: "Home", path: "/" },
+            { name: "Privacy policy", path: "/privacy" },
+          ]),
+        }}
+      />
       <h1>Privacy policy</h1>
-      <p>Last updated: October 27, 2026</p>
+      <p>Last updated: November 1, 2026</p>
       <p>
         Krafty provides AI teammates, connected tools, and cloud computers. This
         policy describes how information is handled when you use kraftybot.app
@@ -24,6 +48,12 @@ export default function PrivacyPage() {
 
       <h2>Information we collect</h2>
       <ul>
+        <li>
+          If you join an app waitlist, we store your email address, the devices
+          you choose, and your signup date to send updates about those app
+          launches. No account is required. To leave the waitlist or delete your
+          signup, email drewsepeczi@gmail.com.
+        </li>
         <li>
           Account information, including your email address, account identifier,
           and profile information provided when you sign up. Google sign-in
@@ -90,11 +120,16 @@ export default function PrivacyPage() {
         management, Stripe for payments, Railway for app hosting, Neon for
         database and AI gateway services, Anthropic for AI models, Trigger.dev
         for background tasks and conversations, E2B for cloud computers,
-        Composio for connected tools, Tavily and Firecrawl for web search and
-        reading web pages, Expo for push notifications and app updates, and
-        Sentry for diagnostics. When a teammate researches the web, Tavily
-        receives the search terms it writes from your request and Firecrawl or
-        Tavily receive the addresses of the pages it reads.
+        Composio for connected tools, Tavily, Firecrawl and Context.dev for web
+        search and reading web pages, reviews and public social posts, Resend
+        for waitlist signup notifications, Expo for push notifications and app
+        updates, Notra for measuring visits from AI search tools, and Sentry for
+        diagnostics. When a teammate researches the web, Tavily receives the
+        search terms it writes from your request, and Firecrawl, Tavily or
+        Context.dev receive the addresses of the pages, listings or profiles it
+        reads. Notra receives the address, browser details and IP address of
+        each page request; it keeps only visits from AI crawlers and AI search
+        referrals and discards the rest.
       </p>
       <p>
         Messages, instructions, relevant conversation context, saved memories,
@@ -103,7 +138,8 @@ export default function PrivacyPage() {
         processed by AI model providers: Anthropic (Claude), and Neon’s AI
         gateway, whose models are hosted by Databricks. The gateway currently
         uses GLM, a Z.ai model, for text, and GPT from OpenAI when the request
-        includes an image. Anthropic answers when it is available, and the
+        includes an image. Anthropic answers for accounts that have accepted the
+        app’s current AI data sharing request, when it is available, and the
         gateway answers otherwise. Saved memories are also turned into search
         data by an embedding model through the same gateway. Providers process
         this information under their own applicable terms and privacy policies.
@@ -137,6 +173,13 @@ export default function PrivacyPage() {
         We and our authentication provider use cookies and browser storage for
         sign-in, session security, and preferences. Blocking essential cookies
         may prevent sign-in or other features from working.
+      </p>
+
+      <p>
+        If you vote in the feature poll on our home page, we set a cookie
+        holding a random identifier so you can change your vote later. We store
+        only a one-way hash of that identifier with your choice, not your
+        account, email, or IP address.
       </p>
 
       <p>
