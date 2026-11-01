@@ -165,7 +165,7 @@ test("saved profiles and group handoffs retain role and capability guidance", ()
   assert.doesNotMatch(group, /being configured/)
 })
 
-test("configured bots learn routines and the approval flow", async () => {
+test("bots learn routines and the approval flow, during setup too", async () => {
   const { buildChatInstructions } = await import("../lib/chat-instructions")
   const prompt = buildChatInstructions(
     {
@@ -196,7 +196,11 @@ test("configured bots learn routines and the approval flow", async () => {
     undefined,
     true
   )
-  assert.doesNotMatch(setup, /scheduleRoutine/)
+  // Setup has the routine tools, so it must be told how to use them (#13)
+  assert.match(setup, /scheduleRoutine/)
+  assert.doesNotMatch(setup, /cannot activate recurring schedules/)
+  // Bots must not hammer E2B at its cap
+  assert.match(setup, /Computers are busy right now/)
 })
 
 test("email requests acknowledge before tools and stage editable cards without sending", () => {

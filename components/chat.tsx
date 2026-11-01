@@ -79,6 +79,7 @@ import {
 } from "@/lib/chatgpt-policy"
 import { usePaywall } from "@/hooks/use-paywall"
 import { useChatSession } from "@/hooks/use-chat-session"
+import { useSignedInAction } from "@/hooks/use-signed-in-action"
 import { resumeAfterWake } from "@/hooks/app-connection-channel"
 import { useResumeChatStream } from "@/hooks/use-resume-chat-stream"
 import { navigationChatTransport } from "@/lib/chat-transport"
@@ -130,21 +131,27 @@ function Chat({
   // Shown above the composer, such as a low-allowance warning
   notice?: React.ReactNode
 }) {
+  const signedIn = useSignedInAction()
   const transport = useTriggerChatTransport<typeof chatAgent>({
     task: "chat",
     // Sends go through our server, which seals them with the chat's key
     // (lib/chat-input-proxy.ts); replies stream from Trigger.dev directly
     baseURL: ({ endpoint }) =>
       endpoint === "in" ? "/api/trigger" : TRIGGER_API_URL,
-    accessToken: ({ chatId }) => mintChatAccessToken(chatId),
+    accessToken: ({ chatId }) => signedIn(() => mintChatAccessToken(chatId)),
     startSession: ({ chatId, clientData }) =>
-      startChatSession({ chatId, clientData }),
+      signedIn(() => startChatSession({ chatId, clientData })),
   })
   const [attempt, setAttempt] = useState(0)
+  const loadSignedInTranscript = useMemo(
+    () => (params: { chatId: string }) =>
+      signedIn(() => loadTranscript(params)),
+    [signedIn]
+  )
   const { messages, isLoading, error } = useChatSession({
     chatId,
     transport,
-    loadTranscript,
+    loadTranscript: loadSignedInTranscript,
     attempt,
   })
 

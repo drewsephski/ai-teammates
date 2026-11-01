@@ -230,6 +230,8 @@ export function ApprovalCard({
       return
     let current = true
     const refresh = async () => {
+      // A hidden tab doesn't need the live state and may hold a stale session
+      if (document.visibilityState !== "visible") return
       try {
         const approval = await (await load()).getApproval(approvalId)
         if (current) setState(approval.state)

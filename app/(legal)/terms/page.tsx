@@ -19,7 +19,7 @@ export default function TermsPage() {
         These terms govern your use of Krafty at kraftybot.app and through the
         Krafty mobile app, operated by Drew Sepeczi. By using the service, you
         agree to these terms. Questions can be sent to{" "}
-        <a href="mailto:drewsepeczi@gmail.com">drewsepeczi@gmail.com</a>.
+        <a href="mailto:support@kraftybot.app">support@kraftybot.app</a>.
       </p>
 
       <h2>Your account</h2>
@@ -97,7 +97,7 @@ export default function TermsPage() {
       </p>
       <p>
         Refund questions can be sent to{" "}
-        <a href="mailto:drewsepeczi@gmail.com">drewsepeczi@gmail.com</a>. These
+        <a href="mailto:support@kraftybot.app">support@kraftybot.app</a>. These
         terms do not remove refund or cancellation rights provided by applicable
         law. We will provide notice of material changes to paid subscription
         pricing before those changes take effect.
@@ -128,7 +128,7 @@ export default function TermsPage() {
       <p>
         We may update these terms and will revise the date above. Material
         changes will be communicated where required. Contact{" "}
-        <a href="mailto:drewsepeczi@gmail.com">drewsepeczi@gmail.com</a> with
+        <a href="mailto:support@kraftybot.app">support@kraftybot.app</a> with
         questions about the service or these terms.
       </p>
     </article>

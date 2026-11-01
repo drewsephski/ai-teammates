@@ -43,7 +43,7 @@ export default function PrivacyPage() {
         policy describes how information is handled when you use kraftybot.app
         and the Krafty mobile app. Krafty is operated by Drew Sepeczi. For
         privacy questions or requests, contact{" "}
-        <a href="mailto:drewsepeczi@gmail.com">drewsepeczi@gmail.com</a>.
+        <a href="mailto:support@kraftybot.app">support@kraftybot.app</a>.
       </p>
 
       <h2>Information we collect</h2>
@@ -52,7 +52,7 @@ export default function PrivacyPage() {
           If you join an app waitlist, we store your email address, the devices
           you choose, and your signup date to send updates about those app
           launches. No account is required. To leave the waitlist or delete your
-          signup, email drewsepeczi@gmail.com.
+          signup, email support@kraftybot.app.
         </li>
         <li>
           Account information, including your email address, account identifier,
@@ -123,13 +123,16 @@ export default function PrivacyPage() {
         Composio for connected tools, Tavily, Firecrawl and Context.dev for web
         search and reading web pages, reviews and public social posts, Resend
         for waitlist signup notifications, Expo for push notifications and app
-        updates, Notra for measuring visits from AI search tools, and Sentry for
-        diagnostics. When a teammate researches the web, Tavily receives the
-        search terms it writes from your request, and Firecrawl, Tavily or
-        Context.dev receive the addresses of the pages, listings or profiles it
-        reads. Notra receives the address, browser details and IP address of
-        each page request; it keeps only visits from AI crawlers and AI search
-        referrals and discards the rest.
+        updates, Notra for measuring visits from AI search tools, GitHub for
+        storing feedback you send us, and Sentry for diagnostics. When a
+        teammate researches the web, Tavily receives the search terms it writes
+        from your request, and Firecrawl, Tavily or Context.dev receive the
+        addresses of the pages, listings or profiles it reads. Notra receives
+        the address, browser details and IP address of each page request; it
+        keeps only visits from AI crawlers and AI search referrals and discards
+        the rest. Feedback you send with Send feedback is kept as an issue in a
+        private GitHub repository, with your account ID and the page you were
+        on.
       </p>
       <p>
         Messages, instructions, relevant conversation context, saved memories,
@@ -233,7 +236,7 @@ export default function PrivacyPage() {
         location, you may have rights to access, correct, delete, or obtain a
         copy of your information, or to object to certain processing. Send
         requests to{" "}
-        <a href="mailto:drewsepeczi@gmail.com">drewsepeczi@gmail.com</a>; we may
+        <a href="mailto:support@kraftybot.app">support@kraftybot.app</a>; we may
         need to verify your identity.
       </p>
 

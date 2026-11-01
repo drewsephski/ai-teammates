@@ -22,7 +22,12 @@ import {
   renewComputerDesktop,
 } from "@/lib/e2b"
 import { ComputerAllowanceSpentError } from "@/lib/sandbox-lifecycle"
-import { desktopHeartbeatMs } from "@/lib/sandbox-policy"
+import {
+  COMPUTERS_BUSY_ERROR,
+  DESKTOP_CLOSE,
+  desktopHeartbeatMs,
+  isProviderCapacityError,
+} from "@/lib/sandbox-policy"
 import { getUsage } from "@/lib/usage"
 
 const clerk = createClerkClient({
@@ -169,6 +174,15 @@ export async function upgradeDesktop(
       })
     })
   } catch (error) {
+    // At E2B's cap, say so: open the socket only to close it with a code the
+    // viewer can read (a refused upgrade's status never reaches the page)
+    const busy =
+      (error instanceof Error && error.message === COMPUTERS_BUSY_ERROR) ||
+      isProviderCapacityError(error)
+    if (busy && !socket.destroyed)
+      return sockets.handleUpgrade(request, socket, head, (viewer) =>
+        closeViewer(viewer, DESKTOP_CLOSE.computersBusy)
+      )
     // A viewer asking after the time ran out is refused like any other
     reject(error instanceof ComputerAllowanceSpentError ? 403 : 503)
   }

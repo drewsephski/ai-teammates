@@ -13,7 +13,8 @@ import {
   spendControls,
 } from "./content"
 import { docsMcpPath } from "./docs-mcp"
-import { list, sectionMarkdown } from "./markdown"
+import { helpIndex, helpTopicPath, helpTopics } from "./help"
+import { helpSectionMarkdown, list, sectionMarkdown } from "./markdown"
 import { marketingUpdated, productName, siteDescription } from "./site"
 
 // /llms.txt and /llms-full.txt (llmstxt.org): a plain Markdown map of the public
@@ -38,7 +39,17 @@ ${marketingSeoPages
 - [Use cases](${absoluteUrl("/use-cases")}): jobs people give a Bot, each with a starter prompt
 - [Pricing](${absoluteUrl("/#pricing")}): Free and Pro plans
 - [Pricing in Markdown](${absoluteUrl("/pricing.md")}): plans, limits, and what a task costs, as plain text
+- [Help center](${absoluteUrl(helpIndex.path)}): how to use ${productName}, topic by topic
 - [Support](${absoluteUrl("/support")}): help and contact
+
+## Help center
+
+${helpTopics
+  .map(
+    (topic) =>
+      `- [${topic.h1}](${absoluteUrl(helpTopicPath(topic.slug))}): ${topic.summary}`
+  )
+  .join("\n")}
 
 ## Use cases
 
@@ -135,6 +146,22 @@ ${useCase.summary}
 Starter prompt:
 
 > ${useCase.prompt}`
+  )
+  .join("\n\n")}
+
+## Help center
+
+${helpTopics
+  .map(
+    (topic) => `### ${topic.h1}
+
+${topic.lead}
+
+${topic.sections.map((section) => helpSectionMarkdown(section, 4)).join("\n\n")}
+
+${topic.faqs.map(([question, answer]) => `**${question}** ${answer}`).join("\n\n")}
+
+Page: ${absoluteUrl(helpTopicPath(topic.slug))}`
   )
   .join("\n\n")}
 

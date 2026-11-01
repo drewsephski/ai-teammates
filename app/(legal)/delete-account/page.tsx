@@ -75,8 +75,8 @@ export default async function DeleteAccountPage() {
       <h2>Cannot sign in, or need help?</h2>
       <p>
         Email{" "}
-        <a href="mailto:drewsepeczi@gmail.com?subject=Krafty%20account%20deletion">
-          drewsepeczi@gmail.com
+        <a href="mailto:support@kraftybot.app?subject=Krafty%20account%20deletion">
+          support@kraftybot.app
         </a>{" "}
         with the subject Krafty account deletion and the account email address.
         If you used Sign in with Apple, this may be your Apple relay address. We

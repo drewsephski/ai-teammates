@@ -52,7 +52,7 @@ export function homeJsonLd() {
         contactPoint: {
           "@type": "ContactPoint",
           contactType: "customer support",
-          email: "drewsepeczi@gmail.com",
+          email: "support@kraftybot.app",
           url: `${siteUrl}/support`,
           availableLanguage: "en",
         },

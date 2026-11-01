@@ -15,6 +15,9 @@ export const COMPUTERS_BUSY_ERROR =
 export const DESKTOP_CLOSE = {
   usageLimit: { code: 4429, reason: "usage_limit" },
   sessionEnded: { code: 4410, reason: "session_ended" },
+  // E2B's concurrent-sandbox cap or rate limit. A refused upgrade hides its
+  // status from browser JavaScript, so the gateway accepts and closes with this.
+  computersBusy: { code: 4503, reason: "computers_busy" },
 } as const
 // Another operation holds the computer's lock (lib/sandbox-lock.ts)
 export const SANDBOX_BUSY_ERROR =

@@ -7,6 +7,10 @@ import {
   eventConnectError,
 } from "../lib/routine-events"
 import { EMAIL_CHANGED_ERROR } from "../lib/email-draft"
+import {
+  FEEDBACK_RATE_LIMIT_ERROR,
+  FEEDBACK_UNAVAILABLE_ERROR,
+} from "../lib/feedback"
 import { NextRequest } from "next/server"
 
 import { apiRoute, readJson } from "../lib/api"
@@ -415,6 +419,8 @@ test("API-level and newer service errors map to their own statuses", () => {
       true,
     ],
     [new Error("Apple account not found"), 404, "not_found", true],
+    [new Error(FEEDBACK_UNAVAILABLE_ERROR), 502, "upstream", true],
+    [new Error(FEEDBACK_RATE_LIMIT_ERROR), 429, "rate_limited", true],
   ]
   for (const [error, status, code, expected] of cases) {
     const response = apiErrorResponse(error)

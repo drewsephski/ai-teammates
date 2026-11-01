@@ -148,6 +148,12 @@ TAVILY_API_KEY=
 # Optional: Notra AI crawler and referral analytics (Railway only)
 NOTRA_GEO_TOKEN=
 
+# Optional: Send feedback files a `feedback` issue here (Railway only). Use a
+# PRIVATE repo (owner/name) and a fine-grained token with Issues: read and write
+# on it; without both, the form tells people to email support instead.
+GITHUB_FEEDBACK_REPO=
+GITHUB_FEEDBACK_TOKEN=
+
 # Optional: Firecrawl reads web pages first, free to the person (app-funded,
 # 30 reads per turn). Trigger.dev only: the worker reads it, Railway doesn't.
 FIRECRAWL_API_KEY=

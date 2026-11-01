@@ -29,7 +29,7 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
           Terms of service
         </Link>
         <a
-          href="mailto:drewsepeczi@gmail.com"
+          href="mailto:support@kraftybot.app"
           className="underline underline-offset-4"
         >
           Contact

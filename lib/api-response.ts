@@ -1,5 +1,6 @@
 import { AppleAccountBusyError } from "@/lib/apple-account-policy"
 import { EMAIL_CHANGED_ERROR } from "@/lib/email-draft"
+import { FEEDBACK_RATE_LIMIT_ERROR } from "@/lib/feedback"
 import {
   EVENT_ACCOUNT_CHOICE_ERROR,
   EVENT_CONNECT_ERROR,
@@ -95,6 +96,8 @@ export function apiErrorResponse(error: unknown): {
     (COMPUTER_TIME_USED_UP_ERRORS as readonly string[]).includes(message)
   )
     return fail(429, "usage_limit", message)
+  if (message === FEEDBACK_RATE_LIMIT_ERROR)
+    return fail(429, "rate_limited", message)
   // E2B's rate limit, quota or concurrent-sandbox cap: wait a few minutes.
   // `upstream` is an existing code that apps already show as a retryable failure.
   if (message === COMPUTERS_BUSY_ERROR) return fail(503, "upstream", message)

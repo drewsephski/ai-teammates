@@ -2,6 +2,7 @@ import { cookies } from "next/headers"
 import { auth } from "@clerk/nextjs/server"
 
 import { AppSidebar } from "@/components/app-sidebar"
+import { SessionKeeper } from "@/components/session-keeper"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { readSidebarWidth } from "@/lib/sidebar-width"
@@ -25,6 +26,7 @@ export default async function DashboardLayout({
       defaultWidth={defaultWidth}
       className="app-shell"
     >
+      <SessionKeeper />
       <AppSidebar />
       <SidebarInset className="h-svh min-w-0 overflow-hidden bg-card">
         <ScrollArea className="h-full">{children}</ScrollArea>

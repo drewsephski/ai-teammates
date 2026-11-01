@@ -58,7 +58,7 @@ export const aboutPage: MarketingPage = {
     {
       id: "contact",
       title: "How to reach us",
-      body: "Email drewsepeczi@gmail.com for help, corrections, partnership questions, or press. The support page has what to include when you report a problem.",
+      body: "Email support@kraftybot.app for help, corrections, partnership questions, or press. The support page has what to include when you report a problem.",
       links: [{ label: "Support", href: "/support" }],
     },
   ],
@@ -74,7 +74,7 @@ export const aboutPage: MarketingPage = {
     ],
     [
       "How do I report a mistake on this site?",
-      "Email drewsepeczi@gmail.com with the page and what's wrong. Corrections about other products are made once they can be checked on that product's own site.",
+      "Email support@kraftybot.app with the page and what's wrong. Corrections about other products are made once they can be checked on that product's own site.",
     ],
   ],
   related: [

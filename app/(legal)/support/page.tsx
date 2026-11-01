@@ -40,7 +40,7 @@ export default function SupportPage() {
       <h1>Krafty support</h1>
       <p>
         For help with Krafty on the web or Android, email{" "}
-        <a href="mailto:drewsepeczi@gmail.com">drewsepeczi@gmail.com</a>. Krafty
+        <a href="mailto:support@kraftybot.app">support@kraftybot.app</a>. Krafty
         is operated by Drew Sepeczi.
       </p>
 

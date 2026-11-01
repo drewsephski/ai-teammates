@@ -3,6 +3,8 @@ import { planLimits } from "@/lib/billing-policy"
 export const siteUrl = "https://kraftybot.app"
 export const brandName = "Krafty"
 export const productName = "Krafty Bot"
+// Forwards to the founder's inbox; the one address every page and email shows
+export const supportEmail = "support@kraftybot.app"
 export const tagline = "AI that does the work"
 export const siteTitle = `${brandName} — ${tagline}`
 export const siteDescription =

@@ -34,7 +34,10 @@ import { ResizableHandle, ResizablePanel } from "@/components/ui/resizable"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { computerTimeUsedUpMessage } from "@/lib/sandbox-policy"
+import {
+  COMPUTERS_BUSY_ERROR,
+  computerTimeUsedUpMessage,
+} from "@/lib/sandbox-policy"
 
 type DesktopStatus =
   | "idle"
@@ -205,6 +208,9 @@ function DesktopPanelProvider({
         } else if (kind === "ended") {
           // No automatic retry: the person reconnects when they want to
           setStatus("ended")
+        } else if (kind === "busy") {
+          setNotice(COMPUTERS_BUSY_ERROR)
+          setStatus("unavailable")
         } else {
           setStatus("disconnected")
         }

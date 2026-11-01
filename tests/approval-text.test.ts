@@ -76,6 +76,7 @@ test("the computer clock reads m:ss and shows when it matters", () => {
 test("gateway close codes separate a spent allowance from an ended session", () => {
   assert.equal(desktopCloseKind(DESKTOP_CLOSE.usageLimit.code), "exhausted")
   assert.equal(desktopCloseKind(DESKTOP_CLOSE.sessionEnded.code), "ended")
+  assert.equal(desktopCloseKind(DESKTOP_CLOSE.computersBusy.code), "busy")
   assert.equal(desktopCloseKind(1006), "dropped")
   assert.equal(desktopCloseKind(undefined), "dropped")
 })

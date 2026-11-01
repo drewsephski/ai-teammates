@@ -14,6 +14,15 @@ import {
   spendControls,
 } from "./content"
 import {
+  helpContact,
+  helpIndex,
+  helpTopicPath,
+  helpTopics,
+  findHelpTopic,
+  type HelpSection,
+  type HelpTopic,
+} from "./help"
+import {
   marketingSeoPages,
   type MarketingPage,
   type MarketingSection,
@@ -279,6 +288,65 @@ ${footer(`/use-cases/${useCase.id}`)}
 `
 }
 
+export function helpSectionMarkdown(section: HelpSection, level: number) {
+  const parts = [`${"#".repeat(level)} ${section.title}`]
+  if (section.steps) parts.push(numbered(section.steps))
+  if (section.body) parts.push(section.body.join("\n\n"))
+  if (section.bullets) parts.push(list(section.bullets))
+  if (section.links)
+    parts.push(
+      `See also: ${section.links.map((item) => link(item.label, item.href)).join(", ")}`
+    )
+  return parts.join("\n\n")
+}
+
+const helpContactMarkdown = (level: number) =>
+  `${"#".repeat(level)} ${helpContact.title}\n\n${helpContact.body} More on reporting a problem: ${link("Support", "/support")}.`
+
+function helpIndexMarkdown() {
+  return `# ${helpIndex.h1}
+
+${helpIndex.lead}
+
+## Topics
+
+${list(
+  helpTopics.map(
+    (topic) => `${link(topic.h1, helpTopicPath(topic.slug))}: ${topic.summary}`
+  )
+)}
+
+${helpContactMarkdown(2)}
+
+${footer(helpIndex.path)}
+`
+}
+
+export function helpTopicMarkdown(topic: HelpTopic) {
+  const related = topic.related
+    .map(findHelpTopic)
+    .filter((entry) => entry !== undefined)
+  return `# ${topic.h1}
+
+${topic.lead}
+
+${topic.sections.map((section) => helpSectionMarkdown(section, 2)).join("\n\n")}
+
+## Questions
+
+${faqMarkdown(topic.faqs, 3)}
+
+## Related help
+
+${list(related.map((entry) => `${link(entry.h1, helpTopicPath(entry.slug))}: ${entry.summary}`))}
+- ${link("All help topics", helpIndex.path)}
+
+${helpContactMarkdown(2)}
+
+${footer(helpTopicPath(topic.slug))}
+`
+}
+
 const pages = new Map<string, () => string>([
   ["/", homeMarkdown],
   ["/how-it-works", howItWorksMarkdown],
@@ -289,6 +357,11 @@ const pages = new Map<string, () => string>([
   ),
   ...marketingSeoPages.map(
     (page) => [page.path, () => marketingPageMarkdown(page)] as const
+  ),
+  [helpIndex.path, helpIndexMarkdown],
+  ...helpTopics.map(
+    (topic) =>
+      [helpTopicPath(topic.slug), () => helpTopicMarkdown(topic)] as const
   ),
 ])
 
@@ -316,6 +389,7 @@ There's no page at ${absoluteUrl(path)}. It doesn't exist or has moved.
 - ${link("Home", "/")} ([Markdown](${absoluteUrl("/index.md")}))
 - ${link("How it works", "/how-it-works")}
 - ${link("Use cases", "/use-cases")}
+- ${link("Help center", helpIndex.path)}
 - ${link("Pricing in Markdown", "/pricing.md")}
 - ${link("Every public page, for AI assistants", "/llms.txt")}
 

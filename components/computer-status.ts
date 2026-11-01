@@ -25,5 +25,6 @@ export function showComputerClock(
 export function desktopCloseKind(code?: number) {
   if (code === DESKTOP_CLOSE.usageLimit.code) return "exhausted" as const
   if (code === DESKTOP_CLOSE.sessionEnded.code) return "ended" as const
+  if (code === DESKTOP_CLOSE.computersBusy.code) return "busy" as const
   return "dropped" as const
 }
