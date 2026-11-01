@@ -15,7 +15,9 @@ import {
 } from "@/lib/marketing/help"
 import { MISSED_RUN_ERROR } from "@/lib/routine-policy"
 import { supportEmail } from "@/lib/marketing/site"
-import { marketingSeoPages } from "@/lib/marketing/seo-pages"
+import { guidePages, marketingSeoPages } from "@/lib/marketing/seo-pages"
+import { pulsePage, pulsePrompt } from "@/lib/marketing/pulse"
+import { ROUTINE_LIMITS } from "@/lib/routine-policy"
 import { homeJsonLd } from "@/lib/marketing/json-ld"
 import { llmsFullTxt, llmsTxt } from "@/lib/marketing/llms"
 import { robots, robotsTxt } from "@/lib/marketing/robots"
@@ -379,5 +381,26 @@ describe("public pages for search and AI answers", () => {
         Record<string, unknown> | undefined
       assert.equal(spec?.unitCode, undefined)
     }
+  })
+
+  it("publishes Krafty Pulse with plan facts from billing policy", () => {
+    const url = "https://kraftybot.app/pulse"
+    assert.ok(sitemap().some((entry) => entry.url === url))
+    assert.ok(llmsTxt().includes(url))
+    const markdown = markdownForPath("/pulse") ?? ""
+    assert.ok(markdown.startsWith(`# ${pulsePage.h1}`))
+    assert.ok(markdown.includes(pulsePrompt))
+    // Listed under Product in the footers, not with the guides
+    assert.ok(!guidePages.some((page) => page.path === "/pulse"))
+    const plans = pulsePage.sections.find((entry) => entry.id === "plans")
+    assert.ok(
+      plans?.body?.includes(
+        `${planLimits.free.apps} connected app and ${ROUTINE_LIMITS.free} routine`
+      )
+    )
+    // The prompt it opens with is read-only
+    assert.match(pulsePrompt, /Don't change the sheet or send anything\.$/)
+    // There's no project dashboard, and the page says so
+    assert.match(JSON.stringify(pulsePage), /no separate project dashboard/)
   })
 })

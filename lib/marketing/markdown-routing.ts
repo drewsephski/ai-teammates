@@ -43,6 +43,7 @@ export const appSegments: ReadonlySet<string> = new Set([
   "pricing",
   "pricing.md",
   "privacy",
+  "pulse",
   "robots.txt",
   "sign-in",
   "sign-up",

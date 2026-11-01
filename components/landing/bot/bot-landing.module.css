@@ -457,6 +457,13 @@
   }
 }
 
+/* The hero under the Krafty Pulse banner, which already clears the fixed
+   navigation (pulse.module.css). After the media queries so it wins at every
+   width. */
+.heroAfterBanner {
+  padding-top: 72px;
+}
+
 /* Keep the reference page’s native dark scrollbar isolated to the landing route. */
 :global(html):has(.landing) {
   color-scheme: dark;

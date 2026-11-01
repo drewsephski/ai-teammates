@@ -49,7 +49,7 @@ export const brandLocation = {
  * Bump when the public marketing pages change meaningfully so the sitemap's
  * lastmod stays honest.
  */
-export const marketingUpdated = "2026-10-30"
+export const marketingUpdated = "2026-11-01"
 
 /**
  * Where a "Create this Bot" link on a public page goes. The workspace opens a
