@@ -1,4 +1,5 @@
 import { useCases } from "@/app/use-cases/use-cases-data"
+import { fantasyFootballPresetId } from "@/lib/fantasy-football"
 import { botPresets, workflowExecutionInstructions } from "@/lib/bot-presets"
 import { emailAssistantPage } from "@/lib/marketing/email-assistant"
 import { pulseTemplate, pulseTemplateId } from "@/lib/marketing/pulse"
@@ -118,6 +119,9 @@ export function findStartingRole(id: string): StartingRole | undefined {
       name: preset.name,
       job: preset.job,
       instructions: preset.instructions,
+      // Fantasy Coach opens by proposing its setup (sign in, find the team,
+      // review the lineup) instead of three general use cases
+      ...(preset.id === fantasyFootballPresetId && { brief: preset.prompt }),
     }
   const template = findBotTemplate(id)
   if (template)

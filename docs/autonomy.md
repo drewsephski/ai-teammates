@@ -103,10 +103,10 @@ Computers are created from the `krafty-desktop` E2B template (`COMPUTER_TEMPLATE
   - `/home/user` is `700`, root's and `user`'s passwords are locked, and `/usr/local` is no longer writable by everyone.
   - These steps run at first use, not in the template, because E2B's own config step runs after the template's steps and resets them.
   - `scripts/verify-screen-reader.ts` checks each of these from the shell user on a real computer.
-- **Older computers.** A computer made before the template has no `worker`. Its shell runs as `user`, as before, until the person resets their computer.
+- **Older computers.** A computer made from E2B's stock `desktop` template (before `krafty-desktop`) has no `worker` and no accessibility wrapper, so `readScreen` can't read its browser. `ensureAccountComputer` replaces it on its next use (`replaceLegacyComputer`, `lib/account-computer.ts`): the provider reports the template name, the new computer is registered before the old one is deleted, and a computer another turn still holds is left for that turn to replace. Files and sign-ins on the old computer are lost.
 - **readScreen.** It reads the focused window through the desktop's accessibility bus (AT-SPI). The walker runs as `user`, sent inline with the command. Firefox starts with `GNOME_ACCESSIBILITY=1` (a wrapper from the template). Text inside a web page is read whole; a control scrolled out of view is listed without a ref.
 - **clickElement and fillElement.** They turn a ref into the element's position on screen and run the same checked gestures as `mouseClick` and `keyboardType`. The element's role and name are page content and never decide whether a step runs.
-- **openOnScreen.** It opens an http or https address with `x-www-browser` as `user`, unchecked, like typing an address and pressing Enter.
+- **openOnScreen.** It opens an http or https address with `x-www-browser` as `user`, unchecked, like typing an address and pressing Enter. It then waits for the document to load (`lib/browser-page.ts`): a browser process with no window after 12 seconds is killed and relaunched once, and the page is returned read through the screen reader, so the agent doesn't sleep or screenshot a loading page. `takeScreenshot` retries a blank (all-black) capture and marks it blank.
 
 ### ESPN start/sit permission
 
@@ -169,6 +169,5 @@ Not enforced, only reduced:
 ## Not built yet
 
 - Event triggers beyond the six in `ROUTINE_EVENTS` (GitHub, webhooks of the person's own), and an event option in the web and app routine forms (event routines are made in chat today).
-- Moving computers made before the `krafty-desktop` template to it without a reset.
 - Undo for app writes.
 - Approval from a lock-screen action without opening the app (today the action opens the app, which calls the API with the session).

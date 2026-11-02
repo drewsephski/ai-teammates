@@ -32,7 +32,8 @@ export function FantasyFootballModeDialog({
           </DialogTitle>
           <DialogDescription>
             Review every lineup change yourself or let your bot handle start/sit
-            moves. Trades, waivers, adds and drops always need approval. You can
+            moves. Trades, waivers, adds and drops always need approval. Next,
+            you sign in to ESPN from chat and your bot finds your team. You can
             change your mode in bot settings.
           </DialogDescription>
         </DialogHeader>

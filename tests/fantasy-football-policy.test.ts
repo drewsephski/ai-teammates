@@ -4,6 +4,9 @@ import type { Sandbox } from "@e2b/desktop"
 import {
   autonomousLineupAllowed,
   canonicalEspnTeamUrl,
+  defaultEspnSeason,
+  describeEspnTeam,
+  espnTeamScope,
 } from "../lib/fantasy-football-policy"
 import {
   createComputerGate,
@@ -27,23 +30,55 @@ const verdict = (patch: Partial<GuardOutput> = {}) =>
     ...patch,
   })
 
-test("team scopes accept ESPN team and clubhouse links and reject ambiguous or unsafe links", () => {
-  assert.equal(
-    canonicalEspnTeamUrl(teamUrl.replace("/team?", "/clubhouse?")),
-    teamUrl
-  )
+test("team scopes accept any ESPN football page with the league and team, and reject ambiguous or unsafe links", () => {
+  const during = new Date("2026-11-02T20:00:00Z")
+  for (const variant of [
+    teamUrl.replace("/team?", "/clubhouse?"),
+    // Any football page the person copied the address of
+    teamUrl.replace("/team?", "/league?"),
+    teamUrl.replace("/team?", "/team/schedule?"),
+    // The season is the current one when the link leaves it out
+    teamUrl.replace("&seasonId=2026", ""),
+    // Parameter order and extra parameters don't matter
+    "https://fantasy.espn.com/football/team?teamId=2&leagueId=123456&view=roster",
+  ])
+    assert.equal(canonicalEspnTeamUrl(variant, during), teamUrl, variant)
+  assert.deepEqual(espnTeamScope(teamUrl), {
+    leagueId: "123456",
+    teamId: "2",
+    seasonId: "2026",
+  })
   for (const invalid of [
     "",
     "https://evil.test/",
     teamUrl.replace("https:", "http:"),
     teamUrl.replace("espn.com", "espn.com.evil.test"),
     teamUrl + "&teamId=4",
+    teamUrl + "&seasonId=2025",
     teamUrl.replace("teamId=2&", ""),
+    teamUrl.replace("leagueId=123456&", ""),
     teamUrl.replace("2026", "1900"),
-    teamUrl.replace("/team?", "/league?"),
+    teamUrl.replace("/football/", "/basketball/"),
     teamUrl.replace("https://", "https://user:pass@"),
+    "https://fantasy.espn.com/football/",
   ])
-    assert.equal(canonicalEspnTeamUrl(invalid), null, invalid)
+    assert.equal(canonicalEspnTeamUrl(invalid, during), null, invalid)
+})
+
+test("the default season is the year it started, through the following February", () => {
+  assert.equal(defaultEspnSeason(new Date("2026-09-10T00:00:00Z")), "2026")
+  assert.equal(defaultEspnSeason(new Date("2027-01-15T00:00:00Z")), "2026")
+  assert.equal(defaultEspnSeason(new Date("2027-02-28T00:00:00Z")), "2026")
+  assert.equal(defaultEspnSeason(new Date("2027-03-01T00:00:00Z")), "2027")
+})
+
+test("a saved team reads as its name and the IDs the permission is bound to", () => {
+  assert.equal(
+    describeEspnTeam(teamUrl, "Dynasty Dogs"),
+    "Dynasty Dogs (League 123456, Team 2, 2026 season)"
+  )
+  assert.equal(describeEspnTeam(teamUrl), "League 123456, Team 2, 2026 season")
+  assert.equal(describeEspnTeam("https://evil.test/", "x"), null)
 })
 
 test("only enabled autonomous start/sit moves for the exact league, team and season qualify", () => {

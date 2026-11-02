@@ -79,6 +79,9 @@ export const fantasyFootballSettings = pgTable("fantasy_football_settings", {
     .notNull()
     .default("manual"),
   teamUrl: text().notNull().default(""),
+  // The team's name as the bot read it on the page, a label only; the
+  // permission is bound to the IDs in teamUrl
+  teamName: text().notNull().default(""),
   timezone: text().notNull().default("UTC"),
   checkTime: text().notNull().default("09:00"),
   enabled: boolean().notNull().default(false),
@@ -95,7 +98,7 @@ export const fantasyFootballSettingsSchema = createInsertSchema(
       .max(500)
       .refine(
         (value) => value === "" || canonicalEspnTeamUrl(value) !== null,
-        "Paste your ESPN football team link, including leagueId, teamId and seasonId."
+        "Paste the link of your team page on fantasy.espn.com. It includes leagueId and teamId."
       ),
     timezone: timeZoneSchema,
     checkTime: z
@@ -103,7 +106,13 @@ export const fantasyFootballSettingsSchema = createInsertSchema(
       .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, "Use a time like 09:00."),
   }
 )
-  .omit({ botId: true, userId: true, routineId: true, updatedAt: true })
+  .omit({
+    botId: true,
+    userId: true,
+    teamName: true,
+    routineId: true,
+    updatedAt: true,
+  })
   .required()
   .superRefine((value, ctx) => {
     if (value.enabled && !value.teamUrl)

@@ -103,6 +103,7 @@ import {
   type ComputerApprovalStore,
 } from "@/lib/computer-approval-tools"
 import { checkComputerGesture } from "@/lib/computer-guard"
+import type { Sandbox } from "@e2b/desktop"
 import { withComputer } from "@/lib/e2b"
 import {
   computerTimeUsedUpMessage,
@@ -124,7 +125,9 @@ import {
   authorizeFantasyLineup,
   fantasySettingsInstructions,
   readFantasySettings,
+  saveDetectedTeam,
 } from "@/lib/fantasy-football-store"
+import { createFantasyFootballTools } from "@/lib/fantasy-football-tools"
 import { assertComputerLoginReady } from "@/lib/computer-login-policy"
 import { chatPreview } from "@/lib/chat-preview"
 import {
@@ -482,7 +485,9 @@ export const chatAgent = chat
         // A turn reports the computer as busy only if its last try was
         turnModelUsage.computerBusy = undefined
         // A reset changes the ID while this durable turn/session may survive.
-        return ensureAccountComputer(userId)
+        return ensureAccountComputer(userId, undefined, {
+          runKey: turnModelUsage.usageKey,
+        })
       }
       // Committing computer steps wait for the owner (lib/computer-approval-tools.ts)
       const computerApprovals: ComputerApprovalStore = {
@@ -520,18 +525,22 @@ export const chatAgent = chat
           ),
         complete: completeComputerApproval,
       }
+      // The browser's current document URL, from the desktop's accessibility
+      // tree: server-owned evidence of where the browser really is
+      const readBrowserUrl = async (sandbox: Sandbox) => {
+        const screen = await sandbox.getScreenSize()
+        const result = await sandbox.commands.run(screenReaderCommand(screen), {
+          timeoutMs: READ_TIMEOUT_MS,
+        })
+        const read = parseScreenRead(result.stdout)
+        return "error" in read ? null : read.url
+      }
       const computerGate = createComputerGate({
         store: computerApprovals,
         authorizeLineup: (verdict, sandbox) =>
-          authorizeFantasyLineup(userId, current.id, verdict, async () => {
-            const screen = await sandbox.getScreenSize()
-            const result = await sandbox.commands.run(
-              screenReaderCommand(screen),
-              { timeoutMs: READ_TIMEOUT_MS }
-            )
-            const read = parseScreenRead(result.stdout)
-            return "error" in read ? null : read.url
-          }),
+          authorizeFantasyLineup(userId, current.id, verdict, () =>
+            readBrowserUrl(sandbox)
+          ),
         takeScreenshot,
         windowTitle: async (sandbox) =>
           (
@@ -597,6 +606,19 @@ export const chatAgent = chat
       const secretTools = createSecretTools({
         hasSecret: (name) => hasUserSecret(userId, name),
       })
+      // Fantasy Coach saves the team the browser is on; other bots have no
+      // lineup settings and no such tool
+      const fantasyTools = (await readFantasySettings(userId, bot.id))
+        ? createFantasyFootballTools({
+            readPageUrl: async () => {
+              const computer = await getComputerId()
+              if (typeof computer !== "string") return null
+              return withComputer(computer, readBrowserUrl).catch(() => null)
+            },
+            saveTeam: (pageUrl, teamName) =>
+              saveDetectedTeam(userId, current.id, pageUrl, teamName),
+          })
+        : {}
 
       const teamTools = createDelegationTools({
         userId,
@@ -774,6 +796,7 @@ export const chatAgent = chat
         ...sandboxTools,
         ...computerApprovalTools,
         ...secretTools,
+        ...fantasyTools,
       }
       const sharedTools = {
         ...computerTools,

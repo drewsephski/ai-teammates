@@ -6,18 +6,24 @@ import { z } from "zod"
 
 import { computerShell, withComputer, runSandboxCommand } from "@/lib/e2b"
 import { isComputerBusy, type ComputerBusy } from "@/lib/computer-lease-policy"
-import { shellPath, shellQuote } from "@/lib/computer-shell"
+import { shellPath } from "@/lib/computer-shell"
 import {
   buildScreenSnapshot,
+  isBlankScreenshot,
   openUrlSchema,
-  parseScreenRead,
-  READ_TIMEOUT_MS,
+  SCREEN_NO_WINDOW,
   SCREEN_UNREADABLE,
-  screenReaderCommand,
   visibleCenter,
   type ScreenElement,
+  type ScreenRead,
   type ScreenSnapshot,
 } from "@/lib/screen-reader"
+import {
+  openBrowserPage,
+  PAGE_WAIT_MS,
+  readScreenPatiently,
+  type PageExec,
+} from "@/lib/browser-page"
 import {
   gestureNeedsCheck,
   protectedPath,
@@ -96,19 +102,31 @@ async function clickAt(
   }
 }
 
+// A desktop that just resumed can be black for a few seconds while it
+// repaints, so a blank screenshot is taken again before it's believed
+const BLANK_RETRIES = 3
+const BLANK_RETRY_MS = 2000
+
 export async function takeScreenshot(sandbox: Sandbox) {
-  const [shot, screen] = await Promise.all([
-    sandbox.screenshot(),
-    sandbox.getScreenSize(),
-  ])
-  if (!shot.byteLength) throw new Error("The screenshot came back empty")
-  return {
-    base64: Buffer.from(shot).toString("base64"),
-    mediaType: "image/png",
-    width: screen.width,
-    height: screen.height,
+  const screen = await sandbox.getScreenSize()
+  for (let attempt = 0; ; attempt++) {
+    const shot = await sandbox.screenshot()
+    if (!shot.byteLength) throw new Error("The screenshot came back empty")
+    const blank = isBlankScreenshot(shot.byteLength, screen)
+    if (!blank || attempt >= BLANK_RETRIES)
+      return {
+        base64: Buffer.from(shot).toString("base64"),
+        mediaType: "image/png",
+        width: screen.width,
+        height: screen.height,
+        blank,
+      }
+    await sleep(BLANK_RETRY_MS)
   }
 }
+
+export const BLANK_SCREEN_NOTE =
+  "The screen is blank (one flat colour): the desktop is still starting or the browser is unresponsive. Call openOnScreen for the page you need; it waits for the page and restarts the browser if it's stuck. Don't take screenshots in a loop."
 
 type Screenshot = Awaited<ReturnType<typeof takeScreenshot>>
 // The model gets the picture itself rather than its base64 as text
@@ -123,7 +141,7 @@ function screenshotToModelOutput({ output }: { output: Screenshot }) {
     value: [
       {
         type: "text" as const,
-        text: `Screenshot of the ${output.width}x${output.height} screen. Coordinates are in pixels from the top left.`,
+        text: `Screenshot of the ${output.width}x${output.height} screen. Coordinates are in pixels from the top left.${output.blank ? ` ${BLANK_SCREEN_NOTE}` : ""}`,
       },
       {
         type: "file" as const,
@@ -131,6 +149,30 @@ function screenshotToModelOutput({ output }: { output: Screenshot }) {
         data: { type: "data" as const, data: output.base64 },
       },
     ],
+  }
+}
+
+// Runs the browser and the screen reader on the computer as the desktop's
+// user, the way the page module expects
+function pageExec(sandbox: Sandbox): PageExec {
+  return async (command, options = {}) => {
+    if (options.background) {
+      const handle = await sandbox.commands.run(command, {
+        background: true,
+        envs: options.envs,
+      })
+      await handle.disconnect()
+      return { stdout: "", exitCode: 0 }
+    }
+    const result = await runSandboxCommand(
+      sandbox,
+      command,
+      undefined,
+      options.timeoutMs ?? 20_000,
+      undefined,
+      options.envs
+    )
+    return { stdout: result.stdout, exitCode: result.exitCode }
   }
 }
 
@@ -173,6 +215,42 @@ export function createSandboxTools(
         `${id} isn't on the screen. Scroll to it, then call readScreen again.`
       )
     return { ...found, ...center }
+  }
+
+  // Turns a walker result into what the model reads, and keeps the refs
+  async function finishReading(
+    read: ScreenRead | undefined,
+    screen: { width: number; height: number }
+  ) {
+    if (!read || "error" in read) {
+      reading = undefined
+      return {
+        status: "unreadable" as const,
+        message:
+          read?.error === "no-window" ? SCREEN_NO_WINDOW : SCREEN_UNREADABLE,
+      }
+    }
+    const snapshot = buildScreenSnapshot(read, screen)
+    // Nothing to act on: a window without an accessibility tree
+    if (!snapshot.count && !read.elements.length) {
+      reading = undefined
+      return {
+        status: "unreadable" as const,
+        message: read.busy
+          ? `${SCREEN_UNREADABLE} The page is still loading: call readScreen again in a moment.`
+          : SCREEN_UNREADABLE,
+      }
+    }
+    reading = snapshot
+    options.onScreenViewed?.()
+    return {
+      status: "read" as const,
+      app: read.app,
+      window: read.window,
+      url: read.url,
+      elements: snapshot.count,
+      text: modelText(snapshot.text, await secretEnv()),
+    }
   }
 
   // When each call still in flight may end. A step's tool calls run in
@@ -517,41 +595,19 @@ export function createSandboxTools(
         "Read the focused window on the computer's desktop as text: its controls, links, fields and text, with a ref such as e4 on each control you can pass to clickElement or fillElement. It is cheaper and more precise than viewScreen for finding what to click or type into, so try it first; use viewScreen when you need to see images, layout or anything it leaves out, or when it says the window can't be read. Refs belong to the latest reading only.",
       inputSchema: z.object({}),
       execute: async () =>
-        runInSandbox(async (sandbox) => {
-          const screen = await sandbox.getScreenSize()
-          const response = await runSandboxCommand(
-            sandbox,
-            screenReaderCommand(screen),
-            undefined,
-            READ_TIMEOUT_MS
-          )
-          let read
-          try {
-            read = parseScreenRead(response.stdout)
-          } catch {
-            read = undefined
-          }
-          if (!read || "error" in read) {
-            reading = undefined
-            return { status: "unreadable" as const, message: SCREEN_UNREADABLE }
-          }
-          const snapshot = buildScreenSnapshot(read, screen)
-          // Nothing to act on: a window without an accessibility tree
-          if (!snapshot.count && !read.elements.length) {
-            reading = undefined
-            return { status: "unreadable" as const, message: SCREEN_UNREADABLE }
-          }
-          reading = snapshot
-          options.onScreenViewed?.()
-          return {
-            status: "read" as const,
-            app: read.app,
-            window: read.window,
-            url: read.url,
-            elements: snapshot.count,
-            text: modelText(snapshot.text, await secretEnv()),
-          }
-        }),
+        runInSandbox(
+          async (sandbox) => {
+            const screen = await sandbox.getScreenSize()
+            // A page that just opened gets a moment to finish loading
+            const read = await readScreenPatiently({
+              exec: pageExec(sandbox),
+              screen,
+            })
+            return finishReading(read, screen)
+          },
+          undefined,
+          30_000
+        ),
     }),
 
     clickElement: tool({
@@ -637,25 +693,45 @@ export function createSandboxTools(
 
     openOnScreen: tool({
       description:
-        "Open a web page in the browser on the computer's desktop, in a new tab when the browser is already open. Use this to go to a website instead of opening it from bash. Then call readScreen or viewScreen to see it.",
+        "Open a web page in the browser on the computer's desktop, in a new tab when the browser is already open, and wait for it to load. Use this to go to a website instead of opening it from bash, and instead of sleeping or taking screenshots while a page loads. It returns the loaded page read as text, like readScreen, with refs you can pass to clickElement or fillElement right away. If the browser is unresponsive it restarts it.",
       inputSchema: z.object({
         url: openUrlSchema.describe(
-          "The full http or https address, such as https://www.espn.com/fantasy/"
+          "The full http or https address, such as https://www.espn.com/fantasy/football/"
         ),
       }),
       execute: async ({ url }) =>
-        runInSandbox(async (sandbox) => {
-          // The desktop's browser, as its own user, with its accessibility
-          // tree on so readScreen can read the page
-          const handle = await sandbox.commands.run(
-            `x-www-browser ${shellQuote(url)} >/dev/null 2>&1`,
-            { background: true, envs: { GNOME_ACCESSIBILITY: "1" } }
-          )
-          await handle.disconnect()
-          // A moment for the page to load before the bot reads it
-          await sleep(2500)
-          return { url }
-        }),
+        runInSandbox(
+          async (sandbox) => {
+            const screen = await sandbox.getScreenSize()
+            const opened = await openBrowserPage(
+              { exec: pageExec(sandbox), screen },
+              url
+            )
+            const page = opened.read
+              ? await finishReading(opened.read, screen)
+              : undefined
+            if (page?.status === "read" && opened.status !== "opening")
+              return {
+                url,
+                status: opened.status,
+                restarted: opened.restarted,
+                app: page.app,
+                window: page.window,
+                pageUrl: page.url,
+                elements: page.elements,
+                text: page.text,
+              }
+            return {
+              url,
+              status: "opening" as const,
+              restarted: opened.restarted,
+              message: `The browser hasn't shown ${url} yet${opened.restarted ? ", even after restarting it" : ""}. Wait a few seconds, then call readScreen; if there's still no page, call viewScreen to see what the desktop shows.`,
+            }
+          },
+          undefined,
+          // Two waits, in case the browser is restarted, plus the reading
+          2 * PAGE_WAIT_MS + 30_000
+        ),
     }),
 
     viewScreen: tool({
@@ -714,6 +790,7 @@ export type ChatUIMessage = UIMessage<
       import("@/lib/social-tools").SocialTools &
       import("@/lib/routine-tools").RoutineTools &
       import("@/lib/computer-approval-tools").ComputerApprovalTools &
-      import("@/lib/secret-tools").SecretTools
+      import("@/lib/secret-tools").SecretTools &
+      import("@/lib/fantasy-football-tools").FantasyFootballTools
   >
 >

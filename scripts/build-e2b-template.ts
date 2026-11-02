@@ -36,6 +36,17 @@ const firefoxPrefs = `cat >> /usr/lib/firefox-esr/firefox.cfg <<'EOF'
 pref("browser.download.dir", "${SHELL_HOME}/Downloads");
 pref("browser.download.folderList", 2);
 pref("browser.download.useDownloadDir", true);
+// Krafty: no first-run tabs, welcome screens or "restore session" page, so a
+// bot's first page is the page it opened, and a restarted browser comes back
+// to the page asked for instead of a prompt
+pref("browser.aboutwelcome.enabled", false);
+pref("browser.startup.homepage_override.mstone", "ignore");
+pref("datareporting.policy.firstRunURL", "");
+pref("browser.sessionstore.resume_from_crash", false);
+pref("browser.startup.page", 0);
+pref("browser.shell.checkDefaultBrowser", false);
+// Krafty: the desktop has no speech synthesis; hide the bar that says so
+pref("media.webspeech.synth.enabled", false);
 EOF`
 
 const template = client

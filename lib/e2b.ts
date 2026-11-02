@@ -26,6 +26,8 @@ import {
   runningSeconds,
 } from "@/lib/sandbox-policy"
 import { createSandboxLifecycle } from "@/lib/sandbox-lifecycle"
+import { openBrowserPage } from "@/lib/browser-page"
+import { shellQuote } from "@/lib/computer-shell"
 import { withSandboxLock, tryWithSandboxLock } from "@/lib/sandbox-lock"
 import { getUsage } from "@/lib/usage"
 
@@ -222,6 +224,62 @@ class AccountDesktop extends Sandbox {
   }
 }
 
+// The browser's first start makes its profile and takes a while. Started once
+// here, before the new computer pauses, it's up and ready, with its profile
+// on disk, when a bot opens its first page. A failure here is reported, not
+// fatal: the bot's own open waits for the browser too.
+async function warmBrowser(sandbox: Sandbox) {
+  try {
+    const screen = await sandbox.getScreenSize()
+    const opened = await openBrowserPage(
+      {
+        screen,
+        exec: async (command, options = {}) => {
+          if (options.background) {
+            const handle = await sandbox.commands.run(command, {
+              background: true,
+              envs: options.envs,
+            })
+            await handle.disconnect()
+            return { stdout: "", exitCode: 0 }
+          }
+          const result = await runSandboxCommand(
+            sandbox,
+            command,
+            undefined,
+            options.timeoutMs ?? 20_000
+          )
+          return { stdout: result.stdout, exitCode: result.exitCode }
+        },
+      },
+      "about:blank",
+      { waitMs: 30_000 }
+    )
+    if (opened.status === "opening")
+      Sentry.captureMessage("The browser didn't start on a new computer", {
+        level: "warning",
+        extra: { sandboxId: sandbox.sandboxId, ms: opened.ms },
+      })
+  } catch (error) {
+    reportMaintenance(error, sandbox.sandboxId)
+  }
+}
+
+// E2B's stock desktop template, which computers were made from before
+// krafty-desktop existed: no shell user, no screen reader, a browser without
+// its accessibility tree. Such a computer is replaced on its next use
+// (lib/account-computer.ts).
+export const LEGACY_TEMPLATE_NAME = "desktop"
+export function isLegacyTemplate(name: string | null | undefined) {
+  return name === LEGACY_TEMPLATE_NAME
+}
+
+// The name of the template a computer was made from, as the provider reports it
+export async function sandboxTemplateName(id: string) {
+  const info = await mapped(() => Sandbox.getInfo(id, providerOptions))
+  return info.name ?? null
+}
+
 export async function createAccountSandbox(userId: string) {
   const creationId = randomUUID()
   let sandbox: Sandbox | undefined
@@ -236,6 +294,7 @@ export async function createAccountSandbox(userId: string) {
     })
     // A computer whose shell could reach its desktop is never handed out
     await computerShell(sandbox)
+    await warmBrowser(sandbox)
     // Creating a computer should not keep an unused one running.
     await sandbox.pause()
     return sandbox.sandboxId
@@ -363,7 +422,9 @@ export async function runSandboxCommand(
   // saved API keys (lib/user-secrets.ts)
   envs?: Record<string, string>,
   // Who runs it: the shell user from computerShell for bots' commands
-  user?: string
+  user?: string,
+  // The folder was just made for this command: don't try again
+  made = false
 ) {
   try {
     if (!signal)
@@ -387,6 +448,40 @@ export async function runSandboxCommand(
   } catch (error) {
     // E2B throws on nonzero exit; the agent needs its output to recover.
     if (error instanceof CommandExitError) return error
+    // A folder that doesn't exist yet (a bot's ~/workspace/<project>/ on its
+    // first use) is made where the user may make it, and the command runs
+    // there; elsewhere the bot reads why instead of a generic failure.
+    if (isMissingCwd(error) && !made) {
+      const created = await sandbox.commands
+        .run(`mkdir -p ${shellQuote(cwd)}`, { user, timeoutMs: 10_000 })
+        .then(() => true)
+        .catch(() => false)
+      if (created)
+        return runSandboxCommand(
+          sandbox,
+          command,
+          cwd,
+          timeoutMs,
+          signal,
+          envs,
+          user,
+          true
+        )
+      return {
+        exitCode: 1,
+        stdout: "",
+        stderr: `The folder ${cwd} doesn't exist and couldn't be created. Use a folder under your home directory, or leave cwd out.`,
+      }
+    }
     throw error
   }
+}
+
+function isMissingCwd(error: unknown) {
+  return (
+    error instanceof Error &&
+    (error.name === "InvalidArgumentError" ||
+      /invalid_argument/.test(error.message)) &&
+    /cwd .* does not exist/.test(error.message)
+  )
 }

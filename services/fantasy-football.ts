@@ -9,6 +9,7 @@ import {
 import { readFantasySettings } from "@/lib/fantasy-football-store"
 import {
   canonicalEspnTeamUrl,
+  describeEspnTeam,
   fantasyRoutinePrompt,
   type FantasyMode,
 } from "@/lib/fantasy-football-policy"
@@ -43,6 +44,10 @@ export async function getFantasySettings(userId: string, botId: string) {
     botId: row.botId,
     mode: row.mode,
     teamUrl: row.teamUrl,
+    // The team as the bot saw it, when it saved the team from the browser.
+    // Older app builds ignore these two fields.
+    teamName: row.teamName,
+    team: row.teamUrl ? describeEspnTeam(row.teamUrl, row.teamName) : null,
     timezone: row.timezone,
     checkTime: row.checkTime,
     enabled: row.enabled,
@@ -80,6 +85,8 @@ export async function saveFantasySettings(
   const teamUrl = values.teamUrl ? canonicalEspnTeamUrl(values.teamUrl)! : ""
   return withSandboxLock(`fantasy:${botId}`, async () => {
     const current = await readFantasySettings(userId, botId)
+    // The name the bot read belongs to the team it read it from
+    const teamName = current?.teamUrl === teamUrl ? current.teamName : ""
     // Revocation must succeed even if a missing/changed routine cannot be
     // recreated (for example the account has reached its routine limit).
     if (
@@ -130,10 +137,16 @@ export async function saveFantasySettings(
     } else routineId = null
     await db
       .insert(fantasyFootballSettings)
-      .values({ userId, botId, ...values, teamUrl, routineId })
+      .values({ userId, botId, ...values, teamUrl, teamName, routineId })
       .onConflictDoUpdate({
         target: fantasyFootballSettings.botId,
-        set: { ...values, teamUrl, routineId, updatedAt: new Date() },
+        set: {
+          ...values,
+          teamUrl,
+          teamName,
+          routineId,
+          updatedAt: new Date(),
+        },
       })
     return getFantasySettings(userId, botId)
   })

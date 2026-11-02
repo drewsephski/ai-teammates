@@ -65,6 +65,7 @@ before(async () => {
       "user_dead",
       "user_dead_paid",
       "user_live_turn",
+      "user_legacy",
     ].map((userId) => ({
       id: `bot_${userId}`,
       userId,
@@ -250,6 +251,63 @@ test("ensureAccountComputer creates once and reuses the computer", async () => {
       .then((rows) => rows.filter((row) => row.userId === user)),
     [{ sandboxId: ids[0], userId: user }]
   )
+})
+
+test("a computer from the stock template is replaced on its next use, unless another turn holds it", async () => {
+  const { provider, calls } = fakeProvider()
+  const user = "user_legacy"
+  const templates = new Map<string, string>()
+  const aware = {
+    ...provider,
+    create: async (userId: string) => {
+      const id = await provider.create(userId)
+      templates.set(id, "krafty-desktop")
+      return id
+    },
+    template: async (id: string) => {
+      calls.push(`template:${id}`)
+      return templates.get(id) ?? null
+    },
+  }
+  const old = await computer.ensureAccountComputer(user, aware)
+  templates.set(old, "desktop")
+  // Another turn is on it: left alone for now
+  assert.deepEqual(
+    await computer.acquireComputerLease(
+      user,
+      turn(1, "bot_user_legacy", "chat_a1"),
+      {
+        sleep: noSleep,
+      }
+    ),
+    { ok: true }
+  )
+  assert.equal(await computer.ensureAccountComputer(user, aware), old)
+  assert.equal(
+    await computer.ensureAccountComputer(user, aware, { runKey: "ai:run_9:1" }),
+    old
+  )
+  // The turn holding it gets the replacement
+  const replaced = await computer.ensureAccountComputer(user, aware, {
+    runKey: turn(1).runKey,
+  })
+  assert.notEqual(replaced, old)
+  assert.equal(await computer.accountComputerId(user), replaced)
+  assert.ok(calls.includes(`remove:${old}`))
+  // Only once: the new computer is from the template
+  assert.equal(await computer.ensureAccountComputer(user, aware), replaced)
+  assert.equal(calls.filter((call) => call.startsWith("create")).length, 2)
+  // A provider that can't say keeps the computer
+  assert.equal(
+    await computer.ensureAccountComputer(user, {
+      ...aware,
+      template: async () => {
+        throw new Error("down")
+      },
+    }),
+    replaced
+  )
+  await computer.releaseComputerLease(user, turn(1).runKey)
 })
 
 test("reset replaces a missing computer, concurrent resets adopt one replacement", async () => {

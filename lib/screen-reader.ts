@@ -105,12 +105,13 @@ def window():
 out = []
 visited = 0
 url = None
+busy = False
 truncated = False
 
 # Inside a web page, what's scrolled out of view is read too, so a bot can
 # read a whole article; elsewhere what isn't showing is skipped
 def walk(acc, depth, in_page=False):
-    global visited, url
+    global visited, url, busy
     if visited >= MAX_VISITED or len(out) >= MAX_ELEMENTS or time.monotonic() > DEADLINE:
         raise Stop()
     visited += 1
@@ -124,6 +125,8 @@ def walk(acc, depth, in_page=False):
     if depth > 0 and not in_page and not states.contains(S.SHOWING):
         return
     if role == "document web" and url is None and "Document" in interfaces:
+        # Still loading: the page's text and controls aren't all there yet
+        busy = states.contains(S.BUSY)
         try:
             url = Atspi.Document.get_document_attribute_value(acc, "DocURL")
         except Exception:
@@ -183,6 +186,7 @@ print(json.dumps({
     "app": clean(app.get_name(), MAX_NAME),
     "window": clean(win.get_name(), MAX_NAME),
     "url": url,
+    "busy": busy,
     "elements": out,
     "truncated": truncated,
 }))
@@ -232,6 +236,8 @@ export const screenReadSchema = z.union([
     app: z.string().default(""),
     window: z.string().default(""),
     url: z.string().max(4000).nullable().default(null),
+    // The web page is still loading
+    busy: z.boolean().default(false),
     elements: z.array(rawElementSchema).max(MAX_ELEMENTS + 10),
     truncated: z.boolean().default(false),
   }),
@@ -258,6 +264,18 @@ export type ScreenSnapshot = {
 
 export const SCREEN_UNREADABLE =
   "This window couldn't be read as text. Use viewScreen to look at it instead."
+// The desktop has no window to read: the browser isn't open, or is starting
+export const SCREEN_NO_WINDOW =
+  "No window is open on the desktop. Use openOnScreen to open a web page, or viewScreen to look at the desktop."
+
+// A screenshot of the whole desktop compresses to far more than this; a
+// uniform (black, still starting) screen compresses to almost nothing
+export function isBlankScreenshot(
+  bytes: number,
+  screen: { width: number; height: number }
+) {
+  return bytes < (screen.width * screen.height) / 64
+}
 
 export function parseScreenRead(stdout: string): ScreenRead {
   const line = stdout.trim().split("\n").pop() ?? ""

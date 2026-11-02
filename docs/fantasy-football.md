@@ -1,17 +1,32 @@
 # ESPN fantasy football
 
 Fantasy Coach (`fantasy-football`) is an optional starting role on web and mobile.
-Creation offers **Manual approval** (the default) and **Automatic**. The owner
-finishes setup in bot settings: paste the ESPN football team URL with `leagueId`,
-`teamId`, and `seasonId`, choose a timezone and daily check time, enable checks,
-then sign in to ESPN on Krafty's cloud computer from chat. Existing accounts can
-add the role from the bot picker. Nothing is created by default.
+Creation offers **Manual approval** (the default) and **Automatic**. Setup then
+happens in chat: the new chat opens with a brief that asks the bot to open ESPN on
+the cloud computer, have the person sign in when ESPN asks, find their team, save
+it, and review this week's lineup. The bot saves the team with `saveEspnTeam`
+(`lib/fantasy-football-tools.ts`), which reads the browser's document URL on the
+server, never a URL the model typed, and stores the canonical team link plus the
+team's name in `fantasy_football_settings`. Existing accounts can add the role
+from the bot picker. Nothing is created by default.
+
+Bot settings show the saved team ("Saved team: Name (League 123, Team 4, 2026
+season)"), the mode, the daily check switch, its time and the timezone. The team
+link field accepts any `fantasy.espn.com/football/...` page URL that carries
+`leagueId` and `teamId`; `seasonId` is optional and defaults to the current
+season (`lib/fantasy-football-policy.ts`). A team the owner saved is never
+replaced from chat: changing teams is done in settings, because the automatic
+permission is bound to that team. Use **Save lineup settings** to apply these
+preferences; they save independently from the bot's identity and appearance.
+Manual lineup changes and every trade use the existing **Approve** / **Decline**
+cards in chat.
 
 On the web, choose **Fantasy football** under **Workspace → Start with a preset**.
-After choosing a mode, the new chat opens with bot settings already visible for
-team and schedule setup. Use **Save lineup settings** to apply these preferences;
-they save independently from the bot's identity and appearance. Manual lineup
-changes and every trade use the existing **Approve** / **Decline** cards in chat.
+The ESPN front page the bot opens is `https://www.espn.com/fantasy/football/`
+(`espnFantasyFootballUrl`); `fantasy.espn.com/football/` itself is a 404.
+`openOnScreen` waits for the page to finish loading and returns it already read,
+restarting a hung browser once, so the first thing the bot sees is the page
+rather than a blank desktop (`lib/browser-page.ts`).
 
 ## Execution and permission
 
@@ -70,16 +85,24 @@ binary for the creation choice and settings controls. Keep all source changes
 uncommitted unless the owner explicitly requests a commit.
 
 Offline tests cover scope parsing, guarded automatic execution, manual holds,
-revocation, owner isolation, settings validation, managed schedule creation and
-updates, pause behavior, deletion, API payloads, and the mobile catalog-to-create
-request. They do not prove ESPN's current website or an actual saved lineup.
+revocation, owner isolation, settings validation, saving the detected team,
+managed schedule creation and updates, pause behavior, deletion, API payloads,
+browser page waiting, and the mobile catalog-to-create request. They do not
+prove ESPN's current website or an actual saved lineup.
+`pnpm exec tsx --env-file=.env.local scripts/verify-espn-browser.ts` creates a
+throwaway computer from the template, opens the ESPN front page and a signed-out
+team page through the real `openOnScreen` path, checks that the screen reader
+sees them, and deletes the computer; it spends a few minutes of Hobby time and
+no model calls.
 
 Live acceptance with an authorized ESPN account:
 
-1. Create Fantasy Coach in each mode and confirm the choice persists. Configure
-   one owned team and the timezone/check time; verify the displayed next run.
-2. Sign in through the existing Desktop sign-in card. Confirm the correct league,
-   team, season and scoring week, including injury, bye and locked-player states.
+1. Create Fantasy Coach in each mode and confirm the choice persists. Let the
+   opening brief run: sign in through the Desktop sign-in card, and confirm the
+   bot saves the right team (the settings show it) with the timezone and check
+   time; verify the displayed next run.
+2. Confirm the correct league, team, season and scoring week, including injury,
+   bye and locked-player states.
 3. In manual mode, request one legal unlocked start/sit move. Decline it first
    and confirm ESPN is unchanged; then explicitly request and approve a move and
    independently check the roster against the bot's read-back.
