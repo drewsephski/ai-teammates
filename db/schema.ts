@@ -179,6 +179,26 @@ export const chatTranscripts = pgTable("chat_transcripts", {
   updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 })
 
+// Uploaded bytes stay encrypted under the chat's existing content key and
+// cascade with it. Session records contain only small attachment references.
+export const chatAttachments = pgTable(
+  "chat_attachments",
+  {
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    chatId: text()
+      .notNull()
+      .references(() => chats.id, { onDelete: "cascade" }),
+    filename: text().notNull(),
+    mediaType: text().notNull(),
+    size: integer().notNull(),
+    sealed: jsonb().$type<unknown[]>().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("chat_attachments_chat_id_idx").on(table.chatId)]
+)
+
 export const chatMembers = pgTable(
   "chat_members",
   {

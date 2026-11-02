@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowUpRightIcon,
@@ -17,6 +17,7 @@ import {
   startForYouItem,
   updateForYouItem,
 } from "@/actions/for-you"
+import { WorkspaceRefresh } from "@/components/workspace-refresh"
 import { ChatAvatar } from "@/components/chat-avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -68,7 +69,9 @@ export function WorkspaceForYou({
   apps,
   hasBots,
   appsUnavailable,
+  live = false,
 }: {
+  live?: boolean
   initial: ForYouState | null
   apps: { slug: string; name: string }[]
   hasBots: boolean
@@ -86,8 +89,21 @@ export function WorkspaceForYou({
   const eligible = apps.length > 0 && hasBots && !appsUnavailable
   const autoScanned = useRef(false)
 
-  // The page refreshes from the server every few seconds; a scan another tab
-  // started shows up here without a second scan.
+  const refreshStored = useCallback(
+    async (signal: AbortSignal) => {
+      if (scanning || busy) return
+      const response = await fetch("/api/workspace/for-you", {
+        cache: "no-store",
+        signal,
+      })
+      if (!response.ok) throw new Error("Suggestions unavailable")
+      const { forYou } = (await response.json()) as { forYou: ForYouState }
+      if (!signal.aborted) setState(forYou)
+    },
+    [scanning, busy]
+  )
+
+  // Accept fresh initial props after a mutation or explicit navigation refresh.
   const [synced, setSynced] = useState(initial)
   if (initial !== synced && !scanning) {
     setSynced(initial)
@@ -251,6 +267,7 @@ export function WorkspaceForYou({
 
   return (
     <section aria-labelledby="workspace-for-you-title" className="space-y-3">
+      {live && <WorkspaceRefresh refresh={refreshStored} />}
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 id="workspace-for-you-title" className="text-sm font-medium">

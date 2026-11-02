@@ -133,3 +133,24 @@ export function findStartingRole(id: string): StartingRole | undefined {
       brief: template.prompt,
     }
 }
+
+// The chat can open before deferred greeting startup finishes. Recover the
+// same brief from the saved profile so either startup path proposes the role
+// the person selected. Edited/custom profiles do not inherit a template brief.
+export function startingBriefForBot(bot: {
+  job: string
+  instructions?: string | null
+}) {
+  if (!bot.instructions) return undefined
+  const preset = botPresets.find(
+    (preset) =>
+      preset.job === bot.job && preset.instructions === bot.instructions
+  )
+  if (preset)
+    return preset.id === fantasyFootballPresetId ? preset.prompt : undefined
+  return botTemplates.find(
+    (template) =>
+      template.job === bot.job &&
+      botTemplateInstructions(template) === bot.instructions
+  )?.prompt
+}

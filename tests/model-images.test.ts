@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { currentTurn, withoutEarlierImages } from "../lib/model"
+import { chatModel, currentTurn, withoutEarlierImages } from "../lib/model"
 
 const image = {
   type: "image-data" as const,
@@ -58,4 +58,22 @@ test("only the current turn's images reach the model", () => {
     ]),
     [{ role: "user" }, { role: "tool" }]
   )
+})
+
+test("PDF attachments and follow-up questions use a document-capable gateway model", () => {
+  const document = {
+    type: "file" as const,
+    mediaType: "application/pdf",
+    data: { type: "data" as const, data: "JVBERi0xLjc=" },
+  }
+  const messages = [
+    { role: "user" as const, content: [document] },
+    { role: "assistant" as const, content: "Here is the summary." },
+    { role: "user" as const, content: "What does the second page say?" },
+  ]
+  assert.equal(
+    chatModel(messages, { anthropic: false }).modelId,
+    "gpt-5-6-luna"
+  )
+  assert.deepEqual(withoutEarlierImages(messages)[0].content, [document])
 })

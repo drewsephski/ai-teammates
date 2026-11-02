@@ -78,6 +78,7 @@ export function apiErrorResponse(error: unknown): {
   if (!(error instanceof Error))
     return fail(500, "internal", "Something went wrong")
   const message = error.message
+  if (message === "Attachment not found") return fail(404, "not_found", message)
   if (message === "Unauthorized") return fail(401, "unauthorized", message)
   if (
     message === "Upgrade required" ||

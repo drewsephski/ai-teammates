@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { auth } from "@clerk/nextjs/server"
 
 import { AppPageHeader } from "@/components/app-page-header"
@@ -7,7 +8,7 @@ import { findBotTemplate } from "@/lib/bot-templates"
 import { BotTemplateDialog } from "@/components/bot-template-dialog"
 import { WorkspaceBots } from "@/components/workspace-bots"
 import { WorkspacePresets } from "@/components/workspace-presets"
-import { WorkspaceRefresh } from "@/components/workspace-refresh"
+import { Skeleton } from "@/components/ui/skeleton"
 import { getWorkspaceBots } from "@/queries/workspace"
 import { getWorkspaceApps } from "@/queries/workspace-apps"
 import { WorkspaceApps } from "@/components/workspace-apps"
@@ -48,13 +49,13 @@ export default async function WorkspacePage({
   // A public page's "Create this Bot" link (createBotHref) lands here
   const template =
     typeof create === "string" ? findBotTemplate(create) : undefined
-  const [bots, connections, forYou, notices, secrets] = await Promise.all([
-    getWorkspaceBots(),
-    getWorkspaceApps(),
-    getWorkspaceForYou(),
-    getSignedInNotices(),
-    getWorkspaceSecrets(),
-  ])
+  // Start independent reads together, but stream each section when ready.
+  // Connected-app providers and live activity never block the page controls.
+  const bots = getWorkspaceBots({ activity: false })
+  const connections = getWorkspaceApps()
+  const forYou = getWorkspaceForYou()
+  const notices = getSignedInNotices()
+  const secrets = getWorkspaceSecrets()
 
   return (
     <section className="flex min-h-svh flex-col">
@@ -63,27 +64,97 @@ export default async function WorkspacePage({
           Create bot
         </CreateBotButton>
       </AppPageHeader>
-      <WorkspaceRefresh />
       {template && <BotTemplateDialog key={template.id} template={template} />}
       <div className="mx-auto w-full max-w-4xl space-y-10 px-4 py-8 sm:px-6 sm:py-10">
-        <WorkspaceNotices notices={notices} />
-        <WorkspaceBots bots={bots} />
+        <Suspense fallback={null}>
+          <NoticesSection notices={notices} />
+        </Suspense>
+        <Suspense fallback={<SectionLoading label="Loading teammates" />}>
+          <BotsSection bots={bots} />
+        </Suspense>
         <div className="flex justify-center">
           <CreateBotButton size="lg">Create bot</CreateBotButton>
         </div>
-        <WorkspaceForYou
-          initial={forYou}
-          apps={connections.apps.map(({ slug, name }) => ({ slug, name }))}
-          hasBots={bots.some((bot) => bot.activity !== "setup")}
-          appsUnavailable={connections.unavailable}
-        />
-        <WorkspaceApps
-          {...connections}
-          connectionCallback={connectionCallback}
-        />
-        <WorkspaceSecrets secrets={secrets} />
+        <Suspense
+          fallback={<SectionLoading label="Loading suggestions and apps" />}
+        >
+          <ConnectedSections
+            bots={bots}
+            connections={connections}
+            forYou={forYou}
+            connectionCallback={connectionCallback}
+          />
+        </Suspense>
+        <Suspense fallback={null}>
+          <SecretsSection secrets={secrets} />
+        </Suspense>
         <WorkspacePresets presetId={preset?.id} />
       </div>
     </section>
+  )
+}
+
+function SectionLoading({ label }: { label: string }) {
+  return (
+    <div role="status" aria-label={label} className="space-y-3">
+      <Skeleton className="h-6 w-36" />
+      <Skeleton className="h-32 w-full rounded-2xl" />
+    </div>
+  )
+}
+
+async function BotsSection({
+  bots,
+}: {
+  bots: ReturnType<typeof getWorkspaceBots>
+}) {
+  return <WorkspaceBots bots={await bots} live />
+}
+
+async function NoticesSection({
+  notices,
+}: {
+  notices: ReturnType<typeof getSignedInNotices>
+}) {
+  return <WorkspaceNotices notices={await notices} />
+}
+
+async function SecretsSection({
+  secrets,
+}: {
+  secrets: ReturnType<typeof getWorkspaceSecrets>
+}) {
+  return <WorkspaceSecrets secrets={await secrets} />
+}
+
+async function ConnectedSections({
+  bots,
+  connections,
+  forYou,
+  connectionCallback,
+}: {
+  bots: ReturnType<typeof getWorkspaceBots>
+  connections: ReturnType<typeof getWorkspaceApps>
+  forYou: ReturnType<typeof getWorkspaceForYou>
+  connectionCallback: React.ComponentProps<
+    typeof WorkspaceApps
+  >["connectionCallback"]
+}) {
+  const [botList, apps, suggestions] = await Promise.all([
+    bots,
+    connections,
+    forYou,
+  ])
+  return (
+    <>
+      <WorkspaceForYou
+        live
+        initial={suggestions}
+        apps={apps.apps.map(({ slug, name }) => ({ slug, name }))}
+        hasBots={botList.some((bot) => bot.activity !== "setup")}
+        appsUnavailable={apps.unavailable}
+      />
+      <WorkspaceApps {...apps} connectionCallback={connectionCallback} />
+    </>
   )
 }

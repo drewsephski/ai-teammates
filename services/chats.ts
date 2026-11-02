@@ -37,6 +37,7 @@ import { sidebarOrderSchema } from "@/lib/sidebar-order"
 import { getUsage } from "@/lib/usage"
 import { assertBotAccess, provisionGroup } from "@/lib/teammates"
 import type { chatAgent } from "@/trigger/chat"
+import { startingBriefForBot } from "@/lib/bot-templates"
 import { startBotSetupSession } from "@/lib/bot-setup-session"
 import { teamOperationId } from "@/lib/team-policy"
 import type { Caller } from "@/services/caller"
@@ -154,7 +155,8 @@ export async function startChatSession(
     const session = await startBotSetupSession(
       owned.id,
       owned.bots[0],
-      await firstName?.()
+      owned.bots[0].setupComplete ? undefined : await firstName?.(),
+      startingBriefForBot(owned.bots[0])
     )
     return { publicAccessToken: session.publicAccessToken }
   }

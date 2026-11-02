@@ -1,8 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import { ArrowUpRightIcon } from "lucide-react"
+import { WorkspaceRefresh } from "@/components/workspace-refresh"
 import { ChatAvatar } from "@/components/chat-avatar"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -16,7 +17,38 @@ const activityLabels = {
   unknown: "Activity unavailable",
 }
 
-export function WorkspaceBots({ bots }: { bots: WorkspaceBot[] }) {
+export function WorkspaceBots({
+  bots: initialBots,
+  live = false,
+}: {
+  bots: WorkspaceBot[]
+  live?: boolean
+}) {
+  const [snapshot, setSnapshot] = useState<{
+    source: WorkspaceBot[]
+    bots: WorkspaceBot[]
+  }>()
+  const bots = snapshot?.source === initialBots ? snapshot.bots : initialBots
+  const refresh = useCallback(
+    async (signal: AbortSignal) => {
+      try {
+        const response = await fetch("/api/workspace/bots", {
+          cache: "no-store",
+          signal,
+        })
+        if (!response.ok) throw new Error("Activity unavailable")
+        const { bots } = (await response.json()) as { bots: WorkspaceBot[] }
+        if (!signal.aborted) setSnapshot({ source: initialBots, bots })
+      } catch {
+        if (signal.aborted) return
+        setSnapshot({
+          source: initialBots,
+          bots: initialBots.map((bot) => ({ ...bot, activity: "unknown" })),
+        })
+      }
+    },
+    [initialBots]
+  )
   const [view, setView] = useState<"all" | "running">("all")
   const active = bots.filter(
     (bot) => bot.activity === "working" || bot.activity === "queued"
@@ -28,6 +60,7 @@ export function WorkspaceBots({ bots }: { bots: WorkspaceBot[] }) {
   const unavailable = bots.some((bot) => bot.activity === "unknown")
   return (
     <section aria-labelledby="workspace-bots-title" className="space-y-4">
+      {live && <WorkspaceRefresh refresh={refresh} />}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1
           id="workspace-bots-title"

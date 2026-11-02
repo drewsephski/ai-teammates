@@ -1,6 +1,6 @@
 import { currentUser } from "@clerk/nextjs/server"
 import { revalidatePath } from "next/cache"
-import { NextResponse } from "next/server"
+import { after, NextResponse } from "next/server"
 
 import { apiRoute, readJson } from "@/lib/api"
 import { publicBot } from "@/lib/api-shapes"
@@ -16,7 +16,8 @@ export const POST = apiRoute(async (caller, request) => {
   const result = await createBot(
     caller,
     input,
-    async () => (await currentUser())?.firstName
+    async () => (await currentUser())?.firstName,
+    after
   )
   if (!result.ok) return result
   revalidatePath("/", "layout")

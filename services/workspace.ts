@@ -11,12 +11,10 @@ import {
 // Each of this user's bots with what it is doing now, from the chat runs in
 // their own chats only. Shared by the web workspace and /api/v1/bots/activity.
 export async function listWorkspaceBots(
-  userId: string
+  userId: string,
+  options: { activity?: boolean } = {}
 ): Promise<WorkspaceBot[]> {
-  const [bots, chats] = await Promise.all([
-    listBots(userId),
-    listChats(userId),
-  ])
+  const [bots, chats] = await Promise.all([listBots(userId), listChats(userId)])
   if (!bots.length) return []
   const activityChats = chats.map((chat) => ({
     id: chat.id,
@@ -27,7 +25,7 @@ export async function listWorkspaceBots(
   let available = true
   try {
     const active = []
-    if (chats.length)
+    if (options.activity !== false && chats.length)
       for await (const run of runs.list(
         {
           taskIdentifier: "chat",
@@ -62,6 +60,10 @@ export async function listWorkspaceBots(
       )?.id ?? null,
     activity:
       activity.get(bot.id) ??
-      (!available ? "unknown" : !bot.setupComplete ? "setup" : "ready"),
+      (!bot.setupComplete
+        ? "setup"
+        : !available || options.activity === false
+          ? "unknown"
+          : "ready"),
   }))
 }

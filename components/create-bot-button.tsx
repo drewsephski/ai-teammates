@@ -31,7 +31,7 @@ export function useCreateBot(presetId?: string) {
     setPending(true)
     try {
       if (!checkPlan("bots")) return
-      const requestKey = selectedPresetId ?? "custom"
+      const requestKey = JSON.stringify([selectedPresetId, fantasyMode])
       const requestId = requests.current.get(requestKey) ?? nanoid()
       requests.current.set(requestKey, requestId)
       const result = await createBot({
@@ -62,7 +62,6 @@ export function useCreateBot(presetId?: string) {
             ? "?settings=fantasy-football"
             : ""
         router.push(`/chats/${encodeURIComponent(result.chatId)}${setup}`)
-        router.refresh()
       })
       requests.current.delete(requestKey)
     } catch {

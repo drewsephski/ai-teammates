@@ -1,6 +1,7 @@
 "use server"
 
 import { auth, currentUser } from "@clerk/nextjs/server"
+import { after } from "next/server"
 import { revalidatePath } from "next/cache"
 
 import type { BotInsert } from "@/db/schema"
@@ -18,7 +19,8 @@ export async function createBot(input: {
   const result = await service.createBot(
     { userId, has },
     input,
-    async () => (await currentUser())?.firstName
+    async () => (await currentUser())?.firstName,
+    after
   )
   if (result.ok) revalidatePath("/", "layout")
   return result

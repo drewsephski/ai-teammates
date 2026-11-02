@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/nextjs"
+import * as Sentry from "@sentry/node"
 import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm"
 import { z } from "zod"
 
@@ -13,14 +13,11 @@ import {
 } from "@/db/schema"
 import { releaseLeaseHeldBy } from "@/lib/account-computer"
 import { provisionTeammate } from "@/lib/teammates"
-import { getUsage } from "@/lib/usage"
 import { createBotAvatar } from "@/lib/bot-avatar"
 import { findStartingRole } from "@/lib/bot-templates"
 import { startBotSetupSession } from "@/lib/bot-setup-session"
 import { teamOperationId } from "@/lib/team-policy"
 import { FREE_BOT_LIMIT_ERROR } from "@/lib/billing-policy"
-import { isChatGPTSelected } from "@/lib/chatgpt-connection"
-import { canUseAI } from "@/lib/chatgpt-policy"
 import {
   pinnedBotOrderSchema,
   pinnedBotOrderUpdates,
@@ -75,7 +72,8 @@ export async function createBot(
   { userId, has }: Caller,
   input: z.infer<typeof createBotInputSchema>,
   // Read only for the setup greeting, after the bot exists
-  firstName?: () => Promise<string | null | undefined>
+  firstName: (() => Promise<string | null | undefined>) | undefined,
+  afterResponse: (work: () => Promise<void>) => void
 ): Promise<CreateBotResult> {
   if (!has({ feature: "bots" })) {
     Sentry.logger.warn("Bot creation blocked: upgrade required", {
@@ -83,12 +81,6 @@ export async function createBot(
     })
     throw new Error("Upgrade required")
   }
-  // Check the authoritative allowances once, without extra client round trips.
-  const usage = await getUsage(userId)
-  if (!usage) throw new Error("Upgrade required")
-  if (!canUseAI(usage.remaining.ai, await isChatGPTSelected(userId)))
-    return { ok: false, usageLimit: "ai" }
-
   const { requestId, fantasyMode } = createBotInputSchema.parse(input)
   // A workspace preset, or a template picked on a public page
   const preset =
@@ -96,33 +88,47 @@ export async function createBot(
   if (input.presetId !== undefined && !preset)
     throw new Error("Unknown starting role")
   const operationId = teamOperationId(userId, "bot-setup", requestId)
-  const provisioned = await provisionTeammate(
-    userId,
-    {
-      name: preset?.name ?? "New Bot",
-      job: preset?.job ?? "Not configured",
-      instructions: preset?.instructions ?? null,
-      avatar: preset?.avatar ?? createBotAvatar(),
-    },
-    { botId: `bot_${operationId}`, chatId: `chat_${operationId}` },
-    { setup: !preset, computer: false }
-  ).catch((error: unknown) => {
-    if (error instanceof Error && error.message === FREE_BOT_LIMIT_ERROR)
-      return null
+  let provisioned: Awaited<ReturnType<typeof provisionTeammate>>
+  try {
+    provisioned = await provisionTeammate(
+      userId,
+      {
+        name: preset?.name ?? "New Bot",
+        job: preset?.job ?? "Not configured",
+        instructions: preset?.instructions ?? null,
+        avatar: preset?.avatar ?? createBotAvatar(),
+      },
+      { botId: `bot_${operationId}`, chatId: `chat_${operationId}` },
+      { setup: !preset, computer: false }
+    )
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === FREE_BOT_LIMIT_ERROR)
+        return { ok: false, planLimit: "bots" }
+      if (error.message === "Usage limit reached")
+        return { ok: false, usageLimit: "ai" }
+    }
     throw error
-  })
-  if (!provisioned) return { ok: false, planLimit: "bots" }
+  }
   const { bot, chatId } = provisioned
   if (input.presetId === fantasyFootballPresetId)
     await initializeFantasySettings(userId, bot.id, fantasyMode ?? "manual")
   Sentry.logger.info("Bot created", { "user.id": userId, "bot.id": bot.id })
-  // Start model work while the chat shell loads; no computer is provisioned.
-  try {
-    await startBotSetupSession(chatId, bot, await firstName?.(), preset?.brief)
-  } catch (error) {
-    // The bot exists. Its chat retries startup and shows a recoverable error.
-    Sentry.captureException(error, { extra: { botId: bot.id, chatId } })
-  }
+  // The saved bot is usable now. A provider outage must not turn a successful
+  // creation into a timeout. The HTTP adapter keeps this work alive with after().
+  afterResponse(async () => {
+    try {
+      await startBotSetupSession(
+        chatId,
+        bot,
+        bot.setupComplete ? undefined : await firstName?.(),
+        preset?.brief
+      )
+    } catch (error) {
+      // Opening the chat retries startup if this best-effort greeting failed.
+      Sentry.captureException(error, { extra: { botId: bot.id, chatId } })
+    }
+  })
   return { ok: true, bot, chatId }
 }
 

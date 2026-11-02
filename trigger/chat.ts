@@ -1,3 +1,4 @@
+import { hydrateChatAttachments } from "@/lib/chat-attachments"
 import * as Sentry from "@sentry/node"
 import { idempotencyKeys, metadata, sessions } from "@trigger.dev/sdk"
 import { chat } from "@trigger.dev/sdk/ai"
@@ -1264,7 +1265,11 @@ export const chatAgent = chat
       )
         ? routineRunHistory(messages)
         : undefined
-      const history = routineRun?.messages ?? messages
+      const history = await hydrateChatAttachments(
+        row.userId,
+        chatId,
+        routineRun?.messages ?? messages
+      )
       const routineContext = previousReportInstructions(
         routineRun?.previousReport
       )

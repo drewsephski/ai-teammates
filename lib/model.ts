@@ -158,9 +158,18 @@ function withModelDefaults(options: CallOptions, vision: boolean): CallOptions {
 }
 
 // GLM handles text and tools; Luna handles a step whose current turn has an
-// image in it.
+// image in it, or whose history includes an attached PDF.
 function gatewayModel(messages: readonly ModelMessage[]): Model {
-  const vision = hasImages(currentTurn(messages))
+  const vision =
+    hasImages(currentTurn(messages)) ||
+    messages.some(
+      (message) =>
+        message.role === "user" &&
+        typeof message.content !== "string" &&
+        message.content.some(
+          (part) => part.type === "file" && part.mediaType === "application/pdf"
+        )
+    )
   const model = neon(vision ? visionModelId : textModelId)
   const gateway: GatewayModel = {
     specificationVersion: model.specificationVersion,

@@ -1,20 +1,39 @@
 "use client"
 
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
 
-export function WorkspaceRefresh() {
-  const router = useRouter()
+export function WorkspaceRefresh({
+  refresh,
+}: {
+  refresh: (signal: AbortSignal) => Promise<void>
+}) {
   useEffect(() => {
-    const refresh = () => {
-      if (document.visibilityState === "visible") router.refresh()
+    let inFlight = false
+    let active = true
+    let request: AbortController | undefined
+    const check = async () => {
+      if (!active || inFlight || document.visibilityState !== "visible") return
+      inFlight = true
+      request = new AbortController()
+      const timeout = setTimeout(() => request?.abort(), 8_000)
+      try {
+        await refresh(request.signal)
+      } catch {
+        /* Keep the last snapshot until the next check. */
+      } finally {
+        clearTimeout(timeout)
+        inFlight = false
+      }
     }
-    const timer = setInterval(refresh, 10_000)
-    document.addEventListener("visibilitychange", refresh)
+    void check()
+    const timer = setInterval(check, 10_000)
+    document.addEventListener("visibilitychange", check)
     return () => {
+      active = false
+      request?.abort()
       clearInterval(timer)
-      document.removeEventListener("visibilitychange", refresh)
+      document.removeEventListener("visibilitychange", check)
     }
-  }, [router])
+  }, [refresh])
   return null
 }

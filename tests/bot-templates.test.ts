@@ -6,6 +6,7 @@ import { botOpeningPrompt } from "../lib/bot-opening"
 import { botPresets } from "../lib/bot-presets"
 import { botProfileSchema } from "../lib/bot-setup-tools"
 import {
+  startingBriefForBot,
   botTemplateInstructions,
   botTemplates,
   findBotTemplate,
@@ -83,4 +84,21 @@ test("create links open the template in the workspace, through sign-up", () => {
     signedOut.searchParams.get("redirect_url"),
     "/workspace?create=product-performance"
   )
+})
+
+test("opening a chat before deferred startup preserves the selected role brief", () => {
+  for (const id of [
+    "fantasy-football",
+    "email-assistant",
+    "product-performance",
+  ]) {
+    const role = findStartingRole(id)!
+    assert.ok(role.brief)
+    assert.equal(startingBriefForBot(role), role.brief)
+    assert.equal(
+      startingBriefForBot({ ...role, instructions: "Custom instructions" }),
+      undefined
+    )
+  }
+  assert.equal(startingBriefForBot({ job: "Not configured" }), undefined)
 })
