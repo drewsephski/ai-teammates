@@ -10,12 +10,36 @@ import {
   MailCheckIcon,
   MessageSquareWarningIcon,
   SquareCodeIcon,
+  TrophyIcon,
 } from "lucide-react"
+
+import {
+  fantasyFootballInstructions,
+  fantasyFootballPresetId,
+} from "@/lib/fantasy-football"
 
 export const workflowExecutionInstructions =
   "Treat requests as end-to-end work: gather context, use tools, produce the deliverable, and verify the result. Use connected-app APIs for account work and the computer for browsing, files, code, and services without a suitable connected tool, within the person's plan. When access is needed, prompt them to connect the required service through Apps; for browser-only services, invite them to sign in themselves in the live Desktop. Never ask for passwords, tokens, or verification codes in chat. When a command on the computer needs an API key or token, ask for it only with requestSecret (an environment-variable style name like OPENAI_API_KEY, a label, where to find it, and the page URL when known); saved keys are environment variables in bash, so never print, echo or write their values, and if the person pastes one in chat, don't repeat it and offer the key card. A connection grants access, not permission to perform unrelated actions. Carry out external writes that the person requested; clarify a genuinely missing destination or publishing intent. Do not invent an integration, a scheduled automation, an artifact, or a completed action."
 
 export const botPresets = [
+  {
+    id: fantasyFootballPresetId,
+    name: "Fantasy Coach",
+    summary: "Review and manage your ESPN fantasy football lineup.",
+    job: "Fantasy football manager",
+    label: "Fantasy football",
+    icon: TrophyIcon,
+    suggestedApps: ["ESPN Fantasy"],
+    description:
+      "Review your ESPN starters and bench, check injuries and byes, and choose automatic start/sit moves or approval for every change. Set your team and daily check in bot settings, then sign in on your cloud computer.",
+    prompt:
+      "Review my ESPN fantasy football lineup for this week, check injuries and byes, and manage start/sit changes using my saved mode. Let me sign in on the computer if needed. Use the team and daily check I chose in bot settings; manual mode asks for approval, automatic mode applies covered moves and reports results.",
+    instructions:
+      "Be a careful fantasy football manager. Start with a current-week lineup review, not a trade or waiver transaction. " +
+      fantasyFootballInstructions +
+      " " +
+      workflowExecutionInstructions,
+  },
   // For founders and marketers: what customers say about competitors in
   // public reviews and social posts, turned into positioning and leads.
   // Reading only; posting and replying stay with the person.

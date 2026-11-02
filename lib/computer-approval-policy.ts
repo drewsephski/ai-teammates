@@ -271,6 +271,7 @@ export const guardCategories = [
   "delete",
   "grades",
   "roster",
+  "lineup",
   "records",
   "account",
   "run_command",
@@ -287,6 +288,8 @@ export type GuardOutput = {
   // Read from the browser's address bar; null when none is visible
   hostname: string | null
   reason: string
+  // Full visible address, only when the independent guard can read it.
+  pageUrl?: string | null
 }
 export type GuardVerdict = GuardOutput & { commits: boolean }
 

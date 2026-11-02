@@ -27,6 +27,9 @@ import {
 } from "@/lib/pinned-bot-order"
 import type { Caller } from "@/services/caller"
 import { eraseDeletedChat } from "@/services/chat-erasure"
+import { initializeFantasySettings } from "@/services/fantasy-football"
+import { fantasyModeSchema } from "@/lib/fantasy-football-policy"
+import { fantasyFootballPresetId } from "@/lib/fantasy-football"
 
 // The user's bots, oldest first
 export async function listBots(userId: string) {
@@ -55,10 +58,18 @@ export const requestIdSchema = z
   .max(128)
   .regex(/^[a-zA-Z0-9_-]+$/)
 
-export const createBotInputSchema = z.object({
-  requestId: requestIdSchema,
-  presetId: z.string().optional(),
-})
+export const createBotInputSchema = z
+  .object({
+    requestId: requestIdSchema,
+    presetId: z.string().optional(),
+    fantasyMode: fantasyModeSchema.optional(),
+  })
+  .refine(
+    (value) =>
+      value.fantasyMode === undefined ||
+      value.presetId === fantasyFootballPresetId,
+    "Choose Fantasy Coach before setting its lineup mode."
+  )
 
 export async function createBot(
   { userId, has }: Caller,
@@ -78,7 +89,7 @@ export async function createBot(
   if (!canUseAI(usage.remaining.ai, await isChatGPTSelected(userId)))
     return { ok: false, usageLimit: "ai" }
 
-  const { requestId } = createBotInputSchema.parse(input)
+  const { requestId, fantasyMode } = createBotInputSchema.parse(input)
   // A workspace preset, or a template picked on a public page
   const preset =
     input.presetId === undefined ? undefined : findStartingRole(input.presetId)
@@ -102,6 +113,8 @@ export async function createBot(
   })
   if (!provisioned) return { ok: false, planLimit: "bots" }
   const { bot, chatId } = provisioned
+  if (input.presetId === fantasyFootballPresetId)
+    await initializeFantasySettings(userId, bot.id, fantasyMode ?? "manual")
   Sentry.logger.info("Bot created", { "user.id": userId, "bot.id": bot.id })
   // Start model work while the chat shell loads; no computer is provisioned.
   try {

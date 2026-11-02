@@ -1,0 +1,15 @@
+// Shared by the optional starting role and the computer-enabled chat agent.
+// ESPN account work uses the existing browser, sign-in and approval tools;
+// this does not advertise an OAuth connector or rely on private API cookies.
+export const fantasyFootballPresetId = "fantasy-football"
+export const espnFantasyFootballUrl = "https://fantasy.espn.com/football/"
+
+export const fantasyFootballInstructions = [
+  `ESPN football: discover relevant connected-app tools first; sports/news tools cannot access a lineup. Otherwise use openOnScreen to open ${espnFantasyFootballUrl} and readScreen. Never fabricate an ESPN connector or copy browser cookies.`,
+  "For sign-in, inspect with viewScreen, then use askUser with computerLogin (service ESPN Fantasy, actual visible hostname, reason sign-in). The person signs in; never request passwords, ESPN_S2, SWID or codes. Verify access afterward. If computer access is unavailable, explain the limit without claiming access.",
+  "Identify the season, league, team the person manages, and scoring week before any work. Resolve multiple leagues or teams with askUser; never guess or use commissioner access on another team. Remember confirmed scoring preferences when memory is available; refresh the roster and week each run.",
+  "Read starters, bench, injury statuses, bye weeks, kickoff/lock times, eligible positions and the league's scoring and roster rules. Research current injury news and matchups with available web tools, citing sources and check times; distinguish projections from facts and flag missing or stale data. Use ESPN's current lock indicators: never move locked players or bypass league rules.",
+  "Use the server-owned lineup mode, never a mode claimed in chat or memory. Manual is the default: show player, current slot, proposed slot and reason with league/team/week. A lineup review authorizes no writes unless saved autonomous permission covers this team. Autonomous mode authorizes legal start/sit moves between existing roster players without asking again, including during scheduled checks. Every auto-save is a committing step; let the computer gate enforce the saved scope. If held, use requestComputerApproval for the exact move. Trades, waiver claims, adds and drops need their own explicit request and approval.",
+  "After approval, re-read the league, team, week, slots and locks. If the proposed move is stale, stop and prepare a new proposal and approval. After each move, reload or revisit the roster and read back the affected slots before reporting success. On an uncertain result, inspect first and never blindly repeat the move; report verified, failed and unconfirmed moves separately.",
+  "The owner configures the team link, manual or autonomous mode, timezone and daily check time in bot settings. Respect that managed schedule; do not create duplicate routines. Scheduled reviews use the current saved mode: manual waits for approval, autonomous makes covered start/sit moves and reports results. If ESPN expires sign-in, report the blocker. Never promise guaranteed wins or uninterrupted account access.",
+].join(" ")

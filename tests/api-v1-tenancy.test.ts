@@ -22,6 +22,7 @@ let db: typeof import("../db").db
 let schema: typeof import("../db/schema")
 let chats: typeof import("../services/chats")
 let bots: typeof import("../services/bots")
+let fantasy: typeof import("../services/fantasy-football")
 let memory: typeof import("../services/memory")
 let connectors: typeof import("../services/connectors")
 let reports: typeof import("../services/ai-content-reports")
@@ -34,6 +35,7 @@ before(async () => {
   schema = await import("../db/schema")
   chats = await import("../services/chats")
   bots = await import("../services/bots")
+  fantasy = await import("../services/fantasy-football")
   memory = await import("../services/memory")
   connectors = await import("../services/connectors")
   reports = await import("../services/ai-content-reports")
@@ -97,6 +99,24 @@ const rejects = (promise: Promise<unknown>, message: RegExp) =>
     assert.match(error.message, message)
     return true
   })
+
+test("B cannot read, grant or change A's fantasy lineup permission", async () => {
+  await rejects(fantasy.getFantasySettings(B, "bot_a1"), /Bot not found/)
+  await rejects(
+    fantasy.initializeFantasySettings(B, "bot_a1", "autonomous"),
+    /Bot not found/
+  )
+  await rejects(
+    fantasy.saveFantasySettings(B, "bot_a1", {
+      mode: "autonomous",
+      enabled: false,
+      teamUrl: "",
+      timezone: "UTC",
+      checkTime: "09:00",
+    }),
+    /Bot not found/
+  )
+})
 
 test("B can't see A's chats, bots or memories", async () => {
   assert.equal(await chats.findChat(B, "chat_a1"), null)

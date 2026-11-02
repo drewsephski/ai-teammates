@@ -348,3 +348,12 @@ Setup begins with an actual assistant greeting. Choices use the existing Questio
 - **Don’t** add hard offset shadows to the charcoal workspace.
 - **Don’t** show invented conversations, billing data, connected services, or successful work as application state.
 - **Don’t** turn the isolated pinned role micro-label into the application’s reusable type scale.
+
+## Fantasy Coach settings
+
+Fantasy Coach creation offers manual approval and automatic start/sit changes.
+Its bot settings use the existing compact Field/Section controls and semantic
+tokens for the saved mode, ESPN team link, timezone, daily check time and pause
+switch. Manual approval is the default. Copy makes the permission's scope and
+ESPN sign-in recovery clear; the next run and last error come from the server.
+Saving manual mode or pausing checks disables automatic changes.

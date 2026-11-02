@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
 import { usePaywall } from "@/hooks/use-paywall"
+import type { FantasyMode } from "@/lib/fantasy-football-policy"
+import { fantasyFootballPresetId } from "@/lib/fantasy-football"
 
 // presetId names a workspace preset or a page template (lib/bot-templates.ts)
 export function useCreateBot(presetId?: string) {
@@ -20,7 +22,10 @@ export function useCreateBot(presetId?: string) {
   const inFlight = useRef(false)
   const requests = useRef(new Map<string, string>())
 
-  async function createWithPreset(selectedPresetId?: string) {
+  async function createWithPreset(
+    selectedPresetId?: string,
+    fantasyMode?: FantasyMode
+  ) {
     if (inFlight.current || navigating) return
     inFlight.current = true
     setPending(true)
@@ -29,7 +34,11 @@ export function useCreateBot(presetId?: string) {
       const requestKey = selectedPresetId ?? "custom"
       const requestId = requests.current.get(requestKey) ?? nanoid()
       requests.current.set(requestKey, requestId)
-      const result = await createBot({ requestId, presetId: selectedPresetId })
+      const result = await createBot({
+        requestId,
+        presetId: selectedPresetId,
+        fantasyMode,
+      })
       if (!result.ok) {
         if ("planLimit" in result) {
           toast.add({
@@ -48,7 +57,11 @@ export function useCreateBot(presetId?: string) {
       }
       // A sidebar creator survives navigation, so release it when the route settles.
       startNavigation(() => {
-        router.push(`/chats/${encodeURIComponent(result.chatId)}`)
+        const setup =
+          selectedPresetId === fantasyFootballPresetId
+            ? "?settings=fantasy-football"
+            : ""
+        router.push(`/chats/${encodeURIComponent(result.chatId)}${setup}`)
         router.refresh()
       })
       requests.current.delete(requestKey)

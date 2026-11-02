@@ -30,6 +30,7 @@ import {
   secretValueSchema,
 } from "@/lib/secret-policy"
 import { isTaskBudget } from "@/lib/turn-spend"
+import { canonicalEspnTeamUrl } from "@/lib/fantasy-football-policy"
 
 export const bots = pgTable(
   "bots",
@@ -66,6 +67,55 @@ export const bots = pgTable(
 )
 
 export const chatKind = pgEnum("chat_kind", ["direct", "group"])
+
+// Permission is written only by the authenticated settings endpoint, never
+// by configureBot or model tools. Deleting a bot removes its permission.
+export const fantasyFootballSettings = pgTable("fantasy_football_settings", {
+  botId: text()
+    .primaryKey()
+    .references(() => bots.id, { onDelete: "cascade" }),
+  userId: text().notNull(),
+  mode: text({ enum: ["manual", "autonomous"] })
+    .notNull()
+    .default("manual"),
+  teamUrl: text().notNull().default(""),
+  timezone: text().notNull().default("UTC"),
+  checkTime: text().notNull().default("09:00"),
+  enabled: boolean().notNull().default(false),
+  routineId: text(),
+  updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+})
+
+export const fantasyFootballSettingsSchema = createInsertSchema(
+  fantasyFootballSettings,
+  {
+    teamUrl: z
+      .string()
+      .trim()
+      .max(500)
+      .refine(
+        (value) => value === "" || canonicalEspnTeamUrl(value) !== null,
+        "Paste your ESPN football team link, including leagueId, teamId and seasonId."
+      ),
+    timezone: timeZoneSchema,
+    checkTime: z
+      .string()
+      .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, "Use a time like 09:00."),
+  }
+)
+  .omit({ botId: true, userId: true, routineId: true, updatedAt: true })
+  .required()
+  .superRefine((value, ctx) => {
+    if (value.enabled && !value.teamUrl)
+      ctx.addIssue({
+        code: "custom",
+        path: ["teamUrl"],
+        message: "Choose your ESPN team before enabling checks.",
+      })
+  })
+export type FantasyFootballSettingsInput = z.infer<
+  typeof fantasyFootballSettingsSchema
+>
 
 export const sidebarPreferences = pgTable("sidebar_preferences", {
   userId: text().primaryKey(),

@@ -6,10 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { botPresets, type BotPresetId } from "@/lib/bot-presets"
 import { cn } from "@/lib/utils"
+import { fantasyFootballPresetId } from "@/lib/fantasy-football"
+import { FantasyFootballModeDialog } from "@/components/fantasy-football-mode-dialog"
 
 export function WorkspacePresets({ presetId }: { presetId?: BotPresetId }) {
   const { createWithPreset, pending } = useCreateBot()
   const [creating, setCreating] = useState<BotPresetId>()
+  const [chooseFantasyMode, setChooseFantasyMode] = useState(false)
   return (
     <section aria-labelledby="workspace-presets-title" className="space-y-4">
       <div className="space-y-1">
@@ -29,6 +32,10 @@ export function WorkspacePresets({ presetId }: { presetId?: BotPresetId }) {
             disabled={pending}
             aria-busy={pending && creating === preset.id}
             onClick={() => {
+              if (preset.id === fantasyFootballPresetId) {
+                setChooseFantasyMode(true)
+                return
+              }
               setCreating(preset.id)
               void createWithPreset(preset.id).finally(() =>
                 setCreating(undefined)
@@ -56,6 +63,18 @@ export function WorkspacePresets({ presetId }: { presetId?: BotPresetId }) {
           </Button>
         ))}
       </div>
+      <FantasyFootballModeDialog
+        open={chooseFantasyMode}
+        onOpenChange={setChooseFantasyMode}
+        pending={pending}
+        onSelect={(mode) => {
+          setChooseFantasyMode(false)
+          setCreating(fantasyFootballPresetId)
+          void createWithPreset(fantasyFootballPresetId, mode).finally(() =>
+            setCreating(undefined)
+          )
+        }}
+      />
     </section>
   )
 }

@@ -19,6 +19,7 @@ import {
   parseBotAvatar,
 } from "@/lib/bot-avatar"
 import { BotDeleteDialog } from "@/components/bot-delete-dialog"
+import { FantasyFootballSettings } from "@/components/fantasy-football-settings"
 import { ChatAvatar } from "@/components/chat-avatar"
 import { Button } from "@/components/ui/button"
 import { DialogClose, DialogFooter } from "@/components/ui/dialog"
@@ -137,6 +138,7 @@ export function BotSettingsForm({
         className={inDialog ? undefined : "min-h-0 flex-1 overflow-y-auto p-5"}
       >
         <FieldGroup className="gap-7">
+          <FantasyFootballSettings botId={bot.id} />
           <FieldSet disabled={isSubmitting}>
             <FieldLegend variant="label">Appearance</FieldLegend>
             <Controller

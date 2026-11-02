@@ -112,6 +112,7 @@ export function createComputerGate({
   declined = () => [],
   canCheck = () => true,
   now = Date.now,
+  authorizeLineup = async () => false,
 }: {
   store: ComputerApprovalStore
   // The independent guard (lib/computer-guard.ts), metered by the caller
@@ -130,6 +131,8 @@ export function createComputerGate({
   // account's AI allowance is spent
   canCheck?: () => boolean
   now?: () => number
+  // Owner-saved permission, re-read for every independent guard verdict.
+  authorizeLineup?: (verdict: GuardVerdict) => Promise<boolean>
 }): ComputerGate {
   let failures = 0
   let held: HeldGesture | undefined
@@ -215,6 +218,10 @@ export function createComputerGate({
         (gesture.text.match(/[\r\n]/g)?.length ?? 0) > 1
       )
         throw new Error(MULTIPLE_ENTER_ERROR)
+      if (verdict.category === "lineup" && (await authorizeLineup(verdict))) {
+        held = undefined
+        return { verdict }
+      }
       // Remembered before the approval check: a step refused with or without
       // an approvalId is what the next approval request holds
       held = { action, hostname: verdict.hostname }

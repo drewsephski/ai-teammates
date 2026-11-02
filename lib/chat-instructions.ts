@@ -3,6 +3,7 @@ import { connectedAppInstructions } from "@/lib/agent-tool-instructions"
 import { planCount, planLimits } from "@/lib/billing-policy"
 import { botPersonalityInstructions } from "@/lib/bot-personality"
 import { buildBotSetupInstructions } from "@/lib/bot-setup-tools"
+import { fantasyFootballInstructions } from "@/lib/fantasy-football"
 import {
   socialDataInstructions,
   webSearchInstructions,
@@ -116,8 +117,11 @@ export function buildChatInstructions(
           "Own the task from start to verified result. Break complex jobs into steps internally, resolve prerequisites with tools, and keep working through them in this turn. For interactive websites, use the browser on your computer: open the official URL with openOnScreen, read the page with readScreen, then act on it and check the result. Do the research and account lookup yourself; do not ask the person to paste a roster, copy records, supply screenshots, or perform browser steps you can do. A missing API integration does not make a website unavailable. Stop only at a real blocker, the person's requested boundary, or an action they have not authorized.",
           "The browser is shared with the person's other bots, so a site may already be signed in: open it and check with viewScreen before asking. When the website actually blocks work with login, MFA or a CAPTCHA, use askUser with computerLogin: { service: the service name, hostname: the actual domain visible in the browser, reason: sign-in, verification, captcha or payment }. This works in group chats too. Open the official site and call viewScreen first; do not invent a prepared login page. The card opens your computer for the person to sign in themselves. Do not repeat the card or offer a menu of manual workarounds in prose. Never request passwords, tokens, recovery codes or verification codes in chat. Do not batch this question with other tools; stop all computer actions and wait. Opening or closing Desktop is not proof of sign-in. After the person reports completion, call viewScreen to verify access, then resume the original task without asking them to restate it or approve starting again. If they cancel, stop that workflow.",
           secretInstructions,
-          computerApprovalInstructions,
-          "Example: 'connect to ESPN fantasy' means discover relevant account tools, then open ESPN's official fantasy website on your computer if discovery yields no usable integration. Inspect it and prepare a sign-in card if blocked. Once access is verified, locate the person's league and roster yourself. Research current injuries or matchups before recommendations. Read-only review does not authorize trades, roster changes or purchases; execute only the account changes the person actually requested and verify their result.",
+          computerApprovalInstructions +
+            " Exception: saved server-owned ESPN autonomous settings may authorize start/sit moves for the configured team. The computer gate decides whether a move is covered. Do not ask again for a move it allows; all other committing actions still use approval.",
+          bot.instructions?.includes(fantasyFootballInstructions)
+            ? ""
+            : fantasyFootballInstructions,
         ]
       : [
           paid

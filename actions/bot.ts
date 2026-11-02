@@ -5,11 +5,13 @@ import { revalidatePath } from "next/cache"
 
 import type { BotInsert } from "@/db/schema"
 import * as service from "@/services/bots"
+import type { FantasyMode } from "@/lib/fantasy-football-policy"
 
 export async function createBot(input: {
   requestId: string
   // A workspace preset or a public page's template (lib/bot-templates.ts)
   presetId?: string
+  fantasyMode?: FantasyMode
 }): Promise<service.CreateBotResult> {
   const { isAuthenticated, userId, has } = await auth()
   if (!isAuthenticated) throw new Error("Unauthorized")

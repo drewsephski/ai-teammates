@@ -108,6 +108,19 @@ Computers are created from the `krafty-desktop` E2B template (`COMPUTER_TEMPLATE
 - **clickElement and fillElement.** They turn a ref into the element's position on screen and run the same checked gestures as `mouseClick` and `keyboardType`. The element's role and name are page content and never decide whether a step runs.
 - **openOnScreen.** It opens an http or https address with `x-www-browser` as `user`, unchecked, like typing an address and pressing Enter.
 
+### ESPN start/sit permission
+
+Fantasy Coach has an owner-saved choice between manual approval and automatic
+start/sit moves. This is a narrow exception to per-gesture computer approval,
+not an Always allow rule for arbitrary computer submissions. The independent
+guard still checks every committing gesture. Automatic permission requires a
+high-confidence lineup-only verdict, no injection, an exact ESPN team URL with
+the saved league/team/season, and a fresh enabled owner grant. Other teams,
+trades, waivers, adds/drops and uncertain actions still require approval.
+Pausing checks or their routine, deleting that routine, saving manual mode, or
+deleting the bot disables the grant. See [fantasy-football.md](fantasy-football.md)
+for setup, the daily schedule and the classifier's practical limits.
+
 ### What is enforced, and what isn't
 
 Enforced by the server: app writes run only from the stored call; high-risk app actions never get a standing rule; standing rules are bound to bot, account and action, and revocable; every click, drag, Enter and non-navigation key on the computer is judged by a separate model from a screenshot the server takes, and high-impact gestures run only inside a claimed, time-boxed approval for that bot and chat; the guard fails closed; account-security changes and desktop terminal commands are never approvable; a held shell command runs once, exactly as the owner saw it; a decline blocks every new approval request for the rest of the turn it wakes, and an app call declined unchanged is refused for a day; on computers from the template, shell commands and file tools run as a user that can't reach the display, the browser profile, the accessibility bus or the desktop's local services. Nothing in a web page, document or tool result can grant an approval; only the owner's decision in the database can.

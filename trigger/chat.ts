@@ -115,6 +115,11 @@ import { ownerEmailAddresses } from "@/lib/owner-email"
 import { createBotSetupTools, botSetupMessageId } from "@/lib/bot-setup-tools"
 import { configureBotProfile } from "@/lib/bot-profile"
 import { buildChatInstructions } from "@/lib/chat-instructions"
+import {
+  authorizeFantasyLineup,
+  fantasySettingsInstructions,
+  readFantasySettings,
+} from "@/lib/fantasy-football-store"
 import { assertComputerLoginReady } from "@/lib/computer-login-policy"
 import { chatPreview } from "@/lib/chat-preview"
 import {
@@ -512,6 +517,8 @@ export const chatAgent = chat
       }
       const computerGate = createComputerGate({
         store: computerApprovals,
+        authorizeLineup: (verdict) =>
+          authorizeFantasyLineup(userId, current.id, verdict),
         takeScreenshot,
         windowTitle: async (sandbox) =>
           (
@@ -1284,6 +1291,9 @@ export const chatAgent = chat
         assumed: !zone,
       })
 
+      const fantasyContext = fantasySettingsInstructions(
+        await readFantasySettings(row.userId, bot.id)
+      )
       function respond(usage: Usage) {
         // Keep the conversation/session, but release this worker after the turn.
         // The next message boots the current deployment instead of waking an
@@ -1335,6 +1345,7 @@ export const chatAgent = chat
                 socialToolsAvailable,
               }
             ),
+            fantasyContext,
             composerContext,
             connectionContext,
             routineContext,
@@ -1380,6 +1391,9 @@ export const chatAgent = chat
                       ownerEmails,
                       socialToolsAvailable,
                     }
+                  ),
+                  fantasySettingsInstructions(
+                    await readFantasySettings(row.userId, updated.id)
                   ),
                   composerContext,
                   connectionContext,

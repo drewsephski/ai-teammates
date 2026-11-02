@@ -149,7 +149,7 @@ test("complex website work is owned through discovery, computer fallback and ver
     assert.match(instructions, /do not ask the person to paste a roster/)
     assert.match(instructions, /call viewScreen first/)
     assert.match(instructions, /stop all computer actions and wait/)
-    assert.match(instructions, /Read-only review does not authorize trades/)
+    assert.match(instructions, /A lineup review authorizes no writes/)
     assert.match(instructions, /under 80 words/)
   }
   const group = buildChatInstructions(

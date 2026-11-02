@@ -27,8 +27,14 @@ export function useBotSettings() {
   if (!context) throw new Error("Bot settings require BotSettingsProvider.")
   return context
 }
-export function BotSettingsProvider({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(false)
+export function BotSettingsProvider({
+  children,
+  defaultOpen = false,
+}: {
+  children: ReactNode
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
   const desktop = useDesktopPanel()
   return (
     <Settings

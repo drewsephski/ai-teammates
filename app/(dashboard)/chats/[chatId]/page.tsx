@@ -17,8 +17,10 @@ import { getChat } from "@/queries/chats"
 
 export default async function Page({
   params,
+  searchParams,
 }: {
   params: Promise<{ chatId: string }>
+  searchParams: Promise<{ settings?: string | string[] }>
 }) {
   await auth.protect()
 
@@ -78,7 +80,9 @@ export default async function Page({
   return (
     <ChatActivityProvider key={chat.id}>
       <DesktopPanelProvider key={chat.id} chatId={chat.id}>
-        <BotSettingsProvider>
+        <BotSettingsProvider
+          defaultOpen={(await searchParams).settings === "fantasy-football"}
+        >
           {/* The group sizes itself to its parent, so the viewport height goes here */}
           <div className="chat-surface h-svh">
             <ResizablePanelGroup orientation="horizontal">
