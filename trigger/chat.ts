@@ -116,6 +116,11 @@ import { createBotSetupTools, botSetupMessageId } from "@/lib/bot-setup-tools"
 import { configureBotProfile } from "@/lib/bot-profile"
 import { buildChatInstructions } from "@/lib/chat-instructions"
 import {
+  parseScreenRead,
+  READ_TIMEOUT_MS,
+  screenReaderCommand,
+} from "@/lib/screen-reader"
+import {
   authorizeFantasyLineup,
   fantasySettingsInstructions,
   readFantasySettings,
@@ -517,8 +522,16 @@ export const chatAgent = chat
       }
       const computerGate = createComputerGate({
         store: computerApprovals,
-        authorizeLineup: (verdict) =>
-          authorizeFantasyLineup(userId, current.id, verdict),
+        authorizeLineup: (verdict, sandbox) =>
+          authorizeFantasyLineup(userId, current.id, verdict, async () => {
+            const screen = await sandbox.getScreenSize()
+            const result = await sandbox.commands.run(
+              screenReaderCommand(screen),
+              { timeoutMs: READ_TIMEOUT_MS }
+            )
+            const read = parseScreenRead(result.stdout)
+            return "error" in read ? null : read.url
+          }),
         takeScreenshot,
         windowTitle: async (sandbox) =>
           (

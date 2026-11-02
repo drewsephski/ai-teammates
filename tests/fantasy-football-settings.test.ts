@@ -114,6 +114,35 @@ test("saved checks create one managed daily routine, update it, and revoke autom
     reason: "Start/sit",
   })
   assert.equal(await store.authorizeFantasyLineup("A", "coach", verdict), true)
+  const truncated = { ...verdict, pageUrl: null }
+  assert.equal(
+    await store.authorizeFantasyLineup(
+      "A",
+      "coach",
+      truncated,
+      async () => teamUrl
+    ),
+    true
+  )
+  assert.equal(
+    await store.authorizeFantasyLineup("A", "coach", truncated, async () =>
+      teamUrl.replace("teamId=2", "teamId=3")
+    ),
+    false
+  )
+  assert.equal(
+    await store.authorizeFantasyLineup("A", "coach", verdict, async () => null),
+    false
+  )
+  assert.equal(
+    await store.authorizeFantasyLineup("A", "coach", verdict, async () => {
+      throw new Error("Browser unreadable")
+    }),
+    false
+  )
+  await store.authorizeFantasyLineup("B", "coach", verdict, async () => {
+    assert.fail("Another account must not inspect this browser")
+  })
   assert.equal(await store.authorizeFantasyLineup("B", "coach", verdict), false)
   await service.saveFantasySettings(
     "A",

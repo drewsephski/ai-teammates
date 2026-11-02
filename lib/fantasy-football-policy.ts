@@ -42,8 +42,8 @@ export function canonicalEspnTeamUrl(value: string) {
     : null
 }
 
-// Only the independent screenshot guard's view can qualify, never a URL or
-// action label supplied by the chat agent. Broad roster transactions stay held.
+// Only server-owned browser evidence and the independent guard can qualify,
+// never a URL or action label supplied by the chat agent. Broad roster transactions stay held.
 export function autonomousLineupAllowed(
   settings:
     { mode: FantasyMode; teamUrl: string; enabled: boolean } | null | undefined,

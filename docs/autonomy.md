@@ -114,7 +114,7 @@ Fantasy Coach has an owner-saved choice between manual approval and automatic
 start/sit moves. This is a narrow exception to per-gesture computer approval,
 not an Always allow rule for arbitrary computer submissions. The independent
 guard still checks every committing gesture. Automatic permission requires a
-high-confidence lineup-only verdict, no injection, an exact ESPN team URL with
+high-confidence lineup-only verdict, no injection, the browser's actual document URL with
 the saved league/team/season, and a fresh enabled owner grant. Other teams,
 trades, waivers, adds/drops and uncertain actions still require approval.
 Pausing checks or their routine, deleting that routine, saving manual mode, or

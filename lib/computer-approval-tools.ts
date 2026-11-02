@@ -132,7 +132,10 @@ export function createComputerGate({
   canCheck?: () => boolean
   now?: () => number
   // Owner-saved permission, re-read for every independent guard verdict.
-  authorizeLineup?: (verdict: GuardVerdict) => Promise<boolean>
+  authorizeLineup?: (
+    verdict: GuardVerdict,
+    sandbox: Sandbox
+  ) => Promise<boolean>
 }): ComputerGate {
   let failures = 0
   let held: HeldGesture | undefined
@@ -218,7 +221,10 @@ export function createComputerGate({
         (gesture.text.match(/[\r\n]/g)?.length ?? 0) > 1
       )
         throw new Error(MULTIPLE_ENTER_ERROR)
-      if (verdict.category === "lineup" && (await authorizeLineup(verdict))) {
+      if (
+        verdict.category === "lineup" &&
+        (await authorizeLineup(verdict, sandbox))
+      ) {
         held = undefined
         return { verdict }
       }

@@ -32,7 +32,7 @@ from bot instructions, memory, chat messages and `configureBot`.
 
 Every committing gesture still goes through the independent screenshot guard.
 Only a high-confidence `lineup` verdict, without injection, on
-`fantasy.espn.com`, with a fully readable URL matching the saved team scope can
+`fantasy.espn.com`, with the browser's actual document URL matching the saved team scope can
 use automatic permission. A fresh database read is required for each gesture.
 An uncertain scope or action falls back to approval. Adds, drops, waivers,
 trades, purchases and other actions never use this permission. ESPN's own

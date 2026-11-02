@@ -33,14 +33,28 @@ export async function readFantasySettings(userId: string, botId: string) {
 export async function authorizeFantasyLineup(
   userId: string,
   botId: string,
-  verdict: GuardVerdict
+  verdict: GuardVerdict,
+  readPageUrl?: () => Promise<string | null>
 ) {
   // Fresh for every committing gesture: a revoked choice is never cached
   // for the rest of a long-running or unattended turn.
-  return autonomousLineupAllowed(
-    await readFantasySettings(userId, botId),
-    verdict
+  const settings = await readFantasySettings(userId, botId)
+  if (
+    settings?.mode !== "autonomous" ||
+    !settings.enabled ||
+    verdict.category !== "lineup" ||
+    verdict.confidence !== "high" ||
+    verdict.injection ||
+    verdict.hostname !== "fantasy.espn.com"
   )
+    return false
+  // In the worker the URL comes directly from the browser's document
+  // accessibility metadata, never from page text or the chat agent. A narrow
+  // address bar must not turn every automatic move into a manual approval.
+  const pageUrl = readPageUrl
+    ? await readPageUrl().catch(() => null)
+    : verdict.pageUrl
+  return autonomousLineupAllowed(settings, { ...verdict, pageUrl })
 }
 
 export function fantasySettingsInstructions(
