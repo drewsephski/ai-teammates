@@ -3,6 +3,7 @@ import test from "node:test"
 
 import {
   buildScreenSnapshot,
+  isBlankScreenshot,
   MAX_SNAPSHOT_TEXT,
   openUrlSchema,
   parseScreenRead,
@@ -117,6 +118,13 @@ test("the walker's output is read from its last line, and errors are kept", () =
     parseScreenRead('Gtk-WARNING noise\n{"error":"no-window"}\n'),
     { error: "no-window" }
   )
+  // A page still loading says so; older walkers don't, and count as loaded
+  const loading = parseScreenRead(
+    '{"app":"Firefox","window":"x","url":"https://a.test/","busy":true,"elements":[]}'
+  )
+  assert.equal("error" in loading ? undefined : loading.busy, true)
+  assert.equal(read([]).busy, false)
+  assert.match(SCREEN_READER_SCRIPT, /busy = states.contains\(S.BUSY\)/)
   assert.throws(() => parseScreenRead("Traceback (most recent call last):"))
   assert.throws(() => parseScreenRead('{"error":"made up"}'))
 })
@@ -132,6 +140,14 @@ test("the walker travels inline and runs isolated from the user's Python", () =>
   )
   // Password fields never have their characters read
   assert.doesNotMatch(SCREEN_READER_SCRIPT, /"password text"\)/)
+})
+
+test("a uniform screenshot is told from a real one by its size", () => {
+  // The black 1024x768 desktop of a resumed computer was 10,399 bytes; real
+  // desktops are tens of kilobytes
+  assert.equal(isBlankScreenshot(10_399, screen), true)
+  assert.equal(isBlankScreenshot(93_076, screen), false)
+  assert.equal(isBlankScreenshot(12_288, screen), false)
 })
 
 test("only http and https pages open in the desktop's browser", () => {

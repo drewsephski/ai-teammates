@@ -353,7 +353,11 @@ Setup begins with an actual assistant greeting. Choices use the existing Questio
 
 Fantasy Coach creation offers manual approval and automatic start/sit changes.
 Its bot settings use the existing compact Field/Section controls and semantic
-tokens for the saved mode, ESPN team link, timezone, daily check time and pause
-switch. Manual approval is the default. Copy makes the permission's scope and
-ESPN sign-in recovery clear; the next run and last error come from the server.
-Saving manual mode or pausing checks disables automatic changes.
+tokens. The team comes first: a "Saved team: …" status line above the ESPN team
+link field (or "Team: …" while the link is being edited), with a description
+that says no team is saved yet and that the bot finds it from chat, or how to
+switch teams. Then the automatic start/sit switch, the daily check switch, its
+time and the timezone. Manual approval is the default. Copy makes the
+permission's scope and ESPN sign-in recovery clear; the next run and last error
+come from the server. Saving manual mode or pausing checks disables automatic
+changes.

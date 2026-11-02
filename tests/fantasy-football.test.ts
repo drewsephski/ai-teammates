@@ -28,7 +28,14 @@ test("the optional signup preset resolves to a complete ESPN manager on both cli
   // The creation service uses this same resolver for web and POST /v1/bots.
   const role = findStartingRole(shown.id)
   assert.ok(role)
-  assert.doesNotThrow(() => botProfileSchema.parse(role))
+  // The opening brief rides along; the profile itself is a valid bot
+  assert.doesNotThrow(() =>
+    botProfileSchema.parse({
+      name: role.name,
+      job: role.job,
+      instructions: role.instructions,
+    })
+  )
   assert.ok(role.instructions.includes(fantasyFootballInstructions))
 })
 
@@ -47,7 +54,12 @@ test("ESPN access uses existing discovery and private sign-in, with no cookie co
     true
   )
   assert.ok(instructions.includes(espnFantasyFootballUrl))
+  // The front page lists the person's teams; /football/ on fantasy.espn.com
+  // is a "Page not found"
+  assert.equal(espnFantasyFootballUrl, "https://www.espn.com/fantasy/football/")
   assert.match(instructions, /discover relevant connected-app tools first/)
+  assert.match(instructions, /call saveEspnTeam with the team's name/)
+  assert.match(instructions, /don't sleep or take screenshots while it loads/)
   assert.match(instructions, /askUser with computerLogin/)
   assert.match(instructions, /actual visible hostname/)
   assert.match(instructions, /never request passwords, ESPN_S2, SWID/)
@@ -59,6 +71,11 @@ test("ESPN access uses existing discovery and private sign-in, with no cookie co
 
 test("the fantasy role keeps the same workflow exactly once in its runtime instructions", () => {
   const role = findStartingRole(fantasyFootballPresetId)!
+  // It opens by proposing its setup, which starts with ESPN sign-in
+  assert.match(
+    role.brief ?? "",
+    /have me sign in if it asks, find my team and save it/
+  )
   const instructions = buildChatInstructions(
     { id: "coach", ...role, setupComplete: true },
     undefined,

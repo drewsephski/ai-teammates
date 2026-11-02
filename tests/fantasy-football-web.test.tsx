@@ -33,6 +33,8 @@ const settings: Settings = {
   botId: "coach",
   mode: "manual",
   teamUrl,
+  teamName: "Dynasty Dogs",
+  team: "Dynasty Dogs (League 123456, Team 2, 2026 season)",
   timezone: "America/Chicago",
   checkTime: "09:00",
   enabled: false,
@@ -125,6 +127,41 @@ test("settings save the selected mode, team and schedule and allow revoking auto
   assert.equal((saves[1] as { values: { mode: string } }).values.mode, "manual")
 })
 
+test("the saved team is named, and a pasted link shows what it points at before saving", async () => {
+  const view = render(<FantasyFootballSettings botId="coach" api={client()} />)
+  const input = await view.findByLabelText("ESPN team link")
+  assert.match(
+    view.getByText(/Saved team:/).textContent!,
+    /Dynasty Dogs \(League 123456, Team 2, 2026 season\)/
+  )
+  fireEvent.change(input, {
+    target: {
+      value: "https://fantasy.espn.com/football/team?leagueId=99&teamId=7",
+    },
+  })
+  await waitFor(() =>
+    assert.match(view.getByText(/^Team:/).textContent!, /League 99, Team 7/)
+  )
+  // The name belonged to the saved team
+  assert.doesNotMatch(view.getByText(/^Team:/).textContent!, /Dynasty/)
+  view.rerender(
+    <FantasyFootballSettings
+      botId="fresh"
+      api={client({
+        loadFantasyFootballSettings: async () => ({
+          ...settings,
+          botId: "fresh",
+          teamUrl: "",
+          teamName: "",
+          team: null,
+        }),
+      })}
+    />
+  )
+  await view.findByText(/Ask your bot in chat to find it/)
+  assert.equal(view.queryByText(/Saved team:/), null)
+})
+
 test("invalid ESPN team links stay in the form and never reach the server", async () => {
   let saves = 0
   const api = client({
@@ -139,7 +176,7 @@ test("invalid ESPN team links stay in the form and never reach the server", asyn
   fireEvent.click(view.getByRole("button", { name: "Save lineup settings" }))
   assert.match(
     (await view.findByRole("alert")).textContent!,
-    /Paste your ESPN football team link/
+    /Paste the link of your team page on fantasy.espn.com/
   )
   assert.equal(input.getAttribute("aria-invalid"), "true")
   assert.equal(saves, 0)

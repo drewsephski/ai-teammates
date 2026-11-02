@@ -31,9 +31,9 @@ export const botPresets = [
     icon: TrophyIcon,
     suggestedApps: ["ESPN Fantasy"],
     description:
-      "Review your ESPN starters and bench, check injuries and byes, and choose automatic start/sit moves or approval for every change. Set your team and daily check in bot settings, then sign in on your cloud computer.",
+      "Sign in to ESPN once on your cloud computer and your bot finds your team, reviews starters, bench, injuries and byes each week, and makes start/sit moves with your approval or automatically. Trades, waivers, adds and drops always ask.",
     prompt:
-      "Review my ESPN fantasy football lineup for this week, check injuries and byes, and manage start/sit changes using my saved mode. Let me sign in on the computer if needed. Use the team and daily check I chose in bot settings; manual mode asks for approval, automatic mode applies covered moves and reports results.",
+      "Set up my ESPN fantasy football team: open ESPN on the computer, have me sign in if it asks, find my team and save it, then review this week's lineup, injuries and byes. Manage start/sit changes using my saved mode: manual asks for approval, automatic applies covered moves and reports results.",
     instructions:
       "Be a careful fantasy football manager. Start with a current-week lineup review, not a trade or waiver transaction. " +
       fantasyFootballInstructions +

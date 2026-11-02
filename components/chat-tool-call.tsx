@@ -53,6 +53,7 @@ import {
   ShieldCheckIcon,
   KeyRoundIcon,
   SheetIcon,
+  TrophyIcon,
 } from "lucide-react"
 
 type ToolPart = Extract<
@@ -97,6 +98,11 @@ const toolTitles: Record<ToolPart["type"], [string, string, string]> = {
   "tool-clickElement": ["Click", "Clicking", "Clicked"],
   "tool-fillElement": ["Fill in field", "Filling in field", "Filled in field"],
   "tool-openOnScreen": ["Open page", "Opening page", "Opened page"],
+  "tool-saveEspnTeam": [
+    "Save ESPN team",
+    "Saving ESPN team",
+    "Saved ESPN team",
+  ],
   "tool-handoff": ["Ask teammate", "Asking teammate", "Asked teammate"],
   "tool-listTeammates": [
     "Find teammate",
@@ -204,6 +210,7 @@ const toolIcons: Record<ToolPart["type"], LucideIcon> = {
   "tool-clickElement": MousePointerClickIcon,
   "tool-fillElement": TextCursorInputIcon,
   "tool-openOnScreen": AppWindowIcon,
+  "tool-saveEspnTeam": TrophyIcon,
   "tool-handoff": UsersRoundIcon,
   "tool-listTeammates": UsersRoundIcon,
   "tool-createTeammate": UsersRoundIcon,
@@ -403,7 +410,15 @@ function toolSummary(part: ToolPart): string | undefined {
         ? preview(`${part.output.role} “${part.output.name}”`)
         : part.input?.ref
     case "tool-openOnScreen":
-      return preview(part.input?.url)
+      return part.state === "output-available" &&
+        !isComputerBusy(part.output) &&
+        part.output.status !== "opening"
+        ? preview(part.output.window || part.output.pageUrl || part.input?.url)
+        : preview(part.input?.url)
+    case "tool-saveEspnTeam":
+      return part.state === "output-available" && "team" in part.output
+        ? preview(part.output.team)
+        : undefined
     case "tool-handoff":
       return preview(part.input?.note)
     case "tool-createTeammate":
@@ -924,7 +939,13 @@ function toolResult(part: ToolPart) {
         `Typed ${part.output.typed} characters into ${part.output.role} “${part.output.name}”.`
       )
     case "tool-openOnScreen":
-      return textResult(`Opened ${part.output.url}.`)
+      return textResult(
+        part.output.status === "opening"
+          ? part.output.message
+          : `Opened ${part.output.pageUrl ?? part.output.url}${part.output.restarted ? " after restarting the browser" : ""}.`
+      )
+    case "tool-saveEspnTeam":
+      return textResult(part.output.message)
     case "tool-mouseMove":
       return textResult(
         `Moved the pointer to ${part.output.x}, ${part.output.y}.`

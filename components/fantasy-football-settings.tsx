@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useId, useState } from "react"
-import { Controller, useForm } from "react-hook-form"
+import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { fantasyFootballSettingsSchema } from "@/db/schema"
+import { describeEspnTeam } from "@/lib/fantasy-football-policy"
 import { Button } from "@/components/ui/button"
 import {
   Field,
@@ -116,6 +117,15 @@ function LineupSettings({
       checkTime: settings.checkTime,
     },
   })
+  // What the saved link points at, as the person edits it; the saved team's
+  // name belongs to the saved link only
+  const teamUrl = useWatch({ control: form.control, name: "teamUrl" })
+  const team = teamUrl
+    ? describeEspnTeam(
+        teamUrl,
+        teamUrl === settings.teamUrl ? settings.teamName : ""
+      )
+    : null
   const save = form.handleSubmit(async (values) => {
     try {
       const client = api ?? (await actions())
@@ -149,10 +159,50 @@ function LineupSettings({
     >
       <FieldLegend variant="label">ESPN lineup management</FieldLegend>
       <FieldDescription>
-        Choose your team and daily check, then sign in to ESPN in chat. Checks
-        run while the app is closed; ESPN can require sign-in again.
+        Sign in to ESPN once from chat and your bot finds your team and saves it
+        here. Checks run while the app is closed; ESPN can ask you to sign in
+        again.
       </FieldDescription>
       <FieldGroup>
+        <Controller
+          control={form.control}
+          name="teamUrl"
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor={`${id}-teamUrl`}>ESPN team link</FieldLabel>
+              {team ? (
+                <p
+                  role="status"
+                  id={`${id}-teamUrl-team`}
+                  className="text-sm text-foreground"
+                >
+                  {teamUrl === settings.teamUrl ? "Saved team: " : "Team: "}
+                  {team}
+                </p>
+              ) : null}
+              <FieldDescription id={`${id}-teamUrl-description`}>
+                {settings.teamUrl
+                  ? "To manage a different team, paste the link of its team page on fantasy.espn.com."
+                  : "No team yet. Ask your bot in chat to find it, or paste the link of your team page on fantasy.espn.com (My Team)."}
+              </FieldDescription>
+              <Input
+                {...field}
+                id={`${id}-teamUrl`}
+                type="url"
+                autoCapitalize="none"
+                spellCheck={false}
+                placeholder="https://fantasy.espn.com/football/team?leagueId=…&teamId=…"
+                aria-label="ESPN team link"
+                aria-describedby={`${id}-teamUrl-description ${id}-teamUrl-error`}
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldError
+                id={`${id}-teamUrl-error`}
+                errors={[fieldState.error]}
+              />
+            </Field>
+          )}
+        />
         <Controller
           control={form.control}
           name="mode"
@@ -175,66 +225,11 @@ function LineupSettings({
           )}
         />
         <FieldDescription id={`${id}-mode-description`}>
-          With automatic changes off, accept or decline each lineup change in
-          chat. With automatic changes on and daily checks enabled, your bot can
-          make start/sit moves for this team. Trades, waivers, adds and drops
-          always require approval. Save with automatic changes off to revoke
-          permission.
+          Off: accept or decline each lineup change in chat. On, with the daily
+          check enabled: your bot makes start/sit moves for the saved team on
+          its own. Trades, waivers, adds and drops always ask. Save with this
+          off to revoke permission.
         </FieldDescription>
-        {(
-          [
-            [
-              "teamUrl",
-              "ESPN team link",
-              "Paste the team URL including leagueId, teamId and seasonId.",
-            ],
-            [
-              "checkTime",
-              "Daily check time",
-              "24-hour time, such as 09:00, before kickoff.",
-            ],
-            ["timezone", "Timezone", "For example America/Chicago."],
-          ] as const
-        ).map(([name, label, description]) => (
-          <Controller
-            key={name}
-            control={form.control}
-            name={name}
-            render={({ field, fieldState }) => (
-              <Field data-invalid={fieldState.invalid}>
-                <FieldLabel htmlFor={`${id}-${name}`}>{label}</FieldLabel>
-                <FieldDescription id={`${id}-${name}-description`}>
-                  {description}
-                </FieldDescription>
-                <Input
-                  {...field}
-                  id={`${id}-${name}`}
-                  type={
-                    name === "checkTime"
-                      ? "time"
-                      : name === "teamUrl"
-                        ? "url"
-                        : "text"
-                  }
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  placeholder={
-                    name === "teamUrl"
-                      ? "https://fantasy.espn.com/football/team?..."
-                      : undefined
-                  }
-                  aria-label={label}
-                  aria-describedby={`${id}-${name}-description ${id}-${name}-error`}
-                  aria-invalid={fieldState.invalid}
-                />
-                <FieldError
-                  id={`${id}-${name}-error`}
-                  errors={[fieldState.error]}
-                />
-              </Field>
-            )}
-          />
-        ))}
         <Controller
           control={form.control}
           name="enabled"
@@ -253,6 +248,44 @@ function LineupSettings({
             </Field>
           )}
         />
+        {(
+          [
+            [
+              "checkTime",
+              "Daily check time",
+              "Before the first kickoff of the day, in your timezone.",
+            ],
+            ["timezone", "Timezone", "For example America/Chicago."],
+          ] as const
+        ).map(([name, label, description]) => (
+          <Controller
+            key={name}
+            control={form.control}
+            name={name}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={`${id}-${name}`}>{label}</FieldLabel>
+                <FieldDescription id={`${id}-${name}-description`}>
+                  {description}
+                </FieldDescription>
+                <Input
+                  {...field}
+                  id={`${id}-${name}`}
+                  type={name === "checkTime" ? "time" : "text"}
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  aria-label={label}
+                  aria-describedby={`${id}-${name}-description ${id}-${name}-error`}
+                  aria-invalid={fieldState.invalid}
+                />
+                <FieldError
+                  id={`${id}-${name}-error`}
+                  errors={[fieldState.error]}
+                />
+              </Field>
+            )}
+          />
+        ))}
         {settings.nextRunAt && (
           <p role="status" className="text-xs text-muted-foreground">
             Next check:{" "}

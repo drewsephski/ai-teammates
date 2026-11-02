@@ -20,9 +20,11 @@ import {
 import {
   createAccountSandbox,
   deleteSandbox,
+  isLegacyTemplate,
   meterSandbox,
   pauseComputer,
   sandboxExists,
+  sandboxTemplateName,
 } from "@/lib/e2b"
 import { withSandboxLock } from "@/lib/sandbox-lock"
 import { LOW_ALLOWANCE_SECONDS } from "@/lib/sandbox-policy"
@@ -37,6 +39,8 @@ export type ComputerProvider = {
   remove: (sandboxId: string) => Promise<unknown>
   exists: (sandboxId: string) => Promise<boolean>
   pause: (sandboxId: string) => Promise<unknown>
+  // The template the computer was made from, when the provider says
+  template?: (sandboxId: string) => Promise<string | null>
 }
 
 const e2b: ComputerProvider = {
@@ -44,6 +48,7 @@ const e2b: ComputerProvider = {
   remove: deleteSandbox,
   exists: sandboxExists,
   pause: pauseComputer,
+  template: sandboxTemplateName,
 }
 
 const lockKey = (userId: string) => `computer:${userId}`
@@ -103,14 +108,35 @@ export async function touchComputer(userId: string, now = Date.now()) {
 }
 
 // Serialized with reset and delete. No fake or placeholder computer IDs.
+// A computer made from E2B's stock template before krafty-desktop existed is
+// replaced by one from the template on its next use: its shell isn't
+// isolated and its browser can't be read, so bots can't work on it. Its
+// files and sign-ins don't carry over. The caller's own lease (runKey) never
+// blocks the replacement; another turn's does.
 export async function ensureAccountComputer(
   userId: string,
-  provider: ComputerProvider = e2b
+  provider: ComputerProvider = e2b,
+  options: { runKey?: string } = {}
 ) {
   return withSandboxLock(lockKey(userId), async () => {
     await ensureRow(userId)
     const existing = await accountComputerId(userId)
-    if (existing) return existing
+    if (existing) {
+      if (!provider.template) return existing
+      const legacy = await provider
+        .template(existing)
+        .then(isLegacyTemplate)
+        .catch(() => false)
+      if (!legacy) return existing
+      const held = await holderOf(userId)
+      const inUse =
+        held?.runKey &&
+        held.expiresAt &&
+        held.expiresAt.getTime() > Date.now() &&
+        held.runKey !== options.runKey
+      if (inUse) return existing
+      return replaceLegacyComputer(userId, existing, provider)
+    }
     const sandboxId = await provider.create(userId)
     let deleted = false
     try {
@@ -164,6 +190,61 @@ export async function ensureAccountComputer(
     if (deleted) throw new Error("Your account was deleted.")
     return sandboxId
   })
+}
+
+// Under the account lock. The new computer is registered before the old one
+// goes, so a lost response never leaves the account without a computer; an
+// old computer that can't be removed is reported for the orphan cleanup.
+async function replaceLegacyComputer(
+  userId: string,
+  oldId: string,
+  provider: ComputerProvider
+) {
+  const id = await provider.create(userId)
+  let registered = false
+  try {
+    const [updated] = await db
+      .update(computers)
+      .set({ sandboxId: id, lastUsedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(computers.userId, userId),
+          eq(computers.sandboxId, oldId),
+          hasBot(userId)
+        )
+      )
+      .returning({ userId: computers.userId })
+    registered = !!updated
+  } catch (error) {
+    registered = (await accountComputerId(userId).catch(() => null)) === id
+    if (!registered) {
+      await provider
+        .remove(id)
+        .catch((cleanupError: unknown) =>
+          Sentry.captureException(cleanupError, { extra: { userId, id } })
+        )
+      throw error
+    }
+  }
+  if (!registered) {
+    // Changed meanwhile (reset, deletion): keep what's registered now
+    await provider
+      .remove(id)
+      .catch((cleanupError: unknown) =>
+        Sentry.captureException(cleanupError, { extra: { userId, id } })
+      )
+    return (await accountComputerId(userId)) ?? oldId
+  }
+  Sentry.captureMessage("Replaced a computer from the stock template", {
+    level: "info",
+    extra: { userId, oldId, id },
+  })
+  await provider
+    .remove(oldId)
+    .catch((error: unknown) =>
+      Sentry.captureException(error, { extra: { userId, oldId } })
+    )
+  return id
 }
 
 type LeaseOptions = {

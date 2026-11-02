@@ -182,6 +182,113 @@ test("saved checks create one managed daily routine, update it, and revoke autom
   assert.equal(await store.authorizeFantasyLineup("A", "coach", verdict), false)
 })
 
+test("the bot saves the team the browser is on, and only the owner changes a saved team", async () => {
+  await db
+    .update(schema.fantasyFootballSettings)
+    .set({ teamUrl: "", teamName: "" })
+    .where(eq(schema.fantasyFootballSettings.botId, "coach"))
+  // Not a team page: nothing saved
+  assert.deepEqual(
+    await store.saveDetectedTeam(
+      "A",
+      "coach",
+      "https://www.espn.com/fantasy/football/",
+      "Dynasty Dogs"
+    ),
+    {
+      status: "not_a_team_page",
+      pageUrl: "https://www.espn.com/fantasy/football/",
+    }
+  )
+  assert.equal(
+    (await store.saveDetectedTeam("A", "coach", null, "")).status,
+    "not_a_team_page"
+  )
+  // The season comes from the calendar when the address leaves it out
+  const saved = await store.saveDetectedTeam(
+    "A",
+    "coach",
+    "https://fantasy.espn.com/football/team?leagueId=123456&teamId=2",
+    " Dynasty   Dogs "
+  )
+  assert.equal(saved.status, "saved")
+  assert.equal(
+    "teamUrl" in saved && saved.teamUrl,
+    teamUrl.replace(
+      "2026",
+      String(
+        new Date().getUTCMonth() < 2
+          ? new Date().getUTCFullYear() - 1
+          : new Date().getUTCFullYear()
+      )
+    )
+  )
+  assert.match(
+    "team" in saved ? saved.team : "",
+    /^Dynasty Dogs \(League 123456, Team 2/
+  )
+  const shown = await service.getFantasySettings("A", "coach")
+  assert.equal(shown?.teamName, "Dynasty Dogs")
+  assert.match(shown?.team ?? "", /^Dynasty Dogs/)
+  // The same team again is no change; another team is refused from chat
+  assert.equal(
+    (await store.saveDetectedTeam("A", "coach", shown!.teamUrl, "Dynasty Dogs"))
+      .status,
+    "unchanged"
+  )
+  const other = await store.saveDetectedTeam(
+    "A",
+    "coach",
+    shown!.teamUrl.replace("teamId=2", "teamId=9"),
+    "Rival"
+  )
+  assert.equal(other.status, "different")
+  assert.equal(
+    (await service.getFantasySettings("A", "coach"))?.teamName,
+    "Dynasty Dogs"
+  )
+  // Nobody else's bot
+  assert.deepEqual(
+    await store.saveDetectedTeam("B", "coach", shown!.teamUrl, "x"),
+    {
+      status: "no_settings",
+    }
+  )
+  // The owner changing the team in settings drops the name the bot read
+  const changed = await service.saveFantasySettings("A", "coach", {
+    ...values,
+    mode: "manual",
+    enabled: false,
+    teamUrl: shown!.teamUrl.replace("teamId=2", "teamId=9"),
+  })
+  assert.equal(changed?.teamName, "")
+  assert.match(changed?.team ?? "", /^League 123456, Team 9/)
+  // Saving the same team keeps it
+  const kept = await service.saveFantasySettings("A", "coach", {
+    ...values,
+    mode: "manual",
+    enabled: false,
+    teamUrl: shown!.teamUrl.replace("teamId=2", "teamId=9"),
+  })
+  assert.equal(kept?.team, changed?.team)
+  assert.match(
+    store.fantasySettingsInstructions(
+      await store.readFantasySettings("A", "coach")
+    ),
+    /Team 9/
+  )
+  await db
+    .update(schema.fantasyFootballSettings)
+    .set({ teamUrl: "" })
+    .where(eq(schema.fantasyFootballSettings.botId, "coach"))
+  assert.match(
+    store.fantasySettingsInstructions(
+      await store.readFantasySettings("A", "coach")
+    ),
+    /call saveEspnTeam/
+  )
+})
+
 test("invalid scope, timezone and time cannot enable unattended checks", async () => {
   for (const patch of [
     { teamUrl: "" },

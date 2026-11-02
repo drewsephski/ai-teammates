@@ -198,6 +198,61 @@ test("a command gets the saved keys as environment variables", async () => {
   assert.equal(runs[2].options.envs, undefined)
 })
 
+test("a folder that doesn't exist yet is made under the shell user's home, and explained elsewhere", async () => {
+  const { runSandboxCommand } = await import("../lib/e2b")
+  const runs: { command: string; options: Record<string, unknown> }[] = []
+  const missing = () =>
+    Object.assign(
+      new Error(
+        "[invalid_argument] cwd '/home/worker/workspace/x' does not exist"
+      ),
+      { name: "InvalidArgumentError" }
+    )
+  let exists = false
+  const sandbox = {
+    commands: {
+      run: async (command: string, options: Record<string, unknown>) => {
+        runs.push({ command, options })
+        if (command.startsWith("mkdir")) {
+          exists = true
+          return { exitCode: 0, stdout: "", stderr: "" }
+        }
+        if (!exists) throw missing()
+        return { exitCode: 0, stdout: "/home/worker/workspace/x", stderr: "" }
+      },
+    },
+  } as unknown as Parameters<typeof runSandboxCommand>[0]
+  const made = await runSandboxCommand(
+    sandbox,
+    "pwd",
+    "/home/worker/workspace/x",
+    1000,
+    undefined,
+    undefined,
+    "worker"
+  )
+  assert.equal(made.exitCode, 0)
+  assert.equal(made.stdout, "/home/worker/workspace/x")
+  assert.deepEqual(
+    runs.map((run) => run.command),
+    ["pwd", "mkdir -p '/home/worker/workspace/x'", "pwd"]
+  )
+  assert.equal(runs[1].options.user, "worker")
+
+  // Where the shell user may not make folders, the bot reads why
+  const refused = {
+    commands: {
+      run: async (command: string) => {
+        if (command.startsWith("mkdir")) throw new Error("permission denied")
+        throw missing()
+      },
+    },
+  } as unknown as Parameters<typeof runSandboxCommand>[0]
+  const explained = await runSandboxCommand(refused, "pwd", "/etc/x", 1000)
+  assert.equal(explained.exitCode, 1)
+  assert.match(explained.stderr, /doesn't exist and couldn't be created/)
+})
+
 test("a ref from no reading is refused before the computer is touched", async () => {
   let touched = 0
   const set = tools.createSandboxTools(() => {
