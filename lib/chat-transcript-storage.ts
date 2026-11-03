@@ -7,10 +7,12 @@ import {
   type TranscriptStorage,
 } from "@trigger.dev/sdk/ai"
 import type { UIMessage } from "ai"
-import { eq, sql } from "drizzle-orm"
+import { and, eq, inArray, isNull, sql } from "drizzle-orm"
 
 import { db } from "@/db"
-import { chats, chatTranscripts } from "@/db/schema"
+import { chatAttachments, chats, chatTranscripts } from "@/db/schema"
+
+import { chatAttachmentReferences } from "@/lib/chat-attachment-policy"
 
 // The chat agent's transcript storage, in Neon instead of Trigger.dev.
 //
@@ -114,19 +116,46 @@ export function createChatTranscriptStorage(
         state: changeset.transcript.state ?? null,
         cursors: changeset.cursors ?? null,
       }
-      await db
-        .insert(chatTranscripts)
-        .values(values)
-        .onConflictDoUpdate({
-          target: chatTranscripts.chatId,
-          set: {
-            entries: values.entries,
-            state: values.state,
-            // A save without cursors keeps the last ones
-            cursors: sql`coalesce(excluded.cursors, ${chatTranscripts.cursors})`,
-            updatedAt: sql`now()`,
-          },
-        })
+      await db.transaction(async (tx) => {
+        const [liveChat] = await tx
+          .select({ id: chats.id })
+          .from(chats)
+          .where(eq(chats.id, ctx.chatId))
+          .for("update")
+        if (!liveChat) throw new Error("Chat not found")
+        const ids = [
+          ...new Set(
+            chatAttachmentReferences(
+              changeset.transcript.entries.map((entry) => entry.message),
+              false
+            ).flat()
+          ),
+        ]
+        if (ids.length)
+          await tx
+            .update(chatAttachments)
+            .set({ referencedAt: new Date() })
+            .where(
+              and(
+                eq(chatAttachments.chatId, ctx.chatId),
+                inArray(chatAttachments.id, ids),
+                isNull(chatAttachments.referencedAt)
+              )
+            )
+        await tx
+          .insert(chatTranscripts)
+          .values(values)
+          .onConflictDoUpdate({
+            target: chatTranscripts.chatId,
+            set: {
+              entries: values.entries,
+              state: values.state,
+              // A save without cursors keeps the last ones
+              cursors: sql`coalesce(excluded.cursors, ${chatTranscripts.cursors})`,
+              updatedAt: sql`now()`,
+            },
+          })
+      })
     },
   }
 }

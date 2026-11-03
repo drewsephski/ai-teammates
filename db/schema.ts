@@ -194,6 +194,8 @@ export const chatAttachments = pgTable(
     mediaType: text().notNull(),
     size: integer().notNull(),
     sealed: jsonb().$type<unknown[]>().notNull(),
+    // Monotonic pin after worker validation or transcript persistence.
+    referencedAt: timestamp({ withTimezone: true }),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("chat_attachments_chat_id_idx").on(table.chatId)]
@@ -677,6 +679,8 @@ export const routines = pgTable(
     // Null once a one-off routine has run, or while it is paused
     nextRunAt: timestamp({ withTimezone: true }),
     lastRunAt: timestamp({ withTimezone: true }),
+    // Internal exact identity, including event runs that share a timestamp.
+    lastRunId: text(),
     // started: posted into the chat. completed, blocked (stopped for an
     // approval or a question) and failed come back from the run's turn.
     lastStatus: text({
@@ -702,6 +706,7 @@ export const routines = pgTable(
 // a redelivered event starts at most one run. Cascades with its routine.
 export const routineEvents = pgTable("routine_events", {
   id: text().primaryKey(),
+  runId: text(),
   routineId: text()
     .notNull()
     .references(() => routines.id, { onDelete: "cascade" }),

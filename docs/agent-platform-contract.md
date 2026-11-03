@@ -19,7 +19,7 @@ The mobile session reads this table. `planned` means the shapes below may still 
 | 1     | `findApps`, connect card (`askUser.appConnection`), connection attempts with `chatId`/`questionId`/`botId`, wake on connect               | shipped      |
 | 2     | One computer per account, turn lease, `inUseBy`, desktop in group chats                                                                   | shipped      |
 | 3     | Free computer allowance, `requestComputerApproval`, server-checked computer gestures, `approvals.kind`, `computerLogin.reason`, rules API | server ready |
-| 4     | Workflows (routes, tools, routine link), app preferences (proactive opt-out, work apps), attachments (computer upload plus inline images) | planned      |
+| 4     | Workflows (routes, tools, routine link), app preferences (proactive opt-out, work apps), attachments (see current contract below)         | planned      |
 
 ## Message ID prefixes
 
@@ -326,64 +326,36 @@ Shipped so far (2026-10-17): `proactive` only. `PATCH /api/v1/apps/preferences` 
 - `GET /api/v1/for-you` and `POST /api/v1/for-you/suggestions` gain `hiddenApps: string[]` (toolkits with `proactive: false`), and each item gains `categoryLabel` ("Reply", "Schedule", "Meeting prep", "Follow up", "To-do", ...). `category` gains the values `schedule`, `follow_up` and `admin`.
 - `PATCH /api/v1/for-you/items/:itemId` also accepts `{ type: "hide_app" }`: it dismisses the card and sets `proactive: false` for its app. Send it only to a server whose For you state has `hiddenApps`.
 
-### Phase 4: attachments
+### Attachments: current source contract (supersedes Phase 4 proposal)
 
-The owner chose (2026-10-16) to put files on the account computer, plus inline images under 5 MB for the model to look at directly. No new storage service.
+The October 16 account-computer upload and inline-image proposal is superseded.
+Use [Chat attachments](chat-attachments.md) as the authoritative wire and lifecycle
+contract. This documents implemented source, not verified production deployments
+or shipped mobile binaries.
 
-**Files: upload, then send.** Spreadsheets, documents, PDFs, student work, images the bot should process with code:
-
-`POST /api/v1/chats/:chatId/attachments`, `multipart/form-data` with one `file` field per request.
-
-- **Limits:** 25 MB per file, 10 files per message. The name is kept for display and sanitized for the path.
-- **Starts the computer:** uploading wakes the account computer and spends a few of its seconds. That's why it's a POST to a chat-scoped route; any owned chat, direct or group, works.
-- **201:**
-
-  ```ts
-  {
-    attachment: {
-      id: string
-      name: string // sanitized display name, e.g. "Q3 production.xlsx"
-      mediaType: string // from the upload, e.g. "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      size: number // bytes
-      path: string // "~/workspace/uploads/<chatId>/<id>-<sanitized name>" on the account computer
-    }
-  }
-  ```
-
-- **200 `{ ok: false, usageLimit: "sandbox" }`:** no computer seconds left. Same pattern as the create-bot result. Show the plan state and don't send the message with this file.
-- **Errors:**
-
-  | Status | Code                   | When                                                                                        |
-  | ------ | ---------------------- | ------------------------------------------------------------------------------------------- |
-  | 404    | `not_found`            | "Chat not found"                                                                            |
-  | 400    | `invalid_request`      | no file, or more than one file                                                              |
-  | 413    | `too_large` (new code) | "Files can be up to 25 MB."                                                                 |
-  | 502    | `upstream`             | "Couldn't reach the computer. Computers are busy right now, so try again in a few minutes." |
-
-Then send the chat message (through Trigger.dev, as today) with the uploaded attachments in its metadata:
-
-```ts
-metadata: {
-  // existing keys (botId, questionId, mentions, displayPrompt), plus
-  attachments?: { id: string; name: string; mediaType: string; size: number; path: string }[] // at most 10, exactly as returned
-}
-```
-
-- The text part may be empty when the message has attachments.
-- The agent ignores entries whose `path` isn't under `~/workspace/uploads/<this chatId>/`. It tells the model the path, name and type of the others, and the bot opens them on the computer.
-- Files stay until the computer is reset, deleted with the account, or removed by the 30-day free-plan retention rule. A chat's old attachment chips can point at files that are gone, so render them as names, not links.
-
-**Inline images: no upload.** A photo or screenshot the person wants the bot to look at:
-
-- **Shape:** an AI SDK file part in the message itself, `{ type: "file", mediaType, url: "data:<mediaType>;base64,…", filename? }`.
-- **Allowed:** `image/png`, `image/jpeg`, `image/webp`, `image/gif`. At most 5 MB decoded, 4 per message. Downscale before sending (longest side 1568 px) to keep the transcript and model cost small.
-- **No computer:** these don't touch the computer, so they work with no computer seconds left.
-- **Not allowed:** anything else, larger, or a non-data URL. The agent drops it and tells the bot it was dropped, so the bot can ask for an upload instead.
-- **Cost:** the image is sent to the model with every later turn of this chat, and an image in context moves the chat to the vision model. The app should explain neither; it's shown in usage.
-
-**Rendering.** User messages show attachment chips (name and size) from `metadata.attachments`, and thumbnails from inline image parts. Old builds ignore both. They show the message text, and an attachments-only message as an empty bubble.
-
-**Copied by hand:** the limits above live in `lib/attachment-policy.ts`.
+- Upload raw bytes to `POST /api/v1/chats/:chatId/attachments`, with `Content-Type`
+  and URI-encoded `X-File-Name`. HTTP **200** returns
+  `{ attachment: { id, filename, mediaType, size, url } }`.
+- Send an AI SDK user file part `{ type: "file", filename, mediaType, url }` using
+  the returned opaque URL. Authenticated GET on `.../attachments/:attachmentId`
+  returns `{ attachment: { id, filename, mediaType, size, base64 } }` for previews.
+- Supported images, PDFs and text files are limited to 10 MiB/file,
+  5 files/20 MiB per message and 100 files/100 MiB per chat. The exact allowlist
+  and errors are in the authoritative document and `lib/chat-attachment-policy.ts`.
+- Bytes are encrypted in the database under the chat key and deleted with the
+  chat. Upload does not start a computer or consume its allowance. There is no
+  path-based or inline-data alternative input contract.
+- DELETE discards unused drafts; validated or saved references return 409
+  `conflict`. `POST /api/v1/chats/:chatId/context`, `{ sourceChatId }`, creates an
+  owner-checked text snapshot and returns the same upload metadata.
+- Worker validation pins references before model execution. An HTTP append
+  acknowledgment is not that validation boundary. An expired draft is rejected;
+  missing historical bytes allow a later text reply through a neutral marker.
+  New invalid/foreign/external references and integrity failures remain errors.
+- Schema application and Railway/Trigger releases need separate authorization.
+  Full web support is deferred in plan 008; web files are explicitly rejected by
+  the interim composer behavior. Verify the separate mobile repository and
+  installed binaries before claiming UI or release parity.
 
 ### Phase 3: connectors and routines (server ready)
 

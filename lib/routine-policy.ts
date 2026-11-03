@@ -341,6 +341,23 @@ export function parseRoutineRunMessageId(messageId: string | undefined) {
   return { routineId: match[1], scheduledAt }
 }
 
+// Event IDs carry identity, never a timestamp. Continuations retain the
+// canonical root; the event's scheduled time comes from its run row.
+export function parseRoutineRunIdentity(messageId: string | undefined):
+  | {
+      runId: string
+      routineId: string
+      scheduledAt?: Date
+    }
+  | undefined {
+  const runId = rootMessageId(messageId)
+  if (!runId) return
+  const event = /^routine_event_(.+)_([a-f0-9]{32})$/.exec(runId)
+  if (event) return { runId, routineId: event[1] }
+  const scheduled = parseRoutineRunMessageId(runId)
+  if (scheduled) return { runId, ...scheduled }
+}
+
 // How a finished run is recorded on its routine
 export type RoutineRunOutcome = {
   status: "completed" | "blocked" | "failed"

@@ -20,6 +20,14 @@ import {
 import { toast } from "@/components/ui/toast"
 import { ComposerMenu, type ComposerOption } from "@/components/composer-menu"
 
+function rejectFiles() {
+  toast.add({
+    type: "error",
+    title: "Files aren't supported in web chat yet",
+    description: "Send a text message instead.",
+  })
+}
+
 export function ChatComposer({
   bots,
   memberIds,
@@ -44,7 +52,7 @@ export function ChatComposer({
   children: ReactNode
   disabled?: boolean
 }) {
-  const { textInput } = usePromptInputController()
+  const { textInput, attachments } = usePromptInputController()
   const [draftTags, setDraftTags] = useState<{
     text: string
     mentions: BotMention[]
@@ -192,8 +200,15 @@ export function ChatComposer({
         }}
       />
       <PromptInput
+        maxFiles={0}
+        onError={rejectFiles}
         onSubmit={(message) => {
           if (disabled) return false
+          if (message.files.length > 0) {
+            rejectFiles()
+            for (const file of attachments.files) attachments.remove(file.id)
+            return false
+          }
           const parsed = parseComposerCommand(message.text)
           if (parsed?.command?.name === "help") {
             setHelp(true)

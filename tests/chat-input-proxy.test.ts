@@ -127,7 +127,10 @@ test("a token for another session, or none, is turned away before the database",
 test("a deleted chat gets 404 and nothing is forwarded", async () => {
   const { deps: d, forwarded } = deps()
   const response = await proxyChatInput(
-    request(record, `Bearer ${token(["write:sessions:chat_9"])}`),
+    request(
+      record.replaceAll("chat_1", "chat_9"),
+      `Bearer ${token(["write:sessions:chat_9"])}`
+    ),
     "chat_9",
     d
   )
@@ -155,4 +158,169 @@ test("stop records pass through unchanged", async () => {
     d
   )
   assert.equal(forwarded[0].init.body, stop)
+})
+
+test("wire session mismatch or omission is rejected before key lookup and forwarding", async () => {
+  for (const chatId of ["chat_2", "", null, undefined]) {
+    const body = JSON.parse(record)
+    body.payload.chatId = chatId
+    const d = deps()
+    const response = await proxyChatInput(
+      request(
+        JSON.stringify(body),
+        `Bearer ${token(["write:sessions:chat_1"])}`
+      ),
+      "chat_1",
+      d.deps
+    )
+    assert.equal(response.status, 400)
+    assert.deepEqual(await response.json(), { error: "Invalid record" })
+    assert.deepEqual(d.keyLookups, [])
+    assert.deepEqual(d.forwarded, [])
+  }
+})
+
+test("same-session regenerate without messages remains supported", async () => {
+  const d = deps()
+  const body = JSON.stringify({
+    kind: "message",
+    payload: { chatId: "chat_1", trigger: "regenerate-message" },
+  })
+  const response = await proxyChatInput(
+    request(body, `Bearer ${token(["write:sessions:chat_1"])}`),
+    "chat_1",
+    d.deps
+  )
+  assert.equal(response.status, 200)
+  assert.equal(d.forwarded[0].init.body, body)
+})
+
+const LIMIT = 1024 * 1024
+const auth = `Bearer ${token(["write:sessions:chat_1"])}`
+function streamed(
+  chunks: Uint8Array[],
+  options: { length?: string; cancelError?: boolean; error?: Error } = {}
+) {
+  let reads = 0
+  let cancelled = 0
+  const stream = new ReadableStream<Uint8Array>(
+    {
+      pull(controller) {
+        if (options.error) {
+          controller.error(options.error)
+          return
+        }
+        if (reads === chunks.length) {
+          controller.close()
+          return
+        }
+        controller.enqueue(chunks[reads++])
+      },
+      cancel() {
+        cancelled++
+        if (options.cancelError) throw new Error("Cancel failed")
+      },
+    },
+    { highWaterMark: 0 }
+  )
+  const init: RequestInit & { duplex: "half" } = {
+    method: "POST",
+    body: stream,
+    duplex: "half",
+    headers: {
+      Authorization: auth,
+      ...(options.length !== undefined && { "Content-Length": options.length }),
+    },
+  }
+  const req = new Request("https://kraftybot.app/input", init)
+  return { req, reads: () => reads, cancelled: () => cancelled }
+}
+
+for (const length of [undefined, "1", "invalid", "-1"]) {
+  test(`stream overflow with declared length ${length} cancels before reading the tail`, async () => {
+    const input = streamed(
+      [new Uint8Array(LIMIT), new Uint8Array(1), new Uint8Array(100)],
+      { length }
+    )
+    const d = deps()
+    const response = await proxyChatInput(input.req, "chat_1", d.deps)
+    assert.equal(response.status, 413)
+    assert.deepEqual(await response.json(), { error: "Message too large" })
+    assert.equal(input.reads(), 2)
+    assert.equal(input.cancelled(), 1)
+    assert.equal(input.req.body?.locked, false)
+    assert.deepEqual(d.keyLookups, [])
+    assert.deepEqual(d.forwarded, [])
+  })
+}
+
+test("declared overflow is rejected without pulling any body chunks", async () => {
+  const input = streamed([new Uint8Array(1)], { length: String(LIMIT + 1) })
+  const d = deps()
+  assert.equal((await proxyChatInput(input.req, "chat_1", d.deps)).status, 413)
+  assert.equal(input.reads(), 0)
+  assert.deepEqual(d.keyLookups, [])
+  assert.deepEqual(d.forwarded, [])
+})
+
+test("a single oversized chunk is refused even when cancellation rejects", async () => {
+  const input = streamed([new Uint8Array(LIMIT + 1), new Uint8Array(1)], {
+    cancelError: true,
+  })
+  const d = deps()
+  assert.equal((await proxyChatInput(input.req, "chat_1", d.deps)).status, 413)
+  assert.equal(input.cancelled(), 1)
+  assert.equal(input.reads(), 1)
+  assert.equal(input.req.body?.locked, false)
+  assert.deepEqual(d.keyLookups, [])
+  assert.deepEqual(d.forwarded, [])
+})
+
+test("an exact-cap valid record is forwarded and cap plus one never reaches the key", async () => {
+  for (const extra of [0, 1]) {
+    const bytes = Buffer.from(
+      record + " ".repeat(LIMIT - Buffer.byteLength(record) + extra)
+    )
+    const input = streamed([bytes.subarray(0, 500), bytes.subarray(500)])
+    const d = deps()
+    assert.equal(
+      (await proxyChatInput(input.req, "chat_1", d.deps)).status,
+      extra ? 413 : 200
+    )
+    assert.equal(d.forwarded.length, extra ? 0 : 1)
+    assert.equal(d.keyLookups.length, extra ? 0 : 1)
+    assert.equal(input.req.body?.locked, false)
+  }
+})
+
+test("split UTF-8 is decoded once, retaining request.text BOM semantics", async () => {
+  const value = JSON.parse(record)
+  value.payload.message.parts[0].text = "é🙂"
+  const bytes = Buffer.from("\uFEFF" + JSON.stringify(value))
+  const input = streamed(Array.from(bytes, (byte) => Uint8Array.of(byte)))
+  const d = deps()
+  assert.equal((await proxyChatInput(input.req, "chat_1", d.deps)).status, 200)
+  const sent = JSON.parse(d.forwarded[0].init.body as string)
+  assert.deepEqual(openMessage(sent.payload.message, "chat_1", key).parts, [
+    { type: "text", text: "é🙂" },
+  ])
+})
+
+test("empty and failing/aborted streams never load keys or forward partial JSON", async () => {
+  const empty = new Request("https://kraftybot.app/input", {
+    method: "POST",
+    headers: { Authorization: auth },
+  })
+  const d = deps()
+  assert.equal((await proxyChatInput(empty, "chat_1", d.deps)).status, 400)
+  for (const error of [
+    new Error("Read failed"),
+    new DOMException("Aborted", "AbortError"),
+  ]) {
+    const input = streamed([], { error })
+    await assert.rejects(proxyChatInput(input.req, "chat_1", d.deps), error)
+    assert.equal(input.req.body?.locked, false)
+  }
+  assert.deepEqual(d.keyLookups, [])
+  assert.deepEqual(d.forwarded, [])
 })

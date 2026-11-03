@@ -1,4 +1,10 @@
-import { hydrateChatAttachments } from "@/lib/chat-attachments"
+import {
+  hydrateChatAttachments,
+  currentChatAttachmentIds,
+  resetChatAttachmentInput,
+  validateWorkerChatMessages,
+  recoverRejectedChatAttachmentInput,
+} from "@/lib/chat-attachments"
 import * as Sentry from "@sentry/node"
 import { idempotencyKeys, metadata, sessions } from "@trigger.dev/sdk"
 import { chat } from "@trigger.dev/sdk/ai"
@@ -8,8 +14,11 @@ import { z } from "zod"
 import { db } from "@/db"
 import { bots as botTable, chatMembers, chats } from "@/db/schema"
 import { USAGE_LIMIT_ERROR } from "@/lib/billing"
-import { openChatMessages } from "@/lib/chat-content-key"
 import { chatTranscriptStorage } from "@/lib/chat-transcript-storage"
+import {
+  assertWorkerChatSession,
+  bindChatSessionStorage,
+} from "@/lib/chat-session-context"
 import { isModelUnavailable, MODEL_UNAVAILABLE_ERROR } from "@/lib/chat-turn"
 import { createHandoffTool, type Handoff } from "@/lib/handoff-tool"
 import { anthropicAllowed } from "@/lib/ai-consent-store"
@@ -51,7 +60,7 @@ import {
   userTimeZone,
 } from "@/lib/routines"
 import {
-  parseRoutineRunMessageId,
+  parseRoutineRunIdentity,
   routineClock,
   unattendedOrigin,
 } from "@/lib/routine-policy"
@@ -160,9 +169,11 @@ import {
 } from "@/lib/chatgpt-policy"
 
 // A chat's bots and the one answering this turn. No session here: the chat's
-// owner was checked when the session started. botId comes from the browser, so
+// owner was checked when the session started; every callback ID is bound to
+// that trusted session before loading it. botId comes from the browser, so
 // it only ever picks among the chat's own members; without one the first answers.
 async function getChatBots(chatId: string, botId?: string) {
+  assertWorkerChatSession(chatId)
   const row = await db.query.chats.findFirst({
     where: eq(chats.id, chatId),
     with: {
@@ -317,12 +328,12 @@ export const chatAgent = chat
   .withClientData({ schema: chatClientDataSchema })
   .agent({
     id: "chat",
-    storage: chatTranscriptStorage,
+    storage: bindChatSessionStorage(chatTranscriptStorage),
     // Messages reach Trigger.dev's input stream sealed with the chat's key
     // (lib/chat-content-seal.ts). Open them first: this runs before the
     // runtime accumulates, stores or converts them for the model.
     onValidateMessages: ({ chatId, messages }) =>
-      openChatMessages(chatId, messages),
+      validateWorkerChatMessages(chatId, messages),
     uiMessageStreamOptions: {
       onError: (error) => {
         if (isModelUnavailable(error)) return MODEL_UNAVAILABLE_ERROR
@@ -372,7 +383,8 @@ export const chatAgent = chat
         mentions: [],
       })
     },
-    onTurnStart: ({ uiMessages, runId, turn }) => {
+    onTurnStart: ({ chatId, uiMessages, runId, turn }) => {
+      assertWorkerChatSession(chatId)
       turnModelUsage.usageKey = `ai:${runId}:${turn}`
       turnModelUsage.cost = 0
       turnModelUsage.webCost = 0
@@ -427,6 +439,7 @@ export const chatAgent = chat
     },
     // Declared here so screenshots stay images when earlier turns are replayed
     tools: async ({ chatId, clientData }) => {
+      resetChatAttachmentInput()
       const {
         chat: { kind, userId },
         bots,
@@ -868,6 +881,7 @@ export const chatAgent = chat
       finishReason,
       writer,
     }) => {
+      assertWorkerChatSession(chatId)
       await suggestFollowUps()
       // After the suggestions, which count toward what the reply spent
       await settleTurnUsage({
@@ -968,6 +982,8 @@ export const chatAgent = chat
       stopped,
       finishReason,
     }) => {
+      assertWorkerChatSession(chatId)
+      if (await recoverRejectedChatAttachmentInput()) return
       const refused =
         error instanceof Error && error.message === USAGE_LIMIT_ERROR
       const failed = turnFailed({ error, refused, stopped, finishReason })
@@ -1124,7 +1140,7 @@ export const chatAgent = chat
       if (
         row &&
         !continuing &&
-        parseRoutineRunMessageId(turnModelUsage.originMessageId)
+        parseRoutineRunIdentity(turnModelUsage.originMessageId)
       )
         await recordRoutineRunOutcome(
           row.userId,
@@ -1260,15 +1276,14 @@ export const chatAgent = chat
           turnModelUsage.originMessageId
       // A routine's turns see only their own run, so each run costs about
       // the same however long the chat gets (lib/routine-history.ts)
-      const routineRun = parseRoutineRunMessageId(
-        turnModelUsage.originMessageId
-      )
+      const routineRun = parseRoutineRunIdentity(turnModelUsage.originMessageId)
         ? routineRunHistory(messages)
         : undefined
       const history = await hydrateChatAttachments(
         row.userId,
         chatId,
-        routineRun?.messages ?? messages
+        routineRun?.messages ?? messages,
+        { requiredIds: currentChatAttachmentIds() }
       )
       const routineContext = previousReportInstructions(
         routineRun?.previousReport

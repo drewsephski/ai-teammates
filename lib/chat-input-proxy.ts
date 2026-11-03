@@ -1,7 +1,36 @@
 import { sealInputRecord } from "@/lib/chat-content-seal"
+import { inputRecordMatchesSession } from "@/lib/chat-session-policy"
 
-// Trigger.dev caps a record at 1 MiB; leave room for the sealing overhead
+// Bound retained raw input. Sealing adds overhead to the upstream record.
 const MAX_BODY_BYTES = 1024 * 1024
+
+async function readInputBody(request: Request): Promise<string | undefined> {
+  const length = request.headers.get("content-length")
+  if (length && /^\d+$/.test(length) && Number(length) > MAX_BODY_BYTES) {
+    await request.body?.cancel().catch(() => {})
+    return
+  }
+  if (!request.body) return ""
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size += value.byteLength
+      if (size > MAX_BODY_BYTES) {
+        // A failed transport cancellation must still yield the expected 413.
+        await reader.cancel().catch(() => {})
+        return
+      }
+      if (value.byteLength > 0) chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks, size))
+}
 
 type Deps = {
   contentKey: (chatId: string) => Promise<Buffer | undefined>
@@ -59,9 +88,11 @@ export async function proxyChatInput(
   if (!claimsWrite(authorization, session))
     return json(401, "Invalid session token")
 
-  const body = await request.text()
-  if (Buffer.byteLength(body) > MAX_BODY_BYTES)
-    return json(413, "Message too large")
+  const body = await readInputBody(request)
+  if (body === undefined) return json(413, "Message too large")
+
+  if (!inputRecordMatchesSession(body, session))
+    return json(400, "Invalid record")
 
   const key = await deps.contentKey(session)
   if (!key) return json(404, "Chat not found")

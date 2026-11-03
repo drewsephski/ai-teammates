@@ -1,3 +1,4 @@
+import type { UIMessage } from "ai"
 import { z } from "zod"
 
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
@@ -31,6 +32,31 @@ export function attachmentId(value: string) {
   const match =
     /^https:\/\/kraftybot\.app\/chat-attachments\/([A-Za-z0-9_-]+)$/.exec(value)
   return match?.[1]
+}
+
+// Incoming user files must be opaque upload references. Assistant/tool deltas
+// are not uploads. Persistence can extract only recognized references from
+// older transcripts without treating their other file formats as new input.
+export function chatAttachmentReferences(
+  messages: readonly Pick<UIMessage, "role" | "parts">[],
+  requireUploads = true
+): string[][] {
+  return messages
+    .filter((message) => message.role === "user")
+    .map((message) => {
+      const ids: string[] = []
+      for (const part of message.parts) {
+        if (part.type !== "file") continue
+        const id =
+          typeof part.url === "string" ? attachmentId(part.url) : undefined
+        if (!id && requireUploads)
+          throw new Error("Use an uploaded chat attachment")
+        if (id) ids.push(id)
+      }
+      if (requireUploads && ids.length > MAX_ATTACHMENTS)
+        throw new Error("Too many attachments in this message")
+      return ids
+    })
 }
 
 // Check bytes as well as the MIME supplied by the device. Never accept SVG/HTML.

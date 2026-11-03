@@ -59,6 +59,17 @@ The SDK copies each turn's user text into the run trace (`chat.user_message`);
 for a sealed message there is no text to copy. Deleting the chat deletes the
 key, and every copy at Trigger.dev becomes ciphertext no one can open.
 
+**Session identity.** The worker binds every data/tool/model and completion path
+to the boot-bound `chat.session().id`, before opening sealed input. A later wire
+`chatId` must match even when both chats have the same owner. Rejected records
+end that run and cannot be saved through the SDK's failure-recovery path.
+Correctly bound unsealed input remains supported for older app builds; this
+check does not change its plaintext retention. The input proxy also compares
+the record ID with the route session before key lookup. Its decoded scope
+precheck is not JWT verification: Trigger.dev verifies the forwarded token.
+This boundary is covered offline against SDK 4.7.4, including continuation,
+regenerate and tool-result input; it is not evidence of a live exploit.
+
 **Erasure** (`lib/trigger-session-erasure.ts`), before the chat row is deleted:
 
 1. Cancel the running turn, so it can't write again.

@@ -215,3 +215,28 @@ test("a turn that reported but never recorded its outcome is read from its repor
   assert.equal(reportedRoutineStatus("approval_requested"), undefined)
   assert.equal(reportedRoutineStatus("routine_started"), undefined)
 })
+
+test("routine identity preserves timed IDs and exact event roots", async () => {
+  const { parseRoutineRunIdentity } = await import("../lib/routine-policy")
+  const time = new Date("2026-11-02T12:00:00Z")
+  const timed = routineRunMessageId("with_underscores", time)
+  assert.deepEqual(parseRoutineRunIdentity(timed), {
+    runId: timed,
+    routineId: "with_underscores",
+    scheduledAt: time,
+  })
+  const event = `routine_event_with_underscores_${"a1".repeat(16)}`
+  assert.deepEqual(parseRoutineRunIdentity(`continue_3_${event}`), {
+    runId: event,
+    routineId: "with_underscores",
+  })
+  assert.equal(unattendedOrigin(event), "routine")
+  for (const invalid of [
+    undefined,
+    "",
+    "routine_event_x_bad",
+    `routine_event_x_${"g".repeat(32)}`,
+    `routine_event__${"a".repeat(32)}`,
+  ])
+    assert.equal(parseRoutineRunIdentity(invalid), undefined)
+})

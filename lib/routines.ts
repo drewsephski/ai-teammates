@@ -47,6 +47,7 @@ import {
   nextRunAt,
   normalizeSchedule,
   parseRoutineRunMessageId,
+  parseRoutineRunIdentity,
   planDueRun,
   reportedRoutineStatus,
   ROUTINE_RUN_START_GRACE_MS,
@@ -72,13 +73,14 @@ import {
 } from "@/lib/routine-events"
 
 // Never the owner or the provider's trigger and account IDs
-type Internal = "userId" | "triggerId" | "triggerAccountId"
+type Internal = "userId" | "triggerId" | "triggerAccountId" | "lastRunId"
 export type PublicRoutine = Omit<Routine, Internal> & { description: string }
 
 export function publicRoutine(row: Routine): PublicRoutine {
   const routine: Partial<Routine> = { ...row }
   delete routine.userId
   delete routine.triggerId
+  delete routine.lastRunId
   delete routine.triggerAccountId
   return {
     ...(routine as Omit<Routine, Internal>),
@@ -415,12 +417,16 @@ type RunStatus = (typeof routineRuns.$inferSelect)["status"]
 // current status, the way the routine's own lastStatus writes are, so a
 // retry never overwrites an outcome that's already in.
 async function saveRun(
-  run: { routine: Pick<Routine, "id" | "userId">; scheduledAt: Date },
+  run: {
+    routine: Pick<Routine, "id" | "userId">
+    scheduledAt: Date
+    runId?: string
+  },
   status: RunStatus,
   detail: string | null,
   onlyFrom?: RunStatus[]
 ) {
-  const id = routineRunMessageId(run.routine.id, run.scheduledAt)
+  const id = run.runId ?? routineRunMessageId(run.routine.id, run.scheduledAt)
   await db
     .insert(routineRuns)
     .values({
@@ -446,7 +452,7 @@ export async function addRoutineRunSpend(
   turnKey: string,
   amount: number
 ) {
-  const run = parseRoutineRunMessageId(messageId)
+  const run = parseRoutineRunIdentity(messageId)
   if (!run || amount <= 0) return
   await db
     .update(routineRuns)
@@ -457,7 +463,7 @@ export async function addRoutineRunSpend(
     })
     .where(
       and(
-        eq(routineRuns.id, routineRunMessageId(run.routineId, run.scheduledAt)),
+        eq(routineRuns.id, run.runId),
         eq(routineRuns.userId, userId),
         sql`not (${turnKey} = any(${routineRuns.spentKeys}))`
       )
@@ -524,6 +530,15 @@ export async function listRoutineRuns(
   )
 }
 
+function latestRunIdentity(runId: string, scheduledAt: Date) {
+  return or(
+    eq(routines.lastRunId, runId),
+    parseRoutineRunMessageId(runId)
+      ? and(isNull(routines.lastRunId), eq(routines.lastRunAt, scheduledAt))
+      : undefined
+  )
+}
+
 // Posts one run into the routine's chat, after the checks a person's own
 // message would pass. Returns what happened, and never throws for the owner's
 // plan or allowance: those are recorded as a skipped run. lastRunAt is the
@@ -534,15 +549,27 @@ export async function runRoutine(
   scheduledAt: Date,
   deps: RoutineRunDeps = liveRunDeps,
   // What the app sent, when an event started the run
-  event?: { trigger: string; payload: unknown }
+  event?: { trigger: string; payload: unknown },
+  reservedRunId?: string
 ) {
-  const messageId = routineRunMessageId(routine.id, scheduledAt)
+  const messageId =
+    reservedRunId ?? routineRunMessageId(routine.id, scheduledAt)
   const skip = async (reason: string) => {
     await db
       .update(routines)
-      .set({ lastStatus: "skipped", lastError: reason, lastRunAt: scheduledAt })
-      .where(eq(routines.id, routine.id))
-    await saveRun({ routine, scheduledAt }, "skipped", reason)
+      .set({
+        lastStatus: "skipped",
+        lastError: reason,
+        lastRunAt: scheduledAt,
+        lastRunId: messageId,
+      })
+      .where(
+        and(
+          eq(routines.id, routine.id),
+          reservedRunId ? eq(routines.lastRunId, messageId) : undefined
+        )
+      )
+    await saveRun({ routine, scheduledAt, runId: messageId }, "skipped", reason)
     await recordActivity(
       {
         userId: routine.userId,
@@ -568,21 +595,27 @@ export async function runRoutine(
   // Mark the run started before it is posted: the turn can finish, and report
   // its outcome, before the append request returns. A retry of a run that has
   // already reported (completed or blocked) leaves that outcome alone.
-  await db
-    .update(routines)
-    .set({ lastStatus: "started", lastError: null, lastRunAt: scheduledAt })
-    .where(
-      and(
-        eq(routines.id, routine.id),
-        or(
-          isNull(routines.lastRunAt),
-          ne(routines.lastRunAt, scheduledAt),
-          isNull(routines.lastStatus),
-          notInArray(routines.lastStatus, ["completed", "blocked"])
+  if (!reservedRunId)
+    await db
+      .update(routines)
+      .set({
+        lastStatus: "started",
+        lastError: null,
+        lastRunAt: scheduledAt,
+        lastRunId: messageId,
+      })
+      .where(
+        and(
+          eq(routines.id, routine.id),
+          or(
+            isNull(routines.lastRunAt),
+            ne(routines.lastRunAt, scheduledAt),
+            isNull(routines.lastStatus),
+            notInArray(routines.lastStatus, ["completed", "blocked"])
+          )
         )
       )
-    )
-  await saveRun({ routine, scheduledAt }, "started", null, [
+  await saveRun({ routine, scheduledAt, runId: messageId }, "started", null, [
     "started",
     "failed",
     "skipped",
@@ -606,12 +639,12 @@ export async function runRoutine(
       .where(
         and(
           eq(routines.id, routine.id),
-          eq(routines.lastRunAt, scheduledAt),
+          latestRunIdentity(messageId, scheduledAt),
           eq(routines.lastStatus, "started")
         )
       )
     await saveRun(
-      { routine, scheduledAt },
+      { routine, scheduledAt, runId: messageId },
       "failed",
       "Couldn't start the run.",
       ["started"]
@@ -646,8 +679,15 @@ export async function recordRoutineRunOutcome(
   messageId: string | undefined,
   outcome: RoutineRunOutcome
 ) {
-  const run = parseRoutineRunMessageId(messageId)
+  const run = parseRoutineRunIdentity(messageId)
   if (!run) return { updated: false as const }
+  const [stored] = await db
+    .select()
+    .from(routineRuns)
+    .where(and(eq(routineRuns.id, run.runId), eq(routineRuns.userId, userId)))
+  // Timed messages carry their scheduled time even without a run row.
+  // An event has no encoded time and must resolve its owner-scoped row.
+  if (!stored && !run.scheduledAt) return { updated: false as const }
   // A partial approval decision now gets its own confirmation turn. It must
   // not mark the original scheduled task done while other requests still wait.
   if (outcome.status === "completed") {
@@ -657,10 +697,7 @@ export async function recordRoutineRunOutcome(
       .where(
         and(
           eq(approvals.userId, userId),
-          eq(
-            approvals.originMessageId,
-            routineRunMessageId(run.routineId, run.scheduledAt)
-          ),
+          eq(approvals.originMessageId, run.runId),
           eq(approvals.state, "pending"),
           gt(approvals.expiresAt, new Date())
         )
@@ -679,7 +716,7 @@ export async function recordRoutineRunOutcome(
     })
     .where(
       and(
-        eq(routineRuns.id, routineRunMessageId(run.routineId, run.scheduledAt)),
+        eq(routineRuns.id, run.runId),
         eq(routineRuns.userId, userId),
         ne(routineRuns.status, "skipped")
       )
@@ -694,7 +731,7 @@ export async function recordRoutineRunOutcome(
       and(
         eq(routines.id, run.routineId),
         eq(routines.userId, userId),
-        eq(routines.lastRunAt, run.scheduledAt),
+        latestRunIdentity(run.runId, stored?.scheduledAt ?? run.scheduledAt!),
         // A skipped run never posted a message, so nothing can report on it
         inArray(routines.lastStatus, [
           "started",
@@ -761,6 +798,7 @@ export async function dispatchDueRoutines(
           nextRunAt: plan.next,
           enabled: plan.next !== null,
           lastRunAt: dueAt,
+          lastRunId: routineRunMessageId(row.id, dueAt),
           ...(plan.action === "missed" && {
             lastStatus: "skipped" as const,
             lastError: MISSED_RUN_ERROR,
@@ -874,7 +912,8 @@ export async function closeStoppedRoutineRuns(
   const live = new Map<string, Promise<boolean | undefined>>()
   for (const routine of candidates) {
     const scheduledAt = routine.lastRunAt!
-    const messageId = routineRunMessageId(routine.id, scheduledAt)
+    const messageId =
+      routine.lastRunId ?? routineRunMessageId(routine.id, scheduledAt)
     try {
       const [posted] = await db
         .select({ createdAt: activityEvents.createdAt })
@@ -906,7 +945,7 @@ export async function closeStoppedRoutineRuns(
 
       const stillStarted = and(
         eq(routines.id, routine.id),
-        eq(routines.lastRunAt, scheduledAt),
+        latestRunIdentity(messageId, scheduledAt),
         eq(routines.lastStatus, "started")
       )
       // The turn reported (and notified) but its outcome write was lost:
@@ -929,7 +968,10 @@ export async function closeStoppedRoutineRuns(
         )
         .orderBy(asc(activityEvents.createdAt))
         .limit(1)
-      const reported = report && reportedRoutineStatus(report.kind)
+      const reported =
+        parseRoutineRunMessageId(messageId) &&
+        report &&
+        reportedRoutineStatus(report.kind)
       if (reported) {
         const settled = await db
           .update(routines)
@@ -942,7 +984,7 @@ export async function closeStoppedRoutineRuns(
         if (settled.length) {
           result.settled++
           await saveRun(
-            { routine, scheduledAt },
+            { routine, scheduledAt, runId: messageId },
             reported,
             routineOutcomeError({ status: reported }),
             ["started"]
@@ -958,9 +1000,12 @@ export async function closeStoppedRoutineRuns(
         .returning({ id: routines.id })
       if (!stopped.length) continue
       result.stopped++
-      await saveRun({ routine, scheduledAt }, "failed", STOPPED_RUN_ERROR, [
-        "started",
-      ])
+      await saveRun(
+        { routine, scheduledAt, runId: messageId },
+        "failed",
+        STOPPED_RUN_ERROR,
+        ["started"]
+      )
       const title = `${routine.title} didn't finish`
       await recordActivity(
         {
@@ -1005,42 +1050,38 @@ export async function dispatchRoutineEvent(
   triggers: RoutineTriggers = routineTriggers,
   now = new Date()
 ) {
-  const [routine] = await db
-    .select()
-    .from(routines)
-    .where(
-      and(
-        eq(routines.triggerId, event.triggerId),
-        eq(routines.userId, event.userId)
+  const admission = await db.transaction(async (tx) => {
+    const [routine] = await tx
+      .select()
+      .from(routines)
+      .where(
+        and(
+          eq(routines.triggerId, event.triggerId),
+          eq(routines.userId, event.userId)
+        )
       )
+      .for("update")
+    if (!routine) return { status: "unknown" as const }
+    if (
+      routine.schedule.kind !== "event" ||
+      routine.schedule.trigger !== event.triggerSlug ||
+      (event.connectedAccountId &&
+        routine.triggerAccountId &&
+        event.connectedAccountId !== routine.triggerAccountId)
     )
-  // The routine or its bot was deleted: stop the trigger for good
-  if (!routine) {
-    await triggers.remove(event.triggerId).catch((error: unknown) =>
-      Sentry.captureException(error, {
-        extra: { triggerId: event.triggerId },
+      return { status: "mismatch" as const }
+    if (!routine.enabled) return { status: "paused" as const }
+    const [fresh] = await tx
+      .insert(routineEvents)
+      .values({
+        id: event.webhookId,
+        routineId: routine.id,
+        createdAt: now,
       })
-    )
-    return "unknown" as const
-  }
-  if (
-    routine.schedule.kind !== "event" ||
-    routine.schedule.trigger !== event.triggerSlug ||
-    (event.connectedAccountId &&
-      routine.triggerAccountId &&
-      event.connectedAccountId !== routine.triggerAccountId)
-  )
-    return "mismatch" as const
-  if (!routine.enabled) return "paused" as const
-
-  const [fresh] = await db
-    .insert(routineEvents)
-    .values({ id: event.webhookId, routineId: routine.id })
-    .onConflictDoNothing()
-    .returning({ id: routineEvents.id })
-  if (!fresh) return "duplicate" as const
-  try {
-    const [{ total }] = await db
+      .onConflictDoNothing()
+      .returning({ id: routineEvents.id })
+    if (!fresh) return { status: "duplicate" as const }
+    const [{ total }] = await tx
       .select({ total: count() })
       .from(routineRuns)
       .where(
@@ -1049,7 +1090,46 @@ export async function dispatchRoutineEvent(
           gte(routineRuns.createdAt, new Date(now.getTime() - 86_400_000))
         )
       )
-    if (total >= EVENT_RUNS_PER_DAY) {
+    if (total >= EVENT_RUNS_PER_DAY)
+      return { status: "capped" as const, routine }
+    const runId = `routine_event_${routine.id}_${teamOperationId(event.userId, routine.id, event.webhookId)}`
+    await tx.insert(routineRuns).values({
+      id: runId,
+      routineId: routine.id,
+      userId: routine.userId,
+      scheduledAt: now,
+      createdAt: now,
+      status: "started",
+    })
+    await tx
+      .update(routineEvents)
+      .set({ runId })
+      .where(eq(routineEvents.id, event.webhookId))
+    await tx
+      .update(routines)
+      .set({
+        lastRunId: runId,
+        lastRunAt: now,
+        lastStatus: "started",
+        lastError: null,
+      })
+      .where(eq(routines.id, routine.id))
+    return { status: "reserved" as const, routine, runId }
+  })
+  if (admission.status === "unknown") {
+    await triggers.remove(event.triggerId).catch((error: unknown) =>
+      Sentry.captureException(error, {
+        extra: { triggerId: event.triggerId },
+      })
+    )
+  }
+  if (admission.status !== "reserved" && admission.status !== "capped")
+    return admission.status
+  const { routine } = admission
+  const runId = admission.status === "reserved" ? admission.runId : undefined
+  let postAttempted = false
+  try {
+    if (admission.status === "capped") {
       const title = `${routine.title} is paused until tomorrow`
       const detail = `It ran ${EVENT_RUNS_PER_DAY} times in the last day, the most an event routine runs. Later events are skipped until then.`
       await recordActivity(
@@ -1067,13 +1147,76 @@ export async function dispatchRoutineEvent(
       return "capped" as const
     }
 
-    return runRoutine(routine, now, deps, {
-      trigger: event.triggerSlug,
-      payload: event.payload,
-    })
+    return await runRoutine(
+      routine,
+      now,
+      {
+        ...deps,
+        post: (...args) => {
+          postAttempted = true
+          return deps.post(...args)
+        },
+      },
+      { trigger: event.triggerSlug, payload: event.payload },
+      runId
+    )
   } catch (error) {
-    // Let Composio's redelivery try again rather than count as a duplicate
-    await db.delete(routineEvents).where(eq(routineEvents.id, event.webhookId))
+    // Once posting was attempted, delivery is ambiguous even if a later
+    // activity write fails. Only a pre-dispatch failure is safe to retry.
+    if (!postAttempted)
+      await db.transaction(async (tx) => {
+        const [current] = await tx
+          .select()
+          .from(routines)
+          .where(
+            and(eq(routines.id, routine.id), eq(routines.userId, event.userId))
+          )
+          .for("update")
+        if (!current) return
+        if (runId) {
+          const removed = await tx
+            .delete(routineRuns)
+            .where(
+              and(
+                eq(routineRuns.id, runId),
+                eq(routineRuns.userId, event.userId),
+                eq(routineRuns.status, "started"),
+                eq(routineRuns.spent, 0),
+                sql`cardinality(${routineRuns.spentKeys}) = 0`
+              )
+            )
+            .returning({ id: routineRuns.id })
+          if (!removed.length) return
+          if (current.lastRunId === runId) {
+            const [latest] = await tx
+              .select()
+              .from(routineRuns)
+              .where(eq(routineRuns.routineId, routine.id))
+              .orderBy(desc(routineRuns.createdAt), desc(routineRuns.id))
+              .limit(1)
+            await tx
+              .update(routines)
+              .set({
+                lastRunId: latest?.id ?? null,
+                lastRunAt: latest?.scheduledAt ?? null,
+                lastStatus: latest?.status ?? null,
+                lastError: latest?.detail ?? null,
+              })
+              .where(eq(routines.id, routine.id))
+          }
+        }
+        await tx
+          .delete(routineEvents)
+          .where(
+            and(
+              eq(routineEvents.id, event.webhookId),
+              eq(routineEvents.routineId, routine.id),
+              runId
+                ? eq(routineEvents.runId, runId)
+                : isNull(routineEvents.runId)
+            )
+          )
+      })
     throw error
   }
 }

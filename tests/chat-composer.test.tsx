@@ -1,16 +1,28 @@
 import "./helpers/avatar-motion"
 import assert from "node:assert/strict"
-import { afterEach, test } from "node:test"
+import { afterEach, mock, test } from "node:test"
 import { useRef } from "react"
-import { act, cleanup, fireEvent, render } from "@testing-library/react"
+import {
+  act,
+  cleanup,
+  createEvent,
+  fireEvent,
+  render,
+} from "@testing-library/react"
 import { ChatComposer } from "../components/chat-composer"
 import {
+  type PromptInputMessage,
   PromptInputProvider,
   usePromptInputController,
 } from "../components/ai-elements/prompt-input"
 import type { BotMention } from "../lib/composer"
 
-afterEach(cleanup)
+import { toast } from "../components/ui/toast"
+
+afterEach(() => {
+  cleanup()
+  mock.restoreAll()
+})
 const bots = [
   { id: "analyst", name: "Alex", avatar: "a", job: "Analyze pricing" },
   { id: "writer", name: "Alex", avatar: "b", job: "Write launch copy" },
@@ -20,21 +32,37 @@ const bots = [
 function TestInput({
   submit,
 }: {
-  submit: (text: string, mentions: BotMention[]) => boolean | Promise<boolean>
+  submit: (
+    text: string,
+    mentions: BotMention[],
+    files: PromptInputMessage["files"]
+  ) => boolean | Promise<boolean>
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const { textInput } = usePromptInputController()
+  const { textInput, attachments } = usePromptInputController()
   return (
     <>
       <button onClick={() => textInput.setInput("A different draft")}>
         Replace draft
+      </button>
+      <output data-testid="file-count">{attachments.files.length}</output>
+      <button
+        onClick={() =>
+          attachments.add([
+            new File(["draft"], "draft.txt", { type: "text/plain" }),
+          ])
+        }
+      >
+        Inject file
       </button>
       <ChatComposer
         bots={bots}
         memberIds={["analyst"]}
         inputRef={inputRef}
         placeholder="Message"
-        onSubmit={(message, mentions) => submit(message.text, mentions)}
+        onSubmit={(message, mentions) =>
+          submit(message.text, mentions, message.files)
+        }
       >
         <button type="submit">Send</button>
       </ChatComposer>
@@ -46,7 +74,11 @@ function Harness({
   submit,
   initial = "",
 }: {
-  submit: (text: string, mentions: BotMention[]) => boolean | Promise<boolean>
+  submit: (
+    text: string,
+    mentions: BotMention[],
+    files: PromptInputMessage["files"]
+  ) => boolean | Promise<boolean>
   initial?: string
 }) {
   return (
@@ -213,4 +245,112 @@ test("IME composition never selects a suggestion or submits a message", () => {
   const input = type(view, "/")
   fireEvent.keyDown(input, { key: "Enter", isComposing: true })
   assert.equal(input.value, "/")
+})
+
+for (const method of ["paste", "drop"] as const) {
+  for (const mediaType of ["image/png", "text/plain"]) {
+    for (const initial of ["", "Keep my draft"]) {
+      test(`${method} rejects ${mediaType} with draft ${JSON.stringify(initial)}`, () => {
+        const notices = mock.method(toast, "add", () => "notice")
+        mock.method(URL, "createObjectURL", () => "data:text/plain;base64,ZA==")
+        const view = render(
+          <Harness
+            initial={initial}
+            submit={() => {
+              throw new Error("Unexpected send")
+            }}
+          />
+        )
+        const input = view.getByRole("textbox") as HTMLTextAreaElement
+        const file = new File(["synthetic"], "draft", { type: mediaType })
+        for (let attempt = 0; attempt < 2; attempt++) {
+          if (method === "paste") {
+            fireEvent.paste(input, {
+              clipboardData: {
+                items: [{ kind: "file", getAsFile: () => file }],
+              },
+            })
+          } else {
+            fireEvent.drop(input, {
+              dataTransfer: { types: ["Files"], files: [file] },
+            })
+          }
+          assert.equal(notices.mock.callCount(), attempt + 1)
+          assert.equal(
+            notices.mock.calls[attempt].arguments[0]?.title,
+            "Files aren't supported in web chat yet"
+          )
+          assert.equal(view.getByTestId("file-count").textContent, "0")
+          assert.equal(input.value, initial)
+        }
+      })
+    }
+  }
+}
+
+test("a provider-injected file is rejected and removed while text and mentions survive for retry", async () => {
+  const notices = mock.method(toast, "add", () => "notice")
+  mock.method(URL, "createObjectURL", () => "data:text/plain;base64,ZA==")
+  const received: {
+    text: string
+    mentions: BotMention[]
+    files: PromptInputMessage["files"]
+  }[] = []
+  const view = render(
+    <Harness
+      submit={(text, mentions, files) => {
+        received.push({ text, mentions, files })
+        return true
+      }}
+    />
+  )
+  const input = type(view, "Ask @Data")
+  fireEvent.keyDown(input, { key: "Enter" })
+  type(view, "Ask @Data Analyst to help")
+  fireEvent.click(view.getByRole("button", { name: "Inject file" }))
+  assert.equal(view.getByTestId("file-count").textContent, "1")
+  await act(async () => {
+    fireEvent.click(view.getByRole("button", { name: "Send" }))
+  })
+  assert.equal(notices.mock.callCount(), 1)
+  assert.equal(received.length, 0)
+  assert.equal(input.value, "Ask @Data Analyst to help")
+  assert.equal(view.getByTestId("file-count").textContent, "0")
+  await act(async () => {
+    fireEvent.click(view.getByRole("button", { name: "Send" }))
+  })
+  assert.deepEqual(received, [
+    {
+      text: "Ask @Data Analyst to help",
+      mentions: [{ botId: "data", start: 4, end: 17 }],
+      files: [],
+    },
+  ])
+})
+
+test("ordinary text paste remains a native edit and text sends without files", async () => {
+  const notices = mock.method(toast, "add", () => "notice")
+  let sent: string | undefined
+  const view = render(
+    <Harness
+      submit={(text, _mentions, files) => {
+        sent = text
+        assert.deepEqual(files, [])
+        return true
+      }}
+    />
+  )
+  const input = view.getByRole("textbox")
+  const event = createEvent.paste(input, {
+    clipboardData: { items: [{ kind: "string" }] },
+  })
+  fireEvent(input, event)
+  assert.equal(event.defaultPrevented, false)
+  // JSDOM doesn't implement the browser's default paste insertion.
+  type(view, "Pasted text")
+  await act(async () => {
+    fireEvent.click(view.getByRole("button", { name: "Send" }))
+  })
+  assert.equal(sent, "Pasted text")
+  assert.equal(notices.mock.callCount(), 0)
 })

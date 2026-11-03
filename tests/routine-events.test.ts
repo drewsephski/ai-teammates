@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { createHmac } from "node:crypto"
-import { after, before, test } from "node:test"
+import { after, before, mock, test } from "node:test"
 import { eq } from "drizzle-orm"
 
 import {
@@ -301,7 +301,10 @@ test("a delivery runs its routine once, with what the app sent", async () => {
   assert.equal(await lib.dispatchRoutineEvent(event, deps, triggers), "started")
   assert.equal(posts.length, 1)
   assert.match(posts[0].text, /Contract question/)
-  assert.match(posts[0].id, new RegExp(`^routine_${routine.id}_\\d+$`))
+  assert.match(
+    posts[0].id,
+    new RegExp(`^routine_event_${routine.id}_[a-f0-9]{32}$`)
+  )
   // Redelivered: no second run
   assert.equal(
     await lib.dispatchRoutineEvent(event, deps, triggers),
@@ -409,4 +412,311 @@ test("the webhook refuses anything not signed with the secret, and ignores non-r
   assert.deepEqual(await ok.json(), { ignored: true })
   delete process.env.COMPOSIO_WEBHOOK_SECRET
   assert.equal((await POST(request(sign("whsec_test")))).status, 503)
+})
+
+async function deliveryFixture(name: string) {
+  const { triggers } = fakeTriggers()
+  const routine = await lib.createRoutine(OWNER, eventInput(name), { triggers })
+  const { triggerId } = await routineRow(routine.id)
+  const event: import("../lib/routines").RoutineEvent = {
+    webhookId: `webhook_${name}`,
+    triggerId: triggerId!,
+    triggerSlug: "GMAIL_NEW_GMAIL_MESSAGE",
+    userId: OWNER,
+    payload: {},
+  }
+  return { routine, event, triggers, ...fakeDeps() }
+}
+
+const deliveryMarker = (id: string) =>
+  db.query.routineEvents.findFirst({ where: eq(schema.routineEvents.id, id) })
+
+test("a preflight rejection releases the delivery marker so redelivery starts once", async () => {
+  const f = await deliveryFixture("retry_preflight")
+  let checks = 0
+  f.deps.check = async () => {
+    if (++checks === 1) throw new Error("Temporary preflight failure")
+    return undefined
+  }
+  await assert.rejects(
+    lib.dispatchRoutineEvent(f.event, f.deps, f.triggers),
+    /Temporary preflight failure/
+  )
+  assert.equal(f.posts.length, 0)
+  assert.equal(await deliveryMarker(f.event.webhookId), undefined)
+  assert.equal(
+    await lib.dispatchRoutineEvent(f.event, f.deps, f.triggers),
+    "started"
+  )
+  assert.equal(
+    await lib.dispatchRoutineEvent(f.event, f.deps, f.triggers),
+    "duplicate"
+  )
+  assert.equal(f.posts.length, 1)
+})
+
+test("an ambiguous post failure stays deduplicated and records failure", async () => {
+  const f = await deliveryFixture("retry_post")
+  let attempts = 0
+  f.deps.post = async () => {
+    attempts++
+    throw new Error("Append response lost")
+  }
+  assert.equal(
+    await lib.dispatchRoutineEvent(f.event, f.deps, f.triggers),
+    "failed"
+  )
+  assert.ok(await deliveryMarker(f.event.webhookId))
+  assert.equal((await routineRow(f.routine.id)).lastStatus, "failed")
+  assert.equal(
+    await lib.dispatchRoutineEvent(f.event, f.deps, f.triggers),
+    "duplicate"
+  )
+  assert.equal(attempts, 1)
+})
+
+test("a success-activity write failure after posting never releases the delivery marker", async () => {
+  const f = await deliveryFixture("retry_activity")
+  const insert = db.insert.bind(db)
+  const fault = mock.method(db, "insert", ((
+    table: Parameters<typeof db.insert>[0]
+  ) => {
+    if (table === schema.activityEvents && f.posts.length > 0)
+      throw new Error("Activity unavailable")
+    return insert(table)
+  }) as typeof db.insert)
+  try {
+    await assert.rejects(
+      lib.dispatchRoutineEvent(f.event, f.deps, f.triggers),
+      /Activity unavailable/
+    )
+  } finally {
+    fault.mock.restore()
+  }
+  assert.ok(await deliveryMarker(f.event.webhookId))
+  assert.equal(
+    await lib.dispatchRoutineEvent(f.event, f.deps, f.triggers),
+    "duplicate"
+  )
+  assert.equal(f.posts.length, 1)
+})
+
+for (const existing of [0, 19]) {
+  test(`concurrent event admission respects remaining capacity with ${existing} existing runs`, async () => {
+    const f = await deliveryFixture(`atomic_${existing}`)
+    const now = new Date()
+    if (existing)
+      await db.insert(schema.routineRuns).values(
+        Array.from({ length: existing }, (_, i) => ({
+          id: `prior_${f.routine.id}_${i}`,
+          routineId: f.routine.id,
+          userId: OWNER,
+          scheduledAt: now,
+          createdAt: now,
+          status: "completed" as const,
+        }))
+      )
+    const results = await Promise.all(
+      Array.from({ length: existing ? 10 : 25 }, (_, i) =>
+        lib.dispatchRoutineEvent(
+          { ...f.event, webhookId: `${f.event.webhookId}_${i}` },
+          f.deps,
+          f.triggers,
+          now
+        )
+      )
+    )
+    const capacity = EVENT_RUNS_PER_DAY - existing
+    assert.equal(results.filter((r) => r === "started").length, capacity)
+    assert.equal(
+      results.filter((r) => r === "capped").length,
+      results.length - capacity
+    )
+    assert.equal(f.posts.length, capacity)
+    assert.equal(new Set(f.posts.map((post) => post.id)).size, capacity)
+    const runs = await db
+      .select()
+      .from(schema.routineRuns)
+      .where(eq(schema.routineRuns.routineId, f.routine.id))
+    assert.equal(runs.length, EVENT_RUNS_PER_DAY)
+  })
+}
+
+test("concurrent duplicate deliveries post once", async () => {
+  const f = await deliveryFixture("atomic_duplicate")
+  const now = new Date()
+  const results = await Promise.all(
+    Array.from({ length: 10 }, () =>
+      lib.dispatchRoutineEvent(f.event, f.deps, f.triggers, now)
+    )
+  )
+  assert.equal(results.filter((r) => r === "started").length, 1)
+  assert.equal(results.filter((r) => r === "duplicate").length, 9)
+  assert.equal(f.posts.length, 1)
+})
+
+test("preflight rollback frees the last slot and reuses its identity at a later time", async () => {
+  const f = await deliveryFixture("rollback_slot")
+  const now = new Date()
+  await db.insert(schema.routineRuns).values(
+    Array.from({ length: 19 }, (_, i) => ({
+      id: `seed_${f.routine.id}_${i}`,
+      routineId: f.routine.id,
+      userId: OWNER,
+      scheduledAt: now,
+      createdAt: now,
+      status: "completed" as const,
+    }))
+  )
+  let reserved: string | null | undefined
+  f.deps.check = async () => {
+    reserved = (await deliveryMarker(f.event.webhookId))?.runId
+    throw new Error("Preflight unavailable")
+  }
+  await assert.rejects(
+    lib.dispatchRoutineEvent(f.event, f.deps, f.triggers, now),
+    /Preflight unavailable/
+  )
+  assert.ok(reserved)
+  assert.equal((await lib.listRoutineRuns(OWNER, f.routine.id)).length, 19)
+  assert.notEqual((await routineRow(f.routine.id)).lastRunId, reserved)
+  f.deps.check = async () => undefined
+  assert.equal(
+    await lib.dispatchRoutineEvent(
+      f.event,
+      f.deps,
+      f.triggers,
+      new Date(now.getTime() + 1000)
+    ),
+    "started"
+  )
+  assert.equal(f.posts[0].id, reserved)
+  assert.equal((await lib.listRoutineRuns(OWNER, f.routine.id)).length, 20)
+})
+
+test("rollback of an older reservation cannot replace a newer latest pointer", async () => {
+  const f = await deliveryFixture("rollback_pointer")
+  let entered!: () => void
+  const ready = new Promise<void>((resolve) => {
+    entered = resolve
+  })
+  let fail!: () => void
+  const release = new Promise<void>((resolve) => {
+    fail = resolve
+  })
+  const first = lib.dispatchRoutineEvent(
+    f.event,
+    {
+      ...f.deps,
+      check: async () => {
+        entered()
+        await release
+        throw new Error("Old preflight failed")
+      },
+    },
+    f.triggers
+  )
+  const rejected = assert.rejects(first, /Old preflight failed/)
+  await ready
+  await lib.dispatchRoutineEvent(
+    { ...f.event, webhookId: "newer_pointer" },
+    f.deps,
+    f.triggers
+  )
+  const latest = (await routineRow(f.routine.id)).lastRunId
+  fail()
+  await rejected
+  assert.equal((await routineRow(f.routine.id)).lastRunId, latest)
+  assert.equal(await deliveryMarker(f.event.webhookId), undefined)
+})
+
+test("same-time events keep separate spend, continuation, approval and latest outcomes", async () => {
+  const f = await deliveryFixture("identity_outcomes")
+  const now = new Date()
+  await lib.dispatchRoutineEvent(f.event, f.deps, f.triggers, now)
+  await lib.dispatchRoutineEvent(
+    { ...f.event, webhookId: "outcomes_second" },
+    f.deps,
+    f.triggers,
+    now
+  )
+  const [first, second] = f.posts.map((p) => p.id)
+  assert.notEqual(first, second)
+  await lib.addRoutineRunSpend(OWNER, `continue_2_${first}`, "turn1", 17)
+  await lib.addRoutineRunSpend(OWNER, first, "turn1", 17)
+  await lib.addRoutineRunSpend("other_owner", first, "foreign", 99)
+  await lib.addRoutineRunSpend(OWNER, second, "turn2", 23)
+  await lib.recordRoutineRunOutcome(OWNER, second, {
+    status: "blocked",
+    detail: "A question",
+  })
+  assert.deepEqual(
+    await lib.recordRoutineRunOutcome("other_owner", second, {
+      status: "completed",
+    }),
+    { updated: false }
+  )
+  await lib.recordRoutineRunOutcome(OWNER, `continue_2_${first}`, {
+    status: "completed",
+  })
+  assert.equal((await routineRow(f.routine.id)).lastStatus, "blocked")
+  const runs = await lib.listRoutineRuns(OWNER, f.routine.id)
+  assert.equal(runs.find((r) => r.id === first)?.spent, 17)
+  assert.equal(runs.find((r) => r.id === first)?.status, "completed")
+  assert.equal(runs.find((r) => r.id === second)?.spent, 23)
+  assert.ok(!("lastRunId" in lib.publicRoutine(await routineRow(f.routine.id))))
+  assert.ok(!JSON.stringify(runs).includes(f.event.webhookId))
+})
+
+test("stale recovery fails the exact latest event without rewriting its same-time sibling", async () => {
+  const f = await deliveryFixture("identity_stale")
+  const now = new Date()
+  await lib.dispatchRoutineEvent(f.event, f.deps, f.triggers, now)
+  await lib.recordRoutineRunOutcome(OWNER, f.posts[0].id, {
+    status: "completed",
+  })
+  await lib.dispatchRoutineEvent(
+    { ...f.event, webhookId: "stale_second" },
+    f.deps,
+    f.triggers,
+    now
+  )
+  await lib.closeStoppedRoutineRuns(new Date(now.getTime() + 3 * 60 * 60_000), {
+    chatRunLive: async () => false,
+  })
+  const runs = await lib.listRoutineRuns(OWNER, f.routine.id)
+  assert.equal(runs.find((r) => r.id === f.posts[0].id)?.status, "completed")
+  assert.equal(runs.find((r) => r.id === f.posts[1].id)?.status, "failed")
+  assert.equal((await routineRow(f.routine.id)).lastRunId, f.posts[1].id)
+})
+
+test("approval resumption settles its exact event root only after pending requests resolve", async () => {
+  const f = await deliveryFixture("identity_approval")
+  await lib.dispatchRoutineEvent(f.event, f.deps, f.triggers)
+  const root = f.posts[0].id
+  const [approval] = await db
+    .insert(schema.approvals)
+    .values({
+      userId: OWNER,
+      botId: f.routine.botId,
+      chatId: f.routine.chatId,
+      toolkit: "gmail",
+      toolSlug: "GMAIL_SEND_EMAIL",
+      accountId: "ca_gmail",
+      arguments: {},
+      summary: "Send a reply",
+      originMessageId: root,
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+    .returning()
+  await lib.recordRoutineRunOutcome(OWNER, `continue_1_${root}`, {
+    status: "completed",
+  })
+  assert.equal((await routineRow(f.routine.id)).lastStatus, "blocked")
+  await db
+    .update(schema.approvals)
+    .set({ state: "approved" })
+    .where(eq(schema.approvals.id, approval.id))
+  await lib.recordRoutineRunOutcome(OWNER, root, { status: "completed" })
+  assert.equal((await routineRow(f.routine.id)).lastStatus, "completed")
 })
