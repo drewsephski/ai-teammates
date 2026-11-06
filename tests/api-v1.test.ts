@@ -579,7 +579,7 @@ test("computer capacity and allowance messages map to retryable, calm responses"
     ],
     // Computer time spent: the same 429 as the other usage limits
     [
-      "This month's free computer time is used up. Upgrade to keep using the computer, or wait until it renews on the 1st.",
+      "This month's free computer time is used up. It renews on the 1st. Upgrade your Krafty plan to keep using the computer.",
       429,
       "usage_limit",
     ],
