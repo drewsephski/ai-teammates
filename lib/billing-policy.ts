@@ -33,11 +33,14 @@ export function planCount(count: number, singular: string, plural?: string) {
   return `${countWord(count)} ${noun}`
 }
 
-export const FREE_BOT_LIMIT_ERROR = `The free plan includes ${planCount(planLimits.free.bots, "bot")}. Upgrade to add more teammates.`
+// The upgrade sentence must stay separate and say "Krafty": installed iPhone
+// builds drop such sentences by that wording (krafty-mobile
+// src/lib/companion-policy.ts), and they can't update in step with the server.
+export const FREE_BOT_LIMIT_ERROR = `The free plan includes ${planCount(planLimits.free.bots, "bot")}. Upgrade your Krafty plan to add more teammates.`
 // Legacy API error retained for older clients; deletion now cancels subscriptions.
 export const ACTIVE_PLAN_ERROR =
   "Cancel your paid plan on kraftybot.app before deleting your account."
-export const FREE_APP_LIMIT_ERROR = `The free plan includes ${planCount(planLimits.free.apps, "connected app")}. Disconnect one or upgrade to connect another.`
+export const FREE_APP_LIMIT_ERROR = `The free plan includes ${planCount(planLimits.free.apps, "connected app")}. Disconnect one to connect another. Upgrade your Krafty plan for more.`
 
 // The free plan's current period: this calendar month, UTC
 export function freePeriod(now = Date.now()) {
