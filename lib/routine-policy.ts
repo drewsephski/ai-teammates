@@ -12,7 +12,7 @@ import { rootMessageId } from "@/lib/turn-continuation"
 
 export const ROUTINE_LIMITS = { free: 3, paid: 50 } as const
 export const MIN_INTERVAL_HOURS = 1
-export const ROUTINE_LIMIT_ERROR = `The free plan includes ${planCount(ROUTINE_LIMITS.free, "routine")}. Upgrade to schedule more.`
+export const ROUTINE_LIMIT_ERROR = `The free plan includes ${planCount(ROUTINE_LIMITS.free, "routine")}. Upgrade your Krafty plan to schedule more.`
 export const PAID_ROUTINE_LIMIT_ERROR = `You can have up to ${ROUTINE_LIMITS.paid} routines.`
 
 const time = z

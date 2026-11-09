@@ -74,7 +74,7 @@ export function desktopHeartbeatMs(
 // renews every month; the paid one renews with the billing period.
 export function computerTimeUsedUpMessage(tier?: "free" | "paid") {
   if (tier === "free")
-    return "This month's free computer time is used up. Upgrade to keep using the computer, or wait until it renews on the 1st."
+    return "This month's free computer time is used up. Upgrade your Krafty plan to keep using the computer. It renews on the 1st."
   if (tier === "paid")
     return "Your computer time for this billing period is used up. It resets when your next period starts."
   return "Your computer time is used up."
